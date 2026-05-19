@@ -684,9 +684,9 @@ fn single_session_markdown_renderer_handles_rich_commonmark_shapes() {
     );
     assert!(body.contains("1. first"));
     assert!(body.contains("2. second"));
-    assert!(body.contains("docs ↗ https://example.com and bold plus em."));
+    assert!(body.contains("docs ↗ https://example.com and **bold** plus *em*."));
     assert_eq!(
-        style_for_text(&lines, "docs ↗ https://example.com and bold plus em."),
+        style_for_text(&lines, "docs ↗ https://example.com and **bold** plus *em*."),
         Some(SingleSessionLineStyle::AssistantLink)
     );
     assert!(body.contains("name  │ value"));
@@ -697,6 +697,45 @@ fn single_session_markdown_renderer_handles_rich_commonmark_shapes() {
         Some(SingleSessionLineStyle::AssistantTable)
     );
     assert!(body.contains("────────────"));
+}
+
+#[test]
+fn single_session_markdown_renderer_preserves_media_html_and_table_alignment() {
+    let mut app = SingleSessionApp::new(None);
+    app.messages.push(SingleSessionMessage::assistant(
+        "Text **strong** and *em* and ~~old~~ with <kbd>Esc</kbd>.\n\n![diagram](https://example.com/diagram.png)\n\n<div>raw</div>\n\n| name | count | center |\n| :--- | ---: | :---: |\n| alpha | 42 | ok |",
+    ));
+
+    let lines = app.body_styled_lines();
+    let body = lines
+        .iter()
+        .map(|line| line.text.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    assert!(body.contains("Text **strong** and *em* and ~~old~~ with `<kbd>`Esc`</kbd>`."));
+    assert!(body.contains("🖼 diagram ↗ https://example.com/diagram.png"));
+    assert_eq!(
+        style_for_text(&lines, "🖼 diagram ↗ https://example.com/diagram.png"),
+        Some(SingleSessionLineStyle::AssistantLink)
+    );
+    assert!(body.contains("html │ <div>raw</div>"));
+    assert_eq!(
+        style_for_text(&lines, "html │ <div>raw</div>"),
+        Some(SingleSessionLineStyle::Meta)
+    );
+    assert!(
+        body.contains("╾────"),
+        "left alignment should mark the separator: {body}"
+    );
+    assert!(
+        body.contains("────╼"),
+        "right alignment should mark the separator: {body}"
+    );
+    assert!(
+        body.contains("alpha │    42 │   ok"),
+        "aligned row should pad numeric/center cells: {body}"
+    );
 }
 
 #[test]
@@ -845,8 +884,29 @@ fn single_session_markdown_structure_uses_distinct_colors_and_cards() {
     );
 
     let vertices = build_single_session_vertices(&app, PhysicalSize::new(1200, 760), 0.0, 0);
+    assert!(vertices_have_color(
+        &vertices,
+        MARKDOWN_HEADING_BACKGROUND_COLOR
+    ));
     assert!(vertices_have_color(&vertices, QUOTE_CARD_BACKGROUND_COLOR));
     assert!(vertices_have_color(&vertices, TABLE_CARD_BACKGROUND_COLOR));
+}
+
+#[test]
+fn single_session_markdown_vertices_draw_heading_rule_and_inline_math_affordances() {
+    let mut app = SingleSessionApp::new(None);
+    app.messages.push(SingleSessionMessage::assistant(
+        "# Heading\n\nInline $x+y$ math.\n\n---",
+    ));
+
+    let vertices = build_single_session_vertices(&app, PhysicalSize::new(1000, 720), 0.0, 0);
+
+    assert!(vertices_have_color(
+        &vertices,
+        MARKDOWN_HEADING_BACKGROUND_COLOR
+    ));
+    assert!(vertices_have_color(&vertices, INLINE_MATH_BACKGROUND_COLOR));
+    assert!(vertices_have_color(&vertices, MARKDOWN_RULE_COLOR));
 }
 
 #[test]
@@ -1483,6 +1543,99 @@ fn assistant_inline_code_runs_and_vertices_draw_code_pills() {
     let vertices = build_single_session_vertices(&app, PhysicalSize::new(1000, 720), 0.0, 0);
     assert!(vertices_have_color(&vertices, INLINE_CODE_BACKGROUND_COLOR));
     assert!(vertices_have_color(&vertices, CODE_BLOCK_BACKGROUND_COLOR));
+}
+
+#[test]
+fn assistant_markdown_inline_segments_style_semantics_and_task_markers() {
+    let lines = [
+        SingleSessionStyledLine {
+            text: "Use **bold** and *em* and ~~old~~ with $x+y$.".to_string(),
+            style: SingleSessionLineStyle::Assistant,
+        },
+        SingleSessionStyledLine {
+            text: "✓ shipped".to_string(),
+            style: SingleSessionLineStyle::Assistant,
+        },
+        SingleSessionStyledLine {
+            text: "☐ polish".to_string(),
+            style: SingleSessionLineStyle::Assistant,
+        },
+    ];
+
+    let segments = single_session_styled_text_segments(&lines);
+
+    assert!(
+        segments.contains(&(
+            "bold",
+            Attrs::new()
+                .family(Family::Name(SINGLE_SESSION_ASSISTANT_FONT_FAMILY))
+                .color(single_session_line_color(SingleSessionLineStyle::Assistant))
+                .weight(glyphon::Weight::BOLD)
+        ))
+    );
+    assert!(
+        segments.contains(&(
+            "em",
+            Attrs::new()
+                .family(Family::Name(SINGLE_SESSION_ASSISTANT_FONT_FAMILY))
+                .color(single_session_line_color(SingleSessionLineStyle::Assistant))
+                .style(glyphon::Style::Italic)
+        ))
+    );
+    assert!(
+        segments.contains(&(
+            "old",
+            Attrs::new()
+                .family(Family::Name(SINGLE_SESSION_ASSISTANT_FONT_FAMILY))
+                .color(text_color(MARKDOWN_STRIKE_TEXT_COLOR))
+        ))
+    );
+    assert!(
+        segments.contains(&(
+            "x+y",
+            Attrs::new()
+                .family(Family::Name(SINGLE_SESSION_FONT_FAMILY))
+                .color(single_session_line_color(SingleSessionLineStyle::Code))
+        ))
+    );
+    assert!(
+        segments.contains(&(
+            "✓ ",
+            Attrs::new()
+                .family(Family::Name(SINGLE_SESSION_FONT_FAMILY))
+                .color(text_color(MARKDOWN_TASK_DONE_COLOR))
+        ))
+    );
+    assert!(
+        segments.contains(&(
+            "☐ ",
+            Attrs::new()
+                .family(Family::Name(SINGLE_SESSION_FONT_FAMILY))
+                .color(text_color(MARKDOWN_TASK_OPEN_COLOR))
+        ))
+    );
+}
+
+#[test]
+fn assistant_inline_math_runs_skip_code_spans_and_display_math_markers() {
+    assert_eq!(
+        single_session_inline_math_runs("Inline $x+y$ and $z$.")
+            .into_iter()
+            .map(|run| (run.start_column, run.column_count))
+            .collect::<Vec<_>>(),
+        vec![(7, 5), (17, 3)]
+    );
+    assert_eq!(
+        single_session_inline_math_runs("Display $$x+y$$ is not an inline pill"),
+        Vec::new()
+    );
+    assert_eq!(
+        single_session_inline_math_runs("Code `$x$` then $y$.")
+            .into_iter()
+            .map(|run| (run.start_column, run.column_count))
+            .collect::<Vec<_>>(),
+        vec![(16, 3)]
+    );
 }
 
 #[test]

@@ -3,7 +3,7 @@ use crate::{
     workspace,
 };
 use pulldown_cmark::{
-    BlockQuoteKind, CodeBlockKind, Event, HeadingLevel, Options, Parser, Tag, TagEnd,
+    Alignment, BlockQuoteKind, CodeBlockKind, Event, HeadingLevel, Options, Parser, Tag, TagEnd,
 };
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
@@ -3615,6 +3615,7 @@ struct AssistantMarkdownTable {
     current_row: Vec<String>,
     current_cell: String,
     header_rows: usize,
+    alignments: Vec<Alignment>,
 }
 
 impl Default for SingleSessionLineStyle {
@@ -3649,7 +3650,7 @@ impl AssistantMarkdownRenderer {
             Event::TaskListMarker(checked) => self.apply_task_marker(checked),
             Event::Start(Tag::CodeBlock(kind)) => self.start_code_block(kind),
             Event::End(TagEnd::CodeBlock) => self.end_code_block(),
-            Event::Start(Tag::Table(_)) => self.start_table(),
+            Event::Start(Tag::Table(alignments)) => self.start_table(alignments),
             Event::End(TagEnd::Table) => self.end_table(),
             Event::Start(Tag::TableHead) => self.start_table_head(),
             Event::End(TagEnd::TableHead) => self.end_table_head(),
@@ -3661,8 +3662,12 @@ impl AssistantMarkdownRenderer {
             Event::End(TagEnd::Link) => self.end_link(),
             Event::Start(Tag::Image { dest_url, .. }) => self.start_image(dest_url.as_ref()),
             Event::End(TagEnd::Image) => self.end_image(),
-            Event::Start(Tag::Emphasis | Tag::Strong | Tag::Strikethrough) => {}
-            Event::End(TagEnd::Emphasis | TagEnd::Strong | TagEnd::Strikethrough) => {}
+            Event::Start(Tag::Emphasis) => self.push_inline_marker("*"),
+            Event::End(TagEnd::Emphasis) => self.push_inline_marker("*"),
+            Event::Start(Tag::Strong) => self.push_inline_marker("**"),
+            Event::End(TagEnd::Strong) => self.push_inline_marker("**"),
+            Event::Start(Tag::Strikethrough) => self.push_inline_marker("~~"),
+            Event::End(TagEnd::Strikethrough) => self.push_inline_marker("~~"),
             Event::Text(text) => self.push_text(text.as_ref()),
             Event::Code(code) => self.push_inline_code(code.as_ref()),
             Event::InlineMath(math) => self.push_inline_math(math.as_ref()),
@@ -3670,7 +3675,8 @@ impl AssistantMarkdownRenderer {
             Event::SoftBreak => self.soft_break(),
             Event::HardBreak => self.hard_break(),
             Event::Rule => self.rule(),
-            Event::Html(html) | Event::InlineHtml(html) => self.push_text(html.as_ref()),
+            Event::Html(html) => self.push_html_block(html.as_ref()),
+            Event::InlineHtml(html) => self.push_inline_code(html.as_ref()),
             Event::FootnoteReference(name) => {
                 self.push_text("[^");
                 self.push_text(name.as_ref());
@@ -3857,10 +3863,13 @@ impl AssistantMarkdownRenderer {
         self.in_code_block = false;
     }
 
-    fn start_table(&mut self) {
+    fn start_table(&mut self, alignments: Vec<Alignment>) {
         self.flush_current_line();
         self.ensure_block_gap();
-        self.table = Some(AssistantMarkdownTable::default());
+        self.table = Some(AssistantMarkdownTable {
+            alignments,
+            ..AssistantMarkdownTable::default()
+        });
     }
 
     fn end_table(&mut self) {
@@ -3952,9 +3961,9 @@ impl AssistantMarkdownRenderer {
         self.begin_line_if_needed();
         let alt = image.alt_text.trim();
         if alt.is_empty() {
-            self.current.push_str("image");
+            self.current.push_str("🖼 image");
         } else {
-            self.current.push_str("image: ");
+            self.current.push_str("🖼 ");
             self.current.push_str(alt);
         }
         if !image.dest_url.is_empty() {
@@ -4002,6 +4011,19 @@ impl AssistantMarkdownRenderer {
         self.current.push('`');
     }
 
+    fn push_inline_marker(&mut self, marker: &str) {
+        if let Some(image) = self.image_stack.last_mut() {
+            image.alt_text.push_str(marker);
+            return;
+        }
+        if let Some(table) = &mut self.table {
+            table.push_text(marker);
+            return;
+        }
+        self.begin_line_if_needed();
+        self.current.push_str(marker);
+    }
+
     fn push_inline_math(&mut self, math: &str) {
         if let Some(image) = self.image_stack.last_mut() {
             image.alt_text.push('$');
@@ -4047,6 +4069,35 @@ impl AssistantMarkdownRenderer {
         }
         self.lines
             .push(styled_line("  $$", SingleSessionLineStyle::Code));
+    }
+
+    fn push_html_block(&mut self, html: &str) {
+        if let Some(image) = self.image_stack.last_mut() {
+            image.alt_text.push_str(html.trim());
+            return;
+        }
+        if let Some(table) = &mut self.table {
+            table.push_text("html ");
+            table.push_text(html.trim());
+            return;
+        }
+        if self.in_code_block {
+            self.push_code_text(html);
+            return;
+        }
+
+        self.flush_current_line();
+        self.ensure_block_gap();
+        for line in html.trim_matches('\n').lines() {
+            let trimmed = line.trim();
+            if trimmed.is_empty() {
+                continue;
+            }
+            self.lines.push(styled_line(
+                format!("html │ {trimmed}"),
+                SingleSessionLineStyle::Meta,
+            ));
+        }
     }
 
     fn soft_break(&mut self) {
@@ -4196,6 +4247,7 @@ impl AssistantMarkdownRenderer {
 
     fn render_table(&mut self, table: AssistantMarkdownTable) {
         let header_rows = table.header_rows;
+        let alignments = table.alignments.clone();
         let rows = table.non_empty_rows();
         if rows.is_empty() {
             return;
@@ -4212,12 +4264,12 @@ impl AssistantMarkdownRenderer {
         }
         for (row_index, row) in rows.iter().enumerate() {
             self.lines.push(styled_line(
-                format_table_row(row, &widths),
+                format_table_row(row, &widths, &alignments),
                 SingleSessionLineStyle::AssistantTable,
             ));
             if header_rows > 0 && row_index + 1 == header_rows.min(rows.len()) {
                 self.lines.push(styled_line(
-                    format_table_separator(&widths),
+                    format_table_separator(&widths, &alignments),
                     SingleSessionLineStyle::AssistantTable,
                 ));
             }
@@ -4290,26 +4342,57 @@ fn bullet_for_depth(depth: usize) -> &'static str {
     }
 }
 
-fn format_table_row(row: &[String], widths: &[usize]) -> String {
+fn format_table_row(row: &[String], widths: &[usize], alignments: &[Alignment]) -> String {
     let mut rendered = String::new();
     for (column, width) in widths.iter().enumerate() {
         if column > 0 {
             rendered.push_str(" │ ");
         }
         let cell = row.get(column).map(String::as_str).unwrap_or_default();
-        rendered.push_str(cell);
-        rendered.push_str(&" ".repeat(width.saturating_sub(cell.chars().count())));
+        let alignment = alignments.get(column).copied().unwrap_or(Alignment::None);
+        rendered.push_str(&format_table_cell(cell, *width, alignment));
     }
     rendered.trim_end().to_string()
 }
 
-fn format_table_separator(widths: &[usize]) -> String {
+fn format_table_cell(cell: &str, width: usize, alignment: Alignment) -> String {
+    let padding = width.saturating_sub(cell.chars().count());
+    match alignment {
+        Alignment::Right => format!("{}{cell}", " ".repeat(padding)),
+        Alignment::Center => {
+            let left = padding / 2;
+            let right = padding.saturating_sub(left);
+            format!("{}{cell}{}", " ".repeat(left), " ".repeat(right))
+        }
+        Alignment::Left | Alignment::None => format!("{cell}{}", " ".repeat(padding)),
+    }
+}
+
+fn format_table_separator(widths: &[usize], alignments: &[Alignment]) -> String {
     let mut rendered = String::new();
     for (column, width) in widths.iter().enumerate() {
         if column > 0 {
             rendered.push_str("─┼─");
         }
-        rendered.push_str(&"─".repeat((*width).max(1)));
+        let width = (*width).max(1);
+        match alignments.get(column).copied().unwrap_or(Alignment::None) {
+            Alignment::Left => {
+                rendered.push('╾');
+                rendered.push_str(&"─".repeat(width.saturating_sub(1)));
+            }
+            Alignment::Right => {
+                rendered.push_str(&"─".repeat(width.saturating_sub(1)));
+                rendered.push('╼');
+            }
+            Alignment::Center => {
+                rendered.push('╾');
+                if width > 1 {
+                    rendered.push_str(&"─".repeat(width.saturating_sub(2)));
+                    rendered.push('╼');
+                }
+            }
+            Alignment::None => rendered.push_str(&"─".repeat(width)),
+        }
     }
     rendered
 }
