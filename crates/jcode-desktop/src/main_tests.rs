@@ -894,19 +894,100 @@ fn single_session_markdown_structure_uses_distinct_colors_and_cards() {
 
 #[test]
 fn single_session_markdown_vertices_draw_heading_rule_and_inline_math_affordances() {
-    let mut app = SingleSessionApp::new(None);
+    let size = PhysicalSize::new(1000, 720);
+    let mut app = SingleSessionApp::new(Some(test_session_card(
+        "markdown_geometry",
+        "Markdown geometry",
+        "active",
+    )));
     app.messages.push(SingleSessionMessage::assistant(
-        "# Heading\n\nInline $x+y$ math.\n\n---",
+        "# Heading\n\nUse `cargo` and $x+y$.\n\n---",
     ));
 
-    let vertices = build_single_session_vertices(&app, PhysicalSize::new(1000, 720), 0.0, 0);
+    let body_lines = single_session_rendered_body_lines_for_tick(&app, size, 0);
+    let heading_line = body_lines
+        .iter()
+        .position(|line| line.text == "Heading")
+        .expect("heading line should be present");
+    let inline_line = body_lines
+        .iter()
+        .position(|line| line.text == "Use `cargo` and $x+y$.")
+        .expect("inline markdown line should be present");
+    let rule_line = body_lines
+        .iter()
+        .position(|line| line.text == "────────────")
+        .expect("horizontal rule line should be present");
 
-    assert!(vertices_have_color(
-        &vertices,
-        MARKDOWN_HEADING_BACKGROUND_COLOR
-    ));
-    assert!(vertices_have_color(&vertices, INLINE_MATH_BACKGROUND_COLOR));
-    assert!(vertices_have_color(&vertices, MARKDOWN_RULE_COLOR));
+    let vertices = build_single_session_vertices(&app, size, 0.0, 0);
+
+    let typography = single_session_typography_for_scale(app.text_scale());
+    let line_height = typography.body_size * typography.body_line_height;
+    let char_width = single_session_body_char_width();
+    let body_top = PANEL_BODY_TOP_PADDING;
+    let inline_line_y = body_top + inline_line as f32 * line_height;
+    let inline_card_height = (typography.body_size * 1.10)
+        .min(line_height - 5.0)
+        .max(typography.body_size * 0.85);
+    let inline_horizontal_pad = (3.5 * app.text_scale()).clamp(3.0, 6.0);
+    let rule_thickness = (1.7 * app.text_scale()).clamp(1.0, 3.0);
+
+    assert_pixel_bounds_close(
+        pixel_bounds_for_color(&vertices, MARKDOWN_HEADING_BACKGROUND_COLOR, size)
+            .expect("heading card vertices should be present"),
+        Rect {
+            x: PANEL_TITLE_LEFT_PADDING - 6.0,
+            y: body_top + heading_line as f32 * line_height + 3.0,
+            width: (size.width as f32 - PANEL_TITLE_LEFT_PADDING * 2.0 + 12.0).max(1.0),
+            height: (line_height - 6.0).max(1.0),
+        },
+        "heading card",
+    );
+
+    let code_run = single_session_inline_code_runs("Use `cargo` and $x+y$.")
+        .into_iter()
+        .next()
+        .expect("code run should be detected");
+    assert_pixel_bounds_close(
+        pixel_bounds_for_color(&vertices, INLINE_CODE_BACKGROUND_COLOR, size)
+            .expect("inline code pill vertices should be present"),
+        Rect {
+            x: PANEL_TITLE_LEFT_PADDING + code_run.start_column as f32 * char_width
+                - inline_horizontal_pad,
+            y: inline_line_y + (line_height - inline_card_height) * 0.5,
+            width: code_run.column_count as f32 * char_width + inline_horizontal_pad * 2.0,
+            height: inline_card_height,
+        },
+        "inline code pill",
+    );
+
+    let math_run = single_session_inline_math_runs("Use `cargo` and $x+y$.")
+        .into_iter()
+        .next()
+        .expect("math run should be detected");
+    assert_pixel_bounds_close(
+        pixel_bounds_for_color(&vertices, INLINE_MATH_BACKGROUND_COLOR, size)
+            .expect("inline math pill vertices should be present"),
+        Rect {
+            x: PANEL_TITLE_LEFT_PADDING + math_run.start_column as f32 * char_width
+                - inline_horizontal_pad,
+            y: inline_line_y + (line_height - inline_card_height) * 0.5,
+            width: math_run.column_count as f32 * char_width + inline_horizontal_pad * 2.0,
+            height: inline_card_height,
+        },
+        "inline math pill",
+    );
+
+    assert_pixel_bounds_close(
+        pixel_bounds_for_color(&vertices, MARKDOWN_RULE_COLOR, size)
+            .expect("markdown rule vertices should be present"),
+        Rect {
+            x: PANEL_TITLE_LEFT_PADDING - 2.0,
+            y: body_top + rule_line as f32 * line_height + line_height * 0.5 - rule_thickness * 0.5,
+            width: size.width as f32 - PANEL_TITLE_LEFT_PADDING * 2.0 + 5.0,
+            height: rule_thickness,
+        },
+        "markdown rule",
+    );
 }
 
 #[test]
@@ -1795,8 +1876,67 @@ fn positions_for_color(vertices: &[Vertex], color: [f32; 4]) -> Vec<[u32; 2]> {
         .collect()
 }
 
+#[derive(Clone, Copy, Debug)]
+struct PixelBounds {
+    min_x: f32,
+    max_x: f32,
+    min_y: f32,
+    max_y: f32,
+}
+
+fn pixel_bounds_for_color(
+    vertices: &[Vertex],
+    color: [f32; 4],
+    size: PhysicalSize<u32>,
+) -> Option<PixelBounds> {
+    let mut bounds: Option<PixelBounds> = None;
+    for vertex in vertices.iter().filter(|vertex| vertex.color == color) {
+        let x = ndc_x_to_pixel(vertex.position[0], size);
+        let y = ndc_y_to_pixel(vertex.position[1], size);
+        bounds = Some(match bounds {
+            Some(bounds) => PixelBounds {
+                min_x: bounds.min_x.min(x),
+                max_x: bounds.max_x.max(x),
+                min_y: bounds.min_y.min(y),
+                max_y: bounds.max_y.max(y),
+            },
+            None => PixelBounds {
+                min_x: x,
+                max_x: x,
+                min_y: y,
+                max_y: y,
+            },
+        });
+    }
+    bounds
+}
+
+fn assert_pixel_bounds_close(actual: PixelBounds, expected: Rect, label: &str) {
+    let expected_bounds = PixelBounds {
+        min_x: expected.x,
+        max_x: expected.x + expected.width,
+        min_y: expected.y,
+        max_y: expected.y + expected.height,
+    };
+    for (axis, actual_value, expected_value) in [
+        ("min_x", actual.min_x, expected_bounds.min_x),
+        ("max_x", actual.max_x, expected_bounds.max_x),
+        ("min_y", actual.min_y, expected_bounds.min_y),
+        ("max_y", actual.max_y, expected_bounds.max_y),
+    ] {
+        assert!(
+            (actual_value - expected_value).abs() <= 0.75,
+            "{label} {axis} mismatch: actual={actual_value:.2}, expected={expected_value:.2}, bounds={actual:?}"
+        );
+    }
+}
+
 fn ndc_x_to_pixel(x: f32, size: PhysicalSize<u32>) -> f32 {
     (x + 1.0) * 0.5 * size.width.max(1) as f32
+}
+
+fn ndc_y_to_pixel(y: f32, size: PhysicalSize<u32>) -> f32 {
+    (1.0 - y) * 0.5 * size.height.max(1) as f32
 }
 
 fn assert_visual_text_contains(key: &SingleSessionTextKey, expected: &str) {
