@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
 use pulldown_cmark::{CodeBlockKind, Event, HeadingLevel, Options, Parser, Tag, TagEnd};
+use std::collections::BTreeMap;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
@@ -91,6 +92,8 @@ pub(crate) enum ToolCardRenderMode {
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub(crate) struct RichTranscriptBuildOptions {
     pub(crate) tool_render_mode: ToolCardRenderMode,
+    pub(crate) tool_collapsed_overrides: BTreeMap<String, bool>,
+    pub(crate) search_query: Option<String>,
     pub(crate) collapse_completed_tools: bool,
     pub(crate) include_markdown_media_surfaces: bool,
     pub(crate) syntax_highlighting: bool,
@@ -101,6 +104,8 @@ impl Default for RichTranscriptBuildOptions {
     fn default() -> Self {
         Self {
             tool_render_mode: ToolCardRenderMode::RespectCardState,
+            tool_collapsed_overrides: BTreeMap::new(),
+            search_query: None,
             collapse_completed_tools: true,
             include_markdown_media_surfaces: true,
             syntax_highlighting: true,
@@ -136,6 +141,68 @@ impl RichTranscriptDocument {
     ) -> impl Iterator<Item = &TranscriptJumpTarget> {
         self.jumps.iter().filter(move |target| target.kind == kind)
     }
+
+    pub(crate) fn line_window(
+        &self,
+        first_visible_line: usize,
+        viewport_lines: usize,
+        overscan: usize,
+    ) -> TranscriptLineWindow<'_> {
+        let window = VirtualLineWindow::for_viewport(
+            self.total_lines,
+            first_visible_line,
+            viewport_lines,
+            overscan,
+        );
+        let mut lines = Vec::new();
+        let mut global_line_index = 0usize;
+        for block in &self.blocks {
+            for (block_line_index, line) in block.lines.iter().enumerate() {
+                if window.contains(global_line_index) {
+                    lines.push(TranscriptLineRef {
+                        global_line_index,
+                        block_line_index,
+                        block,
+                        line,
+                    });
+                }
+                global_line_index += 1;
+            }
+        }
+        TranscriptLineWindow { window, lines }
+    }
+
+    pub(crate) fn line_at(&self, target_line_index: usize) -> Option<TranscriptLineRef<'_>> {
+        let mut global_line_index = 0usize;
+        for block in &self.blocks {
+            for (block_line_index, line) in block.lines.iter().enumerate() {
+                if global_line_index == target_line_index {
+                    return Some(TranscriptLineRef {
+                        global_line_index,
+                        block_line_index,
+                        block,
+                        line,
+                    });
+                }
+                global_line_index += 1;
+            }
+        }
+        None
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct TranscriptLineRef<'a> {
+    pub(crate) global_line_index: usize,
+    pub(crate) block_line_index: usize,
+    pub(crate) block: &'a TranscriptBlock,
+    pub(crate) line: &'a RichLine,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct TranscriptLineWindow<'a> {
+    pub(crate) window: VirtualLineWindow,
+    pub(crate) lines: Vec<TranscriptLineRef<'a>>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -194,6 +261,7 @@ pub(crate) enum RichLineStyle {
     AssistantHeading,
     AssistantQuote,
     AssistantTable,
+    CodeHeader,
     Code,
     ToolHeader,
     ToolOutput,
@@ -379,6 +447,17 @@ pub(crate) enum TranscriptCopyMode {
     Message(TranscriptMessageId),
     Block(TranscriptBlockId),
     CodeBlock(TranscriptBlockId),
+    Tool(TranscriptBlockId),
+    SearchResult(usize),
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) enum MediaOpenAction {
+    InlinePreview { title: String, source: String },
+    OpenExternal { source: String },
+    DecodeImage { media_type: String, bytes: usize },
+    RenderMermaid { source: String },
+    PreviewPdf { source: String },
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -431,7 +510,16 @@ pub(crate) fn build_rich_transcript(
     for message in messages {
         builder.push_message(message);
     }
-    builder.finish(messages.to_vec())
+    let mut document = builder.finish(messages.to_vec());
+    if let Some(query) = options
+        .search_query
+        .as_deref()
+        .map(str::trim)
+        .filter(|query| !query.is_empty())
+    {
+        apply_search_highlights(&mut document, query, false);
+    }
+    document
 }
 
 pub(crate) fn transcript_cache_key(
@@ -494,6 +582,65 @@ pub(crate) fn search_transcript(
     matches
 }
 
+pub(crate) fn apply_search_highlights(
+    document: &mut RichTranscriptDocument,
+    query: &str,
+    case_sensitive: bool,
+) -> Vec<TranscriptSearchMatch> {
+    for block in &mut document.blocks {
+        for line in &mut block.lines {
+            line.spans
+                .retain(|span| !matches!(span.style, RichSpanStyle::SearchMatch));
+        }
+    }
+    if query.is_empty() {
+        return Vec::new();
+    }
+
+    let needle = if case_sensitive {
+        query.to_string()
+    } else {
+        query.to_lowercase()
+    };
+    let mut matches = Vec::new();
+    let mut global_line = 0usize;
+    for block in &mut document.blocks {
+        for line in &mut block.lines {
+            let haystack = if case_sensitive {
+                line.text.clone()
+            } else {
+                line.text.to_lowercase()
+            };
+            let mut matched_line = false;
+            for (start, _) in haystack.match_indices(&needle) {
+                let end = start.saturating_add(query.len()).min(line.text.len());
+                if !line.text.is_char_boundary(start) || !line.text.is_char_boundary(end) {
+                    continue;
+                }
+                line.spans.push(RichTextSpan {
+                    start,
+                    end,
+                    style: RichSpanStyle::SearchMatch,
+                });
+                matches.push(TranscriptSearchMatch {
+                    block_id: block.id.clone(),
+                    message_id: block.message_id.clone(),
+                    line_index: global_line,
+                    start,
+                    end,
+                    preview: search_preview(&line.text, start, end),
+                });
+                matched_line = true;
+            }
+            if matched_line {
+                line.semantic_role = Some(RichSemanticRole::SearchResult);
+            }
+            global_line += 1;
+        }
+    }
+    matches
+}
+
 pub(crate) fn copy_transcript_text(
     document: &RichTranscriptDocument,
     mode: TranscriptCopyMode,
@@ -530,6 +677,78 @@ pub(crate) fn copy_transcript_text(
                     _ => None,
                 })
         }
+        TranscriptCopyMode::Tool(block_id) => {
+            document
+                .block(&block_id)
+                .and_then(|block| match block.kind {
+                    TranscriptBlockKind::ToolCard { .. } => Some(block.copy_text.clone()),
+                    _ => None,
+                })
+        }
+        TranscriptCopyMode::SearchResult(index) => {
+            let mut current = 0usize;
+            for block in &document.blocks {
+                for line in &block.lines {
+                    for span in &line.spans {
+                        if !matches!(span.style, RichSpanStyle::SearchMatch) {
+                            continue;
+                        }
+                        if current == index {
+                            return Some(line.text.clone());
+                        }
+                        current += 1;
+                    }
+                }
+            }
+            None
+        }
+    }
+}
+
+pub(crate) fn media_surface_open_action(surface: &RichMediaSurface) -> MediaOpenAction {
+    match surface.kind {
+        RichMediaSurfaceKind::Mermaid => MediaOpenAction::RenderMermaid {
+            source: surface.source.clone(),
+        },
+        RichMediaSurfaceKind::Image => MediaOpenAction::InlinePreview {
+            title: surface.title.clone(),
+            source: surface.source.clone(),
+        },
+        RichMediaSurfaceKind::Pdf => MediaOpenAction::PreviewPdf {
+            source: surface.source.clone(),
+        },
+        RichMediaSurfaceKind::Unknown => MediaOpenAction::OpenExternal {
+            source: surface.source.clone(),
+        },
+    }
+}
+
+pub(crate) fn attachment_open_action(attachment: &RichAttachment) -> MediaOpenAction {
+    match attachment.kind {
+        RichAttachmentKind::Image => MediaOpenAction::DecodeImage {
+            media_type: attachment.media_type.clone(),
+            bytes: attachment.byte_len,
+        },
+        RichAttachmentKind::Pdf => MediaOpenAction::PreviewPdf {
+            source: attachment.id.clone(),
+        },
+        RichAttachmentKind::Mermaid => MediaOpenAction::RenderMermaid {
+            source: attachment.id.clone(),
+        },
+        RichAttachmentKind::Other => MediaOpenAction::InlinePreview {
+            title: attachment.label.clone(),
+            source: attachment.id.clone(),
+        },
+    }
+}
+
+pub(crate) fn block_media_open_action(block: &TranscriptBlock) -> Option<MediaOpenAction> {
+    match &block.kind {
+        TranscriptBlockKind::ImageAttachment { attachment } => {
+            Some(attachment_open_action(attachment))
+        }
+        TranscriptBlockKind::MediaSurface { surface } => Some(media_surface_open_action(surface)),
+        _ => None,
     }
 }
 
@@ -760,6 +979,14 @@ impl TranscriptBuilder {
             ToolCardRenderMode::Expanded => false,
             ToolCardRenderMode::RespectCardState => card.collapsed,
         };
+        if let Some(collapsed) = self
+            .options
+            .tool_collapsed_overrides
+            .get(&message.id.0)
+            .or_else(|| self.options.tool_collapsed_overrides.get(&card.name))
+        {
+            card.collapsed = *collapsed;
+        }
         let lines = render_tool_card_lines(&card, self.options.ansi_styling);
         let block_id = self.push_rich_block(
             message,
@@ -1078,6 +1305,17 @@ impl<'a, 'b> MarkdownBlockBuilder<'a, 'b> {
             .transcript
             .next_block_id(self.message, block_kind_suffix(&block_kind));
         let mut lines = Vec::new();
+        let header = language
+            .as_deref()
+            .filter(|language| !language.trim().is_empty())
+            .unwrap_or("code");
+        lines.push(RichLine {
+            block_id: block_id.clone(),
+            text: format!("  {header}"),
+            style: RichLineStyle::CodeHeader,
+            spans: Vec::new(),
+            semantic_role: Some(RichSemanticRole::CodeBlock),
+        });
         for raw_line in code.text.lines() {
             lines.push(RichLine {
                 block_id: block_id.clone(),
@@ -1091,7 +1329,7 @@ impl<'a, 'b> MarkdownBlockBuilder<'a, 'b> {
                 semantic_role: Some(RichSemanticRole::CodeBlock),
             });
         }
-        if lines.is_empty() {
+        if lines.len() == 1 {
             lines.push(RichLine {
                 block_id: block_id.clone(),
                 text: String::new(),
@@ -1639,12 +1877,13 @@ mod tests {
             .iter()
             .find(|block| matches!(block.kind, TranscriptBlockKind::CodeBlock { language: Some(ref language) } if language == "rust"))
             .expect("rust code block");
-        assert!(
-            code.lines[0]
-                .spans
+        assert_eq!(code.lines[0].style, RichLineStyle::CodeHeader);
+        assert_eq!(code.lines[0].text.trim(), "rust");
+        assert!(code.lines.iter().skip(1).any(|line| {
+            line.spans
                 .iter()
                 .any(|span| span.style == RichSpanStyle::Syntax(SyntaxTokenKind::Keyword))
-        );
+        }));
         assert_eq!(
             copy_transcript_text(&document, TranscriptCopyMode::CodeBlock(code.id.clone()))
                 .unwrap(),
@@ -1713,6 +1952,52 @@ mod tests {
     }
 
     #[test]
+    fn tool_card_overrides_copy_and_media_actions_are_explicit() {
+        let message = RichTranscriptMessage::new(
+            "tool-1",
+            TranscriptRole::Tool,
+            "▸ shell success: cargo test\n  input: cargo test\n  ok",
+        );
+        let mut overrides = BTreeMap::new();
+        overrides.insert("tool-1".to_string(), false);
+        let expanded = build_rich_transcript(
+            &[message],
+            &RichTranscriptBuildOptions {
+                tool_render_mode: ToolCardRenderMode::Compact,
+                tool_collapsed_overrides: overrides,
+                ..RichTranscriptBuildOptions::default()
+            },
+        );
+        let tool = expanded.blocks.first().expect("tool block");
+        assert!(tool.lines.iter().any(|line| line.text == "ok"));
+        assert_eq!(
+            copy_transcript_text(&expanded, TranscriptCopyMode::Tool(tool.id.clone())).unwrap(),
+            "▸ shell success: cargo test\n  input: cargo test\n  ok"
+        );
+
+        let mermaid = RichMediaSurface {
+            kind: RichMediaSurfaceKind::Mermaid,
+            source: "graph TD; A-->B;".to_string(),
+            title: "flow".to_string(),
+            alt_text: "flow".to_string(),
+        };
+        assert_eq!(
+            media_surface_open_action(&mermaid),
+            MediaOpenAction::RenderMermaid {
+                source: "graph TD; A-->B;".to_string(),
+            }
+        );
+        let attachment = RichAttachment::image("img-1", "image/png", "clipboard", 128);
+        assert_eq!(
+            attachment_open_action(&attachment),
+            MediaOpenAction::DecodeImage {
+                media_type: "image/png".to_string(),
+                bytes: 128,
+            }
+        );
+    }
+
+    #[test]
     fn transcript_search_copy_jumps_and_virtual_windows_are_stable() {
         let messages = vec![
             RichTranscriptMessage::new("user-1", TranscriptRole::User, "please inspect parser"),
@@ -1731,10 +2016,31 @@ mod tests {
             copy_transcript_text(&document, TranscriptCopyMode::LatestAssistant).unwrap(),
             "Parser result one\n\nParser result two"
         );
-        let window = VirtualLineWindow::for_viewport(document.total_lines, 1, 1, 1);
-        assert_eq!(window.start, 0);
-        assert!(window.end <= document.total_lines);
-        assert!(window.contains(1));
+        let highlighted = build_rich_transcript(
+            &messages,
+            &RichTranscriptBuildOptions {
+                search_query: Some("parser".to_string()),
+                ..RichTranscriptBuildOptions::default()
+            },
+        );
+        assert!(highlighted.flattened_lines().iter().any(|line| {
+            line.spans
+                .iter()
+                .any(|span| span.style == RichSpanStyle::SearchMatch)
+        }));
+        assert_eq!(
+            copy_transcript_text(&highlighted, TranscriptCopyMode::SearchResult(0)).unwrap(),
+            "please inspect parser"
+        );
+        let window = highlighted.line_window(1, 1, 1);
+        assert_eq!(window.window.start, 0);
+        assert!(window.window.end <= highlighted.total_lines);
+        assert!(window.window.contains(1));
+        assert!(window.lines.iter().any(|line| line.global_line_index == 1));
+        assert_eq!(
+            highlighted.line_at(1).map(|line| line.global_line_index),
+            Some(1)
+        );
     }
 
     #[test]

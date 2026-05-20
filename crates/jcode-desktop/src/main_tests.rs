@@ -2354,6 +2354,68 @@ fn assistant_inline_code_uses_code_text_attrs_inside_prose() {
 }
 
 #[test]
+fn rich_transcript_line_segments_apply_syntax_ansi_and_search_attrs() {
+    let line = desktop_rich_text::RichLine {
+        block_id: desktop_rich_text::TranscriptBlockId("block".to_string()),
+        text: "fn main ok".to_string(),
+        style: desktop_rich_text::RichLineStyle::Code,
+        spans: vec![
+            desktop_rich_text::RichTextSpan {
+                start: 0,
+                end: 2,
+                style: desktop_rich_text::RichSpanStyle::Syntax(
+                    desktop_rich_text::SyntaxTokenKind::Keyword,
+                ),
+            },
+            desktop_rich_text::RichTextSpan {
+                start: 3,
+                end: 7,
+                style: desktop_rich_text::RichSpanStyle::SearchMatch,
+            },
+            desktop_rich_text::RichTextSpan {
+                start: 8,
+                end: 10,
+                style: desktop_rich_text::RichSpanStyle::Ansi(desktop_rich_text::AnsiStyle {
+                    foreground: Some(desktop_rich_text::AnsiColor::Green),
+                    bold: true,
+                    ..desktop_rich_text::AnsiStyle::default()
+                }),
+            },
+        ],
+        semantic_role: Some(desktop_rich_text::RichSemanticRole::CodeBlock),
+    };
+
+    let segments = rich_line_text_segments(&line);
+
+    assert!(
+        segments.contains(&(
+            "fn",
+            Attrs::new()
+                .family(Family::Name(SINGLE_SESSION_FONT_FAMILY))
+                .color(text_color([0.350, 0.145, 0.640, 1.0]))
+        ))
+    );
+    assert!(
+        segments.contains(&(
+            "main",
+            Attrs::new()
+                .family(Family::Name(SINGLE_SESSION_FONT_FAMILY))
+                .color(text_color(STATUS_TEXT_ACCENT_COLOR))
+                .weight(glyphon::Weight::BOLD)
+        ))
+    );
+    assert!(
+        segments.contains(&(
+            "ok",
+            Attrs::new()
+                .family(Family::Name(SINGLE_SESSION_FONT_FAMILY))
+                .color(text_color([0.035, 0.360, 0.220, 1.0]))
+                .weight(glyphon::Weight::BOLD)
+        ))
+    );
+}
+
+#[test]
 fn assistant_inline_code_runs_and_vertices_draw_code_pills() {
     assert_eq!(
         single_session_inline_code_runs("Use `cargo test` before `cargo clippy`.")

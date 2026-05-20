@@ -1,5 +1,8 @@
 #![allow(dead_code)]
 
+use crate::desktop_rich_text::{
+    AnsiColor, RichLine, RichLineStyle, RichSpanStyle, RichTranscriptDocument, TranscriptBlockKind,
+};
 use std::collections::{BTreeMap, BTreeSet};
 use std::hash::{Hash, Hasher};
 
@@ -374,6 +377,103 @@ impl ImeState {
         self.cursor_byte_range = None;
         std::mem::take(&mut self.preedit)
     }
+
+    pub(crate) fn composed_text(&self, base: &str, cursor_byte: usize) -> String {
+        if !self.active || self.preedit.is_empty() {
+            return base.to_string();
+        }
+        let cursor = cursor_byte.min(base.len());
+        let cursor = clamp_to_char_boundary(base, cursor);
+        let mut composed = String::with_capacity(base.len() + self.preedit.len());
+        composed.push_str(&base[..cursor]);
+        composed.push_str(&self.preedit);
+        composed.push_str(&base[cursor..]);
+        composed
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct TextSelectionRange {
+    pub(crate) anchor: usize,
+    pub(crate) focus: usize,
+}
+
+impl TextSelectionRange {
+    pub(crate) fn normalized(&self) -> std::ops::Range<usize> {
+        self.anchor.min(self.focus)..self.anchor.max(self.focus)
+    }
+
+    pub(crate) fn is_collapsed(&self) -> bool {
+        self.anchor == self.focus
+    }
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub(crate) struct TextCursorModel {
+    pub(crate) text: String,
+    pub(crate) cursor: usize,
+    pub(crate) selection: Option<TextSelectionRange>,
+}
+
+impl TextCursorModel {
+    pub(crate) fn new(text: impl Into<String>) -> Self {
+        let text = text.into();
+        Self {
+            cursor: text.len(),
+            text,
+            selection: None,
+        }
+    }
+
+    pub(crate) fn move_left(&mut self, extend_selection: bool) {
+        let next = previous_char_boundary(&self.text, self.cursor);
+        self.set_cursor(next, extend_selection);
+    }
+
+    pub(crate) fn move_right(&mut self, extend_selection: bool) {
+        let next = next_char_boundary(&self.text, self.cursor);
+        self.set_cursor(next, extend_selection);
+    }
+
+    pub(crate) fn set_cursor(&mut self, cursor: usize, extend_selection: bool) {
+        let cursor = clamp_to_char_boundary(&self.text, cursor.min(self.text.len()));
+        if extend_selection {
+            let anchor = self
+                .selection
+                .as_ref()
+                .map(|selection| selection.anchor)
+                .unwrap_or(self.cursor);
+            self.selection = Some(TextSelectionRange {
+                anchor,
+                focus: cursor,
+            });
+        } else {
+            self.selection = None;
+        }
+        self.cursor = cursor;
+    }
+
+    pub(crate) fn selected_text(&self) -> Option<&str> {
+        let range = self.selection.as_ref()?.normalized();
+        (!range.is_empty()).then_some(&self.text[range])
+    }
+
+    pub(crate) fn replace_selection_or_insert(&mut self, insert: &str) {
+        if let Some(selection) = self.selection.take() {
+            let range = selection.normalized();
+            self.text.replace_range(range.clone(), insert);
+            self.cursor = range.start + insert.len();
+        } else {
+            self.text.insert_str(self.cursor, insert);
+            self.cursor += insert.len();
+        }
+        self.cursor = clamp_to_char_boundary(&self.text, self.cursor.min(self.text.len()));
+    }
+
+    pub(crate) fn apply_ime_commit(&mut self, ime: &mut ImeState) {
+        let committed = ime.commit();
+        self.replace_selection_or_insert(&committed);
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -439,6 +539,15 @@ impl DesktopTheme {
             muted_text: ColorRgba::rgba(0.60, 0.63, 0.70, 1.0),
             accent: ColorRgba::rgba(0.50, 0.62, 1.0, 1.0),
             error: ColorRgba::rgba(1.0, 0.38, 0.42, 1.0),
+        }
+    }
+
+    pub(crate) fn for_preferences(preferences: &UiPreferences, system_dark: bool) -> Self {
+        match preferences.theme_mode {
+            ThemeMode::Light => Self::light(),
+            ThemeMode::Dark => Self::dark(),
+            ThemeMode::System if system_dark => Self::dark(),
+            ThemeMode::System => Self::light(),
         }
     }
 }
@@ -547,6 +656,281 @@ pub(crate) fn stable_hash<T: Hash>(value: &T) -> u64 {
     hasher.finish()
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct TranscriptDisplayListConfig {
+    pub(crate) origin: (f32, f32),
+    pub(crate) width: f32,
+    pub(crate) font_size_px: f32,
+    pub(crate) line_height_px: f32,
+    pub(crate) first_visible_line: usize,
+    pub(crate) viewport_lines: usize,
+    pub(crate) overscan_lines: usize,
+}
+
+impl Default for TranscriptDisplayListConfig {
+    fn default() -> Self {
+        Self {
+            origin: (0.0, 0.0),
+            width: 640.0,
+            font_size_px: 15.0,
+            line_height_px: 22.0,
+            first_visible_line: 0,
+            viewport_lines: 40,
+            overscan_lines: 4,
+        }
+    }
+}
+
+pub(crate) fn build_transcript_display_list(
+    document: &RichTranscriptDocument,
+    theme: &DesktopTheme,
+    config: TranscriptDisplayListConfig,
+) -> DisplayList {
+    let mut display_list = DisplayList::default();
+    let font_stack = TextEngineConfig::desktop_default().font_stack;
+    let window = document.line_window(
+        config.first_visible_line,
+        config.viewport_lines,
+        config.overscan_lines,
+    );
+
+    for line_ref in window.lines {
+        let line_top = config.origin.1 + line_ref.global_line_index as f32 * config.line_height_px;
+        let id = UiId(0x5452_414e_5343_0000u64 ^ line_ref.global_line_index as u64);
+        let rect = UiRect {
+            x: config.origin.0,
+            y: line_top,
+            width: config.width,
+            height: config.line_height_px,
+        };
+        display_list.push(DisplayCommand::Text {
+            id,
+            origin: (config.origin.0, line_top + config.font_size_px),
+            runs: rich_line_display_runs(line_ref.line, theme, &font_stack, config.font_size_px),
+        });
+        display_list.semantic_nodes.push(SemanticNode {
+            id,
+            role: accessibility_role_for_transcript_block(&line_ref.block.kind),
+            label: if line_ref.line.text.is_empty() {
+                line_ref.block.semantic_label.clone()
+            } else {
+                line_ref.line.text.clone()
+            },
+            bounds: rect,
+        });
+    }
+
+    display_list
+}
+
+pub(crate) fn rich_line_display_runs(
+    line: &RichLine,
+    theme: &DesktopTheme,
+    font_stack: &FontFallbackStack,
+    font_size_px: f32,
+) -> Vec<DisplayTextRun> {
+    let valid_spans = line
+        .spans
+        .iter()
+        .filter(|span| {
+            span.start < span.end
+                && span.end <= line.text.len()
+                && line.text.is_char_boundary(span.start)
+                && line.text.is_char_boundary(span.end)
+        })
+        .collect::<Vec<_>>();
+    if valid_spans.is_empty() {
+        return vec![DisplayTextRun {
+            text: line.text.clone(),
+            font_stack: font_stack.clone(),
+            size_px: font_size_px,
+            color: rich_line_color(line.style, theme),
+            attrs: rich_line_attrs(line.style),
+        }];
+    }
+
+    let mut boundaries = Vec::with_capacity(valid_spans.len().saturating_mul(2) + 2);
+    boundaries.push(0);
+    boundaries.push(line.text.len());
+    for span in &valid_spans {
+        boundaries.push(span.start);
+        boundaries.push(span.end);
+    }
+    boundaries.sort_unstable();
+    boundaries.dedup();
+
+    let mut runs = Vec::new();
+    for window in boundaries.windows(2) {
+        let start = window[0];
+        let end = window[1];
+        if start >= end {
+            continue;
+        }
+        let active = valid_spans
+            .iter()
+            .filter_map(|span| (span.start <= start && end <= span.end).then_some(&span.style))
+            .collect::<Vec<_>>();
+        let (color, attrs) = rich_span_display_style(line.style, theme, &active);
+        runs.push(DisplayTextRun {
+            text: line.text[start..end].to_string(),
+            font_stack: font_stack.clone(),
+            size_px: font_size_px,
+            color,
+            attrs,
+        });
+    }
+    runs
+}
+
+fn rich_span_display_style(
+    line_style: RichLineStyle,
+    theme: &DesktopTheme,
+    spans: &[&RichSpanStyle],
+) -> (ColorRgba, TextAttributes) {
+    let mut color = rich_line_color(line_style, theme);
+    let mut attrs = rich_line_attrs(line_style);
+    for span in spans {
+        match span {
+            RichSpanStyle::InlineCode => {
+                color = rich_line_color(RichLineStyle::Code, theme);
+                attrs.monospace = true;
+            }
+            RichSpanStyle::Link { .. } => {
+                color = theme.accent;
+                attrs.underline = true;
+            }
+            RichSpanStyle::Emphasis => attrs.italic = true,
+            RichSpanStyle::Strong => attrs.bold = true,
+            RichSpanStyle::Strike => color = theme.muted_text,
+            RichSpanStyle::Syntax(kind) => color = syntax_color(*kind, theme),
+            RichSpanStyle::Ansi(style) => {
+                if let Some(ansi) = ansi_color(style.foreground) {
+                    color = ansi;
+                }
+                attrs.bold |= style.bold;
+                attrs.italic |= style.italic;
+                attrs.underline |= style.underline;
+            }
+            RichSpanStyle::SearchMatch => {
+                color = theme.accent;
+                attrs.bold = true;
+            }
+        }
+    }
+    (color, attrs)
+}
+
+fn rich_line_attrs(style: RichLineStyle) -> TextAttributes {
+    TextAttributes {
+        bold: matches!(
+            style,
+            RichLineStyle::AssistantHeading | RichLineStyle::ToolHeader
+        ),
+        italic: matches!(style, RichLineStyle::AssistantQuote),
+        underline: false,
+        monospace: matches!(
+            style,
+            RichLineStyle::Code | RichLineStyle::CodeHeader | RichLineStyle::ToolOutput
+        ),
+    }
+}
+
+fn rich_line_color(style: RichLineStyle, theme: &DesktopTheme) -> ColorRgba {
+    match style {
+        RichLineStyle::User => theme.accent,
+        RichLineStyle::Assistant => theme.text,
+        RichLineStyle::AssistantHeading => theme.accent,
+        RichLineStyle::AssistantQuote => ColorRgba::rgba(0.50, 0.32, 0.70, 1.0),
+        RichLineStyle::AssistantTable => ColorRgba::rgba(0.00, 0.38, 0.45, 1.0),
+        RichLineStyle::CodeHeader | RichLineStyle::ToolMetadata | RichLineStyle::Meta => {
+            theme.muted_text
+        }
+        RichLineStyle::Code | RichLineStyle::ToolOutput => theme.text,
+        RichLineStyle::ToolHeader => ColorRgba::rgba(0.40, 0.22, 0.66, 1.0),
+        RichLineStyle::System => theme.error,
+        RichLineStyle::MediaPlaceholder => theme.accent,
+    }
+}
+
+fn syntax_color(
+    kind: crate::desktop_rich_text::SyntaxTokenKind,
+    theme: &DesktopTheme,
+) -> ColorRgba {
+    match kind {
+        crate::desktop_rich_text::SyntaxTokenKind::Keyword => {
+            ColorRgba::rgba(0.46, 0.25, 0.78, 1.0)
+        }
+        crate::desktop_rich_text::SyntaxTokenKind::String => ColorRgba::rgba(0.02, 0.42, 0.22, 1.0),
+        crate::desktop_rich_text::SyntaxTokenKind::Number => ColorRgba::rgba(0.58, 0.32, 0.06, 1.0),
+        crate::desktop_rich_text::SyntaxTokenKind::Comment => theme.muted_text,
+        crate::desktop_rich_text::SyntaxTokenKind::Function => {
+            ColorRgba::rgba(0.00, 0.32, 0.55, 1.0)
+        }
+        crate::desktop_rich_text::SyntaxTokenKind::Type => ColorRgba::rgba(0.28, 0.28, 0.72, 1.0),
+        crate::desktop_rich_text::SyntaxTokenKind::Punctuation
+        | crate::desktop_rich_text::SyntaxTokenKind::Plain => {
+            rich_line_color(RichLineStyle::Code, theme)
+        }
+    }
+}
+
+fn ansi_color(color: Option<AnsiColor>) -> Option<ColorRgba> {
+    Some(match color? {
+        AnsiColor::Black => ColorRgba::rgba(0.04, 0.04, 0.05, 1.0),
+        AnsiColor::Red | AnsiColor::BrightRed => ColorRgba::rgba(0.78, 0.11, 0.15, 1.0),
+        AnsiColor::Green | AnsiColor::BrightGreen => ColorRgba::rgba(0.02, 0.50, 0.28, 1.0),
+        AnsiColor::Yellow | AnsiColor::BrightYellow => ColorRgba::rgba(0.70, 0.50, 0.08, 1.0),
+        AnsiColor::Blue | AnsiColor::BrightBlue => ColorRgba::rgba(0.09, 0.36, 0.85, 1.0),
+        AnsiColor::Magenta | AnsiColor::BrightMagenta => ColorRgba::rgba(0.56, 0.19, 0.76, 1.0),
+        AnsiColor::Cyan | AnsiColor::BrightCyan => ColorRgba::rgba(0.00, 0.46, 0.58, 1.0),
+        AnsiColor::White | AnsiColor::BrightWhite => ColorRgba::rgba(0.90, 0.91, 0.94, 1.0),
+        AnsiColor::BrightBlack => ColorRgba::rgba(0.32, 0.35, 0.41, 1.0),
+    })
+}
+
+fn accessibility_role_for_transcript_block(kind: &TranscriptBlockKind) -> AccessibilityRole {
+    match kind {
+        TranscriptBlockKind::CodeBlock { .. } => AccessibilityRole::Code,
+        TranscriptBlockKind::ToolCard { .. } => AccessibilityRole::ToolCard,
+        TranscriptBlockKind::ImageAttachment { .. } | TranscriptBlockKind::MediaSurface { .. } => {
+            AccessibilityRole::Image
+        }
+        _ => AccessibilityRole::StaticText,
+    }
+}
+
+fn clamp_to_char_boundary(text: &str, mut cursor: usize) -> usize {
+    cursor = cursor.min(text.len());
+    while cursor > 0 && !text.is_char_boundary(cursor) {
+        cursor -= 1;
+    }
+    cursor
+}
+
+fn previous_char_boundary(text: &str, cursor: usize) -> usize {
+    let cursor = clamp_to_char_boundary(text, cursor);
+    if cursor == 0 {
+        return 0;
+    }
+    text[..cursor]
+        .char_indices()
+        .last()
+        .map(|(index, _)| index)
+        .unwrap_or(0)
+}
+
+fn next_char_boundary(text: &str, cursor: usize) -> usize {
+    let cursor = clamp_to_char_boundary(text, cursor);
+    if cursor >= text.len() {
+        return text.len();
+    }
+    text[cursor..]
+        .char_indices()
+        .nth(1)
+        .map(|(offset, _)| cursor + offset)
+        .unwrap_or(text.len())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -624,9 +1008,27 @@ mod tests {
         let mut ime = ImeState::default();
         ime.apply_preedit("かな", Some((0, 6)));
         assert!(ime.active);
+        assert_eq!(ime.composed_text("hi!", 2), "hiかな!");
         assert_eq!(ime.commit(), "かな");
         assert!(!ime.active);
         assert!(ime.preedit.is_empty());
+    }
+
+    #[test]
+    fn text_cursor_model_respects_unicode_boundaries_selection_and_ime_commit() {
+        let mut cursor = TextCursorModel::new("a🙂b");
+        cursor.move_left(false);
+        assert_eq!(cursor.cursor, "a🙂".len());
+        cursor.move_left(true);
+        assert_eq!(cursor.selected_text(), Some("🙂"));
+        cursor.replace_selection_or_insert("かな");
+        assert_eq!(cursor.text, "aかなb");
+
+        let mut ime = ImeState::default();
+        ime.apply_preedit("字", Some((0, 3)));
+        cursor.apply_ime_commit(&mut ime);
+        assert_eq!(cursor.text, "aかな字b");
+        assert!(!ime.active);
     }
 
     #[test]
@@ -657,5 +1059,53 @@ mod tests {
         };
         assert_eq!(prefs.clamped_font_scale(), 1.60);
         assert_eq!(prefs.animation_duration_ms(180), 0);
+        assert_eq!(
+            DesktopTheme::for_preferences(&prefs, true).mode,
+            ThemeMode::Dark
+        );
+    }
+
+    #[test]
+    fn rich_transcript_display_list_virtualizes_runs_and_semantics() {
+        let messages = [crate::desktop_rich_text::RichTranscriptMessage::new(
+            "assistant-1",
+            crate::desktop_rich_text::TranscriptRole::Assistant,
+            "```rust\nfn main() {}\n```",
+        )];
+        let document = crate::desktop_rich_text::build_rich_transcript(
+            &messages,
+            &crate::desktop_rich_text::RichTranscriptBuildOptions {
+                search_query: Some("main".to_string()),
+                ..crate::desktop_rich_text::RichTranscriptBuildOptions::default()
+            },
+        );
+        let display_list = build_transcript_display_list(
+            &document,
+            &DesktopTheme::light(),
+            TranscriptDisplayListConfig {
+                viewport_lines: 1,
+                overscan_lines: 0,
+                ..TranscriptDisplayListConfig::default()
+            },
+        );
+
+        assert_eq!(display_list.commands.len(), 1);
+        assert_eq!(display_list.semantic_nodes.len(), 1);
+        assert_eq!(display_list.semantic_nodes[0].role, AccessibilityRole::Code);
+
+        let display_list = build_transcript_display_list(
+            &document,
+            &DesktopTheme::light(),
+            TranscriptDisplayListConfig {
+                first_visible_line: 1,
+                viewport_lines: 1,
+                overscan_lines: 0,
+                ..TranscriptDisplayListConfig::default()
+            },
+        );
+        let DisplayCommand::Text { runs, .. } = &display_list.commands[0] else {
+            panic!("expected text command");
+        };
+        assert!(runs.iter().any(|run| run.text == "main" && run.attrs.bold));
     }
 }

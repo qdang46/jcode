@@ -1,4 +1,7 @@
 use super::*;
+use crate::desktop_rich_text::{
+    AnsiColor, AnsiStyle, RichLine, RichLineStyle, RichSpanStyle, SyntaxTokenKind,
+};
 use crate::single_session::{
     MODEL_PICKER_INLINE_ROW_LIMIT, SingleSessionInlineSpan, SingleSessionInlineSpanKind,
     SingleSessionTypography, single_session_trimmed_line_end_preserving_inline_code_whitespace,
@@ -6288,6 +6291,161 @@ fn assistant_inline_markdown_run_attrs(
         attrs = attrs.style(glyphon::Style::Italic);
     }
     attrs
+}
+
+#[cfg_attr(not(test), allow(dead_code))]
+pub(crate) fn rich_line_text_segments(line: &RichLine) -> Vec<(&str, Attrs<'static>)> {
+    let base_style = rich_line_style_to_single_session_style(line.style);
+    let valid_spans = line
+        .spans
+        .iter()
+        .filter(|span| {
+            span.start < span.end
+                && span.end <= line.text.len()
+                && line.text.is_char_boundary(span.start)
+                && line.text.is_char_boundary(span.end)
+        })
+        .collect::<Vec<_>>();
+    if valid_spans.is_empty() {
+        return vec![(
+            &line.text,
+            single_session_style_attrs_for_text(base_style, &line.text),
+        )];
+    }
+
+    let mut boundaries = Vec::with_capacity(valid_spans.len().saturating_mul(2) + 2);
+    boundaries.push(0);
+    boundaries.push(line.text.len());
+    for span in &valid_spans {
+        boundaries.push(span.start);
+        boundaries.push(span.end);
+    }
+    boundaries.sort_unstable();
+    boundaries.dedup();
+
+    let mut segments = Vec::new();
+    for window in boundaries.windows(2) {
+        let start = window[0];
+        let end = window[1];
+        if start >= end {
+            continue;
+        }
+        let text = &line.text[start..end];
+        let active = valid_spans
+            .iter()
+            .filter_map(|span| (span.start <= start && end <= span.end).then_some(&span.style))
+            .collect::<Vec<_>>();
+        segments.push((text, rich_span_attrs(base_style, text, &active)));
+    }
+    segments
+}
+
+#[cfg_attr(not(test), allow(dead_code))]
+pub(crate) fn rich_line_style_to_single_session_style(
+    style: RichLineStyle,
+) -> SingleSessionLineStyle {
+    match style {
+        RichLineStyle::User => SingleSessionLineStyle::User,
+        RichLineStyle::Assistant => SingleSessionLineStyle::Assistant,
+        RichLineStyle::AssistantHeading => SingleSessionLineStyle::AssistantHeading,
+        RichLineStyle::AssistantQuote => SingleSessionLineStyle::AssistantQuote,
+        RichLineStyle::AssistantTable => SingleSessionLineStyle::AssistantTable,
+        RichLineStyle::CodeHeader => SingleSessionLineStyle::CodeHeader,
+        RichLineStyle::Code => SingleSessionLineStyle::Code,
+        RichLineStyle::ToolHeader | RichLineStyle::ToolOutput | RichLineStyle::ToolMetadata => {
+            SingleSessionLineStyle::Tool
+        }
+        RichLineStyle::System => SingleSessionLineStyle::Status,
+        RichLineStyle::Meta | RichLineStyle::MediaPlaceholder => SingleSessionLineStyle::Meta,
+    }
+}
+
+fn rich_span_attrs(
+    base_style: SingleSessionLineStyle,
+    text: &str,
+    styles: &[&RichSpanStyle],
+) -> Attrs<'static> {
+    let mut attrs = single_session_style_attrs_for_text(base_style, text);
+    for style in styles {
+        match style {
+            RichSpanStyle::InlineCode => {
+                attrs = single_session_style_attrs(SingleSessionLineStyle::Code);
+            }
+            RichSpanStyle::Link { .. } => {
+                attrs = attrs.color(single_session_line_color(
+                    SingleSessionLineStyle::AssistantLink,
+                ));
+            }
+            RichSpanStyle::Emphasis => {
+                attrs = attrs.style(glyphon::Style::Italic);
+            }
+            RichSpanStyle::Strong => {
+                attrs = attrs.weight(glyphon::Weight::BOLD);
+            }
+            RichSpanStyle::Strike => {
+                attrs = attrs.color(text_color(MARKDOWN_STRIKE_TEXT_COLOR));
+            }
+            RichSpanStyle::Syntax(kind) => {
+                attrs = attrs.color(text_color(rich_syntax_token_color(*kind)));
+            }
+            RichSpanStyle::Ansi(style) => {
+                if let Some(color) = rich_ansi_foreground(*style) {
+                    attrs = attrs.color(text_color(color));
+                }
+                if style.bold {
+                    attrs = attrs.weight(glyphon::Weight::BOLD);
+                }
+                if style.italic {
+                    attrs = attrs.style(glyphon::Style::Italic);
+                }
+            }
+            RichSpanStyle::SearchMatch => {
+                attrs = attrs
+                    .color(text_color(STATUS_TEXT_ACCENT_COLOR))
+                    .weight(glyphon::Weight::BOLD);
+            }
+        }
+    }
+    attrs
+}
+
+fn rich_syntax_token_color(kind: SyntaxTokenKind) -> [f32; 4] {
+    match kind {
+        SyntaxTokenKind::Keyword => [0.350, 0.145, 0.640, 1.0],
+        SyntaxTokenKind::String => [0.020, 0.360, 0.190, 1.0],
+        SyntaxTokenKind::Number => [0.490, 0.250, 0.035, 1.0],
+        SyntaxTokenKind::Comment => [0.320, 0.350, 0.420, 0.95],
+        SyntaxTokenKind::Function => [0.000, 0.255, 0.430, 1.0],
+        SyntaxTokenKind::Type => [0.225, 0.215, 0.620, 1.0],
+        SyntaxTokenKind::Punctuation => [0.270, 0.290, 0.340, 0.98],
+        SyntaxTokenKind::Plain => CODE_TEXT_COLOR,
+    }
+}
+
+fn rich_ansi_foreground(style: AnsiStyle) -> Option<[f32; 4]> {
+    let color = if style.inverse {
+        style.background.or(style.foreground)
+    } else {
+        style.foreground
+    }?;
+    Some(match color {
+        AnsiColor::Black => [0.040, 0.045, 0.055, 1.0],
+        AnsiColor::Red => [0.560, 0.070, 0.095, 1.0],
+        AnsiColor::Green => [0.035, 0.360, 0.220, 1.0],
+        AnsiColor::Yellow => [0.520, 0.360, 0.055, 1.0],
+        AnsiColor::Blue => [0.045, 0.265, 0.640, 1.0],
+        AnsiColor::Magenta => [0.410, 0.145, 0.580, 1.0],
+        AnsiColor::Cyan => [0.000, 0.330, 0.430, 1.0],
+        AnsiColor::White => [0.700, 0.720, 0.770, 1.0],
+        AnsiColor::BrightBlack => [0.320, 0.345, 0.405, 1.0],
+        AnsiColor::BrightRed => [0.780, 0.110, 0.145, 1.0],
+        AnsiColor::BrightGreen => [0.025, 0.500, 0.275, 1.0],
+        AnsiColor::BrightYellow => [0.700, 0.500, 0.080, 1.0],
+        AnsiColor::BrightBlue => [0.090, 0.360, 0.850, 1.0],
+        AnsiColor::BrightMagenta => [0.560, 0.190, 0.760, 1.0],
+        AnsiColor::BrightCyan => [0.000, 0.460, 0.580, 1.0],
+        AnsiColor::BrightWhite => [0.900, 0.915, 0.945, 1.0],
+    })
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
