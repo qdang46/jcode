@@ -130,6 +130,31 @@ fn minimax_token_plan_keys_resolve_to_china_endpoint_without_changing_internatio
 }
 
 #[test]
+fn minimax_token_plan_keys_route_to_china_even_when_openai_api_key_env_is_international() {
+    // Regression for issue #141 (upstream PR #188): users on the MiniMax
+    // China Token Plan reported a `401 authorized_error` because their
+    // `sk-cp-...` keys were being sent to `api.minimax.io`. Our fork
+    // resolves the base URL from the *hint* (the actual key being used to
+    // call the API), not from a stale `OPENAI_API_KEY` env value, so the
+    // auto-switch must still kick in even when an unrelated international
+    // OpenAI key is exported in the shell.
+    let _lock = crate::storage::lock_test_env();
+    let _guard = EnvGuard::save(&["OPENAI_API_KEY"]);
+    crate::env::set_var("OPENAI_API_KEY", "sk-international-not-china");
+
+    let resolved = resolve_openai_compatible_profile_with_api_key_hint(
+        MINIMAX_PROFILE,
+        Some("sk-cp-real-china-token"),
+    );
+    assert_eq!(
+        resolved.api_base, MINIMAX_CHINA_API_BASE,
+        "sk-cp-* keys must route to api.minimaxi.com regardless of an \
+         unrelated international OPENAI_API_KEY in env"
+    );
+    assert_eq!(resolved.setup_url, MINIMAX_CHINA_SETUP_URL);
+}
+
+#[test]
 fn auth_issue_lan_openai_compatible_bases_are_valid_for_local_model_servers() {
     assert_eq!(
         normalize_api_base("http://100.103.78.84:11434/v1").as_deref(),
