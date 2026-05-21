@@ -720,6 +720,31 @@ brew tap 1jehuang/jcode
 brew install jcode
 ```
 
+### Verifying release artifacts
+
+Each release publishes a single `SHA256SUMS` manifest covering every
+Linux, macOS, and Windows asset attached to the release. Verify a
+download before installing:
+
+```bash
+VERSION=v0.12.0
+ARTIFACT=jcode-linux-x86_64.tar.gz   # or jcode-macos-aarch64.tar.gz, jcode-windows-x86_64.tar.gz, etc.
+
+curl -LO "https://github.com/quangdang46/jcode/releases/download/${VERSION}/${ARTIFACT}"
+curl -LO "https://github.com/quangdang46/jcode/releases/download/${VERSION}/SHA256SUMS"
+sha256sum --check --ignore-missing SHA256SUMS
+```
+
+Expected output:
+
+```
+jcode-linux-x86_64.tar.gz: OK
+```
+
+`SHA256SUMS` is generated in the release workflow from the actual
+artifacts uploaded to the run, so it is always synchronized with the
+binaries you can download.
+
 ### From Source (all platforms)
 
 ```bash
