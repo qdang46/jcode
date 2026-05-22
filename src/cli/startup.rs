@@ -131,6 +131,12 @@ fn parse_and_prepare_args() -> Result<Args> {
         }
     }
 
+    // --no-context-files: translate to JCODE_NO_CONTEXT_FILES so the prompt
+    // loading helpers can skip AGENTS.md without threading args.
+    if args.no_context_files {
+        crate::env::set_var("JCODE_NO_CONTEXT_FILES", "1");
+    }
+
     if let Some(ref socket) = args.socket {
         server::set_socket_path(socket);
     }

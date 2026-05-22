@@ -568,6 +568,22 @@ jcode dictate
 jcode supports interactive TUI use, non-interactive runs, persistent server/client workflows,
 and hotkey-friendly dictation without requiring a bundled speech-to-text stack.
 
+### Context File Control
+
+Skip loading project `AGENTS.md` and global `~/.AGENTS.md` context files for a session:
+
+```bash
+# CLI flag (preferred)
+jcode --no-context-files
+
+# Or via environment variable
+JCODE_NO_CONTEXT_FILES=1 jcode
+
+# Both work identically; the CLI flag sets the env var internally
+```
+
+This is useful when you want to test with a clean context or run sessions without project instructions.
+
 <div align="center">
 
   <a href="https://github.com/1jehuang/jcode/releases/download/readme-assets/workflow.mp4">
