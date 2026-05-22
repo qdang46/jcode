@@ -736,7 +736,7 @@ fn test_space_selects_multiple_sessions_and_enter_returns_them() {
         .unwrap();
 
     match action {
-        OverlayAction::Selected(PickerResult::SelectedInNewTerminal(ids)) => {
+        OverlayAction::Selected(PickerResult::SelectedInCurrentTerminal(ids)) => {
             assert_eq!(
                 ids,
                 vec![
@@ -750,6 +750,27 @@ fn test_space_selects_multiple_sessions_and_enter_returns_them() {
             );
         }
         other => panic!("expected selected sessions, got {other:?}"),
+    }
+
+    let alternate_action = picker
+        .handle_overlay_key(KeyCode::Enter, KeyModifiers::CONTROL)
+        .unwrap();
+
+    match alternate_action {
+        OverlayAction::Selected(PickerResult::SelectedInNewTerminal(ids)) => {
+            assert_eq!(
+                ids,
+                vec![
+                    ResumeTarget::JcodeSession {
+                        session_id: "session_newer".to_string(),
+                    },
+                    ResumeTarget::JcodeSession {
+                        session_id: "session_older".to_string(),
+                    }
+                ]
+            );
+        }
+        other => panic!("expected alternate selected sessions, got {other:?}"),
     }
 }
 

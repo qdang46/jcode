@@ -214,7 +214,9 @@ fn test_local_compacted_history_marker_scroll_expands_from_session() {
         compacted_count: 2,
     });
 
-    let rendered = crate::session::render_messages(&app.session)
+    let (rendered_messages, _images, _compacted_info) =
+        crate::session::render_messages_and_images_with_compacted_history(&app.session, 0);
+    let rendered = rendered_messages
         .into_iter()
         .map(|msg| DisplayMessage {
             role: msg.role,

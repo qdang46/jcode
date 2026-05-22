@@ -178,6 +178,20 @@ fn insert_mode_autocompletes_workspace_slash_command() {
 }
 
 #[test]
+fn insert_mode_autocompletes_workspace_fuzzy_slash_abbreviation() {
+    let mut workspace = Workspace::fake();
+    workspace.handle_key(KeyInput::Character("i".to_string()));
+    workspace.handle_key(KeyInput::Character("/hp".to_string()));
+
+    assert_eq!(
+        workspace.handle_key(KeyInput::Autocomplete),
+        KeyOutcome::Redraw
+    );
+    assert_eq!(workspace.draft, "/help");
+    assert_eq!(workspace.draft_cursor, "/help".len());
+}
+
+#[test]
 fn insert_mode_cuts_input_line_to_clipboard_and_undo_restores() {
     let mut workspace = Workspace::fake();
     workspace.handle_key(KeyInput::Character("i".to_string()));

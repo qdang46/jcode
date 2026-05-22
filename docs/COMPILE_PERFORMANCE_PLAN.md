@@ -157,16 +157,25 @@ Use it when capturing comparable before/after numbers for refactors.
   - warm touched-file `selfdev-jcode` build: **18.874s**
 - 2026-04-28: diagnosed the repeated self-dev `jcode` lib build `SIGTERM` on this 16 GiB,
   no-swap workstation. `journalctl -u earlyoom` showed earlyoom sending `SIGTERM` to the root
-  `rustc` at about **1.09 GiB RSS** when available memory crossed the 10% threshold. A direct
-  no-`sccache` build reproduced the same signal, so `sccache` was only reporting the termination.
-  `scripts/dev_cargo.sh` now enables adaptive low-memory overrides for `--profile selfdev` when
-  Linux + earlyoom + no swap + <24 GiB RAM + <8 GiB currently available RAM are detected:
-  `CARGO_INCREMENTAL=0`, `CARGO_PROFILE_SELFDEV_INCREMENTAL=false`, and
-  `CARGO_PROFILE_SELFDEV_CODEGEN_UNITS=16`. Use `JCODE_SELFDEV_LOW_MEMORY=off` to disable, or
-  `JCODE_SELFDEV_LOW_MEMORY=on` to force. Validation: the original root build completed under
-  those settings in **2m34s** after the interrupted partial build reused artifacts; a later
-  benchmark with 9.4 GiB available showed that preserving the inherited selfdev profile can reduce
-  warm edit builds from about **60s** to about **14s** when there is enough headroom.
+  `rustc` when available memory crossed the 10% threshold. A direct no-`sccache` build reproduced
+  the same signal, so `sccache` was only reporting the termination. `scripts/dev_cargo.sh` now
+  enables adaptive low-memory overrides for `--profile selfdev` when Linux + earlyoom + no swap +
+  <24 GiB RAM + <8 GiB currently available RAM are detected: `CARGO_INCREMENTAL=1`,
+  `CARGO_PROFILE_SELFDEV_INCREMENTAL=true`, and `CARGO_PROFILE_SELFDEV_CODEGEN_UNITS=256`. Use
+  `JCODE_SELFDEV_LOW_MEMORY=off` to disable, or `JCODE_SELFDEV_LOW_MEMORY=on` to force. Initial
+  validation completed under the earlier settings in **2m34s** after an interrupted partial build
+  reused artifacts; a later benchmark with 9.4 GiB available showed that preserving the inherited
+  selfdev profile can reduce warm edit builds from about **60s** to about **14s** when there is
+  enough headroom.
+- 2026-05-21: rechecked the same failure mode during overnight TUI test triage. `journalctl -u
+  earlyoom` showed repeated `SIGTERM` events against root `jcode` `rustc` processes at about
+  **2.7-3.3 GiB RSS**. `CARGO_PROFILE_SELFDEV_CODEGEN_UNITS=16` still failed under current browser
+  and desktop-session memory pressure, while a direct no-`sccache` selfdev build with incremental
+  enabled and `CARGO_PROFILE_SELFDEV_CODEGEN_UNITS=256` completed. The adaptive low-memory default
+  was changed to match that passing profile, disables `sccache` by default because `sccache`
+  rejects Cargo incremental builds, and `scripts/dev_cargo.sh` now honors `SCCACHE_DISABLE=1`
+  before auto-enabling the wrapper. Fresh lib-test compilation remains heavier than the binary
+  build and may still require a remote builder, more free memory, or swap.
 - 2026-05-05: trimmed root compile surface by replacing broad `tokio/full` with explicit used
   features, aligning Jcode-owned `crossterm` dependencies on 0.29, and replacing `qr2term` with
   direct `qrcode` rendering. This removed the duplicate `crossterm 0.28` path from the `jcode`

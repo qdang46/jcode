@@ -123,6 +123,18 @@ pub(crate) fn server_has_newer_binary() -> bool {
     }
 
     candidates.into_iter().any(|candidate| {
+        // If the candidate canonicalizes to the same file as the running binary,
+        // there is by definition no newer binary to reload into. Without this
+        // guard, a stable channel symlink that points back at the running
+        // versioned binary (or a release whose mtime was bumped after process
+        // start, e.g. by a re-install) would drive an infinite reload loop.
+        // See issues #157, #160 and the `hash=unknown` reload symptom.
+        if let Some(current_canon) = current_canonical.as_ref()
+            && current_canon == &candidate
+        {
+            return false;
+        }
+
         let candidate_mtime = std::fs::metadata(&candidate)
             .ok()
             .and_then(|m| m.modified().ok());

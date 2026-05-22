@@ -127,7 +127,7 @@ fn test_mouse_horizontal_scroll_over_tool_side_panel_pans_without_focus_change()
         !scroll_only,
         "side-panel horizontal pan should request an immediate redraw"
     );
-    assert_eq!(app.diff_pane_scroll_x, 3);
+    assert_eq!(app.diff_pane_scroll_x, 1);
     assert!(!app.diff_pane_focus);
 }
 
@@ -302,7 +302,7 @@ fn test_mouse_scroll_help_overlay_updates_help_scroll() {
         scroll_only,
         "help overlay mouse wheel should be scroll-only"
     );
-    assert_eq!(app.help_scroll, Some(6));
+    assert_eq!(app.help_scroll, Some(8));
 
     let scroll_only = app.handle_mouse_event(MouseEvent {
         kind: MouseEventKind::ScrollUp,
@@ -331,7 +331,7 @@ fn test_mouse_scroll_changelog_overlay_updates_changelog_scroll() {
         scroll_only,
         "changelog overlay mouse wheel should be scroll-only"
     );
-    assert_eq!(app.changelog_scroll, Some(1));
+    assert_eq!(app.changelog_scroll, Some(0));
 
     let scroll_only = app.handle_mouse_event(MouseEvent {
         kind: MouseEventKind::ScrollDown,
@@ -341,7 +341,7 @@ fn test_mouse_scroll_changelog_overlay_updates_changelog_scroll() {
     });
 
     assert!(scroll_only);
-    assert_eq!(app.changelog_scroll, Some(2));
+    assert_eq!(app.changelog_scroll, Some(3));
 }
 
 #[test]

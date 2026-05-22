@@ -693,6 +693,12 @@ pub struct ProviderConfig {
     /// Copilot premium request mode: "normal", "one", or "zero"
     /// "zero" means all requests are free (no premium requests consumed)
     pub copilot_premium: Option<String>,
+    /// Custom system prompt to use instead of the default. When set, every
+    /// new agent session is initialized with this string as
+    /// `system_prompt_override`. Useful for forking jcode against a hosted
+    /// model that ships a different default persona, or for project-pinned
+    /// behavior baselines.
+    pub system_prompt: Option<String>,
 }
 
 impl Default for ProviderConfig {
@@ -708,6 +714,7 @@ impl Default for ProviderConfig {
             cross_provider_failover: CrossProviderFailoverMode::Countdown,
             same_provider_account_failover: true,
             copilot_premium: None,
+            system_prompt: None,
         }
     }
 }

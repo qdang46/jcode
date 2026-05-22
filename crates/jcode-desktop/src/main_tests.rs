@@ -996,6 +996,32 @@ fn single_session_slash_suggestions_support_tui_style_fuzzy_abbreviations() {
 }
 
 #[test]
+fn single_session_raw_slash_tab_completion_uses_fuzzy_after_suggestions_are_dismissed() {
+    let mut app = SingleSessionApp::new(None);
+    app.handle_key(KeyInput::Character("/cp".to_string()));
+    assert_eq!(app.active_inline_widget(), Some(InlineWidgetKind::SlashSuggestions));
+
+    assert_eq!(app.handle_key(KeyInput::Escape), KeyOutcome::Redraw);
+    assert_eq!(app.active_inline_widget(), None);
+
+    assert_eq!(app.handle_key(KeyInput::Autocomplete), KeyOutcome::Redraw);
+    assert_eq!(app.draft, "/copy");
+}
+
+#[test]
+fn single_session_raw_slash_tab_completion_covers_commands_from_help_table() {
+    let mut app = SingleSessionApp::new(None);
+    app.handle_key(KeyInput::Character("/ef".to_string()));
+    assert_eq!(app.active_inline_widget(), Some(InlineWidgetKind::SlashSuggestions));
+
+    assert_eq!(app.handle_key(KeyInput::Escape), KeyOutcome::Redraw);
+    assert_eq!(app.active_inline_widget(), None);
+
+    assert_eq!(app.handle_key(KeyInput::Autocomplete), KeyOutcome::Redraw);
+    assert_eq!(app.draft, "/effort");
+}
+
+#[test]
 fn single_session_slash_suggestions_keep_prefix_matches_before_fuzzy_matches() {
     let mut app = SingleSessionApp::new(None);
     app.handle_key(KeyInput::Character("/c".to_string()));
@@ -1004,6 +1030,38 @@ fn single_session_slash_suggestions_keep_prefix_matches_before_fuzzy_matches() {
     assert!(suggestions.iter().any(|line| {
         line.style == SingleSessionLineStyle::OverlaySelection && line.text.contains("/commands")
     }));
+}
+
+#[test]
+fn single_session_slash_suggestions_expose_accepted_aliases() {
+    let mut app = SingleSessionApp::new(None);
+    app.handle_key(KeyInput::Character("/can".to_string()));
+
+    let suggestions = app
+        .inline_widget_styled_lines()
+        .into_iter()
+        .map(|line| line.text)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(suggestions.contains("/cancel"), "{suggestions}");
+
+    assert_eq!(app.handle_key(KeyInput::Autocomplete), KeyOutcome::Redraw);
+    assert_eq!(app.draft, "/cancel");
+    app.draft.clear();
+    app.draft_cursor = 0;
+
+    app.handle_key(KeyInput::Character("/help".to_string()));
+    assert_eq!(app.handle_key(KeyInput::SubmitDraft), KeyOutcome::Redraw);
+    let help = app
+        .inline_widget_styled_lines()
+        .into_iter()
+        .map(|line| line.text)
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    assert!(help.contains("/session"), "{help}");
+    assert!(help.contains("/cancel"), "{help}");
+    assert!(help.contains("/exit"), "{help}");
 }
 
 #[test]
@@ -4211,6 +4269,53 @@ fn single_session_model_picker_loads_filters_and_selects_model() {
 }
 
 #[test]
+fn single_session_model_picker_filter_supports_fuzzy_abbreviations() {
+    let mut app = SingleSessionApp::new(None);
+    assert_eq!(
+        app.handle_key(KeyInput::OpenModelPicker),
+        KeyOutcome::LoadModelCatalog
+    );
+    app.apply_session_event(session_launch::DesktopSessionEvent::ModelCatalog {
+        current_model: None,
+        provider_name: Some("OpenAI".to_string()),
+        models: vec![
+            session_launch::DesktopModelChoice {
+                model: "gpt-5-codex".to_string(),
+                provider: Some("openai".to_string()),
+                api_method: Some("responses".to_string()),
+                detail: Some("coding model".to_string()),
+                available: true,
+            },
+            session_launch::DesktopModelChoice {
+                model: "claude-opus-4-5".to_string(),
+                provider: Some("claude".to_string()),
+                api_method: Some("oauth".to_string()),
+                detail: Some("premium".to_string()),
+                available: true,
+            },
+        ],
+        reasoning_effort: None,
+        service_tier: None,
+        compaction_mode: None,
+    });
+
+    assert_eq!(
+        app.handle_key(KeyInput::Character("g5c".to_string())),
+        KeyOutcome::Redraw
+    );
+    let picker = app
+        .inline_widget_styled_lines()
+        .into_iter()
+        .map(|line| line.text)
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    assert!(picker.contains("filter \"g5c\""));
+    assert!(picker.contains("gpt-5-codex"), "{picker}");
+    assert!(!picker.contains("claude-opus-4-5"), "{picker}");
+}
+
+#[test]
 fn single_session_session_switcher_loads_filters_and_resumes_session() {
     let mut app = SingleSessionApp::new(None);
     app.messages
@@ -4293,6 +4398,62 @@ fn single_session_session_switcher_loads_filters_and_resumes_session() {
     let resumed = app.body_lines().join("\n");
     assert!(resumed.contains("beta status"));
     assert!(!resumed.contains("stale live transcript"));
+}
+
+#[test]
+fn single_session_session_switcher_filter_supports_fuzzy_abbreviations() {
+    let mut app = SingleSessionApp::new(None);
+    assert_eq!(
+        app.handle_key(KeyInput::OpenSessionSwitcher),
+        KeyOutcome::LoadSessionSwitcher
+    );
+    app.apply_session_switcher_cards(vec![
+        test_session_card("session_alpha", "alpha-notes", "active"),
+        test_session_card("session_ticket", "ticket-workspace", "closed"),
+    ]);
+
+    assert_eq!(
+        app.handle_key(KeyInput::Character("tkw".to_string())),
+        KeyOutcome::Redraw
+    );
+    let switcher = app
+        .inline_widget_styled_lines()
+        .into_iter()
+        .map(|line| line.text)
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    assert_eq!(app.session_switcher.filter, "tkw");
+    assert!(switcher.contains("filter: tkw"), "{switcher}");
+    assert!(switcher.contains("ticket-workspace"), "{switcher}");
+    assert!(!switcher.contains("alpha-notes"), "{switcher}");
+}
+
+#[test]
+fn single_session_session_switcher_filter_reports_visible_match_count() {
+    let mut app = SingleSessionApp::new(None);
+    assert_eq!(
+        app.handle_key(KeyInput::OpenSessionSwitcher),
+        KeyOutcome::LoadSessionSwitcher
+    );
+    app.apply_session_switcher_cards(vec![
+        test_session_card("session_alpha", "alpha", "active"),
+        test_session_card("session_beta", "beta", "closed"),
+    ]);
+
+    assert_eq!(
+        app.handle_key(KeyInput::Character("beta".to_string())),
+        KeyOutcome::Redraw
+    );
+    let switcher = app
+        .inline_widget_styled_lines()
+        .into_iter()
+        .map(|line| line.text)
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    assert!(switcher.contains("filter: beta"), "{switcher}");
+    assert!(switcher.contains("sessions: 1/2"), "{switcher}");
 }
 
 #[test]
@@ -6302,6 +6463,24 @@ fn single_session_wraps_one_session_card() {
             images: Vec::new(),
         }
     );
+}
+
+#[test]
+fn workspace_focused_session_promotes_to_single_session_app() {
+    let mut app = DesktopApp::Workspace(Workspace::from_session_cards(vec![workspace::SessionCard {
+        session_id: "session_alpha".to_string(),
+        title: "alpha".to_string(),
+        subtitle: "active".to_string(),
+        detail: "3 msgs".to_string(),
+        preview_lines: vec!["user hello".to_string()],
+        detail_lines: vec!["assistant hi".to_string()],
+    }]));
+
+    assert!(app.promote_focused_workspace_session());
+    let snapshot = app.debug_snapshot();
+    assert_eq!(snapshot.mode, "single_session");
+    assert_eq!(snapshot.live_session_id.as_deref(), Some("session_alpha"));
+    assert!(snapshot.body_text.contains("user hello"));
 }
 
 #[test]

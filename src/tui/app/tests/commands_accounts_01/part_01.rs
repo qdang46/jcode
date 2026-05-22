@@ -133,6 +133,21 @@ fn slash_sessions_alias_opens_session_picker_overlay_locally() {
 }
 
 #[test]
+fn slash_session_alias_opens_session_picker_overlay_locally() {
+    let runtime = tokio::runtime::Runtime::new().expect("test runtime");
+    let _guard = runtime.enter();
+    let mut app = create_test_app();
+
+    app.input = "/session".to_string();
+    app.submit_input();
+
+    assert!(app.session_picker_overlay.is_some());
+    assert_eq!(app.session_picker_mode, SessionPickerMode::Resume);
+    assert!(app.pending_session_picker_load.is_some());
+    assert!(app.input.is_empty());
+}
+
+#[test]
 fn test_resize_redraw_is_debounced() {
     let mut app = create_test_app();
 
@@ -579,8 +594,7 @@ fn test_git_command_shows_repo_status_for_working_directory() {
 
     let mut app = create_test_app();
     app.session.working_dir = Some(repo.path().display().to_string());
-    app.input = "/git".to_string();
-    app.submit_input();
+    submit_git_command_and_wait_for_response(&mut app);
 
     let msg = app.display_messages().last().expect("missing git response");
     assert_eq!(msg.role, "system");
@@ -599,8 +613,7 @@ fn test_git_command_works_in_remote_mode_with_accessible_working_directory() {
     app.is_remote = true;
     app.remote_session_id = Some("ses_remote_git".to_string());
     app.session.working_dir = Some(repo.path().display().to_string());
-    app.input = "/git".to_string();
-    app.submit_input();
+    submit_git_command_and_wait_for_response(&mut app);
 
     let msg = app.display_messages().last().expect("missing git response");
     assert_eq!(msg.role, "system");
@@ -612,6 +625,41 @@ fn test_git_command_works_in_remote_mode_with_accessible_working_directory() {
         !msg.content
             .contains("currently only available in a local jcode TUI session")
     );
+}
+
+fn submit_git_command_and_wait_for_response(app: &mut App) {
+    let expected_session_id = if app.is_remote {
+        app.remote_session_id
+            .clone()
+            .unwrap_or_else(|| app.session.id.clone())
+    } else {
+        app.session.id.clone()
+    };
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    let _guard = rt.enter();
+    let mut bus_rx = crate::bus::Bus::global().subscribe();
+    while bus_rx.try_recv().is_ok() {}
+
+    app.input = "/git".to_string();
+    app.submit_input();
+
+    rt.block_on(async {
+        loop {
+            let event = tokio::time::timeout(std::time::Duration::from_secs(2), bus_rx.recv())
+                .await
+                .expect("timed out waiting for git status bus event")
+                .expect("bus should stay open");
+            let saw_completion_for_app = matches!(
+                &event,
+                crate::bus::BusEvent::GitStatusCompleted(completed)
+                    if completed.session_id == expected_session_id
+            );
+            super::local::handle_bus_event(app, Ok(event));
+            if saw_completion_for_app {
+                break;
+            }
+        }
+    });
 }
 
 #[test]

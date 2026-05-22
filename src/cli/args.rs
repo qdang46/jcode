@@ -47,6 +47,18 @@ pub(crate) struct Args {
     #[arg(long, global = true, default_value = "true")]
     pub(crate) auto_update: bool,
 
+    /// Replace the built-in system prompt with the given text for this session.
+    /// Higher priority than `.jcode/SYSTEM.md` and the `provider.system_prompt`
+    /// config value. Equivalent to setting `JCODE_SYSTEM_PROMPT`.
+    #[arg(long, global = true)]
+    pub(crate) system_prompt: Option<String>,
+
+    /// Append the given text to the system prompt for this session. Stacks with
+    /// any `.jcode/APPEND_SYSTEM.md` files discovered along the cwd ancestry.
+    /// Equivalent to setting `JCODE_APPEND_SYSTEM_PROMPT`.
+    #[arg(long, global = true)]
+    pub(crate) append_system_prompt: Option<String>,
+
     /// Log tool inputs/outputs and token usage to stderr
     #[arg(long, global = true)]
     pub(crate) trace: bool,
@@ -447,6 +459,20 @@ pub(crate) enum SessionCommand {
         clear: bool,
 
         /// Emit JSON instead of human-readable output
+        #[arg(long)]
+        json: bool,
+    },
+
+    /// Delete a saved session and its journal/sidecar files
+    Delete {
+        /// Session ID or memorable short name (e.g. `fox`).
+        session: String,
+
+        /// Skip the interactive confirmation prompt.
+        #[arg(long, short = 'f')]
+        force: bool,
+
+        /// Emit JSON instead of human-readable output.
         #[arg(long)]
         json: bool,
     },

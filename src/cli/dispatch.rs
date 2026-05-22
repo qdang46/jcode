@@ -213,6 +213,11 @@ pub(crate) async fn run_main(mut args: Args) -> Result<()> {
                 clear,
                 json,
             } => commands::run_session_rename_command(&session, name.as_deref(), clear, json)?,
+            SessionCommand::Delete {
+                session,
+                force,
+                json,
+            } => commands::run_session_delete_command(&session, force, json)?,
         },
         Some(Command::Ambient(subcmd)) => {
             commands::run_ambient_command(map_ambient_subcommand(subcmd)).await?;

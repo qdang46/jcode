@@ -835,7 +835,12 @@ async fn run() -> Result<()> {
                             if let DesktopApp::Workspace(workspace) = &app {
                                 queue_desktop_preferences_save(workspace, &preferences_save_tx);
                             }
-                            if let Err(error) =
+                            if app.promote_focused_workspace_session() {
+                                scroll_accumulator = ScrollLineAccumulator::default();
+                                scroll_metrics_cache = SingleSessionScrollMetricsCache::default();
+                                window.set_title(&app.status_title());
+                                window.request_redraw();
+                            } else if let Err(error) =
                                 session_launch::launch_validated_resume_session(&session_id, &title)
                             {
                                 desktop_log::error(format_args!(
@@ -4827,6 +4832,21 @@ impl DesktopApp {
             Self::SingleSession(app) => app.handle_key(key),
             Self::Workspace(workspace) => workspace.handle_key(key),
         }
+    }
+
+    fn promote_focused_workspace_session(&mut self) -> bool {
+        let Self::Workspace(workspace) = self else {
+            return false;
+        };
+        let Some(card) = workspace.focused_session_card() else {
+            return false;
+        };
+        let session_id = card.session_id.clone();
+        let mut single_session = SingleSessionApp::new(Some(card));
+        single_session.initialize_resumed_session(&session_id);
+        single_session.hydrate_resumed_session_from_disk(&session_id);
+        *self = Self::SingleSession(single_session);
+        true
     }
 
     fn apply_session_event(&mut self, event: session_launch::DesktopSessionEvent) {

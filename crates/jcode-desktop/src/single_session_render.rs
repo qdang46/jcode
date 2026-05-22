@@ -808,8 +808,26 @@ fn push_single_session_inline_widget_card(
     };
 
     if app.active_inline_widget_uses_card_chrome() {
-        const INLINE_CARD_BACKGROUND_COLOR: [f32; 4] = [0.972, 0.982, 1.000, 0.54];
-        const INLINE_CARD_BORDER_COLOR: [f32; 4] = [0.180, 0.255, 0.430, 0.18];
+        const INLINE_CARD_SHADOW_COLOR: [f32; 4] = [0.020, 0.035, 0.070, 0.080];
+        const INLINE_CARD_BACKGROUND_COLOR: [f32; 4] = [0.992, 0.996, 1.000, 0.72];
+        const INLINE_CARD_BORDER_COLOR: [f32; 4] = [0.105, 0.185, 0.360, 0.20];
+        const INLINE_CARD_HIGHLIGHT_COLOR: [f32; 4] = [1.000, 1.000, 1.000, 0.52];
+        const INLINE_CARD_ACCENT_COLOR: [f32; 4] = [0.125, 0.420, 0.920, 0.34];
+        push_rounded_rect(
+            vertices,
+            Rect {
+                x: layout.card.x + 0.0,
+                y: layout.card.y + 5.0,
+                width: layout.card.width,
+                height: layout.card.height,
+            },
+            INLINE_WIDGET_CARD_RADIUS + 2.0,
+            with_alpha(
+                INLINE_CARD_SHADOW_COLOR,
+                INLINE_CARD_SHADOW_COLOR[3] * progress,
+            ),
+            size,
+        );
         push_rounded_rect(
             vertices,
             layout.card,
@@ -827,6 +845,36 @@ fn push_single_session_inline_widget_card(
             with_alpha(
                 INLINE_CARD_BACKGROUND_COLOR,
                 INLINE_CARD_BACKGROUND_COLOR[3] * progress,
+            ),
+            size,
+        );
+        push_rounded_rect(
+            vertices,
+            Rect {
+                x: layout.card.x + 1.5,
+                y: layout.card.y + 1.5,
+                width: 3.0,
+                height: (layout.card.height - 3.0).max(0.0),
+            },
+            2.0,
+            with_alpha(
+                INLINE_CARD_ACCENT_COLOR,
+                INLINE_CARD_ACCENT_COLOR[3] * progress,
+            ),
+            size,
+        );
+        push_rounded_rect(
+            vertices,
+            Rect {
+                x: layout.card.x + 8.0,
+                y: layout.card.y + 1.5,
+                width: (layout.card.width - 16.0).max(0.0),
+                height: 1.0,
+            },
+            0.5,
+            with_alpha(
+                INLINE_CARD_HIGHLIGHT_COLOR,
+                INLINE_CARD_HIGHLIGHT_COLOR[3] * progress,
             ),
             size,
         );

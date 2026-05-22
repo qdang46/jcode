@@ -262,7 +262,7 @@ versions tested for this corrected memory rerun:
 ## Memory (Agent memory)
 
 Jcode embeds each turn/response as a semantic vector. Every turn does queries a graph of memories to efficiently find related memory entries via a cosine similarity check. The embedding hits are fed into the conversation, or optionally uses a memory sideagent which verifies the memories are relevant, and potentially does more work for information retreival before injecting into the conversation. This results in a human like memory system which allows the agent to automatically recall relevant information to the conversation without actively calling memory tools or being a token burner. 
-ot 
+
 To have memories which are retrieved, they must also be extracted and stored. Every so often (semantic drift, K turns since last extraction, session end, etc), memories are extracted via a memory sideagent, and put into the memory graph. 
 
 The harness also provides explicit memory tools to allow the agent to actively search or store the memory without relying on a passive background process. The harness also provides session search for traditional RAG on previous sessions. 
@@ -719,6 +719,31 @@ irm https://raw.githubusercontent.com/1jehuang/jcode/master/scripts/install.ps1 
 brew tap 1jehuang/jcode
 brew install jcode
 ```
+
+### Verifying release artifacts
+
+Each release publishes a single `SHA256SUMS` manifest covering every
+Linux, macOS, and Windows asset attached to the release. Verify a
+download before installing:
+
+```bash
+VERSION=v0.12.0
+ARTIFACT=jcode-linux-x86_64.tar.gz   # or jcode-macos-aarch64.tar.gz, jcode-windows-x86_64.tar.gz, etc.
+
+curl -LO "https://github.com/quangdang46/jcode/releases/download/${VERSION}/${ARTIFACT}"
+curl -LO "https://github.com/quangdang46/jcode/releases/download/${VERSION}/SHA256SUMS"
+sha256sum --check --ignore-missing SHA256SUMS
+```
+
+Expected output:
+
+```
+jcode-linux-x86_64.tar.gz: OK
+```
+
+`SHA256SUMS` is generated in the release workflow from the actual
+artifacts uploaded to the run, so it is always synchronized with the
+binaries you can download.
 
 ### From Source (all platforms)
 

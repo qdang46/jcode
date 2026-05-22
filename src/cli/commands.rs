@@ -1,6 +1,6 @@
 #![cfg_attr(test, allow(clippy::await_holding_lock))]
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use serde::Serialize;
 use std::collections::BTreeSet;
 use std::io::{Read, Write};
@@ -140,6 +140,135 @@ pub fn run_session_rename_command(
         println!(
             "Renamed session {} ({}) to \"{}\".",
             output.display_name, output.session_id, title
+        );
+    }
+
+    Ok(())
+}
+
+#[derive(Serialize)]
+struct SessionDeleteOutput {
+    session_id: String,
+    display_name: String,
+    title: Option<String>,
+    deleted: Vec<String>,
+    cancelled: bool,
+}
+
+pub fn run_session_delete_command(session_ref: &str, force: bool, json: bool) -> Result<()> {
+    use std::io::IsTerminal;
+
+    let resolved_id = session::find_session_by_name_or_id(session_ref)?;
+    let session = session::Session::load(&resolved_id)?;
+    let display_name = session.display_name().to_string();
+    let title = session.display_title().map(ToOwned::to_owned);
+
+    if !force {
+        // Honor the `--json` contract: never prompt when machine output is
+        // requested, and never prompt when stdin/stderr aren't a TTY (e.g. CI).
+        if json {
+            anyhow::bail!(
+                "Refusing to delete session {} ({}) without --force. Pass --force to confirm in JSON mode.",
+                display_name,
+                resolved_id
+            );
+        }
+        if !std::io::stdin().is_terminal() {
+            anyhow::bail!(
+                "Refusing to delete session {} ({}) non-interactively. Pass --force to confirm.",
+                display_name,
+                resolved_id
+            );
+        }
+        eprint!(
+            "Delete session {} ({})? Type 'yes' to confirm: ",
+            display_name, resolved_id
+        );
+        std::io::stderr().flush().ok();
+        let mut answer = String::new();
+        std::io::stdin().read_line(&mut answer)?;
+        if answer.trim() != "yes" {
+            let output = SessionDeleteOutput {
+                session_id: resolved_id.clone(),
+                display_name,
+                title,
+                deleted: Vec::new(),
+                cancelled: true,
+            };
+            if json {
+                println!("{}", serde_json::to_string_pretty(&output)?);
+            } else {
+                println!("Cancelled. No files were deleted.");
+            }
+            return Ok(());
+        }
+    }
+
+    let snapshot_path = session::session_path(&resolved_id)?;
+    let journal_path = session::session_journal_path(&resolved_id)?;
+    let mut deleted = Vec::new();
+
+    for path in [&snapshot_path, &journal_path] {
+        if path.exists() {
+            std::fs::remove_file(path)
+                .with_context(|| format!("failed to delete session file {}", path.display()))?;
+            deleted.push(path.display().to_string());
+        }
+    }
+
+    // Clean up any sibling sidecars (e.g. *.json.tmp, *.journal.jsonl.tmp,
+    // *.swarm.json) that share the snapshot's stem. This mirrors the
+    // session-write side of session::persistence which produces tmp files
+    // and the swarm sidecar.
+    if let (Some(parent), Some(stem)) = (
+        snapshot_path.parent(),
+        snapshot_path.file_stem().and_then(|s| s.to_str()),
+    ) && let Ok(entries) = std::fs::read_dir(parent)
+    {
+        for entry in entries.flatten() {
+            let entry_path = entry.path();
+            let Some(name) = entry_path.file_name().and_then(|s| s.to_str()) else {
+                continue;
+            };
+            if !name.starts_with(stem) {
+                continue;
+            }
+            // Skip the canonical snapshot/journal we already deleted above.
+            if entry_path == snapshot_path || entry_path == journal_path {
+                continue;
+            }
+            // Only remove things that look like jcode-managed sidecars.
+            let suffix_ok = name.ends_with(".tmp")
+                || name.ends_with(".swarm.json")
+                || name.ends_with(".json.bak")
+                || name.ends_with(".journal.jsonl");
+            if !suffix_ok {
+                continue;
+            }
+            if std::fs::remove_file(&entry_path).is_ok() {
+                deleted.push(entry_path.display().to_string());
+            }
+        }
+    }
+
+    crate::tui::session_picker::invalidate_session_list_cache();
+
+    let output = SessionDeleteOutput {
+        session_id: resolved_id.clone(),
+        display_name: display_name.clone(),
+        title,
+        deleted,
+        cancelled: false,
+    };
+
+    if json {
+        println!("{}", serde_json::to_string_pretty(&output)?);
+    } else {
+        println!(
+            "Deleted session {} ({}). Removed {} file(s).",
+            output.display_name,
+            output.session_id,
+            output.deleted.len()
         );
     }
 

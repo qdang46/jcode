@@ -106,6 +106,32 @@ fn auth_issue_profile_metadata_matches_direct_provider_endpoints() {
         Some("qwen-3-235b-a22b-instruct-2507")
     );
     assert!(!OPENAI_COMPAT_PROFILE.setup_url.contains("opencode.ai"));
+    // Issue #80: aggregator providers previously pointed users at
+    // `opencode.ai/docs/providers#...` which 404s for jcode. Every preset
+    // should now point at the fork's README OAuth section instead, so
+    // `jcode login --provider <id>` flows surface a useful URL.
+    for profile in [
+        OPENCODE_PROFILE,
+        OPENCODE_GO_PROFILE,
+        ZAI_PROFILE,
+        DEEPSEEK_PROFILE,
+        MINIMAX_PROFILE,
+    ] {
+        assert!(
+            !profile.setup_url.contains("opencode.ai/docs"),
+            "{} setup_url should not point to opencode.ai/docs (got {:?})",
+            profile.id,
+            profile.setup_url
+        );
+    }
+    assert_eq!(
+        OPENCODE_PROFILE.setup_url,
+        "https://github.com/quangdang46/jcode#oauth-and-providers"
+    );
+    assert_eq!(
+        OPENCODE_GO_PROFILE.setup_url,
+        "https://github.com/quangdang46/jcode#oauth-and-providers"
+    );
 }
 
 #[test]
@@ -127,6 +153,31 @@ fn minimax_token_plan_keys_resolve_to_china_endpoint_without_changing_internatio
     );
     assert_eq!(china.api_base, MINIMAX_CHINA_API_BASE);
     assert_eq!(china.setup_url, MINIMAX_CHINA_SETUP_URL);
+}
+
+#[test]
+fn minimax_token_plan_keys_route_to_china_even_when_openai_api_key_env_is_international() {
+    // Regression for issue #141 (upstream PR #188): users on the MiniMax
+    // China Token Plan reported a `401 authorized_error` because their
+    // `sk-cp-...` keys were being sent to `api.minimax.io`. Our fork
+    // resolves the base URL from the *hint* (the actual key being used to
+    // call the API), not from a stale `OPENAI_API_KEY` env value, so the
+    // auto-switch must still kick in even when an unrelated international
+    // OpenAI key is exported in the shell.
+    let _lock = crate::storage::lock_test_env();
+    let _guard = EnvGuard::save(&["OPENAI_API_KEY"]);
+    crate::env::set_var("OPENAI_API_KEY", "sk-international-not-china");
+
+    let resolved = resolve_openai_compatible_profile_with_api_key_hint(
+        MINIMAX_PROFILE,
+        Some("sk-cp-real-china-token"),
+    );
+    assert_eq!(
+        resolved.api_base, MINIMAX_CHINA_API_BASE,
+        "sk-cp-* keys must route to api.minimaxi.com regardless of an \
+         unrelated international OPENAI_API_KEY in env"
+    );
+    assert_eq!(resolved.setup_url, MINIMAX_CHINA_SETUP_URL);
 }
 
 #[test]
