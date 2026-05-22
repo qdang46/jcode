@@ -720,6 +720,28 @@ brew tap 1jehuang/jcode
 brew install jcode
 ```
 
+### Nix flake
+
+```bash
+# Run without installing
+nix run github:quangdang46/jcode
+
+# Install into the user profile
+nix profile install github:quangdang46/jcode
+
+# Drop into a development shell with the pinned toolchain + clippy/fmt/sccache
+nix develop github:quangdang46/jcode
+```
+
+The flake exposes:
+
+- `packages.default` / `packages.jcode` — the release binary, built with
+  [`crane`](https://github.com/ipetkov/crane) for cached dep builds.
+- `devShells.default` — Rust nightly + `cargo-nextest`, `cargo-watch`,
+  `sccache`, and `rust-analyzer`.
+- `checks.jcode-clippy` / `checks.jcode-fmt` — guardrail equivalents of the
+  existing CI gates, runnable via `nix flake check`.
+
 ### Verifying release artifacts
 
 Each release publishes a single `SHA256SUMS` manifest covering every
