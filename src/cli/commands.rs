@@ -275,6 +275,82 @@ pub fn run_session_delete_command(session_ref: &str, force: bool, json: bool) ->
     Ok(())
 }
 
+#[derive(Serialize)]
+struct McpTrustEntryReport {
+    path: String,
+    sha256: String,
+}
+
+#[derive(Serialize)]
+struct McpTrustListReport {
+    gate_enabled: bool,
+    entries: Vec<McpTrustEntryReport>,
+}
+
+pub fn run_mcp_trust_command(path: &std::path::Path) -> Result<()> {
+    let mut store = crate::mcp::trust::McpTrustStore::load();
+    let hash = store.mark_trusted(path)?;
+    store.save()?;
+    println!(
+        "Trusted MCP config: {} (sha256={})",
+        path.display(),
+        &hash[..16]
+    );
+    Ok(())
+}
+
+pub fn run_mcp_revoke_command(path: &std::path::Path) -> Result<()> {
+    let mut store = crate::mcp::trust::McpTrustStore::load();
+    let removed = store.revoke(path);
+    store.save()?;
+    if removed.is_some() {
+        println!("Revoked MCP config trust: {}", path.display());
+    } else {
+        println!(
+            "No trust entry for: {} (nothing to revoke)",
+            path.display()
+        );
+    }
+    Ok(())
+}
+
+pub fn run_mcp_list_command(json: bool) -> Result<()> {
+    let store = crate::mcp::trust::McpTrustStore::load();
+    let gate_enabled = crate::mcp::trust::trust_gate_enabled();
+    if json {
+        let report = McpTrustListReport {
+            gate_enabled,
+            entries: store
+                .entries
+                .iter()
+                .map(|(path, sha)| McpTrustEntryReport {
+                    path: path.clone(),
+                    sha256: sha.clone(),
+                })
+                .collect(),
+        };
+        println!("{}", serde_json::to_string_pretty(&report)?);
+        return Ok(());
+    }
+    println!(
+        "MCP project-local trust gate: {}",
+        if gate_enabled {
+            "ENABLED (JCODE_REQUIRE_MCP_TRUST=1)"
+        } else {
+            "disabled (set JCODE_REQUIRE_MCP_TRUST=1 to enforce)"
+        }
+    );
+    if store.entries.is_empty() {
+        println!("(no trusted entries)");
+        return Ok(());
+    }
+    println!("Trusted entries ({}):", store.entries.len());
+    for (path, sha) in &store.entries {
+        println!("  {}  (sha256={})", path, &sha[..16]);
+    }
+    Ok(())
+}
+
 async fn run_ambient_visible() -> Result<()> {
     use crate::ambient::VisibleCycleContext;
 

@@ -27,6 +27,7 @@ JCODE_SAFE_EVAL=1 jcode run "say hello"
 | `JCODE_NO_TELEMETRY=1` | Belt-and-suspenders: even if telemetry was somehow re-enabled, no events are sent. |
 | `JCODE_AMBIENT_DISABLED=1` | Ambient mode does not start a background runner. |
 | `JCODE_NO_SELFDEV=1` | Self-dev auto-detection is suppressed. |
+| `JCODE_REQUIRE_MCP_TRUST=1` | Project-local `.jcode/mcp.json` / `.claude/mcp.json` are skipped unless their content is in the user's trust store. Manage with `jcode mcp trust <path>` / `jcode mcp revoke <path>` / `jcode mcp list`. See issue #62. |
 
 A short banner is printed at startup so you can confirm the profile took effect:
 

@@ -288,6 +288,11 @@ pub(crate) enum Command {
     #[command(subcommand)]
     Prompts(PromptsCommand),
 
+    /// Manage trusted project-local MCP configs (`.jcode/mcp.json`, `.claude/mcp.json`).
+    /// Trust is enforced when `JCODE_REQUIRE_MCP_TRUST=1` (auto-set by `--safe-eval`).
+    #[command(subcommand)]
+    Mcp(McpCommand),
+
     /// Ambient mode management
     #[command(subcommand)]
     Ambient(AmbientCommand),
@@ -526,6 +531,28 @@ pub(crate) enum PromptsCommand {
     Show {
         /// Template name (filename without `.md`). Use `jcode prompts list` to discover names.
         name: String,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+pub(crate) enum McpCommand {
+    /// Mark the current content of <path> as trusted.
+    Trust {
+        /// Path to a project-local MCP config (e.g. `.jcode/mcp.json`).
+        path: std::path::PathBuf,
+    },
+
+    /// Remove a trust entry for <path>.
+    Revoke {
+        /// Path to a previously-trusted MCP config.
+        path: std::path::PathBuf,
+    },
+
+    /// List all trusted project-local MCP config entries.
+    List {
+        /// Emit JSON instead of human-readable output.
+        #[arg(long)]
+        json: bool,
     },
 }
 

@@ -87,6 +87,9 @@ fn parse_and_prepare_args() -> Result<Args> {
         crate::env::set_var("JCODE_NO_TELEMETRY", "1");
         crate::env::set_var("JCODE_AMBIENT_DISABLED", "1");
         crate::env::set_var("JCODE_NO_SELFDEV", "1");
+        // Issue #62: project-local MCP configs in safe-eval mode require
+        // explicit trust via `jcode mcp trust <path>`.
+        crate::env::set_var("JCODE_REQUIRE_MCP_TRUST", "1");
         if !args.quiet {
             output::stderr_info(
                 "Safe-eval profile: isolated JCODE_HOME, telemetry off, offline, ambient/selfdev gated.",

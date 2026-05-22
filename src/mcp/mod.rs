@@ -9,6 +9,7 @@ mod manager;
 pub mod pool;
 mod protocol;
 mod tool;
+pub mod trust;
 
 pub use client::{McpClient, McpHandle};
 pub use manager::McpManager;
