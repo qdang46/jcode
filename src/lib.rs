@@ -23,6 +23,7 @@ pub mod compaction;
 pub mod config;
 pub mod copilot_usage;
 pub mod dictation;
+pub mod doctor;
 #[cfg(feature = "embeddings")]
 pub mod embedding;
 #[cfg(not(feature = "embeddings"))]

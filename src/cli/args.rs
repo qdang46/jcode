@@ -293,6 +293,13 @@ pub(crate) enum Command {
     #[command(subcommand)]
     Mcp(McpCommand),
 
+    /// Print a structured environment / config / health report.
+    Doctor {
+        /// Emit JSON instead of human-readable output.
+        #[arg(long)]
+        json: bool,
+    },
+
     /// Ambient mode management
     #[command(subcommand)]
     Ambient(AmbientCommand),

@@ -228,6 +228,14 @@ pub(crate) async fn run_main(mut args: Args) -> Result<()> {
             McpCommand::Revoke { path } => commands::run_mcp_revoke_command(&path)?,
             McpCommand::List { json } => commands::run_mcp_list_command(json)?,
         },
+        Some(Command::Doctor { json }) => {
+            let format = if json {
+                crate::doctor::DoctorFormat::Json
+            } else {
+                crate::doctor::DoctorFormat::Text
+            };
+            crate::doctor::run(format)?;
+        }
         Some(Command::Ambient(subcmd)) => {
             commands::run_ambient_command(map_ambient_subcommand(subcmd)).await?;
         }
