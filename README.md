@@ -649,6 +649,7 @@ Notes:
 - [Windows Notes](docs/WINDOWS.md)
 - [Wrappers and Shell Integration](docs/WRAPPERS.md)
 - [Refactoring Notes](docs/REFACTORING.md)
+- [Configuration files reference](docs/CONFIG_REFERENCE.md)
 
 ---
 
