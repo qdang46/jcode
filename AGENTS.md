@@ -6,7 +6,6 @@
 - If the git state is not clean, or there are other agents working in the codebase in parallel, do your best to still commit your work. 
 - **Push when done** - Push all commits to remote when finishing a task or session
 - **Use fast iteration by default** - Prefer `cargo check`, targeted tests, and dev builds while iterating
-- **Background watcher** - Run `bacon` (install: `cargo install --locked bacon`) for live cargo check / clippy / tests while you edit. Defaults to `cargo check`; press `k` (clippy), `t` (test-jcode), `i` (ci gates), `T` (full test). See `bacon.toml` in the repo root for the full job list.
 - **Rebuild when done** - When you are done making changes, build the source.
 - **Bump version for releases** - Update version in `Cargo.toml` when making releases. When cutting a new release, look at all the changes that happened since the last release and determine what the version bump should be ie patch or minor, etc. 
 - **Remote builds available** - Use `scripts/remote_build.sh` to offload heavy cargo work to another machine. If your build is terminated, likely is because there are not enough resources on this machine to build. use remote build in that case. Try checking the resource avaliablity on the machine before you run a build. 
