@@ -222,6 +222,14 @@ pub(crate) async fn run_main(mut args: Args) -> Result<()> {
         Some(Command::Prompts(subcmd)) => match subcmd {
             PromptsCommand::List { json } => crate::prompt_templates::run_list(json)?,
             PromptsCommand::Show { name } => crate::prompt_templates::run_show(&name)?,
+            PromptsCommand::New { name, user, force } => {
+                let location = if user {
+                    crate::prompt_templates::NewLocation::User
+                } else {
+                    crate::prompt_templates::NewLocation::Project
+                };
+                crate::prompt_templates::run_new(&name, location, force)?;
+            }
         },
         Some(Command::Mcp(subcmd)) => match subcmd {
             McpCommand::Trust { path } => commands::run_mcp_trust_command(&path)?,

@@ -36,7 +36,7 @@ pub struct PromptTemplate {
     pub body: String,
 }
 
-fn is_valid_template_name(name: &str) -> bool {
+pub fn is_valid_template_name(name: &str) -> bool {
     !name.is_empty()
         && name
             .chars()
@@ -175,6 +175,120 @@ pub fn run_show(name: &str) -> Result<()> {
     );
     println!("{}", template.body.trim_end());
     Ok(())
+}
+
+/// Where `prompts new` should drop a freshly-scaffolded template.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NewLocation {
+    /// `<cwd>/.jcode/prompts/<name>.md` (default; project-local).
+    Project,
+    /// `~/.jcode/prompts/<name>.md` (user-global).
+    User,
+}
+
+/// Scaffold a new prompt-template file with a starter body.
+///
+/// Returns the absolute path the file was written to. Refuses to clobber an
+/// existing file unless `force` is true.
+pub fn run_new(name: &str, location: NewLocation, force: bool) -> Result<PathBuf> {
+    if !is_valid_template_name(name) {
+        anyhow::bail!("Template name '{name}' must be ASCII alphanumeric + '-' or '_'.");
+    }
+
+    let dir = match location {
+        NewLocation::Project => {
+            let cwd = std::env::current_dir().context("cannot resolve cwd")?;
+            cwd.join(".jcode").join("prompts")
+        }
+        NewLocation::User => crate::storage::jcode_dir()
+            .context("cannot resolve ~/.jcode")?
+            .join("prompts"),
+    };
+    std::fs::create_dir_all(&dir).with_context(|| format!("failed to create {}", dir.display()))?;
+
+    let path = dir.join(format!("{name}.md"));
+    if path.exists() && !force {
+        anyhow::bail!(
+            "{} already exists. Pass --force to overwrite.",
+            path.display()
+        );
+    }
+
+    let scaffold = format!(
+        "---\n\
+         description: TODO — what this prompt does\n\
+         args:\n\
+         - name: focus\n\
+           required: false\n\
+           default: bugs\n\
+         ---\n\n\
+         # {name}\n\n\
+         Replace this body with the prompt jcode should expand when the user\n\
+         types `/{name}` (or `/{name} <args>`).\n\n\
+         Example placeholders supported by future expansion work:\n\
+         - {{{{focus}}}} — bound to the `focus` arg above (default `bugs`).\n\n\
+         Until expansion lands, the body is inserted verbatim into the editor.\n",
+    );
+    std::fs::write(&path, scaffold)
+        .with_context(|| format!("failed to write {}", path.display()))?;
+
+    println!("{}", path.display());
+    Ok(path)
+}
+
+#[cfg(test)]
+mod new_tests {
+    use super::*;
+
+    #[test]
+    fn run_new_writes_starter_template_to_user_dir() {
+        let _lock = crate::storage::lock_test_env();
+        let prev = std::env::var_os("JCODE_HOME");
+        let temp = tempfile::TempDir::new().expect("temp");
+        crate::env::set_var("JCODE_HOME", temp.path());
+
+        let path = run_new("review", NewLocation::User, false).expect("scaffold");
+        assert_eq!(path, temp.path().join("prompts").join("review.md"));
+        let body = std::fs::read_to_string(&path).expect("read back");
+        assert!(body.starts_with("---\n"));
+        assert!(body.contains("# review"));
+        assert!(body.contains("`/review`"));
+
+        // Refuses to clobber.
+        let err = run_new("review", NewLocation::User, false).unwrap_err();
+        assert!(err.to_string().contains("already exists"));
+
+        // --force overrides.
+        run_new("review", NewLocation::User, true).expect("force overwrite");
+
+        if let Some(prev) = prev {
+            crate::env::set_var("JCODE_HOME", prev);
+        } else {
+            crate::env::remove_var("JCODE_HOME");
+        }
+    }
+
+    #[test]
+    fn run_new_rejects_invalid_names() {
+        let _lock = crate::storage::lock_test_env();
+        let prev = std::env::var_os("JCODE_HOME");
+        let temp = tempfile::TempDir::new().expect("temp");
+        crate::env::set_var("JCODE_HOME", temp.path());
+
+        for bad in ["bad name", "with$char", "", "../escape"] {
+            let err = run_new(bad, NewLocation::User, false).unwrap_err();
+            assert!(
+                err.to_string().contains("must be ASCII alphanumeric"),
+                "bad name {bad:?} not rejected: {err}"
+            );
+        }
+
+        if let Some(prev) = prev {
+            crate::env::set_var("JCODE_HOME", prev);
+        } else {
+            crate::env::remove_var("JCODE_HOME");
+        }
+    }
 }
 
 #[cfg(test)]

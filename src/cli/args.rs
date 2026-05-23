@@ -539,6 +539,20 @@ pub(crate) enum PromptsCommand {
         /// Template name (filename without `.md`). Use `jcode prompts list` to discover names.
         name: String,
     },
+
+    /// Scaffold a new prompt template file (stub `.md` with frontmatter).
+    New {
+        /// Template name. Must be ASCII alphanumeric + `-` or `_`.
+        name: String,
+
+        /// Write to `~/.jcode/prompts/` instead of `<cwd>/.jcode/prompts/`.
+        #[arg(long)]
+        user: bool,
+
+        /// Overwrite an existing template of the same name.
+        #[arg(long)]
+        force: bool,
+    },
 }
 
 #[derive(Subcommand, Debug)]
