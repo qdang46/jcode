@@ -249,12 +249,13 @@ pub(crate) async fn run_main(mut args: Args) -> Result<()> {
             session,
             output,
             format,
+            redact,
         }) => {
             let fmt = match format {
                 ExportFormatArg::Markdown => crate::export::ExportFormat::Markdown,
                 ExportFormatArg::Json => crate::export::ExportFormat::Json,
             };
-            crate::export::run(&session, output, fmt)?;
+            crate::export::run(&session, output, fmt, redact)?;
         }
         Some(Command::Ambient(subcmd)) => {
             commands::run_ambient_command(map_ambient_subcommand(subcmd)).await?;

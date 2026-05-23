@@ -22,7 +22,12 @@ pub enum ExportFormat {
     Json,
 }
 
-pub fn run(session_ref: &str, output: Option<PathBuf>, format: ExportFormat) -> Result<()> {
+pub fn run(
+    session_ref: &str,
+    output: Option<PathBuf>,
+    format: ExportFormat,
+    redact: bool,
+) -> Result<()> {
     let session_id = crate::session::find_session_by_name_or_id(session_ref)?;
     let session = crate::session::Session::load(&session_id)?;
 
@@ -32,6 +37,8 @@ pub fn run(session_ref: &str, output: Option<PathBuf>, format: ExportFormat) -> 
             serde_json::to_string_pretty(&session).context("failed to serialize session to JSON")?
         }
     };
+
+    let body = if redact { redact_secrets(&body) } else { body };
 
     let output_path = match output {
         Some(p) => p,
@@ -91,6 +98,70 @@ fn slugify(input: &str) -> String {
 }
 
 /// Render a session as a self-contained Markdown document.
+/// Replace common secret-shaped tokens with `[REDACTED:<kind>]` markers.
+///
+/// Patterns covered (high-precision — won't catch every possible secret):
+///   - OpenAI / Anthropic / generic SDK keys: `sk-…`, `sk-ant-…`, `sk-cp-…`
+///   - GitHub tokens: `gho_…`, `ghp_…`, `ghs_…`, `ghr_…`
+///   - Bearer headers: `Bearer <token>` → `Bearer [REDACTED:bearer]`
+///   - z.ai-shape tokens: `<32 hex>.<24 chars>`
+///   - Common env-var assignments: `ANTHROPIC_API_KEY=…`, `OPENAI_API_KEY=…`,
+///     `OPENROUTER_API_KEY=…`, `ZHIPU_API_KEY=…`, `GITHUB_TOKEN=…`
+///
+/// Returns a new String. The original is left intact.
+pub fn redact_secrets(input: &str) -> String {
+    use regex::Regex;
+    use std::sync::OnceLock;
+
+    struct Pat {
+        re: Regex,
+        replace: &'static str,
+    }
+    static PATS: OnceLock<Vec<Pat>> = OnceLock::new();
+    let pats = PATS.get_or_init(|| {
+        let mut v: Vec<Pat> = Vec::new();
+        // sk-… style keys (OpenAI, Anthropic, z.ai). Match `sk-` followed by
+        // 20+ url-safe chars or dots/dashes. Anchor on word boundary to avoid
+        // chewing surrounding text.
+        v.push(Pat {
+            re: Regex::new(r"\bsk-[A-Za-z0-9_\-\.]{20,}").unwrap(),
+            replace: "[REDACTED:sk]",
+        });
+        // GitHub tokens.
+        v.push(Pat {
+            re: Regex::new(r"\bgh[opsru]_[A-Za-z0-9]{20,}").unwrap(),
+            replace: "[REDACTED:github]",
+        });
+        // Bearer tokens (header-shape). Replace token only, keep "Bearer ".
+        v.push(Pat {
+            re: Regex::new(r"\b(Bearer\s+)[A-Za-z0-9_\-\.]{16,}").unwrap(),
+            replace: "${1}[REDACTED:bearer]",
+        });
+        // z.ai-shape: 32 hex . 12+ alnum (token format used by z.ai's
+        // anthropic-compatible endpoint and similar).
+        v.push(Pat {
+            re: Regex::new(r"\b[a-f0-9]{32}\.[A-Za-z0-9]{12,}").unwrap(),
+            replace: "[REDACTED:zai]",
+        });
+        // Env-var assignments for known secret names (case-insensitive name,
+        // stops at end of line / quote / comma).
+        v.push(Pat {
+            re: Regex::new(
+                r#"(?i)\b(ANTHROPIC_API_KEY|OPENAI_API_KEY|OPENAI_COMPAT_API_KEY|OPENROUTER_API_KEY|ZHIPU_API_KEY|COHERE_API_KEY|GITHUB_TOKEN|GH_TOKEN|MINIMAX_API_KEY|XAI_API_KEY|DEEPSEEK_API_KEY|FIREWORKS_API_KEY|GROQ_API_KEY|MISTRAL_API_KEY|OPENCODE_API_KEY|OPENCODE_GO_API_KEY|TOGETHER_API_KEY|PERPLEXITY_API_KEY|CEREBRAS_API_KEY|NVIDIA_API_KEY|AZURE_OPENAI_API_KEY|AWS_ACCESS_KEY_ID|AWS_SECRET_ACCESS_KEY|GEMINI_API_KEY|GOOGLE_API_KEY|CLAUDE_CODE_OAUTH_TOKEN|ANTHROPIC_AUTH_TOKEN)(\s*=\s*)([^\r\n,'"\s]+)"#,
+            )
+            .unwrap(),
+            replace: "${1}${2}[REDACTED:env]",
+        });
+        v
+    });
+
+    let mut out = input.to_string();
+    for pat in pats {
+        out = pat.re.replace_all(&out, pat.replace).into_owned();
+    }
+    out
+}
+
 pub fn render_markdown(session: &crate::session::Session) -> String {
     let mut out = String::new();
     let title = session
@@ -293,5 +364,74 @@ mod tests {
         assert_eq!(slugify("a/b c"), "a-b-c");
         assert_eq!(slugify("___"), "");
         assert_eq!(slugify(""), "");
+    }
+
+    // ---- redact_secrets tests ----
+
+    #[test]
+    fn redact_replaces_sk_keys() {
+        let input = "key=sk-ant-api03-abc123_DEFghi-xyz890_more later text";
+        let out = redact_secrets(input);
+        assert!(out.contains("[REDACTED:sk]"), "got: {out}");
+        assert!(!out.contains("sk-ant-api03"));
+        assert!(out.contains("later text"));
+    }
+
+    #[test]
+    fn redact_replaces_github_tokens() {
+        for prefix in ["gho_", "ghp_", "ghs_", "ghr_", "ghu_"] {
+            let token = format!("{prefix}{}", "a".repeat(36));
+            let out = redact_secrets(&token);
+            assert!(
+                out.contains("[REDACTED:github]"),
+                "{prefix} not redacted: {out}"
+            );
+        }
+    }
+
+    #[test]
+    fn redact_keeps_bearer_label_drops_token() {
+        let out = redact_secrets("Authorization: Bearer abcdef0123456789xyz_test");
+        assert!(out.contains("Bearer [REDACTED:bearer]"));
+        assert!(!out.contains("abcdef0123456789xyz_test"));
+    }
+
+    #[test]
+    fn redact_zai_shape_token() {
+        // 32 hex . 24+ alnum
+        let token = "6e915ba766fb4c3bbe4cce3b58a75523.rrc5r2uvVFFXg4ZE";
+        let out = redact_secrets(&format!("token={token}"));
+        assert!(out.contains("[REDACTED:zai]"), "got: {out}");
+        assert!(!out.contains(token));
+    }
+
+    #[test]
+    fn redact_env_var_assignments() {
+        let input = r#"
+ANTHROPIC_API_KEY=sk-ant-x12345678901234567890
+OPENAI_API_KEY="sk-proj-y9876543210987654321"
+GITHUB_TOKEN=gho_abcdefghijklmnopqrstuvwxyz1234
+ZHIPU_API_KEY=mySecretToken12345
+DEEPSEEK_API_KEY=anotherSecret67890
+"#;
+        let out = redact_secrets(input);
+        // Each named env var should be redacted.
+        for name in [
+            "ANTHROPIC_API_KEY",
+            "OPENAI_API_KEY",
+            "GITHUB_TOKEN",
+            "ZHIPU_API_KEY",
+            "DEEPSEEK_API_KEY",
+        ] {
+            assert!(out.contains(&format!("{name}")), "{name} name lost: {out}");
+        }
+        assert!(!out.contains("anotherSecret67890"));
+        assert!(!out.contains("mySecretToken12345"));
+    }
+
+    #[test]
+    fn redact_preserves_non_secret_text() {
+        let input = "The function `read_file` returned 42 bytes. No secrets here.";
+        assert_eq!(redact_secrets(input), input);
     }
 }

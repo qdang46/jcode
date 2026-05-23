@@ -317,6 +317,12 @@ pub(crate) enum Command {
         /// Output format (default: markdown).
         #[arg(long, value_enum, default_value_t = ExportFormatArg::Markdown)]
         format: ExportFormatArg,
+
+        /// Redact common secret-shaped tokens (sk-..., gho_..., Bearer ...,
+        /// known env-var assignments, z.ai-shape tokens) before writing the
+        /// output. High-precision regex set documented in `src/export.rs`.
+        #[arg(long)]
+        redact: bool,
     },
 
     /// Ambient mode management
