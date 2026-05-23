@@ -181,6 +181,95 @@ fn minimax_token_plan_keys_route_to_china_even_when_openai_api_key_env_is_intern
 }
 
 #[test]
+fn minimax_region_global_override_keeps_international_endpoint_for_sk_cp_keys() {
+    // MiniMax's global console issues sk-cp-prefixed keys too, so the
+    // auto-routing-by-prefix would dump them on api.minimaxi.com and 401.
+    // JCODE_MINIMAX_REGION=global must force the catalog default
+    // (api.minimax.io) regardless of the prefix.
+    let _lock = crate::storage::lock_test_env();
+    let _guard = EnvGuard::save(&["OPENAI_API_KEY", "JCODE_MINIMAX_REGION"]);
+    crate::env::remove_var("OPENAI_API_KEY");
+    crate::env::set_var("JCODE_MINIMAX_REGION", "global");
+
+    let resolved = resolve_openai_compatible_profile_with_api_key_hint(
+        MINIMAX_PROFILE,
+        Some("sk-cp-actually-a-global-key"),
+    );
+    assert_eq!(
+        resolved.api_base, "https://api.minimax.io/v1",
+        "JCODE_MINIMAX_REGION=global must beat the sk-cp- → China heuristic"
+    );
+}
+
+#[test]
+fn minimax_region_china_override_routes_even_without_sk_cp_prefix() {
+    let _lock = crate::storage::lock_test_env();
+    let _guard = EnvGuard::save(&["OPENAI_API_KEY", "JCODE_MINIMAX_REGION"]);
+    crate::env::remove_var("OPENAI_API_KEY");
+    crate::env::set_var("JCODE_MINIMAX_REGION", "china");
+
+    let resolved = resolve_openai_compatible_profile_with_api_key_hint(
+        MINIMAX_PROFILE,
+        Some("any-non-sk-cp-key"),
+    );
+    assert_eq!(resolved.api_base, MINIMAX_CHINA_API_BASE);
+    assert_eq!(resolved.setup_url, MINIMAX_CHINA_SETUP_URL);
+}
+
+#[test]
+fn minimax_region_invalid_value_falls_through_to_prefix_heuristic() {
+    let _lock = crate::storage::lock_test_env();
+    let _guard = EnvGuard::save(&["OPENAI_API_KEY", "JCODE_MINIMAX_REGION"]);
+    crate::env::remove_var("OPENAI_API_KEY");
+    crate::env::set_var("JCODE_MINIMAX_REGION", "garbage");
+
+    // Invalid override → prefix heuristic still picks China for sk-cp- keys.
+    let resolved = resolve_openai_compatible_profile_with_api_key_hint(
+        MINIMAX_PROFILE,
+        Some("sk-cp-token-plan"),
+    );
+    assert_eq!(resolved.api_base, MINIMAX_CHINA_API_BASE);
+
+    // And global default for non-prefix keys.
+    let resolved2 = resolve_openai_compatible_profile_with_api_key_hint(
+        MINIMAX_PROFILE,
+        Some("sk-international"),
+    );
+    assert_eq!(resolved2.api_base, "https://api.minimax.io/v1");
+}
+
+#[test]
+fn minimax_region_aliases_accept_io_cn_minimaxi() {
+    let _lock = crate::storage::lock_test_env();
+    let _guard = EnvGuard::save(&["OPENAI_API_KEY", "JCODE_MINIMAX_REGION"]);
+    crate::env::remove_var("OPENAI_API_KEY");
+
+    for global_alias in ["global", "international", "io", "GLOBAL", "  Global  "] {
+        crate::env::set_var("JCODE_MINIMAX_REGION", global_alias);
+        let resolved = resolve_openai_compatible_profile_with_api_key_hint(
+            MINIMAX_PROFILE,
+            Some("sk-cp-test"),
+        );
+        assert_eq!(
+            resolved.api_base, "https://api.minimax.io/v1",
+            "{global_alias:?} should route to global"
+        );
+    }
+
+    for china_alias in ["china", "cn", "minimaxi", "CHINA"] {
+        crate::env::set_var("JCODE_MINIMAX_REGION", china_alias);
+        let resolved = resolve_openai_compatible_profile_with_api_key_hint(
+            MINIMAX_PROFILE,
+            Some("sk-international-test"),
+        );
+        assert_eq!(
+            resolved.api_base, MINIMAX_CHINA_API_BASE,
+            "{china_alias:?} should route to China"
+        );
+    }
+}
+
+#[test]
 fn auth_issue_lan_openai_compatible_bases_are_valid_for_local_model_servers() {
     assert_eq!(
         normalize_api_base("http://100.103.78.84:11434/v1").as_deref(),
