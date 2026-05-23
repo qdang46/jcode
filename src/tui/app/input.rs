@@ -56,11 +56,45 @@ pub(super) fn expand_prompt_template_invocation(input: &str) -> Option<String> {
     }
 
     let template = crate::prompt_templates::find_by_name(name)?;
-    let mut out = template.body.trim_end().to_string();
-    if !args.is_empty() {
-        out.push_str("\n\nArgs: ");
-        out.push_str(args);
-        out.push('\n');
+    // Issue #4 follow-up: if the template body has YAML frontmatter declaring
+    // `args:`, substitute `{{name}}` placeholders in the body with values
+    // resolved from user input. Otherwise fall back to the previous "append
+    // raw args" behavior so older templates without frontmatter still work.
+    let (frontmatter, body, decls) = crate::prompt_templates::parse_frontmatter(&template.body);
+
+    // Drop the rendered body if frontmatter exists; otherwise use the
+    // original (which may itself begin with --- intended as content).
+    let body = if frontmatter.is_some() {
+        body
+    } else {
+        template.body.clone()
+    };
+
+    let mut out = if !decls.is_empty() {
+        let (positional, named) = crate::prompt_templates::parse_user_args(args);
+        let (bindings, missing) = crate::prompt_templates::bind_args(&decls, &positional, &named);
+        let mut rendered = crate::prompt_templates::substitute_placeholders(&body, &bindings);
+        if !missing.is_empty() {
+            rendered.push_str(&format!(
+                "\n\n[/{name}: missing required arg(s): {}]",
+                missing.join(", ")
+            ));
+        }
+        rendered.trim_end().to_string()
+    } else {
+        // Backwards-compat: no declared args, use legacy "Args: <rest>" trailer.
+        let mut legacy = body.trim_end().to_string();
+        if !args.is_empty() {
+            legacy.push_str("\n\nArgs: ");
+            legacy.push_str(args);
+            legacy.push('\n');
+        }
+        legacy
+    };
+
+    // Strip trailing whitespace consistently.
+    while out.ends_with(['\n', ' ', '\t']) {
+        out.pop();
     }
     Some(out)
 }
@@ -88,10 +122,83 @@ mod prompt_expansion_tests {
         let expanded = expand_prompt_template_invocation("/qa-checklist").expect("expanded");
         assert!(expanded.contains("Please run the QA checklist."));
 
-        let with_args =
-            expand_prompt_template_invocation("/qa-checklist the auth module").unwrap();
+        let with_args = expand_prompt_template_invocation("/qa-checklist the auth module").unwrap();
         assert!(with_args.contains("Please run the QA checklist."));
         assert!(with_args.contains("Args: the auth module"));
+
+        if let Some(prev) = prev {
+            crate::env::set_var("JCODE_HOME", prev);
+        } else {
+            crate::env::remove_var("JCODE_HOME");
+        }
+    }
+
+    // Issue #4 follow-up: when frontmatter declares args, expansion must
+    // substitute {{name}} placeholders with bound values.
+    #[test]
+    fn expansion_substitutes_frontmatter_args() {
+        let _lock = crate::storage::lock_test_env();
+        let prev = std::env::var_os("JCODE_HOME");
+        let temp = tempfile::TempDir::new().unwrap();
+        crate::env::set_var("JCODE_HOME", temp.path());
+        let prompts = temp.path().join("prompts");
+
+        write_template(
+            &prompts,
+            "review-it",
+            "---\n\
+             description: review with focus + target\n\
+             args:\n\
+             - name: focus\n  required: false\n  default: bugs\n\
+             - name: target\n  required: true\n\
+             ---\n\n\
+             Please review the {{target}} for {{focus}}.\n",
+        );
+
+        // Positional fills declared order: focus, target.
+        let out = expand_prompt_template_invocation("/review-it auth src/lib.rs").unwrap();
+        assert!(
+            out.contains("Please review the src/lib.rs for auth."),
+            "expected substitution; got: {out}"
+        );
+
+        // Named overrides positional.
+        let out = expand_prompt_template_invocation("/review-it focus=security target=src/auth.rs")
+            .unwrap();
+        assert!(out.contains("Please review the src/auth.rs for security."));
+
+        // Default kicks in when focus is absent (positional is target).
+        // 1 positional → fills focus first; target then unbound + required → missing arg notice.
+        let out = expand_prompt_template_invocation("/review-it src/foo.rs").unwrap();
+        assert!(out.contains("Please review the {{target}} for src/foo.rs."));
+        assert!(out.contains("missing required arg(s): target"));
+
+        // No args → focus uses default "bugs", target is missing.
+        let out = expand_prompt_template_invocation("/review-it").unwrap();
+        assert!(out.contains("for bugs."));
+        assert!(out.contains("missing required arg(s): target"));
+
+        if let Some(prev) = prev {
+            crate::env::set_var("JCODE_HOME", prev);
+        } else {
+            crate::env::remove_var("JCODE_HOME");
+        }
+    }
+
+    #[test]
+    fn expansion_legacy_template_without_frontmatter_still_appends_args() {
+        // Backwards-compat: templates without `---` frontmatter use the old
+        // `Args: <rest>` trailer.
+        let _lock = crate::storage::lock_test_env();
+        let prev = std::env::var_os("JCODE_HOME");
+        let temp = tempfile::TempDir::new().unwrap();
+        crate::env::set_var("JCODE_HOME", temp.path());
+        let prompts = temp.path().join("prompts");
+        write_template(&prompts, "old-style", "No frontmatter here.");
+
+        let out = expand_prompt_template_invocation("/old-style hello world").unwrap();
+        assert!(out.contains("No frontmatter here."));
+        assert!(out.contains("Args: hello world"));
 
         if let Some(prev) = prev {
             crate::env::set_var("JCODE_HOME", prev);

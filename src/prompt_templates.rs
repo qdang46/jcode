@@ -177,6 +177,279 @@ pub fn run_show(name: &str) -> Result<()> {
     Ok(())
 }
 
+/// One declared template argument from the YAML frontmatter `args:` list.
+///
+/// Issue #4 follow-up: templates can declare arg names + defaults; expansion
+/// substitutes `{{name}}` placeholders in the body.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ArgDecl {
+    pub name: String,
+    pub required: bool,
+    pub default: Option<String>,
+}
+
+/// Split a template into (frontmatter_lines, body, declared_args).
+///
+/// Recognized frontmatter format (lightweight YAML subset — we don't
+/// pull in serde_yaml for this):
+///
+/// ```text
+/// ---
+/// description: ...
+/// args:
+/// - name: focus
+///   required: false
+///   default: bugs
+/// - name: target
+///   required: true
+/// ---
+///
+/// # body starts here
+/// ```
+///
+/// If no frontmatter is present, returns `(None, full_body, vec![])`.
+pub fn parse_frontmatter(raw: &str) -> (Option<String>, String, Vec<ArgDecl>) {
+    let trimmed = raw.trim_start_matches('\u{feff}');
+    if !trimmed.starts_with("---\n") && !trimmed.starts_with("---\r\n") {
+        return (None, raw.to_string(), Vec::new());
+    }
+
+    // Find the closing `---` on its own line.
+    let after_first = match trimmed.find('\n') {
+        Some(idx) => &trimmed[idx + 1..],
+        None => return (None, raw.to_string(), Vec::new()),
+    };
+    let close_marker = after_first
+        .find("\n---\n")
+        .or_else(|| after_first.find("\n---\r\n"))
+        .or_else(|| after_first.strip_suffix("\n---").map(|s| s.len()));
+    let Some(close_idx) = close_marker else {
+        return (None, raw.to_string(), Vec::new());
+    };
+    let frontmatter = &after_first[..close_idx];
+    // Skip the closing `---` line + optional newline.
+    let body_start = close_idx + after_first[close_idx..].find('\n').unwrap_or(0);
+    let body = after_first[body_start..]
+        .trim_start_matches(|c: char| c == '\n' || c == '\r')
+        .to_string();
+
+    let args = parse_args_block(frontmatter);
+    (Some(frontmatter.to_string()), body, args)
+}
+
+/// Parse the `args:` list out of frontmatter. Tolerant of:
+/// - `args:` followed by indented `- name: foo` entries
+/// - per-arg `required` / `default` keys
+/// - missing `args:` block (returns empty vec)
+fn parse_args_block(frontmatter: &str) -> Vec<ArgDecl> {
+    let mut out: Vec<ArgDecl> = Vec::new();
+    let mut in_args = false;
+    let mut current: Option<ArgDecl> = None;
+
+    for raw_line in frontmatter.lines() {
+        let line = raw_line.trim_end();
+        let trimmed = line.trim_start();
+
+        // A line at column 0 that doesn't start with `-` is a top-level key.
+        // YAML list entries like `- name: foo` may live at column 0 too (no
+        // indent under `args:`), so we don't treat those as a new top-level
+        // section when we're currently inside `args:`.
+        let is_top_level_key = !line.starts_with(' ')
+            && !line.starts_with('\t')
+            && !line.starts_with('-');
+        if is_top_level_key {
+            // Push pending arg from previous block.
+            if let Some(arg) = current.take() {
+                out.push(arg);
+            }
+            in_args = trimmed == "args:" || trimmed.starts_with("args:");
+            continue;
+        }
+
+        if !in_args {
+            continue;
+        }
+
+        if let Some(rest) = trimmed.strip_prefix("- ") {
+            // New arg entry; flush previous.
+            if let Some(arg) = current.take() {
+                out.push(arg);
+            }
+            // First field on the dash line, e.g. `- name: focus`
+            let mut new_arg = ArgDecl {
+                name: String::new(),
+                required: false,
+                default: None,
+            };
+            apply_arg_field(&mut new_arg, rest);
+            current = Some(new_arg);
+            continue;
+        }
+
+        // Continuation field on a current arg: `  required: true`
+        if let Some(arg) = current.as_mut() {
+            apply_arg_field(arg, trimmed);
+        }
+    }
+
+    if let Some(arg) = current.take() {
+        out.push(arg);
+    }
+
+    // Filter out unnamed entries (malformed frontmatter).
+    out.retain(|a| !a.name.is_empty());
+    out
+}
+
+fn apply_arg_field(arg: &mut ArgDecl, line: &str) {
+    let Some((key, value)) = line.split_once(':') else {
+        return;
+    };
+    let key = key.trim();
+    let value = value.trim();
+    let value_stripped = value
+        .strip_prefix('"')
+        .and_then(|s| s.strip_suffix('"'))
+        .or_else(|| value.strip_prefix('\'').and_then(|s| s.strip_suffix('\'')))
+        .unwrap_or(value);
+    match key {
+        "name" => arg.name = value_stripped.to_string(),
+        "required" => arg.required = matches!(value_stripped, "true" | "yes" | "1"),
+        "default" => arg.default = Some(value_stripped.to_string()),
+        _ => {}
+    }
+}
+
+/// Parse a free-form arg string into named + positional values.
+///
+/// Recognized shapes:
+///   `focus=auth target=src/foo.rs`     fully named
+///   `auth src/foo.rs`                  fully positional
+///   `auth target=src/foo.rs`           mixed (positional first)
+///
+/// Quoting: values can be wrapped in single or double quotes to include
+/// spaces.
+pub fn parse_user_args(input: &str) -> (Vec<String>, std::collections::HashMap<String, String>) {
+    let mut positional: Vec<String> = Vec::new();
+    let mut named: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+    for token in tokenize_args(input) {
+        if let Some((k, v)) = token.split_once('=') {
+            // Only treat as named if k looks like an identifier.
+            if !k.is_empty()
+                && k.chars()
+                    .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+            {
+                named.insert(k.to_string(), v.to_string());
+                continue;
+            }
+        }
+        positional.push(token);
+    }
+    (positional, named)
+}
+
+/// Split `input` on whitespace, honoring single- and double-quoted regions.
+fn tokenize_args(input: &str) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    let mut cur = String::new();
+    let mut chars = input.chars().peekable();
+    let mut quote: Option<char> = None;
+    while let Some(ch) = chars.next() {
+        match (ch, quote) {
+            (c, Some(q)) if c == q => {
+                quote = None;
+            }
+            (c, Some(_)) => cur.push(c),
+            ('"', None) | ('\'', None) => {
+                quote = Some(ch);
+            }
+            (c, None) if c.is_whitespace() => {
+                if !cur.is_empty() {
+                    out.push(std::mem::take(&mut cur));
+                }
+            }
+            (c, None) => cur.push(c),
+        }
+    }
+    if !cur.is_empty() {
+        out.push(cur);
+    }
+    out
+}
+
+/// Bind user-supplied args to declared args.
+///
+/// Resolution per declared arg:
+///   1. Named match (e.g. user passed `focus=auth`) wins.
+///   2. Positional match (in declaration order) for any args not yet bound.
+///   3. `default` if declared.
+///   4. Empty string if declared `required: false` and no value.
+///   5. Bubble up an error if `required: true` and unbound.
+///
+/// Returns (bindings, missing_required_names).
+pub fn bind_args(
+    decls: &[ArgDecl],
+    positional: &[String],
+    named: &std::collections::HashMap<String, String>,
+) -> (std::collections::HashMap<String, String>, Vec<String>) {
+    let mut bindings: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+    let mut missing: Vec<String> = Vec::new();
+    let mut positional_iter = positional.iter();
+
+    for decl in decls {
+        if let Some(v) = named.get(&decl.name) {
+            bindings.insert(decl.name.clone(), v.clone());
+            continue;
+        }
+        if let Some(v) = positional_iter.next() {
+            bindings.insert(decl.name.clone(), v.clone());
+            continue;
+        }
+        if let Some(d) = &decl.default {
+            bindings.insert(decl.name.clone(), d.clone());
+            continue;
+        }
+        if decl.required {
+            missing.push(decl.name.clone());
+        } else {
+            bindings.insert(decl.name.clone(), String::new());
+        }
+    }
+    (bindings, missing)
+}
+
+/// Substitute `{{name}}` literal placeholders in `body` with values from
+/// `bindings`. Unknown placeholders are left intact so the user can see
+/// what wasn't bound.
+pub fn substitute_placeholders(
+    body: &str,
+    bindings: &std::collections::HashMap<String, String>,
+) -> String {
+    let mut out = String::with_capacity(body.len());
+    let mut rest = body;
+    while let Some(start) = rest.find("{{") {
+        out.push_str(&rest[..start]);
+        let after_open = &rest[start + 2..];
+        let Some(end) = after_open.find("}}") else {
+            // No closing brace — keep the rest verbatim and stop.
+            out.push_str(&rest[start..]);
+            return out;
+        };
+        let key = after_open[..end].trim();
+        match bindings.get(key) {
+            Some(value) => out.push_str(value),
+            None => {
+                // Leave the `{{key}}` intact so the user sees the unbound
+                // placeholder in their message.
+                out.push_str(&rest[start..start + 2 + end + 2]);
+            }
+        }
+        rest = &after_open[end + 2..];
+    }
+    out.push_str(rest);
+    out
+}
+
 /// Where `prompts new` should drop a freshly-scaffolded template.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NewLocation {
@@ -378,5 +651,138 @@ mod tests {
 
         let rev = templates.iter().find(|t| t.name == "rev").expect("found");
         assert_eq!(rev.body, "BODY_FROM_PARENT");
+    }
+}
+
+#[cfg(test)]
+mod arg_substitution_tests {
+    use super::*;
+    use std::collections::HashMap;
+
+    #[test]
+    fn parse_frontmatter_extracts_args_block() {
+        let body = "---\n\
+                    description: review\n\
+                    args:\n\
+                    - name: focus\n  required: false\n  default: bugs\n\
+                    - name: target\n  required: true\n\
+                    ---\n\n# review\n\nFocus on {{focus}} in {{target}}.\n";
+        let (fm, body, args) = parse_frontmatter(body);
+        assert!(fm.is_some());
+        assert!(body.contains("Focus on {{focus}} in {{target}}."));
+        assert_eq!(args.len(), 2);
+        assert_eq!(args[0].name, "focus");
+        assert!(!args[0].required);
+        assert_eq!(args[0].default.as_deref(), Some("bugs"));
+        assert_eq!(args[1].name, "target");
+        assert!(args[1].required);
+        assert!(args[1].default.is_none());
+    }
+
+    #[test]
+    fn parse_frontmatter_handles_no_frontmatter() {
+        let body = "# Plain body\n\nNo frontmatter here.\n";
+        let (fm, parsed_body, args) = parse_frontmatter(body);
+        assert!(fm.is_none());
+        assert_eq!(parsed_body, body);
+        assert!(args.is_empty());
+    }
+
+    #[test]
+    fn parse_user_args_handles_named_and_positional() {
+        let (pos, named) = parse_user_args("auth focus=bugs target=src/foo.rs");
+        assert_eq!(pos, vec!["auth"]);
+        assert_eq!(named.get("focus").map(String::as_str), Some("bugs"));
+        assert_eq!(named.get("target").map(String::as_str), Some("src/foo.rs"));
+    }
+
+    #[test]
+    fn parse_user_args_honors_quotes() {
+        let (pos, named) = parse_user_args("\"hello world\" key=\"val with space\"");
+        assert_eq!(pos, vec!["hello world"]);
+        assert_eq!(named.get("key").map(String::as_str), Some("val with space"));
+    }
+
+    #[test]
+    fn bind_args_named_wins_over_positional() {
+        let decls = vec![
+            ArgDecl {
+                name: "focus".into(),
+                required: false,
+                default: None,
+            },
+            ArgDecl {
+                name: "target".into(),
+                required: false,
+                default: None,
+            },
+        ];
+        let mut named = HashMap::new();
+        named.insert("focus".into(), "auth".into());
+        let positional = vec!["src/foo.rs".to_string()];
+        let (bindings, missing) = bind_args(&decls, &positional, &named);
+        assert_eq!(bindings.get("focus").map(String::as_str), Some("auth"));
+        // Positional fills target since focus was named.
+        assert_eq!(
+            bindings.get("target").map(String::as_str),
+            Some("src/foo.rs")
+        );
+        assert!(missing.is_empty());
+    }
+
+    #[test]
+    fn bind_args_uses_default_when_no_value() {
+        let decls = vec![ArgDecl {
+            name: "focus".into(),
+            required: false,
+            default: Some("bugs".into()),
+        }];
+        let (bindings, missing) = bind_args(&decls, &[], &HashMap::new());
+        assert_eq!(bindings.get("focus").map(String::as_str), Some("bugs"));
+        assert!(missing.is_empty());
+    }
+
+    #[test]
+    fn bind_args_reports_missing_required() {
+        let decls = vec![ArgDecl {
+            name: "target".into(),
+            required: true,
+            default: None,
+        }];
+        let (bindings, missing) = bind_args(&decls, &[], &HashMap::new());
+        assert!(bindings.is_empty());
+        assert_eq!(missing, vec!["target"]);
+    }
+
+    #[test]
+    fn substitute_placeholders_replaces_known_keys() {
+        let mut bindings = HashMap::new();
+        bindings.insert("focus".into(), "auth".into());
+        bindings.insert("target".into(), "src/foo.rs".into());
+        let out = substitute_placeholders("Focus on {{focus}} in {{target}}.", &bindings);
+        assert_eq!(out, "Focus on auth in src/foo.rs.");
+    }
+
+    #[test]
+    fn substitute_placeholders_leaves_unknown_intact() {
+        let bindings = HashMap::new();
+        let out = substitute_placeholders("Use {{missing}} please.", &bindings);
+        // Unknown stays as `{{missing}}` so user sees what's unbound.
+        assert_eq!(out, "Use {{missing}} please.");
+    }
+
+    #[test]
+    fn substitute_placeholders_handles_unmatched_open_brace() {
+        let bindings = HashMap::new();
+        let out = substitute_placeholders("Plain {{ but no close.", &bindings);
+        assert_eq!(out, "Plain {{ but no close.");
+    }
+
+    #[test]
+    fn substitute_placeholders_trims_whitespace_inside_braces() {
+        let mut bindings = HashMap::new();
+        bindings.insert("focus".into(), "auth".into());
+        let out = substitute_placeholders("Look at {{ focus }}.", &bindings);
+        assert_eq!(out, "Look at auth.");
     }
 }
