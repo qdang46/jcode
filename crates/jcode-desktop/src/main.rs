@@ -6042,7 +6042,7 @@ impl DesktopAppDriver for DesktopApp {
     }
 
     fn build_scene(&self, context: DesktopSceneBuildContext) -> desktop_scene::DesktopScene {
-        context.scene
+        desktop_app_scene(self, context.scene)
     }
 
     fn snapshot(&self) -> DesktopUiSnapshot {
@@ -6070,6 +6070,18 @@ impl DesktopAppDriver for DesktopApp {
         }
         Ok(())
     }
+}
+
+fn desktop_app_scene(app: &DesktopApp, mut scene: DesktopScene) -> DesktopScene {
+    scene.metadata.title = Some(app.status_title());
+    scene.metadata.animation_active = app.has_frame_animation();
+    scene.metadata.content_ready = true;
+    if scene.display_list.commands.is_empty() {
+        scene.push(DesktopDisplayCommand::Clear(DesktopColor::from_array(
+            BACKGROUND_TOP_LEFT,
+        )));
+    }
+    scene
 }
 
 fn desktop_surface_snapshot(app: &DesktopApp) -> DesktopSurfaceSnapshot {

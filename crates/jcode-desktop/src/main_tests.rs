@@ -95,6 +95,38 @@ fn desktop_scene_clear_resets_previous_vertices() {
 }
 
 #[test]
+fn desktop_app_build_scene_adds_metadata_and_default_clear() {
+    let app = DesktopApp::SingleSession(SingleSessionApp::new(None));
+    let scene = app.build_scene(DesktopSceneBuildContext::new(DesktopScene::default()));
+
+    assert_eq!(scene.metadata.title, Some(app.status_title()));
+    assert!(scene.metadata.content_ready);
+    assert_eq!(scene.display_list.commands.len(), 1);
+    assert!(matches!(
+        scene.display_list.commands.first(),
+        Some(DesktopDisplayCommand::Clear(_))
+    ));
+}
+
+#[test]
+fn desktop_app_build_scene_preserves_existing_display_list() {
+    let app = DesktopApp::SingleSession(SingleSessionApp::new(None));
+    let mut scene = DesktopScene::default();
+    scene.push(DesktopDisplayCommand::Rect(DesktopRectPaint::filled(
+        DesktopSceneRect::new(1.0, 2.0, 3.0, 4.0),
+        DesktopColor::rgba(0.2, 0.3, 0.4, 1.0),
+    )));
+
+    let scene = app.build_scene(DesktopSceneBuildContext::new(scene));
+
+    assert_eq!(scene.display_list.commands.len(), 1);
+    assert!(matches!(
+        scene.display_list.commands.first(),
+        Some(DesktopDisplayCommand::Rect(_))
+    ));
+}
+
+#[test]
 fn desktop_hot_reload_rewrites_resume_to_live_session() {
     let relaunch = DesktopRelaunch {
         binary: PathBuf::from("/old/jcode-desktop"),
