@@ -105,6 +105,13 @@ pub(crate) struct Args {
     #[arg(long, global = true)]
     pub(crate) no_context_files: bool,
 
+    /// Disable the built-in tool registry (read, write, edit, bash, glob, grep,
+    /// agentgrep, etc.). Extension and MCP server tools still load. Useful
+    /// for sandboxed testing or strict-policy setups. Equivalent to setting
+    /// `JCODE_NO_BUILTIN_TOOLS=1`.
+    #[arg(long = "no-builtin-tools", visible_alias = "nbt", global = true)]
+    pub(crate) no_builtin_tools: bool,
+
     /// Resume a session by ID, or list sessions if no ID provided
     #[arg(long, global = true, num_args = 0..=1, default_missing_value = "")]
     pub(crate) resume: Option<String>,

@@ -11,10 +11,10 @@ mod conversation_search;
 mod debug_socket;
 mod edit;
 mod glob;
-pub mod hashline_edit;
 mod gmail;
 mod goal;
 mod grep;
+pub mod hashline_edit;
 mod invalid;
 mod ls;
 mod lsp;
@@ -129,7 +129,12 @@ impl Registry {
                 side_panel::SidePanelTool::new,
             );
             Self::insert_tool_timed(&mut m, &mut timings, "edit", edit::EditTool::new);
-            Self::insert_tool_timed(&mut m, &mut timings, "hashline_edit", hashline_edit::HashlineEditTool::new);
+            Self::insert_tool_timed(
+                &mut m,
+                &mut timings,
+                "hashline_edit",
+                hashline_edit::HashlineEditTool::new,
+            );
             Self::insert_tool_timed(
                 &mut m,
                 &mut timings,
@@ -228,26 +233,49 @@ impl Registry {
         let registry_struct_ms = registry_struct_start.elapsed().as_millis();
 
         let base_start = std::time::Instant::now();
-        let mut tools_map = Self::base_tools(&skills);
+        // Issue #23: when JCODE_NO_BUILTIN_TOOLS=1 is set, skip the built-in
+        // tool registry. Extension and MCP tools (added separately) still
+        // load. This is useful for sandbox testing or when users want a
+        // strictly user-provided tool surface.
+        let no_builtin = matches!(
+            std::env::var("JCODE_NO_BUILTIN_TOOLS")
+                .ok()
+                .as_deref()
+                .map(str::trim)
+                .map(str::to_ascii_lowercase)
+                .as_deref(),
+            Some("1") | Some("true") | Some("yes") | Some("on")
+        );
+        let mut tools_map = if no_builtin {
+            crate::logging::info(
+                "JCODE_NO_BUILTIN_TOOLS=1 — skipping built-in tool registry (MCP + extension tools still load)",
+            );
+            HashMap::new()
+        } else {
+            Self::base_tools(&skills)
+        };
         let base_ms = base_start.elapsed().as_millis();
 
-        // Per-session tools that need provider/registry references
+        // Per-session tools that need provider/registry references — also
+        // gated by the no-builtin flag so disabling really means disabling.
         let session_tools_start = std::time::Instant::now();
-        Self::insert_tool(
-            &mut tools_map,
-            "subagent",
-            task::SubagentTool::new(provider, registry.clone()),
-        );
-        Self::insert_tool(
-            &mut tools_map,
-            "batch",
-            batch::BatchTool::new(registry.clone()),
-        );
-        Self::insert_tool(
-            &mut tools_map,
-            "conversation_search",
-            conversation_search::ConversationSearchTool::new(compaction),
-        );
+        if !no_builtin {
+            Self::insert_tool(
+                &mut tools_map,
+                "subagent",
+                task::SubagentTool::new(provider, registry.clone()),
+            );
+            Self::insert_tool(
+                &mut tools_map,
+                "batch",
+                batch::BatchTool::new(registry.clone()),
+            );
+            Self::insert_tool(
+                &mut tools_map,
+                "conversation_search",
+                conversation_search::ConversationSearchTool::new(compaction),
+            );
+        }
         let session_tools_ms = session_tools_start.elapsed().as_millis();
 
         let write_start = std::time::Instant::now();

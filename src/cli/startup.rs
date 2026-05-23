@@ -140,6 +140,12 @@ fn parse_and_prepare_args() -> Result<Args> {
         crate::env::set_var("JCODE_NO_CONTEXT_FILES", "1");
     }
 
+    // --no-builtin-tools: translate to JCODE_NO_BUILTIN_TOOLS so the tool
+    // registry can skip the built-in entries without threading args.
+    if args.no_builtin_tools {
+        crate::env::set_var("JCODE_NO_BUILTIN_TOOLS", "1");
+    }
+
     if let Some(ref socket) = args.socket {
         server::set_socket_path(socket);
     }
