@@ -1036,8 +1036,13 @@ async fn run() -> Result<()> {
                             window.request_redraw();
                         }
                         KeyOutcome::LoadSessionSwitcher => {
+                            let purpose = if app.is_workspace() {
+                                DesktopSessionCardsPurpose::WorkspaceRefresh
+                            } else {
+                                DesktopSessionCardsPurpose::SingleSessionSwitcher
+                            };
                             spawn_session_cards_load(
-                                DesktopSessionCardsPurpose::SingleSessionSwitcher,
+                                purpose,
                                 event_loop_proxy.clone(),
                                 Duration::ZERO,
                             );

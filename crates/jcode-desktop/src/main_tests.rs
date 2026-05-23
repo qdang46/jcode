@@ -1093,6 +1093,9 @@ fn single_session_slash_suggestions_expose_accepted_aliases() {
 
     assert!(help.contains("/session"), "{help}");
     assert!(help.contains("/cancel"), "{help}");
+    assert!(help.contains("/force-reload"), "{help}");
+    assert!(help.contains("/fonts"), "{help}");
+    assert!(help.contains("/info"), "{help}");
     assert!(help.contains("/exit"), "{help}");
 }
 
@@ -1459,6 +1462,20 @@ fn single_session_status_slash_opens_inline_session_info() {
 }
 
 #[test]
+fn single_session_info_slash_alias_opens_inline_session_info() {
+    let mut app = SingleSessionApp::new(None);
+    app.handle_key(KeyInput::Character("/info".to_string()));
+
+    assert_eq!(app.handle_key(KeyInput::SubmitDraft), KeyOutcome::Redraw);
+    assert!(app.show_session_info);
+    assert!(app.draft.is_empty());
+    assert_eq!(
+        app.active_inline_widget(),
+        Some(InlineWidgetKind::SessionInfo)
+    );
+}
+
+#[test]
 fn single_session_slash_model_with_argument_requests_model_switch() {
     let mut app = SingleSessionApp::new(None);
     app.draft = "/model gpt-5.5".to_string();
@@ -1491,6 +1508,8 @@ fn single_session_slash_server_setting_commands_return_control_outcomes() {
         submit("/refresh-model-list"),
         KeyOutcome::RefreshModelCatalog
     );
+    assert_eq!(submit("/reload"), KeyOutcome::ForceReload);
+    assert_eq!(submit("/force-reload"), KeyOutcome::ForceReload);
     assert_eq!(
         submit("/effort high"),
         KeyOutcome::SetReasoningEffort("high".to_string())
