@@ -816,5 +816,6 @@ scripts/install_release.sh
 | **Linux** x86_64 / aarch64 | Fully supported |
 | **macOS** Apple Silicon & Intel | Supported |
 | **Windows** x86_64 | Supported (native + WSL2) |
+| **FreeBSD** x86_64 / aarch64 | Build from source — see [BUILD_FREEBSD.md](docs/BUILD_FREEBSD.md) |
 
 </div>
