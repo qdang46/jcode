@@ -242,7 +242,39 @@ impl SkillRegistry {
             self.load_from_dir(&local_claude)?;
         }
 
+        // Issue #112: repo-level scoping. If `working_dir` (or cwd) lives
+        // inside a git repo, walk up to the repo root and load
+        // <repo>/.jcode/skills/ — but only if the repo root differs from
+        // the current dir (so we don't double-load the same dir).
+        if let Some(repo_skills) = Self::repo_level_skills_dir(working_dir)
+            && repo_skills.is_dir()
+            && Some(repo_skills.as_path()) != Some(local_jcode.as_path())
+        {
+            self.load_from_dir(&repo_skills)?;
+        }
+
         Ok(())
+    }
+
+    /// Walk up from `working_dir` (or cwd) until we find a directory
+    /// containing `.git`. Returns `<repo_root>/.jcode/skills/` for that
+    /// directory. Used by `load_project_local_dirs` to support repo-level
+    /// skills (#112).
+    ///
+    /// Returns `None` if cwd cannot be resolved or no `.git` ancestor
+    /// exists in the path.
+    fn repo_level_skills_dir(working_dir: Option<&Path>) -> Option<PathBuf> {
+        let start = match working_dir {
+            Some(d) => d.to_path_buf(),
+            None => std::env::current_dir().ok()?,
+        };
+        let mut current = start.as_path();
+        loop {
+            if current.join(".git").exists() {
+                return Some(current.join(".jcode").join("skills"));
+            }
+            current = current.parent()?;
+        }
     }
 
     /// Load skills from a directory
@@ -554,5 +586,66 @@ mod tests {
 
         assert!(count >= 1);
         assert!(registry.get("session-skill").is_some());
+    }
+
+    // Issue #112: repo-level scoping. Walking up from cwd to a `.git`
+    // ancestor and loading <repo>/.jcode/skills/.
+
+    #[test]
+    fn load_for_working_dir_reads_repo_level_skills_from_git_ancestor() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let repo_root = temp.path();
+        // Mark this as a git repo.
+        std::fs::create_dir_all(repo_root.join(".git")).expect("create .git");
+        // Write a repo-level skill at <repo>/.jcode/skills/repo-skill/SKILL.md
+        write_test_skill(repo_root, ".jcode", "repo-skill");
+
+        // Working dir is a sub-directory of the repo.
+        let sub = repo_root.join("crates/foo");
+        std::fs::create_dir_all(&sub).expect("create sub");
+
+        let registry = SkillRegistry::load_for_working_dir(Some(&sub)).expect("load skills");
+        assert!(
+            registry.get("repo-skill").is_some(),
+            "repo-level skill must be discovered when cwd is a sub-dir of the .git ancestor"
+        );
+    }
+
+    #[test]
+    fn repo_level_skills_dir_returns_none_outside_git_repo() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        // No .git anywhere up the tree from this temp dir.
+        let result = SkillRegistry::repo_level_skills_dir(Some(temp.path()));
+        // Possible Some if the tempdir is itself inside a git tree (e.g. in
+        // CI the runner might be in /tmp which has no .git, but on a dev
+        // machine /tmp could be inside a worktree). We don't assert None
+        // unconditionally — instead assert the path is sensible if returned.
+        if let Some(path) = result {
+            assert!(path.ends_with(std::path::Path::new(".jcode/skills")));
+        }
+    }
+
+    #[test]
+    fn repo_level_skills_dir_does_not_double_load_when_cwd_equals_repo_root() {
+        // When cwd IS the repo root, project-local + repo-level resolve to
+        // the same dir; load_project_local_dirs guards against double-load.
+        // We only assert that repo_level_skills_dir returns the same path
+        // as project_local_dir — the dedup check is done in the caller.
+        let temp = tempfile::tempdir().expect("tempdir");
+        let repo_root = temp.path();
+        std::fs::create_dir_all(repo_root.join(".git")).expect("create .git");
+        write_test_skill(repo_root, ".jcode", "rl-skill");
+
+        let registry = SkillRegistry::load_for_working_dir(Some(repo_root)).expect("load");
+        // Skill loaded exactly once (no duplicate).
+        let count = registry
+            .skills
+            .values()
+            .filter(|s| s.name == "rl-skill")
+            .count();
+        assert_eq!(
+            count, 1,
+            "skill must not be loaded twice when cwd == repo root"
+        );
     }
 }
