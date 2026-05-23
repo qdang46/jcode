@@ -389,6 +389,20 @@ impl AmbientRunnerHandle {
         if session.is_canary {
             registry.register_selfdev_tools().await;
         }
+        // Issue #89: ambient cycles previously skipped MCP registration, so
+        // user-installed MCP tools were invisible to the cycle agent —
+        // contributing to "cycles always end Incomplete" when the agent
+        // expected a tool that wasn't available. Register MCP tools the
+        // same way the main session does, then log a tool-count summary
+        // so future debugging of empty-registry issues is one log line.
+        registry
+            .register_mcp_tools(None, None, Some(format!("ambient:{}", session.id)))
+            .await;
+        let tool_count = registry.definitions(None).await.len();
+        logging::info(&format!(
+            "Ambient cycle (session {}): {} tools registered",
+            session.id, tool_count
+        ));
 
         let mut agent = Agent::new(cycle_provider, registry);
         agent.set_debug(session.is_debug);
@@ -460,6 +474,15 @@ impl AmbientRunnerHandle {
         if child_is_canary {
             registry.register_selfdev_tools().await;
         }
+        // Issue #89: register MCP tools for ambient cycles (same as main session).
+        registry
+            .register_mcp_tools(None, None, Some("ambient:scheduled-child".to_string()))
+            .await;
+        let tool_count = registry.definitions(None).await.len();
+        logging::info(&format!(
+            "Ambient scheduled cycle (child of {}): {} tools registered",
+            parent_session_id, tool_count
+        ));
 
         let mut agent = Agent::new_with_session(cycle_provider, registry, child, None);
         agent.set_debug(child_is_debug);
@@ -907,6 +930,18 @@ impl AmbientRunnerHandle {
         let cycle_provider = provider.fork();
         let registry = tool::Registry::new(cycle_provider.clone()).await;
         registry.register_ambient_tools().await;
+        // Issue #89: register MCP tools so user-installed MCP servers are
+        // available to the ambient agent — without this, the cycle agent
+        // could only see built-ins + ambient-specific tools, and would
+        // fail-incomplete when the agent expected an MCP tool.
+        registry
+            .register_mcp_tools(None, None, Some("ambient:proactive".to_string()))
+            .await;
+        let tool_count = registry.definitions(None).await.len();
+        logging::info(&format!(
+            "Ambient proactive cycle: {} tools registered",
+            tool_count
+        ));
 
         let mut agent = Agent::new(cycle_provider.clone(), registry);
         agent.set_debug(true);
