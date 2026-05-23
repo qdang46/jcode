@@ -23,12 +23,30 @@ pub enum ExportFormat {
     Html,
 }
 
+/// CLI entry point: export the session and print the resulting path to stdout
+/// so shell pipelines can capture it.
 pub fn run(
     session_ref: &str,
     output: Option<PathBuf>,
     format: ExportFormat,
     redact: bool,
 ) -> Result<()> {
+    let absolute = export_to_path(session_ref, output, format, redact)?;
+    println!("{}", absolute.display());
+    Ok(())
+}
+
+/// Library entry point used by both the CLI dispatcher and the `/export`
+/// slash command. Returns the canonical path the session was written to so
+/// callers (e.g. the TUI, which has stdout captured by the alt-screen) can
+/// display it via their own UI surface instead of dropping it into a
+/// hidden stdout buffer.
+pub fn export_to_path(
+    session_ref: &str,
+    output: Option<PathBuf>,
+    format: ExportFormat,
+    redact: bool,
+) -> Result<PathBuf> {
     let session_id = crate::session::find_session_by_name_or_id(session_ref)?;
     let session = crate::session::Session::load(&session_id)?;
 
@@ -56,11 +74,9 @@ pub fn run(
     std::fs::write(&output_path, body.as_bytes())
         .with_context(|| format!("failed to write {}", output_path.display()))?;
 
-    let absolute = output_path
+    Ok(output_path
         .canonicalize()
-        .unwrap_or_else(|_| output_path.clone());
-    println!("{}", absolute.display());
-    Ok(())
+        .unwrap_or_else(|_| output_path.clone()))
 }
 
 fn default_output_path(session: &crate::session::Session, format: ExportFormat) -> PathBuf {

@@ -35,6 +35,7 @@ pub struct DoctorReport {
     pub platform: PlatformInfo,
     pub storage: StorageInfo,
     pub flags: FlagsInfo,
+    pub providers: Vec<ProviderStatus>,
     pub health: Vec<HealthCheck>,
 }
 
@@ -90,6 +91,34 @@ pub struct HealthCheck {
     pub detail: String,
 }
 
+/// Configuration state of one supported provider, as visible to `doctor`.
+///
+/// Doctor does not read tokens or test connectivity — it only reports on
+/// file presence + env-var presence. Connectivity testing belongs to
+/// `jcode auth-test`.
+#[derive(Debug, Serialize)]
+pub struct ProviderStatus {
+    /// Provider key (e.g. "anthropic", "openai", "gemini").
+    pub provider: &'static str,
+    /// How the provider is configured, if at all.
+    pub state: ProviderConfigState,
+    /// One-line human note (e.g. "2 accounts in auth.json").
+    pub detail: String,
+}
+
+#[derive(Debug, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum ProviderConfigState {
+    /// OAuth credentials file exists in `~/.jcode/`.
+    Oauth,
+    /// API-key env var is set; no OAuth file.
+    Env,
+    /// Both OAuth + env-var key set (env wins at runtime).
+    Both,
+    /// Neither OAuth nor env-var present.
+    None,
+}
+
 #[derive(Debug, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum HealthStatus {
@@ -130,6 +159,7 @@ pub fn collect_report() -> DoctorReport {
     let jcode_home = crate::storage::jcode_dir().ok();
     let storage = collect_storage(jcode_home.as_deref());
     let flags = collect_flags();
+    let providers = collect_providers(jcode_home.as_deref());
     let health = collect_health(jcode_home.as_deref(), &storage);
     DoctorReport {
         build: BuildInfo {
@@ -146,8 +176,93 @@ pub fn collect_report() -> DoctorReport {
         },
         storage,
         flags,
+        providers,
         health,
     }
+}
+
+/// Inspect file presence and env vars to summarize each known provider's
+/// configuration state. Does NOT read token contents or test connectivity.
+fn collect_providers(jcode_home: Option<&Path>) -> Vec<ProviderStatus> {
+    /// (provider_key, oauth_file_basename, list of env vars that count as
+    /// "configured via env"). The first matching env var wins for the detail
+    /// note.
+    const SPECS: &[(&str, &str, &[&str])] = &[
+        (
+            "anthropic",
+            "auth.json",
+            &[
+                "ANTHROPIC_API_KEY",
+                "ANTHROPIC_AUTH_TOKEN",
+                "CLAUDE_CODE_OAUTH_TOKEN",
+            ],
+        ),
+        ("openai", "openai-auth.json", &["OPENAI_API_KEY"]),
+        (
+            "gemini",
+            "gemini_oauth.json",
+            &["GEMINI_API_KEY", "GOOGLE_API_KEY"],
+        ),
+        (
+            "antigravity",
+            "antigravity_oauth.json",
+            &["ANTIGRAVITY_API_KEY"],
+        ),
+        ("openrouter", "", &["OPENROUTER_API_KEY"]),
+        ("cohere", "", &["COHERE_API_KEY"]),
+        ("deepseek", "", &["DEEPSEEK_API_KEY"]),
+        ("fireworks", "", &["FIREWORKS_API_KEY"]),
+        ("groq", "", &["GROQ_API_KEY"]),
+        ("minimax", "", &["MINIMAX_API_KEY"]),
+        ("mistral", "", &["MISTRAL_API_KEY"]),
+        (
+            "openai-compatible",
+            "",
+            &["OPENAI_COMPAT_API_KEY", "JCODE_OPENAI_COMPAT_API_BASE"],
+        ),
+        ("perplexity", "", &["PERPLEXITY_API_KEY"]),
+        ("togetherai", "", &["TOGETHER_API_KEY"]),
+        ("xai", "", &["XAI_API_KEY"]),
+        // Z.AI accepts both ZHIPU_API_KEY (canonical, OpenAI-compat preset
+        // env key) and the legacy ZAI_API_KEY alias resolved by
+        // provider_catalog. Doctor needs the same fallback chain or it will
+        // mis-report a working setup as "not configured".
+        ("zai", "", &["ZHIPU_API_KEY", "ZAI_API_KEY"]),
+    ];
+
+    let mut out: Vec<ProviderStatus> = Vec::with_capacity(SPECS.len());
+    for (provider, oauth_basename, env_vars) in SPECS {
+        let oauth_present = !oauth_basename.is_empty()
+            && jcode_home
+                .map(|h| h.join(oauth_basename).is_file())
+                .unwrap_or(false);
+        let env_var_set = env_vars.iter().find(|v| {
+            std::env::var(v)
+                .ok()
+                .map(|s| !s.trim().is_empty())
+                .unwrap_or(false)
+        });
+
+        let (state, detail) = match (oauth_present, env_var_set) {
+            (true, Some(name)) => (
+                ProviderConfigState::Both,
+                format!("oauth file + env {} (env wins at runtime)", name),
+            ),
+            (true, None) => (
+                ProviderConfigState::Oauth,
+                format!("oauth file: ~/.jcode/{}", oauth_basename),
+            ),
+            (false, Some(name)) => (ProviderConfigState::Env, format!("env: {} set", name)),
+            (false, None) => (ProviderConfigState::None, "not configured".to_string()),
+        };
+
+        out.push(ProviderStatus {
+            provider,
+            state,
+            detail,
+        });
+    }
+    out
 }
 
 fn collect_storage(jcode_home: Option<&Path>) -> StorageInfo {
@@ -392,6 +507,21 @@ fn render_text(r: &DoctorReport) {
         yesno(r.flags.append_system_prompt_set)
     );
 
+    println!("\n## providers");
+    if r.providers.is_empty() {
+        println!("  (none registered)");
+    } else {
+        for p in &r.providers {
+            let badge = match p.state {
+                ProviderConfigState::Oauth => "[oauth]",
+                ProviderConfigState::Env => "[ env ]",
+                ProviderConfigState::Both => "[both ]",
+                ProviderConfigState::None => "[  -  ]",
+            };
+            println!("  {badge} {:<18} {}", p.provider, p.detail);
+        }
+    }
+
     println!("\n## health");
     if r.health.is_empty() {
         println!("  (no checks)");
@@ -456,5 +586,109 @@ mod tests {
     fn yesno_helper() {
         assert_eq!(yesno(true), "yes");
         assert_eq!(yesno(false), "no");
+    }
+
+    // ---- collect_providers tests ----
+
+    #[test]
+    fn providers_empty_jcode_home_no_env() {
+        // Take a snapshot of the env vars we touch and clear them so the test
+        // doesn't see anything from the host env.
+        let _lock = crate::storage::lock_test_env();
+        let watched_env = [
+            "ANTHROPIC_API_KEY",
+            "ANTHROPIC_AUTH_TOKEN",
+            "CLAUDE_CODE_OAUTH_TOKEN",
+            "OPENAI_API_KEY",
+            "GEMINI_API_KEY",
+            "GOOGLE_API_KEY",
+            "ANTIGRAVITY_API_KEY",
+            "OPENROUTER_API_KEY",
+            "COHERE_API_KEY",
+            "DEEPSEEK_API_KEY",
+            "FIREWORKS_API_KEY",
+            "GROQ_API_KEY",
+            "MINIMAX_API_KEY",
+            "MISTRAL_API_KEY",
+            "OPENAI_COMPAT_API_KEY",
+            "JCODE_OPENAI_COMPAT_API_BASE",
+            "PERPLEXITY_API_KEY",
+            "TOGETHER_API_KEY",
+            "XAI_API_KEY",
+            "ZHIPU_API_KEY",
+            "ZAI_API_KEY",
+        ];
+        let saved: Vec<(&str, Option<std::ffi::OsString>)> = watched_env
+            .iter()
+            .map(|k| (*k, std::env::var_os(k)))
+            .collect();
+        for k in &watched_env {
+            crate::env::remove_var(k);
+        }
+
+        let temp = tempfile::TempDir::new().unwrap();
+        let providers = collect_providers(Some(temp.path()));
+        assert!(!providers.is_empty(), "providers list empty");
+        for p in &providers {
+            assert_eq!(
+                p.state,
+                ProviderConfigState::None,
+                "{} unexpected state {:?}",
+                p.provider,
+                p.state
+            );
+        }
+
+        for (k, v) in saved {
+            match v {
+                Some(val) => crate::env::set_var(k, val),
+                None => crate::env::remove_var(k),
+            }
+        }
+    }
+
+    #[test]
+    fn providers_detect_oauth_file_and_env() {
+        let _lock = crate::storage::lock_test_env();
+        let prev_anthropic = std::env::var_os("ANTHROPIC_API_KEY");
+        let prev_openai = std::env::var_os("OPENAI_API_KEY");
+        crate::env::remove_var("ANTHROPIC_API_KEY");
+        crate::env::set_var("OPENAI_API_KEY", "sk-test");
+
+        let temp = tempfile::TempDir::new().unwrap();
+        // anthropic oauth file present.
+        std::fs::write(temp.path().join("auth.json"), "{}").unwrap();
+
+        let providers = collect_providers(Some(temp.path()));
+        let by_name = |name: &str| -> &ProviderStatus {
+            providers.iter().find(|p| p.provider == name).expect(name)
+        };
+        assert_eq!(by_name("anthropic").state, ProviderConfigState::Oauth);
+        assert_eq!(by_name("openai").state, ProviderConfigState::Env);
+        assert_eq!(by_name("gemini").state, ProviderConfigState::None);
+
+        // Both: add anthropic env on top of the file.
+        crate::env::set_var("ANTHROPIC_API_KEY", "sk-also-set");
+        let providers = collect_providers(Some(temp.path()));
+        assert_eq!(
+            providers
+                .iter()
+                .find(|p| p.provider == "anthropic")
+                .unwrap()
+                .state,
+            ProviderConfigState::Both
+        );
+
+        // Restore.
+        if let Some(v) = prev_anthropic {
+            crate::env::set_var("ANTHROPIC_API_KEY", v);
+        } else {
+            crate::env::remove_var("ANTHROPIC_API_KEY");
+        }
+        if let Some(v) = prev_openai {
+            crate::env::set_var("OPENAI_API_KEY", v);
+        } else {
+            crate::env::remove_var("OPENAI_API_KEY");
+        }
     }
 }

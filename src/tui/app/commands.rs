@@ -1615,8 +1615,8 @@ pub(super) fn handle_session_command(app: &mut App, trimmed: &str) -> bool {
             return true;
         }
         let session_id = app.session.id.clone();
-        match crate::export::run(&session_id, output, format, redact) {
-            Ok(()) => {
+        match crate::export::export_to_path(&session_id, output, format, redact) {
+            Ok(path) => {
                 let label = match format {
                     crate::export::ExportFormat::Markdown => "Markdown",
                     crate::export::ExportFormat::Json => "JSON",
@@ -1624,7 +1624,8 @@ pub(super) fn handle_session_command(app: &mut App, trimmed: &str) -> bool {
                 };
                 let suffix = if redact { " (redacted)" } else { "" };
                 app.push_display_message(DisplayMessage::system(format!(
-                    "Exported {label}{suffix} session to disk. Path printed above.",
+                    "Exported {label}{suffix} session to {}",
+                    path.display()
                 )));
                 app.set_status_notice("Session exported");
             }
