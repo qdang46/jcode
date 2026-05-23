@@ -1577,6 +1577,62 @@ pub(super) fn handle_session_command(app: &mut App, trimmed: &str) -> bool {
         return true;
     }
 
+    if trimmed == "/export" || trimmed.starts_with("/export ") {
+        // Issue #10 follow-up: /export from inside a TUI session.
+        //
+        // Usage:
+        //   /export                 → markdown, default <slug>-<timestamp>.md
+        //   /export out.md          → explicit path
+        //   /export --json out.json → JSON
+        //   /export --redact out.md → mask common secrets before write
+        let rest = trimmed.strip_prefix("/export").unwrap_or_default().trim();
+        let mut format = crate::export::ExportFormat::Markdown;
+        let mut redact = false;
+        let mut output: Option<std::path::PathBuf> = None;
+        for tok in rest.split_whitespace() {
+            match tok {
+                "--json" => format = crate::export::ExportFormat::Json,
+                "--md" | "--markdown" => format = crate::export::ExportFormat::Markdown,
+                "--redact" => redact = true,
+                _ if tok.starts_with("--") => {
+                    app.push_display_message(DisplayMessage::error(format!(
+                        "Unknown /export flag: `{tok}`. Supported: `--json`, `--markdown`, `--redact`."
+                    )));
+                    return true;
+                }
+                path => {
+                    output = Some(std::path::PathBuf::from(path));
+                }
+            }
+        }
+        // Persist the session before exporting so the file reflects the
+        // latest in-memory state.
+        if let Err(e) = app.session.save() {
+            app.push_display_message(DisplayMessage::error(format!(
+                "Failed to persist session before export: {e}"
+            )));
+            return true;
+        }
+        let session_id = app.session.id.clone();
+        match crate::export::run(&session_id, output, format, redact) {
+            Ok(()) => {
+                let label = match format {
+                    crate::export::ExportFormat::Markdown => "Markdown",
+                    crate::export::ExportFormat::Json => "JSON",
+                };
+                let suffix = if redact { " (redacted)" } else { "" };
+                app.push_display_message(DisplayMessage::system(format!(
+                    "Exported {label}{suffix} session to disk. Path printed above.",
+                )));
+                app.set_status_notice("Session exported");
+            }
+            Err(e) => {
+                app.push_display_message(DisplayMessage::error(format!("Export failed: {e}")));
+                app.set_status_notice("Export failed");
+            }
+        }
+        return true;
+    }
     if trimmed == "/memory status" {
         let default_enabled = crate::config::config().features.memory;
         app.push_display_message(DisplayMessage::system(format!(
