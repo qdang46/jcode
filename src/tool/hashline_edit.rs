@@ -2,9 +2,9 @@ use super::{Tool, ToolContext, ToolOutput};
 use crate::bus::{Bus, BusEvent, FileOp, FileTouch};
 use anyhow::Result;
 use async_trait::async_trait;
+use hashline::sha256_window;
 use serde::Deserialize;
 use serde_json::{Value, json};
-use sha2::{Digest, Sha256};
 use std::path::Path;
 
 pub struct HashlineEditTool;
@@ -37,56 +37,34 @@ fn default_context_window() -> usize {
     0
 }
 
-/// Compute SHA-256 hash of the lines in the given range (1-indexed lines).
+// Compute SHA-256 hash of the lines in the given range (1-indexed lines).
+//
+// The window math + hash format is implemented in the `hashline` crate
+// (since 0.2.1). This file delegates so jcode and hashline stay in lock
+// step on anchor semantics — bug fixes and edge-case handling land in
+// one place.
+//
+// Helpers `hash_window`, `verify_anchor`, `apply_edit_within_window`
+// previously defined here as ~180 lines of jcode-internal code now
+// resolve to one-line wrappers around `hashline::sha256_window::*`.
+
+#[inline]
 fn hash_window(content: &str, start_line: usize, end_line: usize) -> String {
-    let lines: Vec<&str> = content.lines().collect();
-    let total = lines.len();
-
-    // Clamp to valid range (1-indexed)
-    let start = start_line.saturating_sub(1).min(total);
-    let end = end_line.min(total).saturating_sub(1);
-
-    if start > end || start >= total {
-        return String::new();
-    }
-
-    let window: String = lines[start..=end].join("\n");
-    let mut hasher = Sha256::new();
-    hasher.update(window.as_bytes());
-    format!("{:x}", hasher.finalize())
+    sha256_window::hash_window(content, start_line, end_line)
 }
 
-/// Verify the anchor hash matches the content at the given line.
+#[inline]
 fn verify_anchor(
     content: &str,
     anchor_line: usize,
     expected_hash: &str,
     context_window: usize,
 ) -> Result<()> {
-    let total_lines = content.lines().count();
-    if anchor_line == 0 || anchor_line > total_lines {
-        return Err(anyhow::anyhow!(
-            "anchor line {} is out of range (file has {} lines)",
-            anchor_line,
-            total_lines
-        ));
-    }
-
-    let start = anchor_line.saturating_sub(context_window + 1);
-    let end = (anchor_line + context_window).min(total_lines);
-
-    let computed = hash_window(content, start + 1, end);
-    if computed != expected_hash {
-        return Err(anyhow::anyhow!(
-            "anchor drifted: file changed since plan; expected {}, got {}",
-            expected_hash,
-            computed
-        ));
-    }
-    Ok(())
+    sha256_window::verify_anchor(content, anchor_line, expected_hash, context_window)
+        .map_err(|e| anyhow::anyhow!("{e}"))
 }
 
-/// Apply the edit within the anchor window only.
+#[inline]
 fn apply_edit_within_window(
     content: &str,
     anchor_line: usize,
@@ -94,75 +72,14 @@ fn apply_edit_within_window(
     new_string: &str,
     context_window: usize,
 ) -> Result<(String, usize, usize)> {
-    let lines: Vec<&str> = content.lines().collect();
-    let total_lines = lines.len();
-
-    // 0-indexed window bounds. `verify_anchor` already enforced
-    // 1 <= anchor_line <= total_lines, so total_lines >= 1 here.
-    let window_start = anchor_line.saturating_sub(context_window + 1);
-    let window_end = (anchor_line - 1 + context_window).min(total_lines - 1);
-
-    if window_start > window_end {
-        return Err(anyhow::anyhow!(
-            "anchor window out of range: lines {} to {} but file has {} lines",
-            window_start + 1,
-            window_end + 1,
-            total_lines
-        ));
-    }
-
-    // Extract the window lines
-    let window_lines = &lines[window_start..=window_end];
-    let window_text = window_lines.join("\n");
-
-    // Find old_string within the window
-    if !window_text.contains(old_string) {
-        return Err(anyhow::anyhow!(
-            "old_string not found within anchor window (lines {} to {}, context_window={}). \
-             The anchor hash verified but old_string was not found in that region. \
-             Make sure old_string exactly matches the content within the anchor window.",
-            window_start + 1,
-            window_end + 1,
-            context_window
-        ));
-    }
-
-    // Check if old_string appears multiple times in the window (ambiguous)
-    let occurrences = window_text.matches(old_string).count();
-    if occurrences > 1 {
-        return Err(anyhow::anyhow!(
-            "old_string found {} times within the anchor window. \
-             Provide a more specific old_string or adjust context_window to narrow the search region.",
-            occurrences
-        ));
-    }
-
-    // Find the global position of the first character of old_string within the window
-    let window_offset = window_text.find(old_string).unwrap();
-    let global_offset = lines[..window_start]
-        .iter()
-        .map(|l| l.len() + 1)
-        .sum::<usize>()
-        + window_offset;
-
-    // Find start line in original content
-    let prefix = &content[..global_offset];
-    let start_line = prefix.lines().count() + 1;
-
-    // Build new content
-    let mut result = String::with_capacity(content.len());
-    result.push_str(&content[..global_offset]);
-    result.push_str(new_string);
-
-    // Find the end of old_string and append the rest
-    let old_end = global_offset + old_string.len();
-    result.push_str(&content[old_end..]);
-
-    Ok((
-        result,
-        start_line,
-        start_line + new_string.lines().count().saturating_sub(1),
-    ))
+    sha256_window::apply_edit_within_window(
+        content,
+        anchor_line,
+        old_string,
+        new_string,
+        context_window,
+    )
+    .map_err(|e| anyhow::anyhow!("{e}"))
 }
 
 #[async_trait]
@@ -445,10 +362,9 @@ mod tests {
     #[test]
     fn test_apply_edit_ctx_zero_isolates_to_anchor_line() {
         let content = "    x = 1;\n    x = 2;\n";
-        let (new_content, start, end) = apply_edit_within_window(
-            content, 1, "    x = ", "    y = ", 0,
-        )
-        .expect("ctx=0 must operate only on the anchor line");
+        let (new_content, start, end) =
+            apply_edit_within_window(content, 1, "    x = ", "    y = ", 0)
+                .expect("ctx=0 must operate only on the anchor line");
         assert_eq!(start, 1);
         assert_eq!(end, 1);
         // Only line 1 changed.
