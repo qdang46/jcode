@@ -440,6 +440,26 @@ impl Agent {
         let reset_ms = reset_start.elapsed().as_millis();
 
         let model_start = Instant::now();
+
+        // Issue #69: detect when the restored session was using a different
+        // provider than the one currently active. The MultiProvider doesn't
+        // yet expose a set_active_provider — when it lands, this check
+        // should switch and re-run set_model. For now, log a clear warning
+        // so the symptom (turn fails with "model X is not available") has
+        // a breadcrumb in the logs.
+        if let Some(persisted_provider) = self.session.provider_key.clone() {
+            let current = crate::session::derive_session_provider_key(self.provider.name());
+            if let Some(current_key) = current.as_ref()
+                && current_key != &persisted_provider
+            {
+                logging::warn(&format!(
+                    "Restoring session that used provider '{}' but current jcode is configured for '{}'. \
+                     Re-run with `jcode --provider {} --resume {}` to use the original provider.",
+                    persisted_provider, current_key, persisted_provider, session_id,
+                ));
+            }
+        }
+
         if let Some(model) = self.session.model.clone() {
             if let Err(e) =
                 crate::provider::set_model_with_auth_refresh(self.provider.as_ref(), &model)
