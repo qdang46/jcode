@@ -120,6 +120,10 @@ pub(super) const REGISTERED_COMMANDS: &[RegisteredCommand] = &[
         "/fork",
         "Fork this session into a new branch with the same history",
     ),
+    RegisteredCommand::public(
+        "/doctor",
+        "Print a quick environment diagnostic (build, flags, providers, health)",
+    ),
     RegisteredCommand::public("/split", "Split session into a new window"),
     RegisteredCommand::public("/transfer", "Compact context into a fresh handoff session"),
     RegisteredCommand::public("/workspace", "Niri-style session workspace"),

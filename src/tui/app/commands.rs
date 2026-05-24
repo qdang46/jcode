@@ -1703,6 +1703,48 @@ pub(super) fn handle_session_command(app: &mut App, trimmed: &str) -> bool {
     }
 
 
+    if trimmed == "/doctor" || trimmed.starts_with("/doctor ") {
+        // Issue #155 etc.: surface jcode doctor inline so users
+        // don't need to drop to a shell. Keeps the same JSON format
+        // hidden in the slash UI; for full machine-readable output
+        // the user still runs \`jcode doctor --format json\` from
+        // their terminal.
+        let report = crate::doctor::collect_report();
+        let summary = format!(
+            "jcode doctor:
+  version       : {}
+  build_profile : {}
+  flags.offline : {}
+  flags.safe_eval: {}
+  providers     : {} configured
+  health        : {} issue(s)",
+            report.build.version,
+            if report.build.release_build {
+                "release"
+            } else {
+                "debug"
+            },
+            report.flags.offline,
+            report.flags.safe_eval,
+            report.providers.len(),
+            report.health.len(),
+        );
+        app.push_display_message(DisplayMessage::system(summary));
+        if !report.health.is_empty() {
+            for issue in &report.health {
+                app.push_display_message(DisplayMessage::error(format!(
+                    "  [{}] {}",
+                    issue.area, issue.detail
+                )));
+            }
+        }
+        app.push_display_message(DisplayMessage::system(
+            "For full report run `jcode doctor` (or `jcode doctor --format json`) in your shell."
+                .to_string(),
+        ));
+        return true;
+    }
+
     if trimmed == "/share" || trimmed.starts_with("/share ") {
         // Issue #25: upload the session as a private GitHub gist via the
         // installed `gh` CLI, copy the URL to clipboard, print it in chat.
