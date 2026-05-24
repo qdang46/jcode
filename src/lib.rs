@@ -49,6 +49,7 @@ pub mod memory_graph;
 pub mod memory_log;
 pub mod memory_types;
 pub mod message;
+pub mod model_routing;
 pub mod network_retry;
 pub mod notifications;
 pub mod overnight;
