@@ -94,6 +94,50 @@ async fn refreshed_session_control_handle_does_not_wait_for_busy_agent_lock() {
 }
 
 #[tokio::test]
+async fn busy_agent_request_rejection_does_not_wait_for_agent_lock() {
+    let provider: Arc<dyn Provider> = Arc::new(PanicOnForkProvider {
+        forked: Arc::new(AtomicBool::new(false)),
+    });
+    let registry = Registry::new(Arc::clone(&provider)).await;
+    let agent = Arc::new(Mutex::new(Agent::new(provider, registry)));
+    let (client_event_tx, mut client_event_rx) = mpsc::unbounded_channel::<ServerEvent>();
+
+    let busy_agent_lock = agent.lock().await;
+    let rejected = tokio::time::timeout(Duration::from_millis(100), async {
+        reject_if_agent_busy_for_request(
+            17,
+            "rename_session",
+            "session_busy_reject",
+            true,
+            &agent,
+            &client_event_tx,
+        )
+    })
+    .await
+    .expect("busy-agent request rejection must not wait for the agent mutex");
+    assert!(rejected);
+    assert!(matches!(
+        client_event_rx.recv().await,
+        Some(ServerEvent::Error {
+            id: 17,
+            retry_after_secs: Some(1),
+            ..
+        })
+    ));
+
+    drop(busy_agent_lock);
+    assert!(!reject_if_agent_busy_for_request(
+        18,
+        "rename_session",
+        "session_busy_reject",
+        false,
+        &agent,
+        &client_event_tx,
+    ));
+    assert!(client_event_rx.try_recv().is_err());
+}
+
+#[tokio::test]
 async fn cancel_without_local_task_still_signals_session_control() {
     let soft_interrupt_queue = Arc::new(std::sync::Mutex::new(Vec::new()));
     let stop_signal = InterruptSignal::new();

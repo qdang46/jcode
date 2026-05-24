@@ -254,9 +254,8 @@ fn parse_args_block(frontmatter: &str) -> Vec<ArgDecl> {
         // YAML list entries like `- name: foo` may live at column 0 too (no
         // indent under `args:`), so we don't treat those as a new top-level
         // section when we're currently inside `args:`.
-        let is_top_level_key = !line.starts_with(' ')
-            && !line.starts_with('\t')
-            && !line.starts_with('-');
+        let is_top_level_key =
+            !line.starts_with(' ') && !line.starts_with('\t') && !line.starts_with('-');
         if is_top_level_key {
             // Push pending arg from previous block.
             if let Some(arg) = current.take() {

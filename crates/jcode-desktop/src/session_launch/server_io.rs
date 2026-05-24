@@ -17,7 +17,8 @@ use super::events::{
 use super::terminal::jcode_bin;
 use super::{
     DesktopSessionCommand, DesktopSessionEvent, DesktopSessionEventSender, DesktopSessionStatus,
-    SERVER_CONNECT_RETRY_DELAY, SERVER_START_TIMEOUT, send_desktop_event_ref, socket_path,
+    SERVER_CONNECT_RETRY_DELAY, SERVER_START_TIMEOUT, default_desktop_working_dir,
+    send_desktop_event_ref, socket_path,
 };
 
 const CANCEL_COMPLETION_TIMEOUT: Duration = Duration::from_secs(10);
@@ -224,16 +225,47 @@ pub(super) fn subscribe_to_server(
     id: u64,
     target_session_id: Option<&str>,
 ) -> Result<()> {
+    let working_dir = default_desktop_working_dir().map(|path| path.display().to_string());
+    let selfdev = working_dir
+        .as_deref()
+        .and_then(|path| path_contains_jcode_repo(path).then_some(true));
     write_json_line(
         writer,
         json!({
             "type": "subscribe",
             "id": id,
+            "working_dir": working_dir,
+            "selfdev": selfdev,
             "target_session_id": target_session_id,
+            "client_instance_id": desktop_client_instance_id(),
             "client_has_local_history": false,
             "allow_session_takeover": false,
         }),
     )
+}
+
+#[cfg(unix)]
+fn desktop_client_instance_id() -> &'static str {
+    static INSTANCE_ID: OnceLock<String> = OnceLock::new();
+    INSTANCE_ID.get_or_init(|| {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|duration| duration.as_nanos())
+            .unwrap_or(0);
+        format!("desktop-{}-{nanos}", std::process::id())
+    })
+}
+
+#[cfg(unix)]
+fn path_contains_jcode_repo(path: &str) -> bool {
+    let mut current = Some(Path::new(path));
+    while let Some(path) = current {
+        if path.join("crates/jcode-desktop").is_dir() && path.join("Cargo.toml").is_file() {
+            return true;
+        }
+        current = path.parent();
+    }
+    false
 }
 
 #[cfg(unix)]

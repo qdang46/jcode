@@ -345,6 +345,9 @@ pub struct Config {
     /// Built-in tool exposure configuration
     pub tools: ToolConfig,
 
+    /// Agent Client Protocol adapter configuration
+    pub acp: AcpConfig,
+
     /// Auth trust / consent configuration
     pub auth: AuthConfig,
 
@@ -382,13 +385,33 @@ pub struct Config {
     pub autojudge: AutoJudgeConfig,
 }
 
+/// Agent Client Protocol adapter configuration.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct AcpConfig {
+    /// Client compatibility profile: "standard" (default), "extended", or "full".
+    pub profile: String,
+    /// Tool profile to request when `jcode acp` starts a daemon itself.
+    pub tool_profile: String,
+}
+
+impl Default for AcpConfig {
+    fn default() -> Self {
+        Self {
+            profile: "standard".to_string(),
+            tool_profile: "acp".to_string(),
+        }
+    }
+}
+
 /// Controls which tools are sent to the model.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(default)]
 pub struct ToolConfig {
-    /// Tool profile: "full" (default), "minimal"/"lite", or "none".
+    /// Tool profile: "full" (default), "acp", "minimal"/"lite", or "none".
     pub profile: String,
     /// Explicit allow-list. When set, only these tools are exposed.
+    /// Use "*" or "all" to expose all tools, including default-disabled tools.
     pub enabled: Vec<String>,
     /// Tools to remove after applying profile/enabled.
     pub disabled: Vec<String>,
@@ -403,14 +426,24 @@ pub struct ToolSelection {
 }
 
 impl ToolConfig {
+    const DEFAULT_DISABLED_TOOLS: &'static [&'static str] = &["gmail", "lsp"];
+
     pub fn selection(&self) -> ToolSelection {
         let mut allowed_tools = self.base_allowed_tools();
-        let disabled_tools: HashSet<String> = self
+        let (explicit_enabled, enables_all_tools) = self.normalized_enabled_tools();
+        let mut disabled_tools: HashSet<String> = self
             .disabled
             .iter()
             .map(|name| normalize_tool_name(name))
             .filter(|name| !name.is_empty())
             .collect();
+
+        for name in Self::DEFAULT_DISABLED_TOOLS {
+            let normalized = normalize_tool_name(name);
+            if !enables_all_tools && !explicit_enabled.contains(&normalized) {
+                disabled_tools.insert(normalized);
+            }
+        }
 
         if let Some(allowed) = allowed_tools.as_mut() {
             for name in &disabled_tools {
@@ -439,19 +472,36 @@ impl ToolConfig {
     }
 
     fn base_allowed_tools(&self) -> Option<HashSet<String>> {
-        let explicit: Vec<String> = self
-            .enabled
-            .iter()
-            .map(|name| normalize_tool_name(name))
-            .filter(|name| !name.is_empty())
-            .collect();
+        let (explicit, enables_all_tools) = self.normalized_enabled_tools();
 
         let profile = self.profile.trim().to_ascii_lowercase();
-        if !explicit.is_empty() {
-            Some(explicit.into_iter().collect())
+        if enables_all_tools {
+            None
+        } else if !explicit.is_empty() {
+            Some(explicit)
         } else if self.disable_base_tools || matches!(profile.as_str(), "none" | "off" | "disabled")
         {
             Some(HashSet::new())
+        } else if matches!(profile.as_str(), "acp") {
+            Some(
+                [
+                    "bash",
+                    "read",
+                    "write",
+                    "edit",
+                    "multiedit",
+                    "apply_patch",
+                    "patch",
+                    "agentgrep",
+                    "glob",
+                    "grep",
+                    "ls",
+                    "batch",
+                ]
+                .into_iter()
+                .map(|name| name.to_string())
+                .collect(),
+            )
         } else if matches!(profile.as_str(), "minimal" | "lite" | "small") {
             Some(
                 [
@@ -474,6 +524,25 @@ impl ToolConfig {
         } else {
             None
         }
+    }
+
+    fn normalized_enabled_tools(&self) -> (HashSet<String>, bool) {
+        let mut enabled = HashSet::new();
+        let mut enables_all_tools = false;
+
+        for name in &self.enabled {
+            let normalized = normalize_tool_name(name);
+            if normalized.is_empty() {
+                continue;
+            }
+            if normalized == "*" || normalized.eq_ignore_ascii_case("all") {
+                enables_all_tools = true;
+            } else {
+                enabled.insert(normalized);
+            }
+        }
+
+        (enabled, enables_all_tools)
     }
 }
 

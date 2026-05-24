@@ -179,7 +179,6 @@ fn parse_and_prepare_args() -> Result<Args> {
         }
     }
 
-
     if let Some(ref socket) = args.socket {
         server::set_socket_path(socket);
     }
@@ -257,7 +256,7 @@ fn should_spawn_background_update_check(args: &Args) -> bool {
         && !args.no_update
         && !matches!(
             args.command,
-            Some(Command::Update) | Some(Command::Serve { .. })
+            Some(Command::Update) | Some(Command::Serve { .. }) | Some(Command::Acp)
         )
         && args.resume.is_none()
 }

@@ -304,7 +304,11 @@ impl Agent {
     }
 
     pub async fn tool_names(&self) -> Vec<String> {
-        self.registry.tool_names().await
+        self.tool_definitions_for_debug()
+            .await
+            .into_iter()
+            .map(|tool| tool.name)
+            .collect()
     }
 
     /// Get full tool definitions for debug introspection (bypasses lock)

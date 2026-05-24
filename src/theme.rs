@@ -88,12 +88,12 @@ impl Default for Theme {
     fn default() -> Self {
         Self {
             name: "default".to_string(),
-            primary: Color::rgb(0x52, 0x95, 0xe3),    // soft blue
-            secondary: Color::rgb(0x4e, 0xc9, 0xb0),  // teal
-            success: Color::rgb(0x73, 0xc9, 0x91),    // green
-            warning: Color::rgb(0xe5, 0xc0, 0x7b),    // amber
-            error: Color::rgb(0xe0, 0x6c, 0x75),      // red
-            muted: Color::rgb(0x80, 0x80, 0x80),      // gray
+            primary: Color::rgb(0x52, 0x95, 0xe3), // soft blue
+            secondary: Color::rgb(0x4e, 0xc9, 0xb0), // teal
+            success: Color::rgb(0x73, 0xc9, 0x91), // green
+            warning: Color::rgb(0xe5, 0xc0, 0x7b), // amber
+            error: Color::rgb(0xe0, 0x6c, 0x75),   // red
+            muted: Color::rgb(0x80, 0x80, 0x80),   // gray
             background: Color::rgb(0x1e, 0x1e, 0x1e), // near black
             foreground: Color::rgb(0xd4, 0xd4, 0xd4), // off white
         }
@@ -250,8 +250,14 @@ mod tests {
 
     #[test]
     fn case_insensitive_hex() {
-        assert_eq!(Color::parse_hex("#ABCDEF"), Some(Color::rgb(0xab, 0xcd, 0xef)));
-        assert_eq!(Color::parse_hex("#abcdef"), Some(Color::rgb(0xab, 0xcd, 0xef)));
+        assert_eq!(
+            Color::parse_hex("#ABCDEF"),
+            Some(Color::rgb(0xab, 0xcd, 0xef))
+        );
+        assert_eq!(
+            Color::parse_hex("#abcdef"),
+            Some(Color::rgb(0xab, 0xcd, 0xef))
+        );
     }
 
     #[test]

@@ -23,6 +23,8 @@ pub(crate) const MARKDOWN_TASK_OPEN_COLOR: [f32; 4] = [0.420, 0.320, 0.075, 0.98
 pub(crate) const MARKDOWN_STRIKE_TEXT_COLOR: [f32; 4] = [0.310, 0.330, 0.380, 0.880];
 pub(crate) const COMPOSER_INPUT_BACKGROUND_COLOR: [f32; 4] = [0.985, 0.992, 1.000, 0.46];
 pub(crate) const COMPOSER_INPUT_BORDER_COLOR: [f32; 4] = [0.055, 0.125, 0.270, 0.18];
+pub(crate) const STREAMING_ACTIVITY_PILL_COLOR: [f32; 4] = [0.965, 0.985, 1.000, 0.58];
+pub(crate) const STREAMING_ACTIVITY_PILL_BORDER_COLOR: [f32; 4] = [0.000, 0.260, 0.720, 0.18];
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct SingleSessionTextKey {
@@ -1314,45 +1316,51 @@ pub(crate) fn push_streaming_activity_cue(
         .unwrap_or_else(|| {
             single_session_draft_top_for_app(app, size) - typography.body_size * 0.82
         });
-    let cue_x = PANEL_TITLE_LEFT_PADDING + typography.body_size * 0.08;
-    let phase = (tick % 24) as f32 / 24.0;
-    let pulse = 0.5 + 0.5 * (phase * std::f32::consts::TAU).sin();
-
-    let mut beam_color = NATIVE_SPINNER_HEAD_COLOR;
-    beam_color[3] = if app.streaming_response.is_empty() {
-        0.22 + 0.24 * pulse
-    } else {
-        0.36 + 0.34 * pulse
+    let pill_width = (typography.body_size * 2.05).clamp(26.0, 34.0);
+    let pill_height = (typography.body_size * 0.82).clamp(11.0, 15.0);
+    let cue_x = PANEL_TITLE_LEFT_PADDING;
+    let cue_y = cue_y + (line_height - pill_height) * 0.5;
+    let cue_rect = Rect {
+        x: cue_x,
+        y: cue_y,
+        width: pill_width,
+        height: pill_height,
     };
     push_rounded_rect(
         vertices,
-        Rect {
-            x: cue_x,
-            y: cue_y + line_height * 0.16,
-            width: 3.0,
-            height: line_height * 0.68,
-        },
-        1.5,
-        beam_color,
+        cue_rect,
+        pill_height * 0.5,
+        STREAMING_ACTIVITY_PILL_COLOR,
+        size,
+    );
+    push_rounded_rect_border(
+        vertices,
+        cue_rect,
+        pill_height * 0.5,
+        1.0,
+        STREAMING_ACTIVITY_PILL_BORDER_COLOR,
         size,
     );
 
-    let dot_radius = (typography.body_size * 0.12).clamp(2.0, 3.5);
-    let dot_y = cue_y + line_height * 0.50 - dot_radius;
-    let dot_start_x = cue_x + typography.body_size * 0.55;
+    let dot_radius = (typography.body_size * 0.105).clamp(1.8, 2.8);
+    let dot_y = cue_rect.y + cue_rect.height * 0.50 - dot_radius;
+    let dot_gap = dot_radius * 2.35;
+    let dot_total_width = dot_radius * 2.0 * 3.0 + dot_gap * 2.0;
+    let dot_start_x = cue_rect.x + (cue_rect.width - dot_total_width) * 0.5;
     for dot in 0..3 {
-        let dot_phase = ((tick + dot as u64 * 3) % 12) as f32 / 12.0;
+        let dot_phase = ((tick + dot as u64 * 4) % 18) as f32 / 18.0;
         let dot_pulse = 0.5 + 0.5 * (dot_phase * std::f32::consts::TAU).sin();
-        let mut dot_color = if app.streaming_response.is_empty() {
-            NATIVE_SPINNER_TRACK_COLOR
+        let mut dot_color = NATIVE_SPINNER_HEAD_COLOR;
+        let base_alpha = if app.streaming_response.is_empty() {
+            0.34
         } else {
-            NATIVE_SPINNER_HEAD_COLOR
+            0.46
         };
-        dot_color[3] = (0.30 + 0.58 * dot_pulse).clamp(0.24, 0.92);
+        dot_color[3] = (base_alpha + 0.38 * dot_pulse).clamp(0.30, 0.86);
         push_rounded_rect(
             vertices,
             Rect {
-                x: dot_start_x + dot as f32 * dot_radius * 2.8,
+                x: dot_start_x + dot as f32 * (dot_radius * 2.0 + dot_gap),
                 y: dot_y,
                 width: dot_radius * 2.0,
                 height: dot_radius * 2.0,
@@ -2857,6 +2865,14 @@ fn single_session_text_buffers_from_key_reusing_unchanged_from_options(
             .max(1.0)
             .min(content_width)
     };
+    let inline_widget_height = if key.inline_widget.is_empty() {
+        prompt_height
+    } else {
+        let inline_widget_line_height = typography.body_size * typography.body_line_height;
+        prompt_height
+            .max(size.height as f32)
+            .max(key.inline_widget.len() as f32 * inline_widget_line_height)
+    };
     let inline_widget_buffer = take_reusable(
         &mut old_buffers,
         4,
@@ -2869,7 +2885,7 @@ fn single_session_text_buffers_from_key_reusing_unchanged_from_options(
             typography.body_size,
             typography.body_size * typography.body_line_height,
             inline_widget_width,
-            prompt_height,
+            inline_widget_height,
             Wrap::Word,
         )
     });
@@ -3020,9 +3036,11 @@ pub(crate) fn single_session_body_text_buffer_layout_compatible(
 
 fn single_session_body_text_buffer_layout_bucket(size: (u32, u32), text_scale: f32) -> (u32, u32) {
     let physical_size = PhysicalSize::new(size.0, size.1);
+    let width_columns =
+        single_session_body_max_columns(physical_size, text_scale).min(u32::MAX as usize) as u32;
     let height_lines = single_session_body_text_buffer_layout_lines(physical_size, text_scale)
         .min(u32::MAX as usize) as u32;
-    (0, height_lines)
+    (width_columns, height_lines)
 }
 
 fn single_session_body_text_buffer_layout_height(size: PhysicalSize<u32>, text_scale: f32) -> f32 {
@@ -5032,4 +5050,51 @@ pub(crate) fn text_color(color: [f32; 4]) -> TextColor {
         (color[2].clamp(0.0, 1.0) * 255.0).round() as u8,
         (color[3].clamp(0.0, 1.0) * 255.0).round() as u8,
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::single_session::SingleSessionApp;
+    use crate::workspace::{KeyInput, KeyOutcome, SessionCard};
+
+    #[test]
+    fn session_switcher_text_buffer_shapes_loaded_session_rows() {
+        let size = PhysicalSize::new(1920, 2048);
+        let mut app = SingleSessionApp::new(None);
+
+        assert_eq!(
+            app.handle_key(KeyInput::OpenSessionSwitcher),
+            KeyOutcome::LoadSessionSwitcher
+        );
+        app.apply_session_switcher_cards(vec![SessionCard {
+            session_id: "session_visible".to_string(),
+            title: "visible resume row".to_string(),
+            subtitle: "active · test-model".to_string(),
+            detail: "3 msgs · just now · jcode".to_string(),
+            preview_lines: vec!["user hello from resume picker".to_string()],
+            detail_lines: vec!["user hello from resume picker".to_string()],
+        }]);
+        assert!(
+            app.inline_widget_styled_lines()
+                .iter()
+                .any(|line| line.text.contains("visible resume row")),
+            "state-level switcher lines should contain the session row"
+        );
+
+        let mut font_system = FontSystem::new();
+        let buffers = single_session_text_buffers(&app, size, &mut font_system);
+        let rendered_inline_text = buffers
+            .get(4)
+            .expect("inline widget buffer should be present")
+            .layout_runs()
+            .map(|run| run.text.to_string())
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        assert!(
+            rendered_inline_text.contains("visible resume row"),
+            "desktop text buffer should shape session rows, got:\n{rendered_inline_text}"
+        );
+    }
 }

@@ -1007,6 +1007,68 @@ pub(crate) fn push_rounded_rect(
     }
 }
 
+pub(crate) fn push_rounded_rect_border(
+    vertices: &mut Vec<Vertex>,
+    rect: Rect,
+    radius: f32,
+    stroke_width: f32,
+    color: [f32; 4],
+    size: PhysicalSize<u32>,
+) {
+    let stroke_width = stroke_width
+        .max(0.0)
+        .min(rect.width / 2.0)
+        .min(rect.height / 2.0);
+    if stroke_width <= 0.0 || color[3] <= 0.0 {
+        return;
+    }
+
+    let outer_radius = radius.max(0.0).min(rect.width / 2.0).min(rect.height / 2.0);
+    if outer_radius <= 0.5 {
+        push_stroked_rect(vertices, rect, stroke_width, color, size);
+        return;
+    }
+
+    let inner = Rect {
+        x: rect.x + stroke_width,
+        y: rect.y + stroke_width,
+        width: (rect.width - stroke_width * 2.0).max(0.0),
+        height: (rect.height - stroke_width * 2.0).max(0.0),
+    };
+    if inner.width <= 0.0 || inner.height <= 0.0 {
+        push_rounded_rect(vertices, rect, outer_radius, color, size);
+        return;
+    }
+
+    let inner_radius = (outer_radius - stroke_width)
+        .max(0.0)
+        .min(inner.width / 2.0)
+        .min(inner.height / 2.0);
+    let outer_points = rounded_rect_points(rect, outer_radius);
+    let inner_points = rounded_rect_points(inner, inner_radius);
+    debug_assert_eq!(outer_points.len(), inner_points.len());
+
+    for index in 0..outer_points.len() {
+        let next = (index + 1) % outer_points.len();
+        push_pixel_triangle(
+            vertices,
+            outer_points[index],
+            outer_points[next],
+            inner_points[next],
+            color,
+            size,
+        );
+        push_pixel_triangle(
+            vertices,
+            outer_points[index],
+            inner_points[next],
+            inner_points[index],
+            color,
+            size,
+        );
+    }
+}
+
 pub(crate) fn append_arc_points(
     points: &mut Vec<[f32; 2]>,
     center_x: f32,

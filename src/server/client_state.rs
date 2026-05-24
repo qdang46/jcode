@@ -148,17 +148,37 @@ pub(super) async fn handle_get_model_catalog(
     id: u64,
     session_id: &str,
     agent: &Arc<Mutex<Agent>>,
+    provider: &Arc<dyn Provider>,
     writer: &Arc<Mutex<WriteHalf>>,
 ) -> Result<()> {
     let started = Instant::now();
-    let (provider_name, provider_model, available_models, available_model_routes) = {
-        let agent_guard = agent.lock().await;
-        (
-            Some(agent_guard.provider_name()),
-            Some(agent_guard.provider_model()),
-            agent_guard.available_models_display(),
-            agent_guard.model_routes(),
-        )
+    let (provider_name, provider_model, available_models, available_model_routes, source) = {
+        match agent.try_lock() {
+            Ok(agent_guard) => (
+                Some(agent_guard.provider_name()),
+                Some(agent_guard.provider_model()),
+                agent_guard.available_models_display(),
+                agent_guard.model_routes(),
+                "live",
+            ),
+            Err(_) => {
+                crate::logging::warn(&format!(
+                    "handle_get_model_catalog: session {} busy, using provider/persisted fallback",
+                    session_id
+                ));
+                let persisted_model = Session::load_for_remote_startup(session_id)
+                    .or_else(|_| Session::load_startup_stub(session_id))
+                    .ok()
+                    .and_then(|session| session.model);
+                (
+                    Some(provider.name().to_string()),
+                    persisted_model.or_else(|| Some(provider.model())),
+                    provider.available_models_display(),
+                    provider.model_routes(),
+                    "fallback",
+                )
+            }
+        }
     };
 
     let event = ServerEvent::History {
@@ -198,8 +218,9 @@ pub(super) async fn handle_get_model_catalog(
     let mut writer_guard = writer.lock().await;
     writer_guard.write_all(json.as_bytes()).await?;
     crate::logging::info(&format!(
-        "[TIMING] handle_get_model_catalog: session={}, bytes={}, total={}ms",
+        "[TIMING] handle_get_model_catalog: session={}, source={}, bytes={}, total={}ms",
         session_id,
+        source,
         json.len(),
         started.elapsed().as_millis()
     ));

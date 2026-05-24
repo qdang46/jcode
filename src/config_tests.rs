@@ -60,7 +60,80 @@ fn swarm_spawn_mode_rejects_invalid_values() {
 
 #[test]
 fn tool_config_defaults_to_full_toolset() {
-    assert!(ToolConfig::default().allowed_tools().is_none());
+    let selection = ToolConfig::default().selection();
+    assert!(selection.allowed_tools.is_none());
+    assert!(selection.disabled_tools.contains("gmail"));
+    assert!(selection.disabled_tools.contains("lsp"));
+}
+
+#[test]
+fn tool_config_explicit_enabled_default_disabled_tools_opts_in() {
+    let cfg = ToolConfig {
+        enabled: vec!["gmail".to_string(), "lsp".to_string()],
+        ..ToolConfig::default()
+    };
+    let selection = cfg.selection();
+    let allowed = selection
+        .allowed_tools
+        .expect("explicit enabled is an allow-list");
+
+    assert!(allowed.contains("gmail"));
+    assert!(allowed.contains("lsp"));
+    assert!(!selection.disabled_tools.contains("gmail"));
+    assert!(!selection.disabled_tools.contains("lsp"));
+}
+
+#[test]
+fn tool_config_all_enabled_sentinel_opts_in_gmail_without_allow_list() {
+    let cfg = ToolConfig {
+        enabled: vec!["*".to_string()],
+        ..ToolConfig::default()
+    };
+    let selection = cfg.selection();
+
+    assert!(selection.allowed_tools.is_none());
+    assert!(!selection.disabled_tools.contains("gmail"));
+    assert!(!selection.disabled_tools.contains("lsp"));
+}
+
+#[test]
+fn tool_config_explicit_disabled_overrides_all_enabled_sentinel() {
+    let cfg = ToolConfig {
+        enabled: vec!["*".to_string()],
+        disabled: vec!["gmail".to_string()],
+        ..ToolConfig::default()
+    };
+    let selection = cfg.selection();
+
+    assert!(selection.allowed_tools.is_none());
+    assert!(selection.disabled_tools.contains("gmail"));
+    assert!(!selection.disabled_tools.contains("lsp"));
+}
+
+#[test]
+fn tool_config_acp_profile_allows_core_coding_plus_batch() {
+    let cfg = ToolConfig {
+        profile: "acp".to_string(),
+        ..ToolConfig::default()
+    };
+    let allowed = cfg.allowed_tools().expect("acp profile is an allow-list");
+
+    assert!(allowed.contains("bash"));
+    assert!(allowed.contains("read"));
+    assert!(allowed.contains("write"));
+    assert!(allowed.contains("apply_patch"));
+    assert!(allowed.contains("agentgrep"));
+    assert!(allowed.contains("batch"));
+    assert!(!allowed.contains("swarm"));
+    assert!(!allowed.contains("subagent"));
+    assert!(!allowed.contains("side_panel"));
+}
+
+#[test]
+fn acp_config_defaults_to_standard_profile_and_acp_tools() {
+    let cfg = Config::default();
+    assert_eq!(cfg.acp.profile, "standard");
+    assert_eq!(cfg.acp.tool_profile, "acp");
 }
 
 #[test]
@@ -130,6 +203,8 @@ fn tool_config_disabled_only_keeps_full_profile_with_deny_list() {
     assert!(selection.allowed_tools.is_none());
     assert!(selection.disabled_tools.contains("browser"));
     assert!(selection.disabled_tools.contains("swarm"));
+    assert!(selection.disabled_tools.contains("gmail"));
+    assert!(selection.disabled_tools.contains("lsp"));
 }
 
 #[test]
@@ -153,6 +228,10 @@ fn test_generated_default_config_uses_low_openai_reasoning_effort() {
     assert!(
         content.contains("[tools]") && content.contains("profile = \"full\""),
         "generated default config should document tool profiles"
+    );
+    assert!(
+        content.contains("[acp]") && content.contains("tool_profile = \"acp\""),
+        "generated default config should document ACP profile settings"
     );
 
     if let Some(prev) = prev_home {

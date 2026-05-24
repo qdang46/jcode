@@ -73,8 +73,7 @@ impl McpTrustStore {
             std::fs::create_dir_all(parent)?;
         }
         let json = serde_json::to_string_pretty(self)?;
-        std::fs::write(&path, json)
-            .with_context(|| format!("write {}", path.display()))?;
+        std::fs::write(&path, json).with_context(|| format!("write {}", path.display()))?;
         Ok(())
     }
 
@@ -96,8 +95,8 @@ impl McpTrustStore {
     pub fn mark_trusted(&mut self, path: &Path) -> Result<String> {
         let key = canonicalize_for_key(path)
             .with_context(|| format!("cannot canonicalize {}", path.display()))?;
-        let hash = content_hash_of(path)
-            .with_context(|| format!("cannot read {}", path.display()))?;
+        let hash =
+            content_hash_of(path).with_context(|| format!("cannot read {}", path.display()))?;
         self.entries.insert(key, hash.clone());
         Ok(hash)
     }

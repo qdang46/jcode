@@ -1,5 +1,61 @@
 use super::*;
 
+struct EnvVarGuard {
+    key: &'static str,
+    previous: Option<std::ffi::OsString>,
+}
+
+impl EnvVarGuard {
+    fn set_if_missing(key: &'static str, value: &str) -> Option<Self> {
+        if std::env::var_os(key).is_some() {
+            return None;
+        }
+        let previous = std::env::var_os(key);
+        crate::env::set_var(key, value);
+        Some(Self { key, previous })
+    }
+}
+
+impl Drop for EnvVarGuard {
+    fn drop(&mut self) {
+        if let Some(previous) = self.previous.take() {
+            crate::env::set_var(self.key, previous);
+        } else {
+            crate::env::remove_var(self.key);
+        }
+    }
+}
+
+async fn collect_live_smoke_stream(
+    mut stream: EventStream,
+    timeout: std::time::Duration,
+) -> Result<(usize, usize, bool)> {
+    tokio::time::timeout(timeout, async move {
+        let mut text_bytes = 0usize;
+        let mut thinking_bytes = 0usize;
+        let mut saw_message_end = false;
+        while let Some(event) = stream.next().await {
+            match event? {
+                StreamEvent::TextDelta(text) => {
+                    text_bytes += text.len();
+                }
+                StreamEvent::ThinkingDelta(text) => {
+                    thinking_bytes += text.len();
+                }
+                StreamEvent::MessageEnd { .. } => {
+                    saw_message_end = true;
+                    break;
+                }
+                StreamEvent::Error { message, .. } => anyhow::bail!(message),
+                _ => {}
+            }
+        }
+        Ok((text_bytes, thinking_bytes, saw_message_end))
+    })
+    .await
+    .context("live provider smoke timed out")?
+}
+
 #[test]
 fn test_parse_sse_event() {
     let mut buffer = "event: message_start\ndata: {\"type\":\"message_start\"}\n\n".to_string();
@@ -189,6 +245,66 @@ fn test_anthropic_thinking_sse_events() {
     );
     assert!(matches!(events.as_slice(), [StreamEvent::ThinkingEnd]));
     assert!(!current_thinking_block);
+}
+
+#[tokio::test]
+#[ignore = "live smoke: requires ANTHROPIC_API_KEY, or set JCODE_LIVE_ANTHROPIC_ALLOW_OAUTH=1 to use Claude OAuth credentials"]
+async fn live_anthropic_reasoning_smoke() -> Result<()> {
+    let _env_lock = crate::storage::lock_test_env();
+    let using_api_key = std::env::var_os("ANTHROPIC_API_KEY").is_some();
+    let allow_oauth = std::env::var_os("JCODE_LIVE_ANTHROPIC_ALLOW_OAUTH").is_some();
+    if !using_api_key && !allow_oauth {
+        eprintln!(
+            "skipping live Anthropic smoke: set ANTHROPIC_API_KEY or JCODE_LIVE_ANTHROPIC_ALLOW_OAUTH=1"
+        );
+        return Ok(());
+    }
+
+    let _max_tokens = EnvVarGuard::set_if_missing("JCODE_ANTHROPIC_MAX_TOKENS", "2048");
+    let model = std::env::var("JCODE_LIVE_ANTHROPIC_MODEL")
+        .or_else(|_| std::env::var("JCODE_ANTHROPIC_MODEL"))
+        .unwrap_or_else(|_| "claude-sonnet-4-6".to_string());
+    let effort = std::env::var("JCODE_LIVE_ANTHROPIC_REASONING_EFFORT")
+        .unwrap_or_else(|_| "low".to_string());
+    let prompt = std::env::var("JCODE_LIVE_ANTHROPIC_PROMPT")
+        .unwrap_or_else(|_| "Live smoke test: answer exactly OK.".to_string());
+    let system = std::env::var("JCODE_LIVE_ANTHROPIC_SYSTEM").unwrap_or_else(|_| {
+        "You are a live provider smoke test. Keep the answer tiny.".to_string()
+    });
+    let require_thinking = std::env::var_os("JCODE_LIVE_ANTHROPIC_REQUIRE_THINKING").is_some();
+
+    let provider = AnthropicProvider::new();
+    provider.set_model(&model)?;
+    provider.set_reasoning_effort(&effort)?;
+
+    let messages = vec![Message {
+        role: Role::User,
+        content: vec![ContentBlock::Text {
+            text: prompt,
+            cache_control: None,
+        }],
+        timestamp: None,
+        tool_duration_ms: None,
+    }];
+
+    let stream = provider.complete(&messages, &[], &system, None).await?;
+    let (text_bytes, thinking_bytes, saw_message_end) =
+        collect_live_smoke_stream(stream, std::time::Duration::from_secs(90)).await?;
+
+    eprintln!(
+        "live Anthropic reasoning smoke passed: model={model}, effort={effort}, text_bytes={text_bytes}, thinking_bytes={thinking_bytes}, message_end={saw_message_end}"
+    );
+    assert!(
+        text_bytes > 0 || thinking_bytes > 0,
+        "live Anthropic response contained neither text nor thinking deltas"
+    );
+    if require_thinking {
+        assert!(
+            thinking_bytes > 0,
+            "live Anthropic response did not include thinking deltas despite JCODE_LIVE_ANTHROPIC_REQUIRE_THINKING"
+        );
+    }
+    Ok(())
 }
 
 #[tokio::test]

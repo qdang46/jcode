@@ -1702,7 +1702,6 @@ pub(super) fn handle_session_command(app: &mut App, trimmed: &str) -> bool {
         return true;
     }
 
-
     if trimmed == "/doctor" || trimmed.starts_with("/doctor ") {
         // Issue #155 etc.: surface jcode doctor inline so users
         // don't need to drop to a shell. Keeps the same JSON format

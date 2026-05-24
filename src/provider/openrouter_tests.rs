@@ -773,6 +773,114 @@ fn openrouter_chat_request_sends_unified_reasoning_effort() {
     );
 }
 
+fn live_openrouter_models() -> Vec<String> {
+    std::env::var("JCODE_LIVE_OPENROUTER_MODELS")
+        .or_else(|_| std::env::var("JCODE_OPENROUTER_MODEL"))
+        .unwrap_or_else(|_| "anthropic/claude-sonnet-4.6".to_string())
+        .split([',', '\n'])
+        .map(str::trim)
+        .filter(|model| !model.is_empty())
+        .map(ToString::to_string)
+        .collect()
+}
+
+async fn collect_openrouter_live_smoke_stream(
+    mut stream: EventStream,
+    timeout: Duration,
+) -> Result<(usize, usize, bool)> {
+    tokio::time::timeout(timeout, async move {
+        let mut text_bytes = 0usize;
+        let mut thinking_bytes = 0usize;
+        let mut saw_message_end = false;
+        while let Some(event) = stream.next().await {
+            match event? {
+                StreamEvent::TextDelta(text) => {
+                    text_bytes += text.len();
+                }
+                StreamEvent::ThinkingDelta(text) => {
+                    thinking_bytes += text.len();
+                }
+                StreamEvent::MessageEnd { .. } => {
+                    saw_message_end = true;
+                    break;
+                }
+                StreamEvent::Error { message, .. } => anyhow::bail!(message),
+                _ => {}
+            }
+        }
+        Ok((text_bytes, thinking_bytes, saw_message_end))
+    })
+    .await
+    .context("live OpenRouter smoke timed out")?
+}
+
+#[tokio::test]
+#[ignore = "live smoke: requires OPENROUTER_API_KEY or configured OpenRouter credentials"]
+async fn live_openrouter_unified_reasoning_smoke() -> Result<()> {
+    let _env_lock = ENV_LOCK.lock().unwrap();
+    let Some(token) = OpenRouterProvider::get_api_key() else {
+        eprintln!(
+            "skipping live OpenRouter smoke: OPENROUTER_API_KEY or configured OpenRouter credentials not found"
+        );
+        return Ok(());
+    };
+
+    let models = live_openrouter_models();
+    let effort = std::env::var("JCODE_LIVE_OPENROUTER_REASONING_EFFORT")
+        .unwrap_or_else(|_| "low".to_string());
+    let max_tokens = std::env::var("JCODE_LIVE_OPENROUTER_MAX_TOKENS")
+        .ok()
+        .and_then(|value| value.trim().parse::<u32>().ok())
+        .unwrap_or(1024);
+
+    for model in models {
+        let provider = OpenRouterProvider {
+            auth: ProviderAuth::AuthorizationBearer {
+                token: token.clone(),
+                label: configured_api_key_name(),
+            },
+            model: Arc::new(RwLock::new(model.clone())),
+            max_tokens: Some(max_tokens),
+            ..make_provider()
+        };
+        provider.set_reasoning_effort(&effort)?;
+
+        let messages = vec![Message {
+            role: Role::User,
+            content: vec![ContentBlock::Text {
+                text: "Live smoke test: answer exactly OK.".to_string(),
+                cache_control: None,
+            }],
+            timestamp: None,
+            tool_duration_ms: None,
+        }];
+
+        let stream = provider
+            .complete(
+                &messages,
+                &[],
+                "You are a live provider smoke test. Keep the answer tiny.",
+                None,
+            )
+            .await
+            .with_context(|| format!("starting live OpenRouter stream for {model}"))?;
+        let (text_bytes, thinking_bytes, saw_message_end) =
+            collect_openrouter_live_smoke_stream(stream, Duration::from_secs(90))
+                .await
+                .with_context(|| format!("collecting live OpenRouter stream for {model}"))?;
+
+        eprintln!(
+            "live OpenRouter reasoning smoke passed: model={model}, effort={effort}, text_bytes={text_bytes}, thinking_bytes={thinking_bytes}, message_end={saw_message_end}"
+        );
+        assert!(
+            text_bytes > 0 || thinking_bytes > 0,
+            "live OpenRouter response for {model} contained neither text nor thinking deltas"
+        );
+    }
+
+    Ok(())
+}
+
 #[test]
 fn direct_deepseek_chat_request_sends_reasoning_effort() {
     let (api_base, request_rx) = spawn_single_response_chat_server();

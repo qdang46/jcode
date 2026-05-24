@@ -5,6 +5,9 @@ impl Config {
         let path = Self::path()
             .map(|p| p.display().to_string())
             .unwrap_or_else(|| "unknown".to_string());
+        let mut effective_disabled_tools: Vec<String> =
+            self.tools.selection().disabled_tools.into_iter().collect();
+        effective_disabled_tools.sort();
 
         format!(
             r#"**Configuration** (`{}`)
@@ -189,10 +192,10 @@ impl Config {
             } else {
                 self.tools.enabled.join(", ")
             },
-            if self.tools.disabled.is_empty() {
+            if effective_disabled_tools.is_empty() {
                 "(none)".to_string()
             } else {
-                self.tools.disabled.join(", ")
+                effective_disabled_tools.join(", ")
             },
             self.tools.disable_base_tools,
             self.provider

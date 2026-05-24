@@ -157,6 +157,7 @@ pub enum KeyOutcome {
     },
     AttachClipboardImage,
     PasteText,
+    ForceReload,
     StartFreshSession {
         message: String,
         images: Vec<(String, String)>,
@@ -1014,6 +1015,8 @@ impl Workspace {
             "/help",
             "/clear",
             "/model",
+            "/force-reload",
+            "/reload",
             "/resume",
             "/sessions",
             "/status",
@@ -1066,6 +1069,11 @@ impl Workspace {
         if message.is_empty() && self.pending_images.is_empty() {
             return KeyOutcome::None;
         }
+        if self.pending_images.is_empty()
+            && let Some(outcome) = self.handle_slash_command(&message)
+        {
+            return outcome;
+        }
         let Some((session_id, title)) = self.focused_session_target() else {
             return KeyOutcome::None;
         };
@@ -1081,6 +1089,35 @@ impl Workspace {
             message,
             images,
         }
+    }
+
+    fn handle_slash_command(&mut self, message: &str) -> Option<KeyOutcome> {
+        if !message.starts_with('/') {
+            return None;
+        }
+
+        let mut parts = message.splitn(2, char::is_whitespace);
+        let command = parts.next().unwrap_or_default();
+
+        let outcome = match command {
+            "/resume" | "/session" | "/sessions" => {
+                self.clear_draft_after_local_command();
+                KeyOutcome::LoadSessionSwitcher
+            }
+            "/reload" | "/force-reload" => {
+                self.clear_draft_after_local_command();
+                KeyOutcome::ForceReload
+            }
+            _ => return None,
+        };
+        Some(outcome)
+    }
+
+    fn clear_draft_after_local_command(&mut self) {
+        self.draft.clear();
+        self.draft_cursor = 0;
+        self.input_undo_stack.clear();
+        self.mode = InputMode::Navigation;
     }
 
     fn focus_column(&mut self, direction: Direction) -> bool {

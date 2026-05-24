@@ -100,6 +100,20 @@ impl Config {
             self.tools.disable_base_tools = parsed;
         }
 
+        // ACP adapter
+        if let Ok(v) = std::env::var("JCODE_ACP_PROFILE") {
+            let trimmed = v.trim().to_ascii_lowercase();
+            if matches!(trimmed.as_str(), "standard" | "extended" | "full") {
+                self.acp.profile = trimmed;
+            }
+        }
+        if let Ok(v) = std::env::var("JCODE_ACP_TOOL_PROFILE") {
+            let trimmed = v.trim();
+            if !trimmed.is_empty() {
+                self.acp.tool_profile = trimmed.to_string();
+            }
+        }
+
         // Display
         if let Ok(v) = std::env::var("JCODE_DIFF_MODE") {
             match v.to_lowercase().as_str() {

@@ -140,23 +140,24 @@ fn make_edit_badge_test_app(
     (app, terminal)
 }
 
-#[test]
-fn test_expand_badge_renders_only_for_collapsed_edit_diff_and_expands_to_full_diff() {
+fn assert_rendered_expand_badge_shortcut_expands_to_full_diff(
+    key_code: crossterm::event::KeyCode,
+    modifiers: crossterm::event::KeyModifiers,
+) {
     let _render_lock = scroll_render_test_lock();
     let (mut app, mut terminal) = make_edit_badge_test_app(20);
 
     let rendered = render_and_snap(&app, &mut terminal);
-    assert!(rendered.contains("more changes"), "expected collapsed diff:\n{rendered}");
+    assert!(
+        rendered.contains("more changes"),
+        "expected collapsed diff:\n{rendered}"
+    );
     assert!(
         rendered.contains("[E] expand"),
         "expected visible expand badge for collapsed edit diff:\n{rendered}"
     );
 
-    use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
-    app.handle_key_event(KeyEvent::new(
-        KeyCode::Char('E'),
-        KeyModifiers::ALT | KeyModifiers::SHIFT,
-    ));
+    app.handle_key_event(crossterm::event::KeyEvent::new(key_code, modifiers));
     assert_eq!(app.diff_mode, crate::config::DiffDisplayMode::FullInline);
 
     let rendered = render_and_snap(&app, &mut terminal);
@@ -171,6 +172,56 @@ fn test_expand_badge_renders_only_for_collapsed_edit_diff_and_expands_to_full_di
     assert!(
         rendered.contains("new line 19"),
         "expanded diff should include the previously hidden tail:\n{rendered}"
+    );
+}
+
+#[test]
+fn test_expand_badge_rendered_shortcut_expands_with_explicit_shift_event() {
+    use crossterm::event::{KeyCode, KeyModifiers};
+
+    // Matches the debug key injector and terminals that report Alt+Shift+E as a
+    // lowercase char plus an explicit SHIFT modifier.
+    assert_rendered_expand_badge_shortcut_expands_to_full_diff(
+        KeyCode::Char('e'),
+        KeyModifiers::ALT | KeyModifiers::SHIFT,
+    );
+}
+
+#[test]
+fn test_expand_badge_rendered_shortcut_expands_with_alt_uppercase_event() {
+    use crossterm::event::{KeyCode, KeyModifiers};
+
+    // Matches terminals that encode Alt+Shift+E like the copy badge path:
+    // Alt plus an uppercase character and no explicit SHIFT modifier.
+    assert_rendered_expand_badge_shortcut_expands_to_full_diff(
+        KeyCode::Char('E'),
+        KeyModifiers::ALT,
+    );
+}
+
+#[test]
+fn test_remote_expand_badge_rendered_shortcut_expands_with_alt_uppercase_event() {
+    let _render_lock = scroll_render_test_lock();
+    let (mut app, mut terminal) = make_edit_badge_test_app(20);
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    let _guard = rt.enter();
+    let mut remote = crate::tui::backend::RemoteConnection::dummy();
+
+    let rendered = render_and_snap(&app, &mut terminal);
+    assert!(
+        rendered.contains("[E] expand"),
+        "expected visible expand badge before remote key injection:\n{rendered}"
+    );
+
+    use crossterm::event::{KeyCode, KeyModifiers};
+    rt.block_on(app.handle_remote_key(KeyCode::Char('E'), KeyModifiers::ALT, &mut remote))
+        .unwrap();
+
+    assert_eq!(app.diff_mode, crate::config::DiffDisplayMode::FullInline);
+    let rendered = render_and_snap(&app, &mut terminal);
+    assert!(
+        rendered.contains("new line 19"),
+        "remote expand shortcut should reveal the full inline diff:\n{rendered}"
     );
 }
 

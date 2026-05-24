@@ -355,9 +355,7 @@ impl McpConfig {
 
         // Helper: load a project-local config, applying trust gating when
         // active. Returns true if loaded, false if skipped.
-        let load_project_local = |path: &std::path::Path,
-                                  merged: &mut Self|
-         -> bool {
+        let load_project_local = |path: &std::path::Path, merged: &mut Self| -> bool {
             if !path.exists() {
                 return false;
             }

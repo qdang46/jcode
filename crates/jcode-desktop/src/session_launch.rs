@@ -291,6 +291,30 @@ pub enum DesktopSessionEvent {
         is_password: bool,
         tool_call_id: String,
     },
+    ReloadProgress {
+        step: String,
+        message: String,
+        success: Option<bool>,
+        output: Option<String>,
+    },
+    RuntimeMetadata {
+        connection_type: Option<String>,
+        status_detail: Option<String>,
+        upstream_provider: Option<String>,
+    },
+    TokenUsage {
+        input: u64,
+        output: u64,
+        cache_read_input: Option<u64>,
+        cache_creation_input: Option<u64>,
+    },
+    SystemNotice {
+        title: String,
+        message: Option<String>,
+    },
+    SessionCloseRequested {
+        reason: String,
+    },
     Reloading {
         new_socket: Option<String>,
     },
@@ -1252,6 +1276,11 @@ fn desktop_session_event_kind(event: &DesktopSessionEvent) -> &'static str {
         DesktopSessionEvent::ModelCatalog { .. } => "model_catalog",
         DesktopSessionEvent::ModelCatalogError { .. } => "model_catalog_error",
         DesktopSessionEvent::StdinRequest { .. } => "stdin_request",
+        DesktopSessionEvent::ReloadProgress { .. } => "reload_progress",
+        DesktopSessionEvent::RuntimeMetadata { .. } => "runtime_metadata",
+        DesktopSessionEvent::TokenUsage { .. } => "tokens",
+        DesktopSessionEvent::SystemNotice { .. } => "system_notice",
+        DesktopSessionEvent::SessionCloseRequested { .. } => "session_close_requested",
         DesktopSessionEvent::Reloading { .. } => "reloading",
         DesktopSessionEvent::Reloaded { .. } => "reloaded",
         DesktopSessionEvent::Done => "done",
