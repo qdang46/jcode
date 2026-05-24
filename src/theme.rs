@@ -38,6 +38,95 @@
 
 use serde::Deserialize;
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
+use std::time::SystemTime;
+
+// ---- Issue #5: themes hot reload ----
+//
+// `load_or_default()` already re-reads from disk on every call.
+// Hot reload adds two cheap probes the TUI / `/theme reload` slash
+// command can poll without full re-parse:
+//
+//   discover_cached(home, repo) -> (Theme, ThemeCacheToken)
+//   theme_changed_since(token, home, repo) -> bool
+//
+// The cache invalidates when the active theme.toml's mtime advances
+// or when the resolved theme path changes (user moved theme between
+// project + user level, JCODE_THEME env var changed).
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ThemeCacheToken(SystemTime, Option<PathBuf>);
+
+impl ThemeCacheToken {
+    pub fn epoch() -> Self {
+        Self(SystemTime::UNIX_EPOCH, None)
+    }
+}
+
+struct ThemeCache {
+    last_mtime: SystemTime,
+    last_path: Option<PathBuf>,
+    cached: Theme,
+}
+
+impl Default for ThemeCache {
+    fn default() -> Self {
+        Self {
+            last_mtime: SystemTime::UNIX_EPOCH,
+            last_path: None,
+            cached: Theme::default(),
+        }
+    }
+}
+
+static THEME_CACHE: Mutex<Option<ThemeCache>> = Mutex::new(None);
+
+/// Hot-reload aware theme load. Returns the cached theme when the
+/// resolved theme.toml hasn't changed mtime + path since last call.
+pub fn discover_cached(jcode_home: &Path, repo_root: Option<&Path>) -> (Theme, ThemeCacheToken) {
+    let path = resolve_theme_path(jcode_home, repo_root);
+    let mtime = path
+        .as_ref()
+        .and_then(|p| std::fs::metadata(p).ok())
+        .and_then(|m| m.modified().ok())
+        .unwrap_or(SystemTime::UNIX_EPOCH);
+
+    let mut guard = THEME_CACHE.lock().unwrap_or_else(|e| e.into_inner());
+    let cache = guard.get_or_insert_with(ThemeCache::default);
+
+    let stale = cache.last_mtime != mtime || cache.last_path != path;
+    if stale {
+        cache.cached = load_or_default(jcode_home, repo_root);
+        cache.last_mtime = mtime;
+        cache.last_path = path.clone();
+    }
+    (
+        cache.cached.clone(),
+        ThemeCacheToken(cache.last_mtime, cache.last_path.clone()),
+    )
+}
+
+/// Cheap probe — has the active theme file changed since `token`?
+/// No re-parse, just an mtime + path lookup.
+pub fn theme_changed_since(
+    token: &ThemeCacheToken,
+    jcode_home: &Path,
+    repo_root: Option<&Path>,
+) -> bool {
+    let path = resolve_theme_path(jcode_home, repo_root);
+    let mtime = path
+        .as_ref()
+        .and_then(|p| std::fs::metadata(p).ok())
+        .and_then(|m| m.modified().ok())
+        .unwrap_or(SystemTime::UNIX_EPOCH);
+    mtime != token.0 || path != token.1
+}
+
+/// Drop the cache (test helper).
+pub fn clear_theme_cache_for_tests() {
+    let mut guard = THEME_CACHE.lock().unwrap_or_else(|e| e.into_inner());
+    *guard = None;
+}
 
 /// RGB color, 0-255 per channel.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -327,5 +416,108 @@ mod tests {
         let theme = load_or_default(&home, None);
         // Should silently fall back, not panic.
         assert_eq!(theme, Theme::default());
+    }
+}
+
+#[cfg(test)]
+mod hot_reload_tests {
+    use super::*;
+    use std::time::Duration;
+
+    #[test]
+    fn cached_returns_default_when_no_theme_file() {
+        let _lock = crate::storage::lock_test_env();
+        clear_theme_cache_for_tests();
+        let temp = tempfile::TempDir::new().unwrap();
+        let prev_env = std::env::var_os("JCODE_THEME");
+        unsafe {
+            std::env::remove_var("JCODE_THEME");
+        }
+        let (theme, _) = discover_cached(temp.path(), None);
+        assert_eq!(theme, Theme::default());
+        if let Some(p) = prev_env {
+            unsafe {
+                std::env::set_var("JCODE_THEME", p);
+            }
+        }
+    }
+
+    #[test]
+    fn cached_invalidates_when_theme_file_added() {
+        let _lock = crate::storage::lock_test_env();
+        clear_theme_cache_for_tests();
+        let temp = tempfile::TempDir::new().unwrap();
+        let prev_env = std::env::var_os("JCODE_THEME");
+        unsafe {
+            std::env::remove_var("JCODE_THEME");
+        }
+
+        let (theme1, token1) = discover_cached(temp.path(), None);
+        assert_eq!(theme1.name, "default");
+
+        // Add a theme file.
+        std::fs::write(temp.path().join("theme.toml"), "name = \"custom\"\n").unwrap();
+
+        std::thread::sleep(Duration::from_millis(50));
+        let (theme2, token2) = discover_cached(temp.path(), None);
+        assert_eq!(theme2.name, "custom");
+        assert_ne!(token1, token2);
+
+        if let Some(p) = prev_env {
+            unsafe {
+                std::env::set_var("JCODE_THEME", p);
+            }
+        }
+    }
+
+    #[test]
+    fn changed_since_detects_mtime_advance() {
+        let _lock = crate::storage::lock_test_env();
+        clear_theme_cache_for_tests();
+        let temp = tempfile::TempDir::new().unwrap();
+        let prev_env = std::env::var_os("JCODE_THEME");
+        unsafe {
+            std::env::remove_var("JCODE_THEME");
+        }
+
+        std::fs::write(temp.path().join("theme.toml"), "name = \"v1\"\n").unwrap();
+
+        let (_, token) = discover_cached(temp.path(), None);
+        assert!(!theme_changed_since(&token, temp.path(), None));
+
+        std::thread::sleep(Duration::from_millis(50));
+        std::fs::write(temp.path().join("theme.toml"), "name = \"v2\"\n").unwrap();
+
+        assert!(theme_changed_since(&token, temp.path(), None));
+
+        if let Some(p) = prev_env {
+            unsafe {
+                std::env::set_var("JCODE_THEME", p);
+            }
+        }
+    }
+
+    #[test]
+    fn epoch_token_signals_change_when_file_exists() {
+        let _lock = crate::storage::lock_test_env();
+        clear_theme_cache_for_tests();
+        let temp = tempfile::TempDir::new().unwrap();
+        let prev_env = std::env::var_os("JCODE_THEME");
+        unsafe {
+            std::env::remove_var("JCODE_THEME");
+        }
+
+        std::fs::write(temp.path().join("theme.toml"), "name = \"x\"\n").unwrap();
+        assert!(theme_changed_since(
+            &ThemeCacheToken::epoch(),
+            temp.path(),
+            None
+        ));
+
+        if let Some(p) = prev_env {
+            unsafe {
+                std::env::set_var("JCODE_THEME", p);
+            }
+        }
     }
 }
