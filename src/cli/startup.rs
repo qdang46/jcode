@@ -45,7 +45,7 @@ pub async fn run() -> Result<()> {
 }
 
 fn parse_and_prepare_args() -> Result<Args> {
-    let args = Args::parse();
+    let mut args = Args::parse();
     startup_profile::mark("args_parse");
 
     output::set_quiet_enabled(args.quiet);
@@ -163,6 +163,19 @@ fn parse_and_prepare_args() -> Result<Args> {
         // policy via --extension-policy; their choice wins.
         if std::env::var_os("JCODE_EXTENSION_POLICY").is_none() {
             crate::env::set_var("JCODE_EXTENSION_POLICY", "trusted");
+        }
+    }
+
+    // JCODE_MODEL fallback: when --model is not passed on the CLI,
+    // read JCODE_MODEL from the env so users can `export JCODE_MODEL=...`
+    // in their shell profile and have it apply to every jcode invocation.
+    // CLI flag still wins when both are set.
+    if args.model.is_none()
+        && let Ok(env_model) = std::env::var("JCODE_MODEL")
+    {
+        let trimmed = env_model.trim();
+        if !trimmed.is_empty() {
+            args.model = Some(trimmed.to_string());
         }
     }
 
@@ -300,5 +313,70 @@ mod tests {
         assert!(matches!(args.command, Some(Command::Update)));
         assert!(!should_spawn_background_update_check(&args));
         assert!(should_auto_install_update(&args));
+    }
+
+    // ---- JCODE_MODEL fallback ----
+
+    fn apply_model_env_fallback(args: &mut Args) {
+        if args.model.is_none()
+            && let Ok(env_model) = std::env::var("JCODE_MODEL")
+        {
+            let trimmed = env_model.trim();
+            if !trimmed.is_empty() {
+                args.model = Some(trimmed.to_string());
+            }
+        }
+    }
+
+    #[test]
+    fn jcode_model_env_used_when_cli_flag_absent() {
+        let _lock = crate::storage::lock_test_env();
+        let prev = std::env::var_os("JCODE_MODEL");
+        crate::env::set_var("JCODE_MODEL", "claude-haiku-4");
+
+        let mut args = parse_args(&["jcode"]);
+        assert!(args.model.is_none());
+        apply_model_env_fallback(&mut args);
+        assert_eq!(args.model.as_deref(), Some("claude-haiku-4"));
+
+        if let Some(p) = prev {
+            crate::env::set_var("JCODE_MODEL", p);
+        } else {
+            crate::env::remove_var("JCODE_MODEL");
+        }
+    }
+
+    #[test]
+    fn cli_flag_wins_over_jcode_model_env() {
+        let _lock = crate::storage::lock_test_env();
+        let prev = std::env::var_os("JCODE_MODEL");
+        crate::env::set_var("JCODE_MODEL", "from-env");
+
+        let mut args = parse_args(&["jcode", "--model", "from-cli"]);
+        apply_model_env_fallback(&mut args);
+        assert_eq!(args.model.as_deref(), Some("from-cli"));
+
+        if let Some(p) = prev {
+            crate::env::set_var("JCODE_MODEL", p);
+        } else {
+            crate::env::remove_var("JCODE_MODEL");
+        }
+    }
+
+    #[test]
+    fn empty_jcode_model_env_treated_as_unset() {
+        let _lock = crate::storage::lock_test_env();
+        let prev = std::env::var_os("JCODE_MODEL");
+        crate::env::set_var("JCODE_MODEL", "   ");
+
+        let mut args = parse_args(&["jcode"]);
+        apply_model_env_fallback(&mut args);
+        assert!(args.model.is_none(), "blank env should not override");
+
+        if let Some(p) = prev {
+            crate::env::set_var("JCODE_MODEL", p);
+        } else {
+            crate::env::remove_var("JCODE_MODEL");
+        }
     }
 }
