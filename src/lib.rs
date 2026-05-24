@@ -35,6 +35,7 @@ pub use embedding_stub as embedding;
 pub mod env;
 pub mod export;
 pub mod extension_policy;
+pub mod floating_diagram;
 pub mod gateway;
 pub mod gmail;
 pub mod goal;
