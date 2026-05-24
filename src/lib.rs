@@ -53,6 +53,7 @@ pub mod message;
 pub mod model_routing;
 pub mod network_retry;
 pub mod notifications;
+pub mod orchestration_api;
 pub mod overnight;
 pub mod perf;
 pub mod plan;
