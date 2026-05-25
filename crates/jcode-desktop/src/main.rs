@@ -22,7 +22,8 @@ mod workspace;
 
 use ab_glyph::{Font, FontArc, Glyph as AbGlyph, PxScale, ScaleFont, point};
 use animation::{
-    AnimatedRect, AnimatedViewport, ColorTransition, FocusPulse, SurfaceTransitionAnimator,
+    AnimatedRect, AnimatedViewport, ColorTransition, FocusPulse, StatusTextTransition,
+    StatusTextTransitionFrame, StatusTextVisualFrame, SurfaceTransitionAnimator,
     SurfaceVisualFrame, SurfaceVisualTarget, VisibleColumnLayout, WorkspaceRenderLayout,
 };
 use anyhow::{Context, Result};
@@ -8266,6 +8267,7 @@ struct Canvas {
     workspace_surface_exit_cache: HashMap<u64, workspace::Surface>,
     focus_pulse: FocusPulse,
     status_color_transition: ColorTransition,
+    status_text_transition: StatusTextTransition,
     inline_widget_selection_motion: InlineWidgetSelectionMotionRegistry,
     inline_widget_list_reflow_motion: InlineWidgetListReflowMotionRegistry,
     composer_motion: ComposerMotionRegistry,
@@ -8391,6 +8393,7 @@ impl Canvas {
             workspace_surface_exit_cache: HashMap::new(),
             focus_pulse: FocusPulse::default(),
             status_color_transition: ColorTransition::default(),
+            status_text_transition: StatusTextTransition::default(),
             inline_widget_selection_motion: InlineWidgetSelectionMotionRegistry::default(),
             inline_widget_list_reflow_motion: InlineWidgetListReflowMotionRegistry::default(),
             composer_motion: ComposerMotionRegistry::default(),
@@ -9215,6 +9218,7 @@ impl Canvas {
             workspace_render_layout_for_frame,
             workspace_surface_frames_for_frame,
             workspace_status_color_for_frame,
+            workspace_status_text_frame,
         ) = if let DesktopApp::Workspace(workspace) = app {
             let target_layout = workspace_render_layout(workspace, self.size, monitor_size);
             let render_layout = self.viewport_animation.frame(target_layout, now);
@@ -9232,16 +9236,21 @@ impl Canvas {
             let status_color = self
                 .status_color_transition
                 .frame(workspace_status_bar_target_color(workspace), now);
+            let status_text_frame = self
+                .status_text_transition
+                .frame(workspace_status_text(workspace), now);
             (
                 Some(render_layout),
                 Some(surface_frames),
                 Some(status_color),
+                Some(status_text_frame),
             )
         } else {
             self.surface_transitions.clear();
             self.workspace_surface_exit_cache.clear();
             self.status_color_transition.clear();
-            (None, None, None)
+            self.status_text_transition.clear();
+            (None, None, None, None)
         };
 
         let mut single_session_rendered_body_key = None;
@@ -9641,16 +9650,21 @@ impl Canvas {
                 let surface_transition_active = workspace_surface_frames_for_frame
                     .as_ref()
                     .is_some_and(|frames| frames.animating);
+                let status_text_active = workspace_status_text_frame
+                    .as_ref()
+                    .is_some_and(StatusTextTransitionFrame::is_active);
                 let animation_active = self.viewport_animation.is_animating()
                     || self.focus_pulse.is_animating()
                     || surface_transition_active
-                    || self.status_color_transition.is_animating();
+                    || self.status_color_transition.is_animating()
+                    || status_text_active;
                 reserve_workspace_vertex_capacity(
                     &mut self.primitive_workspace_vertices,
                     workspace,
                 );
                 let status_color = workspace_status_color_for_frame
                     .unwrap_or_else(|| workspace_status_bar_target_color(workspace));
+                let status_text_frame = workspace_status_text_frame.as_ref();
                 build_vertices_into(
                     WorkspaceVertexBuildParams {
                         workspace,
@@ -9661,6 +9675,7 @@ impl Canvas {
                         surface_frames: workspace_surface_frames_for_frame.as_ref(),
                         exiting_surfaces: &self.workspace_surface_exit_cache,
                         status_color,
+                        status_text_frame,
                     },
                     &mut self.primitive_workspace_vertices,
                 );
@@ -10696,6 +10711,7 @@ fn build_vertices(
             surface_frames: None,
             exiting_surfaces: &HashMap::new(),
             status_color: workspace_status_bar_target_color(workspace),
+            status_text_frame: None,
         },
         &mut vertices,
     );
@@ -11097,6 +11113,7 @@ struct WorkspaceVertexBuildParams<'a> {
     surface_frames: Option<&'a WorkspaceSurfaceTransitionFrames>,
     exiting_surfaces: &'a HashMap<u64, workspace::Surface>,
     status_color: [f32; 4],
+    status_text_frame: Option<&'a StatusTextTransitionFrame>,
 }
 
 fn build_vertices_into(params: WorkspaceVertexBuildParams<'_>, vertices: &mut Vec<Vertex>) {
@@ -11109,6 +11126,7 @@ fn build_vertices_into(params: WorkspaceVertexBuildParams<'_>, vertices: &mut Ve
         surface_frames,
         exiting_surfaces,
         status_color,
+        status_text_frame,
     } = params;
     vertices.clear();
     let width = size.width as f32;
@@ -11148,7 +11166,7 @@ fn build_vertices_into(params: WorkspaceVertexBuildParams<'_>, vertices: &mut Ve
         status_rect,
         size,
     );
-    push_status_text(vertices, workspace, status_rect, size);
+    push_status_text(vertices, workspace, status_rect, size, status_text_frame);
 
     if workspace.zoomed {
         if let Some(surface) = workspace.focused_surface() {
@@ -11380,19 +11398,45 @@ fn push_status_text(
     workspace: &Workspace,
     status_rect: Rect,
     size: PhysicalSize<u32>,
+    transition_frame: Option<&StatusTextTransitionFrame>,
 ) {
-    let text = workspace_status_text(workspace);
-    let text_width = bitmap_text_width(&text, BITMAP_TEXT_PIXEL);
+    let settled;
+    let frame = if let Some(frame) = transition_frame {
+        frame
+    } else {
+        settled = StatusTextTransitionFrame::settled(workspace_status_text(workspace));
+        &settled
+    };
+    if let Some(previous) = frame.previous.as_ref() {
+        push_status_text_visual(vertices, previous, status_rect, size);
+    }
+    push_status_text_visual(vertices, &frame.current, status_rect, size);
+}
+
+fn push_status_text_visual(
+    vertices: &mut Vec<Vertex>,
+    visual: &StatusTextVisualFrame,
+    status_rect: Rect,
+    size: PhysicalSize<u32>,
+) {
+    if visual.opacity <= 0.001 {
+        return;
+    }
+    let text_width = bitmap_text_width(&visual.text, BITMAP_TEXT_PIXEL);
     let x = status_rect.x + status_rect.width - STATUS_TEXT_RIGHT_PADDING - text_width;
-    let y = status_rect.y + (status_rect.height - bitmap_text_height(BITMAP_TEXT_PIXEL)) / 2.0;
+    let y = status_rect.y
+        + (status_rect.height - bitmap_text_height(BITMAP_TEXT_PIXEL)) / 2.0
+        + visual.y_offset_pixels;
     if x > status_rect.x {
+        let mut color = STATUS_TEXT_COLOR;
+        color[3] *= visual.opacity.clamp(0.0, 1.0);
         push_bitmap_text(
             vertices,
-            &text,
+            &visual.text,
             x,
             y,
             BITMAP_TEXT_PIXEL,
-            STATUS_TEXT_COLOR,
+            color,
             size,
             text_width,
         );

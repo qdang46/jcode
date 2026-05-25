@@ -5,12 +5,14 @@ pub(crate) const VIEWPORT_ANIMATION_DURATION: Duration = Duration::from_millis(1
 pub(crate) const FOCUS_PULSE_DURATION: Duration = Duration::from_millis(180);
 pub(crate) const SURFACE_TRANSITION_DURATION: Duration = Duration::from_millis(180);
 pub(crate) const STATUS_COLOR_TRANSITION_DURATION: Duration = Duration::from_millis(140);
+pub(crate) const STATUS_TEXT_TRANSITION_DURATION: Duration = Duration::from_millis(150);
 pub(crate) const DESKTOP_REDUCED_MOTION_ENV: &str = "JCODE_DESKTOP_REDUCED_MOTION";
 const VIEWPORT_ANIMATION_EPSILON: f32 = 0.5;
 const SURFACE_TRANSITION_EPSILON: f32 = 0.5;
 const SURFACE_ENTRY_OFFSET_PIXELS: f32 = 24.0;
 const SURFACE_EXIT_OFFSET_PIXELS: f32 = 18.0;
 const SURFACE_ENTRY_SCALE: f32 = 0.965;
+const STATUS_TEXT_TRANSITION_OFFSET_PIXELS: f32 = 7.0;
 
 pub(crate) fn desktop_reduced_motion_enabled_for_env_value(
     value: Option<std::ffi::OsString>,
@@ -462,6 +464,109 @@ impl ColorTransition {
     pub(crate) fn is_animating(&self) -> bool {
         self.started_at.is_some()
     }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct StatusTextVisualFrame {
+    pub(crate) text: String,
+    pub(crate) opacity: f32,
+    pub(crate) y_offset_pixels: f32,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct StatusTextTransitionFrame {
+    pub(crate) current: StatusTextVisualFrame,
+    pub(crate) previous: Option<StatusTextVisualFrame>,
+    active: bool,
+}
+
+impl StatusTextTransitionFrame {
+    pub(crate) fn settled(text: String) -> Self {
+        Self {
+            current: StatusTextVisualFrame {
+                text,
+                opacity: 1.0,
+                y_offset_pixels: 0.0,
+            },
+            previous: None,
+            active: false,
+        }
+    }
+
+    pub(crate) fn is_active(&self) -> bool {
+        self.active
+    }
+}
+
+#[derive(Default)]
+pub(crate) struct StatusTextTransition {
+    initialized: bool,
+    current_text: String,
+    previous_text: Option<String>,
+    started_at: Option<Instant>,
+}
+
+impl StatusTextTransition {
+    pub(crate) fn frame(&mut self, target: String, now: Instant) -> StatusTextTransitionFrame {
+        if !self.initialized {
+            self.initialized = true;
+            self.current_text = target;
+            self.previous_text = None;
+            self.started_at = None;
+            return StatusTextTransitionFrame::settled(self.current_text.clone());
+        }
+
+        if desktop_reduced_motion_enabled() {
+            self.current_text = target;
+            self.previous_text = None;
+            self.started_at = None;
+            return StatusTextTransitionFrame::settled(self.current_text.clone());
+        }
+
+        if self.current_text != target {
+            self.previous_text = Some(self.current_text.clone());
+            self.current_text = target;
+            self.started_at = Some(now);
+        }
+
+        let Some(started_at) = self.started_at else {
+            return StatusTextTransitionFrame::settled(self.current_text.clone());
+        };
+        let progress = (now.saturating_duration_since(started_at).as_secs_f32()
+            / STATUS_TEXT_TRANSITION_DURATION.as_secs_f32())
+        .clamp(0.0, 1.0);
+        let eased = ease_out_cubic(progress);
+        if progress >= 1.0 {
+            self.previous_text = None;
+            self.started_at = None;
+            return StatusTextTransitionFrame::settled(self.current_text.clone());
+        }
+
+        StatusTextTransitionFrame {
+            current: StatusTextVisualFrame {
+                text: self.current_text.clone(),
+                opacity: eased,
+                y_offset_pixels: STATUS_TEXT_TRANSITION_OFFSET_PIXELS * (1.0 - eased),
+            },
+            previous: self
+                .previous_text
+                .as_ref()
+                .map(|text| StatusTextVisualFrame {
+                    text: text.clone(),
+                    opacity: 1.0 - eased,
+                    y_offset_pixels: -STATUS_TEXT_TRANSITION_OFFSET_PIXELS * eased,
+                }),
+            active: true,
+        }
+    }
+
+    pub(crate) fn clear(&mut self) {
+        self.initialized = false;
+        self.current_text.clear();
+        self.previous_text = None;
+        self.started_at = None;
+    }
+
 }
 
 #[derive(Default)]

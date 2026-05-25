@@ -1,9 +1,9 @@
 use super::animation::{
     AnimatedRect, ColorTransition, DESKTOP_REDUCED_MOTION_ENV, DesktopReducedMotionEnvGuard,
-    FOCUS_PULSE_DURATION, STATUS_COLOR_TRANSITION_DURATION, SURFACE_TRANSITION_DURATION,
-    SurfaceTransitionAnimator, SurfaceVisualFrame, SurfaceVisualTarget,
-    VIEWPORT_ANIMATION_DURATION, desktop_reduced_motion_enabled,
-    desktop_reduced_motion_enabled_for_env_value,
+    FOCUS_PULSE_DURATION, STATUS_COLOR_TRANSITION_DURATION, STATUS_TEXT_TRANSITION_DURATION,
+    SURFACE_TRANSITION_DURATION, StatusTextTransition, SurfaceTransitionAnimator,
+    SurfaceVisualFrame, SurfaceVisualTarget, VIEWPORT_ANIMATION_DURATION,
+    desktop_reduced_motion_enabled, desktop_reduced_motion_enabled_for_env_value,
 };
 use super::single_session::*;
 use super::*;
@@ -802,6 +802,98 @@ fn workspace_status_text_includes_build_hash() {
     assert_eq!(
         workspace_status_text(&workspace),
         format!("INS P25 {}", desktop_build_hash_label())
+    );
+}
+
+#[test]
+fn workspace_status_text_transition_animates_mode_changes() {
+    let mut workspace = Workspace::fake();
+    let mut transition = StatusTextTransition::default();
+    let now = Instant::now();
+    let nav_text = workspace_status_text(&workspace);
+
+    let first = transition.frame(nav_text.clone(), now);
+    assert!(!first.is_active());
+    assert_eq!(first.current.text, nav_text);
+    assert_eq!(first.current.opacity, 1.0);
+    assert!(first.previous.is_none());
+
+    workspace.mode = InputMode::Insert;
+    let insert_text = workspace_status_text(&workspace);
+    let start = transition.frame(insert_text.clone(), now);
+    assert!(start.is_active());
+    assert_eq!(start.current.text, insert_text);
+    assert_eq!(start.current.opacity, 0.0);
+    assert_eq!(start.previous.as_ref().unwrap().text, nav_text);
+    assert_eq!(start.previous.as_ref().unwrap().opacity, 1.0);
+
+    let middle = transition.frame(
+        insert_text.clone(),
+        now + STATUS_TEXT_TRANSITION_DURATION / 2,
+    );
+    assert!(middle.is_active());
+    assert!(middle.current.opacity > 0.0 && middle.current.opacity < 1.0);
+    let previous = middle.previous.as_ref().expect("previous status text");
+    assert!(previous.opacity > 0.0 && previous.opacity < 1.0);
+    assert!(middle.current.y_offset_pixels > 0.0);
+    assert!(previous.y_offset_pixels < 0.0);
+
+    let settled = transition.frame(
+        insert_text.clone(),
+        now + STATUS_TEXT_TRANSITION_DURATION * 2,
+    );
+    assert!(!settled.is_active());
+    assert_eq!(settled.current.text, insert_text);
+    assert_eq!(settled.current.opacity, 1.0);
+    assert!(settled.previous.is_none());
+}
+
+#[test]
+fn workspace_status_text_transition_draws_previous_and_current_labels() {
+    let mut workspace = Workspace::fake();
+    let mut transition = StatusTextTransition::default();
+    let now = Instant::now();
+    transition.frame(workspace_status_text(&workspace), now);
+    workspace.mode = InputMode::Insert;
+    let target = workspace_status_text(&workspace);
+    transition.frame(target.clone(), now);
+    let middle = transition.frame(target, now + STATUS_TEXT_TRANSITION_DURATION / 2);
+
+    let size = PhysicalSize::new(900, 600);
+    let status_rect = Rect {
+        x: OUTER_PADDING,
+        y: OUTER_PADDING,
+        width: size.width as f32 - OUTER_PADDING * 2.0,
+        height: STATUS_BAR_HEIGHT,
+    };
+    let mut settled_vertices = Vec::new();
+    push_status_text(&mut settled_vertices, &workspace, status_rect, size, None);
+    let settled_text_vertex_count = settled_vertices
+        .iter()
+        .filter(|vertex| vertex.color[..3] == STATUS_TEXT_COLOR[..3])
+        .count();
+
+    let mut animated_vertices = Vec::new();
+    push_status_text(
+        &mut animated_vertices,
+        &workspace,
+        status_rect,
+        size,
+        Some(&middle),
+    );
+    let animated_text_vertices = animated_vertices
+        .iter()
+        .filter(|vertex| vertex.color[..3] == STATUS_TEXT_COLOR[..3])
+        .collect::<Vec<_>>();
+
+    assert!(
+        animated_text_vertices.len() > settled_text_vertex_count,
+        "transition should draw outgoing and incoming status labels"
+    );
+    assert!(
+        animated_text_vertices
+            .iter()
+            .any(|vertex| { vertex.color[3] > 0.0 && vertex.color[3] < STATUS_TEXT_COLOR[3] })
     );
 }
 
@@ -8341,6 +8433,7 @@ fn workspace_session_panel_composes_single_session_geometry() {
             surface_frames: None,
             exiting_surfaces: &HashMap::new(),
             status_color: workspace_status_bar_target_color(&workspace),
+            status_text_frame: None,
         },
         &mut vertices,
     );
@@ -8457,6 +8550,7 @@ fn workspace_session_panel_reuses_single_session_primitive_exactly() {
             surface_frames: None,
             exiting_surfaces: &HashMap::new(),
             status_color: workspace_status_bar_target_color(&workspace),
+            status_text_frame: None,
         },
         &mut workspace_vertices,
     );
