@@ -186,6 +186,7 @@ const DESKTOP_REASONING_EFFORTS_DEEPSEEK: &[&str] = &["none", "low", "medium", "
 
 #[cfg_attr(test, allow(dead_code))]
 const INLINE_WIDGET_REVEAL_DURATION: Duration = Duration::from_millis(180);
+const INLINE_WIDGET_EXIT_DURATION: Duration = Duration::from_millis(140);
 pub(crate) const MODEL_PICKER_INLINE_ROW_LIMIT: usize = 5;
 pub(crate) const INLINE_WIDGET_DEFAULT_VISIBLE_LINE_LIMIT: usize = 12;
 
@@ -417,13 +418,22 @@ impl SingleSessionToolVisualState {
 #[derive(Clone, Debug)]
 struct SingleSessionViewState {
     inline_widget_opened_at: Option<Instant>,
+    closing_inline_widget: Option<ClosingInlineWidgetState>,
     text_scale: f32,
+}
+
+#[derive(Clone, Debug)]
+struct ClosingInlineWidgetState {
+    kind: InlineWidgetKind,
+    lines: Vec<SingleSessionStyledLine>,
+    started_at: Instant,
 }
 
 impl Default for SingleSessionViewState {
     fn default() -> Self {
         Self {
             inline_widget_opened_at: None,
+            closing_inline_widget: None,
             text_scale: 1.0,
         }
     }
@@ -502,7 +512,7 @@ pub(crate) enum InlineWidgetMode {
     Interactive,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub(crate) enum InlineWidgetKind {
     HotkeyHelp,
     SessionInfo,
@@ -688,6 +698,7 @@ pub(crate) enum SingleSessionLineStyle {
     AssistantQuote,
     AssistantTable,
     AssistantLink,
+    AssistantMedia,
     CodeHeader,
     Code,
     User,
@@ -1500,6 +1511,7 @@ impl SingleSessionApp {
         self.tool.input_buffer.clear();
         self.runtime.reload_phase = ReloadPhase::Stable;
         self.view.inline_widget_opened_at = None;
+        self.view.closing_inline_widget = None;
         self.welcome.timeline = false;
     }
 
@@ -1562,6 +1574,7 @@ impl SingleSessionApp {
         self.runtime_settings = SingleSessionRuntimeSettings::default();
         self.tool = SingleSessionToolState::default();
         self.view.inline_widget_opened_at = None;
+        self.view.closing_inline_widget = None;
     }
 
     pub(crate) fn status_title(&self) -> String {
@@ -1602,18 +1615,55 @@ impl SingleSessionApp {
     }
 
     pub(crate) fn has_frame_animation(&self) -> bool {
-        self.has_activity_indicator() || self.inline_widget_reveal_in_progress()
+        self.has_activity_indicator()
+            || self.inline_widget_reveal_in_progress()
+            || self.inline_widget_exit_in_progress()
     }
 
     fn mark_inline_widget_opened(&mut self) {
         self.view.inline_widget_opened_at = Some(Instant::now());
+        self.view.closing_inline_widget = None;
+    }
+
+    fn capture_inline_widget_exit(&mut self) {
+        if crate::animation::desktop_reduced_motion_enabled() {
+            self.view.closing_inline_widget = None;
+            return;
+        }
+        let Some(kind) = self.active_inline_widget() else {
+            return;
+        };
+        let lines = self.inline_widget_styled_lines();
+        self.capture_inline_widget_exit_snapshot(kind, lines);
+    }
+
+    fn capture_inline_widget_exit_snapshot(
+        &mut self,
+        kind: InlineWidgetKind,
+        lines: Vec<SingleSessionStyledLine>,
+    ) {
+        if crate::animation::desktop_reduced_motion_enabled() {
+            self.view.closing_inline_widget = None;
+            return;
+        }
+        if lines.is_empty() {
+            self.view.closing_inline_widget = None;
+            return;
+        }
+        self.view.closing_inline_widget = Some(ClosingInlineWidgetState {
+            kind,
+            lines,
+            started_at: Instant::now(),
+        });
     }
 
     fn close_inline_widgets(&mut self) {
+        self.capture_inline_widget_exit();
         self.show_help = false;
         self.show_session_info = false;
         self.model_picker.close();
         self.session_switcher.close();
+        self.view.inline_widget_opened_at = None;
     }
 
     fn open_read_only_inline_widget(&mut self, kind: InlineWidgetKind) {
@@ -1642,6 +1692,10 @@ impl SingleSessionApp {
         self.active_inline_widget().is_some() && self.inline_widget_reveal_progress() < 1.0
     }
 
+    fn inline_widget_exit_in_progress(&self) -> bool {
+        self.active_inline_widget().is_none() && self.render_inline_widget_reveal_progress() > 0.001
+    }
+
     pub(crate) fn inline_widget_reveal_progress(&self) -> f32 {
         if self.active_inline_widget().is_none() {
             return 0.0;
@@ -1665,6 +1719,62 @@ impl SingleSessionApp {
             .clamp(0.0, 1.0);
             1.0 - (1.0 - raw).powi(3)
         }
+    }
+
+    pub(crate) fn render_inline_widget_kind(&self) -> Option<InlineWidgetKind> {
+        self.active_inline_widget().or_else(|| {
+            (self.render_inline_widget_reveal_progress() > 0.001)
+                .then(|| {
+                    self.view
+                        .closing_inline_widget
+                        .as_ref()
+                        .map(|closing| closing.kind)
+                })
+                .flatten()
+        })
+    }
+
+    pub(crate) fn render_inline_widget_styled_lines(&self) -> Vec<SingleSessionStyledLine> {
+        if self.active_inline_widget().is_some() {
+            return self.inline_widget_styled_lines();
+        }
+        if self.render_inline_widget_reveal_progress() <= 0.001 {
+            return Vec::new();
+        }
+        self.view
+            .closing_inline_widget
+            .as_ref()
+            .map(|closing| closing.lines.clone())
+            .unwrap_or_default()
+    }
+
+    pub(crate) fn render_inline_widget_line_count(&self) -> usize {
+        self.render_inline_widget_styled_lines().len()
+    }
+
+    pub(crate) fn render_inline_widget_visible_line_count(&self) -> usize {
+        let line_count = self.render_inline_widget_line_count();
+        let limit = self
+            .render_inline_widget_kind()
+            .map(InlineWidgetKind::visible_line_limit)
+            .unwrap_or(INLINE_WIDGET_DEFAULT_VISIBLE_LINE_LIMIT);
+        line_count.min(limit)
+    }
+
+    pub(crate) fn render_inline_widget_reveal_progress(&self) -> f32 {
+        if self.active_inline_widget().is_some() {
+            return self.inline_widget_reveal_progress();
+        }
+        if crate::animation::desktop_reduced_motion_enabled() {
+            return 0.0;
+        }
+        let Some(closing) = &self.view.closing_inline_widget else {
+            return 0.0;
+        };
+        let raw = (closing.started_at.elapsed().as_secs_f32()
+            / INLINE_WIDGET_EXIT_DURATION.as_secs_f32())
+        .clamp(0.0, 1.0);
+        1.0 - raw.powi(3)
     }
 
     fn current_session_id(&self) -> Option<&str> {
@@ -1706,6 +1816,13 @@ impl SingleSessionApp {
             .iter()
             .map(|(message, _)| message.clone())
             .collect()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn finish_inline_widget_exit_animation_for_test(&mut self) {
+        if let Some(closing) = &mut self.view.closing_inline_widget {
+            closing.started_at = Instant::now() - INLINE_WIDGET_EXIT_DURATION * 2;
+        }
     }
 
     #[cfg(test)]
@@ -1889,11 +2006,11 @@ impl SingleSessionApp {
             KeyInput::QueueDraft => self.submit_draft(),
             KeyInput::SubmitDraft => self.submit_draft(),
             KeyInput::Escape if self.show_help => {
-                self.show_help = false;
+                self.close_inline_widgets();
                 KeyOutcome::Redraw
             }
             KeyInput::Escape if self.show_session_info => {
-                self.show_session_info = false;
+                self.close_inline_widgets();
                 KeyOutcome::Redraw
             }
             KeyInput::Character(text)
@@ -2033,6 +2150,7 @@ impl SingleSessionApp {
     fn sync_model_picker_preview_from_draft(&mut self) -> Option<KeyOutcome> {
         let Some(filter) = model_picker_preview_filter(&self.draft) else {
             if self.model_picker.open && self.model_picker.preview {
+                self.capture_inline_widget_exit();
                 self.model_picker.close();
                 return Some(KeyOutcome::Redraw);
             }
@@ -2055,6 +2173,11 @@ impl SingleSessionApp {
     fn sync_slash_suggestions_from_draft(&mut self) {
         let was_visible = self.slash_suggestions_visible();
         let Some(query) = slash_suggestion_query(&self.draft, self.draft_cursor) else {
+            if was_visible
+                && self.active_inline_widget() == Some(InlineWidgetKind::SlashSuggestions)
+            {
+                self.capture_inline_widget_exit();
+            }
             self.slash_suggestions.query.clear();
             self.slash_suggestions.selected = 0;
             return;
@@ -2069,12 +2192,18 @@ impl SingleSessionApp {
             self.slash_suggestions.dismissed_for_draft = None;
         }
 
+        let previous_slash_lines = (was_visible
+            && self.active_inline_widget() == Some(InlineWidgetKind::SlashSuggestions))
+        .then(|| self.inline_widget_styled_lines());
         if self.slash_suggestions.query != query {
             self.slash_suggestions.query = query;
             self.slash_suggestions.selected = 0;
         }
         let candidate_count = self.slash_suggestion_candidates().len();
         if candidate_count == 0 {
+            if let Some(lines) = previous_slash_lines {
+                self.capture_inline_widget_exit_snapshot(InlineWidgetKind::SlashSuggestions, lines);
+            }
             self.slash_suggestions.selected = 0;
             return;
         }
@@ -2088,6 +2217,7 @@ impl SingleSessionApp {
     fn handle_slash_suggestion_key(&mut self, key: &KeyInput) -> Option<KeyOutcome> {
         match key {
             KeyInput::Escape => {
+                self.capture_inline_widget_exit();
                 self.slash_suggestions.dismissed_for_draft = Some(self.draft.clone());
                 Some(KeyOutcome::Redraw)
             }
@@ -2101,6 +2231,7 @@ impl SingleSessionApp {
             }
             KeyInput::Autocomplete => self.complete_selected_slash_suggestion(),
             KeyInput::SubmitDraft => {
+                self.capture_inline_widget_exit();
                 self.complete_selected_slash_suggestion();
                 Some(self.submit_draft())
             }
@@ -2144,6 +2275,7 @@ impl SingleSessionApp {
     fn handle_model_picker_preview_key(&mut self, key: &KeyInput) -> Option<KeyOutcome> {
         match key {
             KeyInput::Escape => {
+                self.capture_inline_widget_exit();
                 self.model_picker.close();
                 self.draft.clear();
                 self.draft_cursor = 0;
@@ -2169,12 +2301,14 @@ impl SingleSessionApp {
             }
             KeyInput::SubmitDraft => {
                 let Some(model) = self.model_picker.selected_model() else {
+                    self.capture_inline_widget_exit();
                     self.model_picker.close();
                     self.draft.clear();
                     self.draft_cursor = 0;
                     self.composer.input_undo_stack.clear();
                     return Some(KeyOutcome::Redraw);
                 };
+                self.capture_inline_widget_exit();
                 self.model_picker.close();
                 self.draft.clear();
                 self.draft_cursor = 0;
@@ -2209,13 +2343,11 @@ impl SingleSessionApp {
                 KeyOutcome::Redraw
             }
             KeyInput::Escape | KeyInput::OpenModelPicker => {
+                self.capture_inline_widget_exit();
                 self.model_picker.close();
                 KeyOutcome::Redraw
             }
-            KeyInput::OpenSessionSwitcher => {
-                self.model_picker.close();
-                self.open_session_switcher()
-            }
+            KeyInput::OpenSessionSwitcher => self.open_session_switcher(),
             KeyInput::RefreshSessions => {
                 self.model_picker.open_loading();
                 self.set_status(SingleSessionStatus::LoadingModels);
@@ -2251,6 +2383,7 @@ impl SingleSessionApp {
                 let Some(model) = self.model_picker.selected_model() else {
                     return KeyOutcome::None;
                 };
+                self.capture_inline_widget_exit();
                 self.model_picker.close();
                 KeyOutcome::SetModel(model)
             }
@@ -2273,6 +2406,7 @@ impl SingleSessionApp {
     fn handle_session_switcher_key(&mut self, key: KeyInput) -> KeyOutcome {
         match key {
             KeyInput::Escape | KeyInput::OpenSessionSwitcher => {
+                self.capture_inline_widget_exit();
                 self.session_switcher.close();
                 KeyOutcome::Redraw
             }
@@ -2335,6 +2469,7 @@ impl SingleSessionApp {
                 let Some(session) = self.session_switcher.selected_session() else {
                     return KeyOutcome::None;
                 };
+                self.capture_inline_widget_exit();
                 self.session_switcher.close();
                 KeyOutcome::OpenSession {
                     session_id: session.session_id,
@@ -2354,11 +2489,9 @@ impl SingleSessionApp {
                 self.open_read_only_inline_widget(InlineWidgetKind::HotkeyHelp);
                 KeyOutcome::Redraw
             }
-            KeyInput::OpenModelPicker => {
-                self.session_switcher.close();
-                self.open_model_picker()
-            }
+            KeyInput::OpenModelPicker => self.open_model_picker(),
             KeyInput::SpawnPanel => {
+                self.capture_inline_widget_exit();
                 self.session_switcher.close();
                 KeyOutcome::SpawnSession
             }
@@ -2486,10 +2619,12 @@ impl SingleSessionApp {
         }
     }
 
+    #[cfg(test)]
     pub(crate) fn inline_widget_line_count(&self) -> usize {
         self.inline_widget_styled_lines().len()
     }
 
+    #[cfg(test)]
     pub(crate) fn inline_widget_visible_line_count(&self) -> usize {
         let line_count = self.inline_widget_line_count();
         let limit = self
@@ -2646,6 +2781,7 @@ impl SingleSessionApp {
         SingleSessionOverlay::None
     }
 
+    #[cfg(test)]
     pub(crate) fn active_inline_widget_uses_card_chrome(&self) -> bool {
         self.active_inline_widget().is_some()
     }
@@ -3491,6 +3627,10 @@ impl SingleSessionApp {
         let mut parts = message.splitn(2, char::is_whitespace);
         let command = parts.next().unwrap_or_default();
         let args = parts.next().unwrap_or_default().trim();
+
+        if self.active_inline_widget() == Some(InlineWidgetKind::SlashSuggestions) {
+            self.capture_inline_widget_exit();
+        }
 
         let outcome = match command {
             "/help" | "/?" | "/commands" => {
@@ -4576,6 +4716,7 @@ impl SingleSessionApp {
         self.draft_cursor = 0;
         self.clear_draft_selection();
         if self.model_picker.open && self.model_picker.preview {
+            self.capture_inline_widget_exit();
             self.model_picker.close();
         }
         self.set_status(SingleSessionStatus::Info(
@@ -6458,7 +6599,7 @@ impl AssistantMarkdownRenderer {
             self.current.push_str(&image.dest_url);
         }
         if self.current_style == SingleSessionLineStyle::Assistant {
-            self.line_style_override = Some(SingleSessionLineStyle::AssistantLink);
+            self.line_style_override = Some(SingleSessionLineStyle::AssistantMedia);
         }
     }
 

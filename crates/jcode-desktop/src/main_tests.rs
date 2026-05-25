@@ -1448,6 +1448,47 @@ fn single_session_vertices_do_not_draw_input_underline() {
     ));
 }
 
+#[test]
+fn single_session_vertices_draw_composer_chrome_and_submit_affordance() {
+    let size = PhysicalSize::new(900, 700);
+    let empty_app = SingleSessionApp::new(None);
+    let empty_vertices = build_single_session_vertices(&empty_app, size, 0.0, 0);
+
+    assert!(vertices_have_color(
+        &empty_vertices,
+        COMPOSER_CARD_BACKGROUND_COLOR
+    ));
+    assert!(vertices_have_rgb(
+        &empty_vertices,
+        COMPOSER_FOCUS_RING_COLOR
+    ));
+    assert!(vertices_have_color(
+        &empty_vertices,
+        COMPOSER_PLACEHOLDER_RAIL_COLOR
+    ));
+    assert!(!vertices_have_color(
+        &empty_vertices,
+        COMPOSER_SUBMIT_READY_COLOR
+    ));
+
+    let mut typed_app = SingleSessionApp::new(None);
+    typed_app.handle_key(KeyInput::Character("ship it".to_string()));
+    let typed_vertices = build_single_session_vertices(&typed_app, size, 0.0, 0);
+
+    assert!(vertices_have_color(
+        &typed_vertices,
+        COMPOSER_CARD_BACKGROUND_COLOR
+    ));
+    assert!(vertices_have_color(
+        &typed_vertices,
+        COMPOSER_SUBMIT_READY_COLOR
+    ));
+    assert!(!vertices_have_color(
+        &typed_vertices,
+        COMPOSER_PLACEHOLDER_RAIL_COLOR
+    ));
+}
+
 fn vertices_have_bottom_center_rule(vertices: &[Vertex], color: [f32; 4]) -> bool {
     vertices.iter().any(|vertex| {
         vertex.color == color && vertex.position[1] <= -0.99 && vertex.position[0].abs() < 0.85
@@ -2696,7 +2737,7 @@ fn single_session_markdown_renderer_preserves_media_html_and_table_alignment() {
     assert!(body.contains("🖼 diagram ↗ https://example.com/diagram.png"));
     assert_eq!(
         style_for_text(&lines, "🖼 diagram ↗ https://example.com/diagram.png"),
-        Some(SingleSessionLineStyle::AssistantLink)
+        Some(SingleSessionLineStyle::AssistantMedia)
     );
     assert!(body.contains("html │ <div>raw</div>"));
     assert_eq!(
@@ -2837,7 +2878,7 @@ fn single_session_streaming_markdown_renders_before_done() {
 fn single_session_markdown_structure_uses_distinct_colors_and_cards() {
     let mut app = SingleSessionApp::new(None);
     app.messages.push(SingleSessionMessage::assistant(
-        "# Heading\n\n> quoted\n\n| a | b |\n| - | - |\n| c | d |",
+        "# Heading\n\n> quoted\n\n![diagram](https://example.com/diagram.png)\n\n| a | b |\n| - | - |\n| c | d |",
     ));
     let mut font_system = FontSystem::new();
 
@@ -2861,6 +2902,12 @@ fn single_session_markdown_structure_uses_distinct_colors_and_cards() {
             SingleSessionLineStyle::AssistantTable
         ))
     );
+    assert_eq!(
+        first_glyph_color_for_text(body, "🖼 diagram ↗ https://example.com/diagram.png"),
+        Some(single_session_line_color(
+            SingleSessionLineStyle::AssistantMedia
+        ))
+    );
 
     let vertices = build_single_session_vertices(&app, PhysicalSize::new(1200, 760), 0.0, 0);
     assert!(vertices_have_color(
@@ -2869,6 +2916,10 @@ fn single_session_markdown_structure_uses_distinct_colors_and_cards() {
     ));
     assert!(vertices_have_color(&vertices, QUOTE_CARD_BACKGROUND_COLOR));
     assert!(vertices_have_color(&vertices, TABLE_CARD_BACKGROUND_COLOR));
+    assert!(vertices_have_color(
+        &vertices,
+        MARKDOWN_MEDIA_BACKGROUND_COLOR
+    ));
 }
 
 #[test]
@@ -5455,6 +5506,42 @@ fn single_session_hotkey_help_toggles_discoverable_shortcuts() {
     assert!(app.inline_widget_styled_lines().is_empty());
     assert_eq!(app.handle_key(KeyInput::Escape), KeyOutcome::None);
     assert!(app.body_lines().join("\n").contains("1  question"));
+}
+
+#[test]
+fn single_session_inline_widget_close_keeps_render_snapshot_until_exit_finishes() {
+    let mut app = SingleSessionApp::new(None);
+
+    assert_eq!(app.handle_key(KeyInput::HotkeyHelp), KeyOutcome::Redraw);
+    assert_eq!(
+        app.render_inline_widget_kind(),
+        Some(InlineWidgetKind::HotkeyHelp)
+    );
+    assert!(
+        app.render_inline_widget_styled_lines()
+            .iter()
+            .any(|line| line.text == "desktop shortcuts")
+    );
+
+    assert_eq!(app.handle_key(KeyInput::Escape), KeyOutcome::Redraw);
+    assert_eq!(app.active_inline_widget(), None);
+    assert!(app.inline_widget_styled_lines().is_empty());
+    assert_eq!(
+        app.render_inline_widget_kind(),
+        Some(InlineWidgetKind::HotkeyHelp)
+    );
+    assert!(app.render_inline_widget_reveal_progress() > 0.0);
+    assert!(app.has_frame_animation());
+    assert!(
+        app.render_inline_widget_styled_lines()
+            .iter()
+            .any(|line| line.text == "desktop shortcuts")
+    );
+
+    app.finish_inline_widget_exit_animation_for_test();
+    assert_eq!(app.render_inline_widget_kind(), None);
+    assert!(app.render_inline_widget_styled_lines().is_empty());
+    assert!(!app.has_frame_animation());
 }
 
 #[test]

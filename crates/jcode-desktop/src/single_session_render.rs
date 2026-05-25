@@ -18,6 +18,7 @@ use std::hash::{Hash, Hasher};
 
 pub(crate) const INLINE_MATH_BACKGROUND_COLOR: [f32; 4] = [0.035, 0.220, 0.155, 0.115];
 pub(crate) const MARKDOWN_HEADING_BACKGROUND_COLOR: [f32; 4] = [0.060, 0.180, 0.520, 0.055];
+pub(crate) const MARKDOWN_MEDIA_BACKGROUND_COLOR: [f32; 4] = [0.030, 0.255, 0.185, 0.070];
 pub(crate) const MARKDOWN_RULE_COLOR: [f32; 4] = [0.060, 0.130, 0.260, 0.220];
 pub(crate) const MARKDOWN_LIST_MARKER_COLOR: [f32; 4] = [0.060, 0.110, 0.240, 0.960];
 pub(crate) const MARKDOWN_TASK_DONE_COLOR: [f32; 4] = [0.025, 0.350, 0.190, 1.000];
@@ -46,9 +47,25 @@ const SINGLE_SESSION_SCROLLBAR_TRACK_COLOR: [f32; 4] = [0.040, 0.055, 0.090, 0.0
 const SINGLE_SESSION_SCROLLBAR_THUMB_COLOR: [f32; 4] = [0.035, 0.065, 0.145, 0.34];
 const TRANSCRIPT_CARD_ENTRY_DURATION: Duration = Duration::from_millis(170);
 const TRANSCRIPT_CARD_SHIFT_DURATION: Duration = Duration::from_millis(150);
+const TRANSCRIPT_CARD_EXIT_DURATION: Duration = Duration::from_millis(145);
 const TRANSCRIPT_CARD_ENTRY_OFFSET_PIXELS: f32 = 10.0;
 const TRANSCRIPT_CARD_ENTRY_SCALE: f32 = 0.988;
+const INLINE_MARKDOWN_PILL_ENTRY_DURATION: Duration = Duration::from_millis(145);
+const INLINE_MARKDOWN_PILL_SHIFT_DURATION: Duration = Duration::from_millis(130);
+const INLINE_MARKDOWN_PILL_EXIT_DURATION: Duration = Duration::from_millis(125);
+const INLINE_MARKDOWN_PILL_ENTRY_OFFSET_PIXELS: f32 = 4.0;
+const INLINE_MARKDOWN_PILL_ENTRY_SCALE: f32 = 0.94;
 const INLINE_WIDGET_SELECTION_TRANSITION_DURATION: Duration = Duration::from_millis(135);
+const INLINE_WIDGET_LIST_REFLOW_ENTRY_DURATION: Duration = Duration::from_millis(145);
+const INLINE_WIDGET_LIST_REFLOW_SHIFT_DURATION: Duration = Duration::from_millis(145);
+const INLINE_WIDGET_LIST_REFLOW_EXIT_DURATION: Duration = Duration::from_millis(120);
+const INLINE_WIDGET_LIST_REFLOW_COLOR: [f32; 4] = [0.105, 0.355, 0.950, 0.110];
+const COMPOSER_MOTION_DURATION: Duration = Duration::from_millis(165);
+pub(crate) const COMPOSER_CARD_BACKGROUND_COLOR: [f32; 4] = [0.990, 0.994, 1.000, 0.420];
+pub(crate) const COMPOSER_FOCUS_RING_COLOR: [f32; 4] = [0.090, 0.250, 0.680, 0.185];
+pub(crate) const COMPOSER_PLACEHOLDER_RAIL_COLOR: [f32; 4] = [0.105, 0.185, 0.360, 0.185];
+pub(crate) const COMPOSER_SUBMIT_READY_COLOR: [f32; 4] = [0.105, 0.355, 0.950, 0.700];
+pub(crate) const COMPOSER_SUBMIT_BUSY_COLOR: [f32; 4] = [0.055, 0.540, 0.360, 0.700];
 const TOOL_CARD_ENTRY_DURATION: Duration = Duration::from_millis(180);
 const TOOL_CARD_EXIT_DURATION: Duration = Duration::from_millis(160);
 const TOOL_CARD_STATE_TRANSITION_DURATION: Duration = Duration::from_millis(160);
@@ -163,6 +180,8 @@ pub(crate) fn build_single_session_vertices_with_scroll_and_reveal(
         size,
     );
 
+    push_single_session_composer_chrome(&mut vertices, app, size, None);
+
     let welcome_chrome_offset = if app.is_welcome_timeline_visible() {
         welcome_timeline_visual_offset_pixels(app, size, smooth_scroll_lines)
     } else {
@@ -186,6 +205,7 @@ pub(crate) fn build_single_session_vertices_with_scroll_and_reveal(
         size,
         welcome_chrome_offset,
         welcome_timeline_total_body_lines(app, size),
+        None,
         None,
     );
     push_single_session_transcript_cards(
@@ -254,6 +274,9 @@ pub(crate) fn build_single_session_vertices_with_cached_body(
         None,
         None,
         None,
+        None,
+        None,
+        None,
     )
 }
 
@@ -267,7 +290,10 @@ pub(crate) fn build_single_session_vertices_with_cached_body_and_tool_motion(
     welcome_hero_reveal_progress: f32,
     rendered_body_lines: &[SingleSessionStyledLine],
     inline_selection_motion: Option<&InlineWidgetSelectionMotionFrame>,
+    inline_list_reflow_motion: Option<&InlineWidgetListReflowMotionFrame>,
+    composer_motion: Option<&ComposerMotionFrame>,
     transcript_motion: Option<&TranscriptCardMotionFrame>,
+    inline_markdown_motion: Option<&InlineMarkdownPillMotionFrame>,
     tool_motion: &ToolCardMotionFrame,
     scrollbar_motion: Option<&SingleSessionScrollbarMotionFrame>,
 ) -> Vec<Vertex> {
@@ -280,7 +306,10 @@ pub(crate) fn build_single_session_vertices_with_cached_body_and_tool_motion(
         welcome_hero_reveal_progress,
         rendered_body_lines,
         inline_selection_motion,
+        inline_list_reflow_motion,
+        composer_motion,
         transcript_motion,
+        inline_markdown_motion,
         Some(tool_motion),
         scrollbar_motion,
     )
@@ -296,7 +325,10 @@ fn build_single_session_vertices_with_cached_body_internal(
     welcome_hero_reveal_progress: f32,
     rendered_body_lines: &[SingleSessionStyledLine],
     inline_selection_motion: Option<&InlineWidgetSelectionMotionFrame>,
+    inline_list_reflow_motion: Option<&InlineWidgetListReflowMotionFrame>,
+    composer_motion: Option<&ComposerMotionFrame>,
     transcript_motion: Option<&TranscriptCardMotionFrame>,
+    inline_markdown_motion: Option<&InlineMarkdownPillMotionFrame>,
     tool_motion: Option<&ToolCardMotionFrame>,
     scrollbar_motion: Option<&SingleSessionScrollbarMotionFrame>,
 ) -> Vec<Vertex> {
@@ -334,6 +366,8 @@ fn build_single_session_vertices_with_cached_body_internal(
         size,
     );
 
+    push_single_session_composer_chrome(&mut vertices, app, size, composer_motion);
+
     let welcome_chrome_offset = if app.is_welcome_timeline_visible() {
         welcome_timeline_visual_offset_pixels_for_total_lines(
             app,
@@ -363,6 +397,7 @@ fn build_single_session_vertices_with_cached_body_internal(
         welcome_chrome_offset,
         rendered_body_lines.len(),
         inline_selection_motion,
+        inline_list_reflow_motion,
     );
 
     let viewport = single_session_body_viewport_from_lines(
@@ -394,6 +429,7 @@ fn build_single_session_vertices_with_cached_body_internal(
         size,
         &viewport,
         rendered_body_lines.len(),
+        inline_markdown_motion,
     );
     push_single_session_markdown_rule_lines_from_viewport(
         &mut vertices,
@@ -663,6 +699,141 @@ fn push_top_and_side_surface_outline(
     );
 }
 
+fn push_single_session_composer_chrome(
+    vertices: &mut Vec<Vertex>,
+    app: &SingleSessionApp,
+    size: PhysicalSize<u32>,
+    composer_motion: Option<&ComposerMotionFrame>,
+) {
+    if welcome_status_lane_visible(app) {
+        return;
+    }
+
+    let typography = single_session_typography_for_scale(app.text_scale());
+    let line_height = typography.code_size * typography.code_line_height;
+    let target = composer_motion_target(app);
+    let visual = composer_motion
+        .map(|frame| frame.visual())
+        .unwrap_or_else(|| ComposerMotionVisual::settled(target));
+    let height = (visual.height_lines.max(1.0) * line_height + 18.0)
+        .min((size.height as f32 * 0.34).max(line_height + 18.0));
+    let draft_top = single_session_draft_top_for_app(app, size);
+    let content_width = single_session_content_width(size);
+    let rect = Rect {
+        x: PANEL_TITLE_LEFT_PADDING - 10.0,
+        y: draft_top - 9.0,
+        width: content_width + 20.0,
+        height,
+    };
+    if rect.width <= 12.0 || rect.height <= 10.0 {
+        return;
+    }
+
+    let radius = 13.0;
+    let focus_alpha = COMPOSER_FOCUS_RING_COLOR[3]
+        * (0.38 + 0.62 * visual.focus_opacity)
+        * (1.0 - visual.blocked_progress * 0.42);
+    let halo_inset = -2.0 - 2.0 * visual.focus_opacity;
+    push_rounded_rect(
+        vertices,
+        inset_rect(rect, halo_inset),
+        radius + 3.0,
+        with_alpha(COMPOSER_FOCUS_RING_COLOR, focus_alpha),
+        size,
+    );
+
+    let card_color = mix_color(
+        COMPOSER_CARD_BACKGROUND_COLOR,
+        [0.970, 0.984, 1.000, COMPOSER_CARD_BACKGROUND_COLOR[3]],
+        visual.blocked_progress * 0.35,
+    );
+    push_rounded_rect(vertices, rect, radius, card_color, size);
+
+    let accent_alpha =
+        (0.18 + 0.22 * visual.focus_opacity) * (1.0 - visual.blocked_progress * 0.55);
+    push_rounded_rect(
+        vertices,
+        Rect {
+            x: rect.x + 7.0,
+            y: rect.y + 7.0,
+            width: 3.0,
+            height: (rect.height - 14.0).max(1.0),
+        },
+        2.0,
+        with_alpha(COMPOSER_SUBMIT_READY_COLOR, accent_alpha),
+        size,
+    );
+
+    if visual.placeholder_opacity > 0.001 {
+        let prompt_width =
+            app.composer_prompt().chars().count() as f32 * typography.code_size * 0.58;
+        let rail_width = (content_width * 0.32).clamp(96.0, 260.0);
+        push_rounded_rect(
+            vertices,
+            Rect {
+                x: PANEL_TITLE_LEFT_PADDING + prompt_width + 8.0,
+                y: draft_top + line_height * 0.50,
+                width: rail_width,
+                height: 4.0,
+            },
+            2.0,
+            with_alpha(
+                COMPOSER_PLACEHOLDER_RAIL_COLOR,
+                COMPOSER_PLACEHOLDER_RAIL_COLOR[3] * visual.placeholder_opacity,
+            ),
+            size,
+        );
+    }
+
+    if visual.submit_opacity > 0.001 {
+        let pill_height = 22.0 * visual.submit_scale.max(0.72);
+        let pill_width = 36.0 * visual.submit_scale.max(0.72);
+        let pill_x = single_session_content_right(size) - pill_width;
+        let pill_y = draft_top + (line_height - pill_height) * 0.5;
+        let submit_color = mix_color(
+            COMPOSER_SUBMIT_READY_COLOR,
+            COMPOSER_SUBMIT_BUSY_COLOR,
+            visual.processing_progress,
+        );
+        push_rounded_rect(
+            vertices,
+            Rect {
+                x: pill_x,
+                y: pill_y,
+                width: pill_width,
+                height: pill_height,
+            },
+            pill_height * 0.5,
+            with_alpha(submit_color, submit_color[3] * visual.submit_opacity),
+            size,
+        );
+        let arrow_alpha = (0.54 + 0.26 * visual.focus_opacity) * visual.submit_opacity;
+        let arrow_y = pill_y + pill_height * 0.5 - 1.0;
+        push_rect(
+            vertices,
+            Rect {
+                x: pill_x + pill_width * 0.30,
+                y: arrow_y,
+                width: pill_width * 0.36,
+                height: 2.0,
+            },
+            [1.0, 1.0, 1.0, arrow_alpha],
+            size,
+        );
+        push_rect(
+            vertices,
+            Rect {
+                x: pill_x + pill_width * 0.55,
+                y: arrow_y - 4.0,
+                width: 2.0,
+                height: 10.0,
+            },
+            [1.0, 1.0, 1.0, arrow_alpha],
+            size,
+        );
+    }
+}
+
 fn push_fresh_welcome_ambient(
     vertices: &mut Vec<Vertex>,
     size: PhysicalSize<u32>,
@@ -850,7 +1021,7 @@ fn fresh_welcome_inline_widget_visual_offset(
     app: &SingleSessionApp,
     size: PhysicalSize<u32>,
 ) -> f32 {
-    if app.inline_widget_line_count() == 0 {
+    if app.render_inline_widget_line_count() == 0 {
         return 0.0;
     }
 
@@ -876,13 +1047,14 @@ fn push_single_session_inline_widget_card(
     welcome_chrome_offset_pixels: f32,
     total_lines: usize,
     inline_selection_motion: Option<&InlineWidgetSelectionMotionFrame>,
+    inline_list_reflow_motion: Option<&InlineWidgetListReflowMotionFrame>,
 ) {
-    let line_count = app.inline_widget_visible_line_count();
+    let line_count = app.render_inline_widget_visible_line_count();
     if line_count == 0 {
         return;
     }
 
-    let progress = app.inline_widget_reveal_progress().clamp(0.0, 1.0);
+    let progress = app.render_inline_widget_reveal_progress().clamp(0.0, 1.0);
     if progress <= 0.001 {
         return;
     }
@@ -898,14 +1070,14 @@ fn push_single_session_inline_widget_card(
         welcome_chrome_visible,
         welcome_chrome_offset_pixels,
     );
-    let inline_lines = app.inline_widget_styled_lines();
+    let inline_lines = app.render_inline_widget_styled_lines();
     let Some(layout) = inline_widget_card_layout(
         size,
-        app.active_inline_widget(),
+        app.render_inline_widget_kind(),
         &typography,
         line_count,
         inline_widget_text_width_for_lines(
-            app.active_inline_widget(),
+            app.render_inline_widget_kind(),
             &inline_lines,
             size,
             app.text_scale(),
@@ -916,8 +1088,8 @@ fn push_single_session_inline_widget_card(
         return;
     };
 
-    if app.active_inline_widget_uses_card_chrome() {
-        let card_style = inline_widget_card_style(app.active_inline_widget());
+    if app.render_inline_widget_kind().is_some() {
+        let card_style = inline_widget_card_style(app.render_inline_widget_kind());
         push_rounded_rect(
             vertices,
             Rect {
@@ -973,15 +1145,108 @@ fn push_single_session_inline_widget_card(
         );
     }
 
+    push_single_session_inline_widget_list_reflow(
+        vertices,
+        app.render_inline_widget_kind(),
+        &inline_lines,
+        line_count,
+        &typography,
+        &layout,
+        progress,
+        inline_list_reflow_motion,
+        size,
+    );
+
     push_single_session_inline_widget_selection(
         vertices,
-        app.active_inline_widget(),
+        app.render_inline_widget_kind(),
         &inline_lines,
         line_count,
         &typography,
         &layout,
         progress,
         inline_selection_motion,
+        size,
+    );
+}
+
+#[allow(clippy::too_many_arguments)]
+fn push_single_session_inline_widget_list_reflow(
+    vertices: &mut Vec<Vertex>,
+    kind: Option<InlineWidgetKind>,
+    inline_lines: &[SingleSessionStyledLine],
+    line_count: usize,
+    typography: &SingleSessionTypography,
+    layout: &InlineWidgetCardLayout,
+    reveal_progress: f32,
+    inline_list_reflow_motion: Option<&InlineWidgetListReflowMotionFrame>,
+    size: PhysicalSize<u32>,
+) {
+    let Some(motion) = inline_list_reflow_motion else {
+        return;
+    };
+    let line_height = inline_widget_line_height(kind, typography);
+    for run in inline_widget_list_row_runs(kind, inline_lines, line_count) {
+        if let Some(visual) = motion.visual_for_key(run.key) {
+            push_single_session_inline_widget_reflow_row(
+                vertices,
+                run,
+                visual,
+                line_height,
+                layout,
+                reveal_progress,
+                size,
+            );
+        }
+    }
+    for (run, visual) in motion.exiting() {
+        push_single_session_inline_widget_reflow_row(
+            vertices,
+            *run,
+            *visual,
+            line_height,
+            layout,
+            reveal_progress,
+            size,
+        );
+    }
+}
+
+fn push_single_session_inline_widget_reflow_row(
+    vertices: &mut Vec<Vertex>,
+    run: InlineWidgetListRowRun,
+    visual: InlineWidgetListReflowVisual,
+    line_height: f32,
+    layout: &InlineWidgetCardLayout,
+    reveal_progress: f32,
+    size: PhysicalSize<u32>,
+) {
+    if visual.opacity <= 0.001 || visual.line_span <= 0.05 {
+        return;
+    }
+    let row_top = layout.text_top
+        + (run.line as f32 + visual.y_offset_lines) * line_height
+        + inline_widget_selection_top_offset(Some(run.kind));
+    let row_height =
+        visual.line_span * line_height + inline_widget_selection_extra_height(Some(run.kind));
+    let row_visible_height = (layout.visible_text_bottom - row_top).min(row_height);
+    let row_width = (layout.card.width - layout.padding_x).max(0.0);
+    if row_visible_height <= 3.0 || row_width <= 6.0 {
+        return;
+    }
+    push_rounded_rect(
+        vertices,
+        Rect {
+            x: layout.card.x + layout.padding_x * 0.5,
+            y: row_top,
+            width: row_width,
+            height: row_visible_height.max(1.0),
+        },
+        layout.selection_radius,
+        with_alpha(
+            INLINE_WIDGET_LIST_REFLOW_COLOR,
+            INLINE_WIDGET_LIST_REFLOW_COLOR[3] * reveal_progress * visual.opacity,
+        ),
         size,
     );
 }
@@ -1684,8 +1949,8 @@ impl InlineWidgetSelectionMotionRegistry {
         app: &SingleSessionApp,
         now: Instant,
     ) -> InlineWidgetSelectionMotionFrame {
-        let kind = app.active_inline_widget();
-        let lines = app.inline_widget_styled_lines();
+        let kind = app.render_inline_widget_kind();
+        let lines = app.render_inline_widget_styled_lines();
         let visible_line_count = kind
             .map(|kind| lines.len().min(kind.visible_line_limit()))
             .unwrap_or(0);
@@ -1735,6 +2000,371 @@ impl InlineWidgetSelectionMotionRegistry {
     }
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct InlineWidgetListRowRun {
+    kind: InlineWidgetKind,
+    key: u64,
+    line: usize,
+    line_span: usize,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct InlineWidgetListReflowVisual {
+    opacity: f32,
+    y_offset_lines: f32,
+    line_span: f32,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct InlineWidgetListReflowShift {
+    from_line: usize,
+    from_line_span: usize,
+    started_at: Instant,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct InlineWidgetListReflowState {
+    run: InlineWidgetListRowRun,
+    entered_at: Option<Instant>,
+    exiting_at: Option<Instant>,
+    shift: Option<InlineWidgetListReflowShift>,
+    last_seen_generation: u64,
+}
+
+#[derive(Clone, Debug, Default)]
+pub(crate) struct InlineWidgetListReflowMotionFrame {
+    visuals: HashMap<u64, InlineWidgetListReflowVisual>,
+    exiting: Vec<(InlineWidgetListRowRun, InlineWidgetListReflowVisual)>,
+    active: bool,
+    cache_key: u64,
+}
+
+impl InlineWidgetListReflowMotionFrame {
+    fn visual_for_key(&self, key: u64) -> Option<InlineWidgetListReflowVisual> {
+        self.visuals.get(&key).copied()
+    }
+
+    fn exiting(&self) -> &[(InlineWidgetListRowRun, InlineWidgetListReflowVisual)] {
+        &self.exiting
+    }
+
+    pub(crate) fn is_active(&self) -> bool {
+        self.active
+    }
+
+    pub(crate) fn cache_key(&self) -> u64 {
+        self.cache_key
+    }
+}
+
+#[derive(Default)]
+pub(crate) struct InlineWidgetListReflowMotionRegistry {
+    initialized: bool,
+    kind: Option<InlineWidgetKind>,
+    generation: u64,
+    states: HashMap<u64, InlineWidgetListReflowState>,
+}
+
+impl InlineWidgetListReflowMotionRegistry {
+    pub(crate) fn frame(
+        &mut self,
+        app: &SingleSessionApp,
+        now: Instant,
+    ) -> InlineWidgetListReflowMotionFrame {
+        let kind = app.render_inline_widget_kind();
+        let lines = app.render_inline_widget_styled_lines();
+        let visible_line_count = app.render_inline_widget_visible_line_count();
+        self.frame_for_rows(kind, &lines, visible_line_count, now)
+    }
+
+    fn frame_for_rows(
+        &mut self,
+        kind: Option<InlineWidgetKind>,
+        lines: &[SingleSessionStyledLine],
+        visible_line_count: usize,
+        now: Instant,
+    ) -> InlineWidgetListReflowMotionFrame {
+        let Some(kind) = kind else {
+            self.clear();
+            return InlineWidgetListReflowMotionFrame::default();
+        };
+
+        if self.kind != Some(kind) {
+            self.clear();
+            self.kind = Some(kind);
+        }
+
+        self.generation = self.generation.wrapping_add(1).max(1);
+        let generation = self.generation;
+        let reduced_motion = crate::animation::desktop_reduced_motion_enabled();
+        let animate_new_rows = self.initialized && !reduced_motion;
+        self.initialized = true;
+
+        let runs = inline_widget_list_row_runs(Some(kind), lines, visible_line_count);
+        let mut visuals = HashMap::new();
+        let mut active = false;
+        for run in runs {
+            let state = self
+                .states
+                .entry(run.key)
+                .or_insert_with(|| InlineWidgetListReflowState {
+                    run,
+                    entered_at: animate_new_rows.then_some(now),
+                    exiting_at: None,
+                    shift: None,
+                    last_seen_generation: generation,
+                });
+            state.last_seen_generation = generation;
+            state.exiting_at = None;
+
+            if reduced_motion {
+                state.entered_at = None;
+                state.shift = None;
+            }
+
+            if state.run.line != run.line || state.run.line_span != run.line_span {
+                if reduced_motion {
+                    state.shift = None;
+                } else {
+                    state.shift = Some(InlineWidgetListReflowShift {
+                        from_line: state.run.line,
+                        from_line_span: state.run.line_span,
+                        started_at: now,
+                    });
+                }
+            }
+            state.run = run;
+
+            let (visual, visual_active) = inline_widget_list_reflow_visual_from_state(state, now);
+            active |= visual_active;
+            if visual.opacity > 0.001 {
+                visuals.insert(run.key, visual);
+            }
+        }
+
+        let mut exiting = Vec::new();
+        if !reduced_motion {
+            for state in self.states.values_mut() {
+                if state.last_seen_generation == generation {
+                    continue;
+                }
+                let exiting_at = *state.exiting_at.get_or_insert(now);
+                let (progress, running) = timed_animation_progress(
+                    exiting_at,
+                    now,
+                    INLINE_WIDGET_LIST_REFLOW_EXIT_DURATION,
+                );
+                if !running {
+                    continue;
+                }
+                state.last_seen_generation = generation;
+                active = true;
+                exiting.push((
+                    state.run,
+                    exiting_inline_widget_list_reflow_visual(progress),
+                ));
+            }
+        }
+
+        self.states
+            .retain(|_, state| state.last_seen_generation == generation);
+
+        InlineWidgetListReflowMotionFrame {
+            cache_key: inline_widget_list_reflow_cache_key(&visuals, &exiting, active),
+            visuals,
+            exiting,
+            active,
+        }
+    }
+
+    pub(crate) fn clear(&mut self) {
+        self.initialized = false;
+        self.kind = None;
+        self.generation = 0;
+        self.states.clear();
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub(crate) struct ComposerMotionTarget {
+    line_count: usize,
+    empty: bool,
+    blocked: bool,
+    processing: bool,
+    ready_to_submit: bool,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct ComposerMotionVisual {
+    height_lines: f32,
+    placeholder_opacity: f32,
+    focus_opacity: f32,
+    blocked_progress: f32,
+    submit_opacity: f32,
+    submit_scale: f32,
+    processing_progress: f32,
+}
+
+impl ComposerMotionVisual {
+    fn settled(target: ComposerMotionTarget) -> Self {
+        Self {
+            height_lines: target.line_count.max(1) as f32,
+            placeholder_opacity: if target.empty && !target.processing {
+                1.0
+            } else {
+                0.0
+            },
+            focus_opacity: if target.blocked { 0.28 } else { 1.0 },
+            blocked_progress: if target.blocked { 1.0 } else { 0.0 },
+            submit_opacity: if target.ready_to_submit || target.processing {
+                1.0
+            } else {
+                0.0
+            },
+            submit_scale: if target.ready_to_submit || target.processing {
+                1.0
+            } else {
+                0.82
+            },
+            processing_progress: if target.processing { 1.0 } else { 0.0 },
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+struct ComposerMotionTransition {
+    from: ComposerMotionVisual,
+    to: ComposerMotionVisual,
+    started_at: Instant,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct ComposerMotionFrame {
+    visual: ComposerMotionVisual,
+    active: bool,
+    cache_key: u64,
+}
+
+impl ComposerMotionFrame {
+    pub(crate) fn visual(&self) -> ComposerMotionVisual {
+        self.visual
+    }
+
+    pub(crate) fn is_active(&self) -> bool {
+        self.active
+    }
+
+    pub(crate) fn cache_key(&self) -> u64 {
+        self.cache_key
+    }
+}
+
+#[derive(Default)]
+pub(crate) struct ComposerMotionRegistry {
+    initialized: bool,
+    target: Option<ComposerMotionTarget>,
+    visual: Option<ComposerMotionVisual>,
+    transition: Option<ComposerMotionTransition>,
+}
+
+impl ComposerMotionRegistry {
+    pub(crate) fn frame(&mut self, app: &SingleSessionApp, now: Instant) -> ComposerMotionFrame {
+        self.frame_for_target(composer_motion_target(app), now)
+    }
+
+    fn frame_for_target(
+        &mut self,
+        target: ComposerMotionTarget,
+        now: Instant,
+    ) -> ComposerMotionFrame {
+        let target_visual = ComposerMotionVisual::settled(target);
+        let reduced_motion = crate::animation::desktop_reduced_motion_enabled();
+        if reduced_motion || !self.initialized {
+            self.initialized = true;
+            self.target = Some(target);
+            self.visual = Some(target_visual);
+            self.transition = None;
+            return ComposerMotionFrame {
+                visual: target_visual,
+                active: false,
+                cache_key: composer_motion_cache_key(target, target_visual, false),
+            };
+        }
+
+        if self.target != Some(target) {
+            let from = self.current_visual(now);
+            self.transition = Some(ComposerMotionTransition {
+                from,
+                to: target_visual,
+                started_at: now,
+            });
+            self.target = Some(target);
+        }
+
+        let mut active = false;
+        let visual = if let Some(transition) = self.transition {
+            let (progress, running) =
+                timed_animation_progress(transition.started_at, now, COMPOSER_MOTION_DURATION);
+            let eased = ease_out_cubic_local(progress);
+            let visual = composer_motion_visual_lerp(transition.from, transition.to, eased);
+            active = running;
+            if !running {
+                self.transition = None;
+            }
+            visual
+        } else {
+            target_visual
+        };
+        self.visual = Some(visual);
+
+        ComposerMotionFrame {
+            visual,
+            active,
+            cache_key: composer_motion_cache_key(target, visual, active),
+        }
+    }
+
+    fn current_visual(&mut self, now: Instant) -> ComposerMotionVisual {
+        if let Some(transition) = self.transition {
+            let (progress, running) =
+                timed_animation_progress(transition.started_at, now, COMPOSER_MOTION_DURATION);
+            if !running {
+                self.transition = None;
+                transition.to
+            } else {
+                composer_motion_visual_lerp(
+                    transition.from,
+                    transition.to,
+                    ease_out_cubic_local(progress),
+                )
+            }
+        } else {
+            self.visual
+                .or_else(|| self.target.map(ComposerMotionVisual::settled))
+                .unwrap_or_else(|| ComposerMotionVisual::settled(ComposerMotionTarget::default()))
+        }
+    }
+
+    pub(crate) fn clear(&mut self) {
+        self.initialized = false;
+        self.target = None;
+        self.visual = None;
+        self.transition = None;
+    }
+}
+
+impl Default for ComposerMotionTarget {
+    fn default() -> Self {
+        Self {
+            line_count: 1,
+            empty: true,
+            blocked: false,
+            processing: false,
+            ready_to_submit: false,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct TranscriptCardVisual {
     pub(crate) opacity: f32,
@@ -1761,7 +2391,9 @@ struct TranscriptCardLineShift {
 #[derive(Clone, Copy, Debug)]
 struct TranscriptCardMotionState {
     line: usize,
+    last_run: SingleSessionTranscriptCardRun,
     entered_at: Option<Instant>,
+    exiting_at: Option<Instant>,
     line_shift: Option<TranscriptCardLineShift>,
     last_seen_generation: u64,
 }
@@ -1769,6 +2401,7 @@ struct TranscriptCardMotionState {
 #[derive(Clone, Debug, Default)]
 pub(crate) struct TranscriptCardMotionFrame {
     visuals: HashMap<u64, TranscriptCardVisual>,
+    exiting: Vec<(SingleSessionTranscriptCardRun, TranscriptCardVisual)>,
     active: bool,
     cache_key: u64,
 }
@@ -1776,6 +2409,10 @@ pub(crate) struct TranscriptCardMotionFrame {
 impl TranscriptCardMotionFrame {
     pub(crate) fn visual_for_key(&self, key: u64) -> Option<TranscriptCardVisual> {
         self.visuals.get(&key).copied()
+    }
+
+    fn exiting(&self) -> &[(SingleSessionTranscriptCardRun, TranscriptCardVisual)] {
+        &self.exiting
     }
 
     pub(crate) fn is_active(&self) -> bool {
@@ -1794,6 +2431,85 @@ pub(crate) struct TranscriptCardMotionRegistry {
     states: HashMap<u64, TranscriptCardMotionState>,
 }
 
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+enum InlineMarkdownPillKind {
+    Code,
+    Math,
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+struct InlineMarkdownPillRun {
+    line: usize,
+    start_column: usize,
+    column_count: usize,
+    kind: InlineMarkdownPillKind,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct InlineMarkdownPillVisual {
+    opacity: f32,
+    y_offset_pixels: f32,
+    scale: f32,
+}
+
+impl Default for InlineMarkdownPillVisual {
+    fn default() -> Self {
+        Self {
+            opacity: 1.0,
+            y_offset_pixels: 0.0,
+            scale: 1.0,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+struct InlineMarkdownPillLineShift {
+    from_line: usize,
+    started_at: Instant,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct InlineMarkdownPillMotionState {
+    run: InlineMarkdownPillRun,
+    entered_at: Option<Instant>,
+    exiting_at: Option<Instant>,
+    line_shift: Option<InlineMarkdownPillLineShift>,
+    last_seen_generation: u64,
+}
+
+#[derive(Clone, Debug, Default)]
+pub(crate) struct InlineMarkdownPillMotionFrame {
+    visuals: HashMap<u64, InlineMarkdownPillVisual>,
+    exiting: Vec<(InlineMarkdownPillRun, InlineMarkdownPillVisual)>,
+    active: bool,
+    cache_key: u64,
+}
+
+impl InlineMarkdownPillMotionFrame {
+    fn visual_for_key(&self, key: u64) -> Option<InlineMarkdownPillVisual> {
+        self.visuals.get(&key).copied()
+    }
+
+    fn exiting(&self) -> &[(InlineMarkdownPillRun, InlineMarkdownPillVisual)] {
+        &self.exiting
+    }
+
+    pub(crate) fn is_active(&self) -> bool {
+        self.active
+    }
+
+    pub(crate) fn cache_key(&self) -> u64 {
+        self.cache_key
+    }
+}
+
+#[derive(Default)]
+pub(crate) struct InlineMarkdownPillMotionRegistry {
+    initialized: bool,
+    generation: u64,
+    states: HashMap<u64, InlineMarkdownPillMotionState>,
+}
+
 impl TranscriptCardMotionRegistry {
     pub(crate) fn frame(
         &mut self,
@@ -1803,8 +2519,8 @@ impl TranscriptCardMotionRegistry {
     ) -> TranscriptCardMotionFrame {
         self.generation = self.generation.wrapping_add(1).max(1);
         let generation = self.generation;
-        let animate_new_cards =
-            self.initialized && !crate::animation::desktop_reduced_motion_enabled();
+        let reduced_motion = crate::animation::desktop_reduced_motion_enabled();
+        let animate_new_cards = self.initialized && !reduced_motion;
         self.initialized = true;
 
         let mut visuals = HashMap::new();
@@ -1817,17 +2533,30 @@ impl TranscriptCardMotionRegistry {
                 .entry(key)
                 .or_insert_with(|| TranscriptCardMotionState {
                     line: run.line,
+                    last_run: run,
                     entered_at: animate_new_cards.then_some(now),
+                    exiting_at: None,
                     line_shift: None,
                     last_seen_generation: generation,
                 });
             state.last_seen_generation = generation;
+            state.last_run = run;
+            state.exiting_at = None;
+
+            if reduced_motion {
+                state.entered_at = None;
+                state.line_shift = None;
+            }
 
             if state.line != run.line {
-                state.line_shift = Some(TranscriptCardLineShift {
-                    from_line: state.line,
-                    started_at: now,
-                });
+                if reduced_motion {
+                    state.line_shift = None;
+                } else {
+                    state.line_shift = Some(TranscriptCardLineShift {
+                        from_line: state.line,
+                        started_at: now,
+                    });
+                }
                 state.line = run.line;
             }
 
@@ -1837,12 +2566,121 @@ impl TranscriptCardMotionRegistry {
             visuals.insert(key, visual);
         }
 
+        let mut exiting = Vec::new();
+        if !reduced_motion {
+            for state in self.states.values_mut() {
+                if state.last_seen_generation == generation {
+                    continue;
+                }
+                let exiting_at = *state.exiting_at.get_or_insert(now);
+                let (progress, running) =
+                    timed_animation_progress(exiting_at, now, TRANSCRIPT_CARD_EXIT_DURATION);
+                if !running {
+                    continue;
+                }
+                active = true;
+                state.last_seen_generation = generation;
+                exiting.push((state.last_run, exiting_transcript_card_visual(progress)));
+            }
+        }
+
         self.states
             .retain(|_, state| state.last_seen_generation == generation);
 
         TranscriptCardMotionFrame {
-            cache_key: transcript_card_motion_cache_key(&visuals, active),
+            cache_key: transcript_card_motion_cache_key(&visuals, &exiting, active),
             visuals,
+            exiting,
+            active,
+        }
+    }
+
+    pub(crate) fn clear(&mut self) {
+        self.initialized = false;
+        self.generation = 0;
+        self.states.clear();
+    }
+}
+
+impl InlineMarkdownPillMotionRegistry {
+    pub(crate) fn frame(
+        &mut self,
+        lines: &[SingleSessionStyledLine],
+        line_height: f32,
+        now: Instant,
+    ) -> InlineMarkdownPillMotionFrame {
+        self.generation = self.generation.wrapping_add(1).max(1);
+        let generation = self.generation;
+        let reduced_motion = crate::animation::desktop_reduced_motion_enabled();
+        let animate_new_pills = self.initialized && !reduced_motion;
+        self.initialized = true;
+
+        let mut visuals = HashMap::new();
+        let mut active = false;
+        let mut occurrences = HashMap::new();
+        for run in single_session_inline_markdown_pill_runs(lines) {
+            let key = inline_markdown_pill_motion_key(lines, &run, &mut occurrences);
+            let state = self
+                .states
+                .entry(key)
+                .or_insert_with(|| InlineMarkdownPillMotionState {
+                    run,
+                    entered_at: animate_new_pills.then_some(now),
+                    exiting_at: None,
+                    line_shift: None,
+                    last_seen_generation: generation,
+                });
+            state.last_seen_generation = generation;
+            state.exiting_at = None;
+
+            if reduced_motion {
+                state.entered_at = None;
+                state.line_shift = None;
+            }
+
+            if state.run.line != run.line {
+                if reduced_motion {
+                    state.line_shift = None;
+                } else {
+                    state.line_shift = Some(InlineMarkdownPillLineShift {
+                        from_line: state.run.line,
+                        started_at: now,
+                    });
+                }
+            }
+            state.run = run;
+
+            let (visual, visual_active) =
+                inline_markdown_pill_visual_from_state(state, line_height, now);
+            active |= visual_active;
+            visuals.insert(key, visual);
+        }
+
+        let mut exiting = Vec::new();
+        if !reduced_motion {
+            for state in self.states.values_mut() {
+                if state.last_seen_generation == generation {
+                    continue;
+                }
+                let exiting_at = *state.exiting_at.get_or_insert(now);
+                let (progress, running) =
+                    timed_animation_progress(exiting_at, now, INLINE_MARKDOWN_PILL_EXIT_DURATION);
+                if !running {
+                    continue;
+                }
+                active = true;
+                state.last_seen_generation = generation;
+                exiting.push((state.run, exiting_inline_markdown_pill_visual(progress)));
+            }
+        }
+
+        self.states
+            .retain(|_, state| state.last_seen_generation == generation);
+
+        InlineMarkdownPillMotionFrame {
+            cache_key: inline_markdown_pill_motion_cache_key(&visuals, &exiting, active),
+            visuals,
+            exiting,
             active,
         }
     }
@@ -2494,6 +3332,132 @@ fn inline_widget_selection_target(
     })
 }
 
+fn inline_widget_list_row_runs(
+    kind: Option<InlineWidgetKind>,
+    lines: &[SingleSessionStyledLine],
+    visible_line_count: usize,
+) -> Vec<InlineWidgetListRowRun> {
+    let Some(kind) = kind else {
+        return Vec::new();
+    };
+    let visible_len = visible_line_count.min(lines.len());
+    let mut runs = Vec::new();
+    let mut occurrences = HashMap::new();
+
+    match kind {
+        InlineWidgetKind::SlashSuggestions => {
+            for line in 1..visible_len {
+                if matches!(
+                    lines[line].style,
+                    SingleSessionLineStyle::OverlaySelection | SingleSessionLineStyle::Overlay
+                ) {
+                    push_inline_widget_list_row_run(
+                        &mut runs,
+                        &mut occurrences,
+                        kind,
+                        lines,
+                        line,
+                        1,
+                    );
+                }
+            }
+        }
+        InlineWidgetKind::ModelPicker => {
+            let mut line = 2;
+            while line < visible_len {
+                let primary_style = lines[line].style;
+                let looks_like_primary = matches!(
+                    primary_style,
+                    SingleSessionLineStyle::OverlaySelection | SingleSessionLineStyle::Overlay
+                ) && line + 1 < visible_len
+                    && lines[line + 1].style == SingleSessionLineStyle::Meta
+                    && lines[line + 1].text.trim_start().contains('·');
+                if looks_like_primary {
+                    push_inline_widget_list_row_run(
+                        &mut runs,
+                        &mut occurrences,
+                        kind,
+                        lines,
+                        line,
+                        2,
+                    );
+                    line += 2;
+                } else {
+                    line += 1;
+                }
+            }
+        }
+        InlineWidgetKind::SessionSwitcher => {
+            for line in 0..visible_len {
+                if lines[line].text.starts_with("│ ")
+                    && lines[line].style != SingleSessionLineStyle::OverlayTitle
+                {
+                    push_inline_widget_list_row_run(
+                        &mut runs,
+                        &mut occurrences,
+                        kind,
+                        lines,
+                        line,
+                        1,
+                    );
+                }
+            }
+        }
+        InlineWidgetKind::HotkeyHelp | InlineWidgetKind::SessionInfo => {}
+    }
+
+    runs
+}
+
+fn push_inline_widget_list_row_run(
+    runs: &mut Vec<InlineWidgetListRowRun>,
+    occurrences: &mut HashMap<u64, usize>,
+    kind: InlineWidgetKind,
+    lines: &[SingleSessionStyledLine],
+    line: usize,
+    line_span: usize,
+) {
+    let base_key = inline_widget_list_row_base_key(kind, lines, line, line_span);
+    let occurrence = occurrences.entry(base_key).or_insert(0);
+    let mut hasher = DefaultHasher::new();
+    base_key.hash(&mut hasher);
+    occurrence.hash(&mut hasher);
+    let key = hasher.finish();
+    *occurrence += 1;
+    runs.push(InlineWidgetListRowRun {
+        kind,
+        key,
+        line,
+        line_span,
+    });
+}
+
+fn inline_widget_list_row_base_key(
+    kind: InlineWidgetKind,
+    lines: &[SingleSessionStyledLine],
+    line: usize,
+    line_span: usize,
+) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    kind.hash(&mut hasher);
+    line_span.hash(&mut hasher);
+    let end = line.saturating_add(line_span).min(lines.len());
+    for styled_line in &lines[line.min(lines.len())..end] {
+        styled_line.style.hash(&mut hasher);
+        normalized_inline_widget_list_row_text(&styled_line.text).hash(&mut hasher);
+    }
+    hasher.finish()
+}
+
+fn normalized_inline_widget_list_row_text(text: &str) -> String {
+    text.chars()
+        .map(|ch| match ch {
+            '›' | '▶' => ' ',
+            _ => ch,
+        })
+        .collect()
+}
+
 fn inline_widget_selection_visual_from_transition(
     transition: &mut Option<InlineWidgetSelectionTransition>,
     target: InlineWidgetSelectionTarget,
@@ -2522,6 +3486,132 @@ fn inline_widget_selection_visual_from_transition(
         *transition = None;
     }
     (visual, running)
+}
+
+fn inline_widget_list_reflow_visual_from_state(
+    state: &mut InlineWidgetListReflowState,
+    now: Instant,
+) -> (InlineWidgetListReflowVisual, bool) {
+    let mut visual = InlineWidgetListReflowVisual {
+        opacity: 0.0,
+        y_offset_lines: 0.0,
+        line_span: state.run.line_span as f32,
+    };
+    let mut active = false;
+
+    if let Some(entered_at) = state.entered_at {
+        let (progress, running) =
+            timed_animation_progress(entered_at, now, INLINE_WIDGET_LIST_REFLOW_ENTRY_DURATION);
+        let eased = ease_out_cubic_local(progress);
+        visual.opacity = visual.opacity.max(1.0 - eased);
+        visual.y_offset_lines += 0.45 * (1.0 - eased);
+        active |= running;
+        if !running {
+            state.entered_at = None;
+        }
+    }
+
+    if let Some(shift) = state.shift {
+        let (progress, running) = timed_animation_progress(
+            shift.started_at,
+            now,
+            INLINE_WIDGET_LIST_REFLOW_SHIFT_DURATION,
+        );
+        let eased = ease_out_cubic_local(progress);
+        let line_delta = shift.from_line as f32 - state.run.line as f32;
+        let span_delta = shift.from_line_span as f32 - state.run.line_span as f32;
+        visual.opacity = visual.opacity.max(1.0 - eased * 0.15);
+        visual.y_offset_lines += line_delta * (1.0 - eased);
+        visual.line_span = state.run.line_span as f32 + span_delta * (1.0 - eased);
+        active |= running;
+        if !running {
+            state.shift = None;
+        }
+    }
+
+    (visual, active)
+}
+
+fn exiting_inline_widget_list_reflow_visual(progress: f32) -> InlineWidgetListReflowVisual {
+    let eased = ease_out_cubic_local(progress);
+    InlineWidgetListReflowVisual {
+        opacity: 1.0 - eased,
+        y_offset_lines: -0.35 * eased,
+        line_span: 1.0,
+    }
+}
+
+fn inline_widget_list_reflow_cache_key(
+    visuals: &HashMap<u64, InlineWidgetListReflowVisual>,
+    exiting: &[(InlineWidgetListRowRun, InlineWidgetListReflowVisual)],
+    active: bool,
+) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    active.hash(&mut hasher);
+    let mut entries = visuals.iter().collect::<Vec<_>>();
+    entries.sort_by_key(|(key, _)| **key);
+    for (key, visual) in entries {
+        key.hash(&mut hasher);
+        hash_f32(visual.opacity, &mut hasher);
+        hash_f32(visual.y_offset_lines, &mut hasher);
+        hash_f32(visual.line_span, &mut hasher);
+    }
+    for (run, visual) in exiting {
+        run.kind.hash(&mut hasher);
+        run.key.hash(&mut hasher);
+        run.line.hash(&mut hasher);
+        run.line_span.hash(&mut hasher);
+        hash_f32(visual.opacity, &mut hasher);
+        hash_f32(visual.y_offset_lines, &mut hasher);
+        hash_f32(visual.line_span, &mut hasher);
+    }
+    hasher.finish()
+}
+
+fn composer_motion_target(app: &SingleSessionApp) -> ComposerMotionTarget {
+    let line_count = app.composer_text().split('\n').count().max(1);
+    let ready_to_submit = !app.draft.trim().is_empty();
+    ComposerMotionTarget {
+        line_count,
+        empty: app.draft.is_empty(),
+        blocked: !app.should_draw_composer_caret(),
+        processing: app.is_processing,
+        ready_to_submit,
+    }
+}
+
+fn composer_motion_visual_lerp(
+    from: ComposerMotionVisual,
+    to: ComposerMotionVisual,
+    progress: f32,
+) -> ComposerMotionVisual {
+    ComposerMotionVisual {
+        height_lines: lerp_f32(from.height_lines, to.height_lines, progress),
+        placeholder_opacity: lerp_f32(from.placeholder_opacity, to.placeholder_opacity, progress),
+        focus_opacity: lerp_f32(from.focus_opacity, to.focus_opacity, progress),
+        blocked_progress: lerp_f32(from.blocked_progress, to.blocked_progress, progress),
+        submit_opacity: lerp_f32(from.submit_opacity, to.submit_opacity, progress),
+        submit_scale: lerp_f32(from.submit_scale, to.submit_scale, progress),
+        processing_progress: lerp_f32(from.processing_progress, to.processing_progress, progress),
+    }
+}
+
+fn composer_motion_cache_key(
+    target: ComposerMotionTarget,
+    visual: ComposerMotionVisual,
+    active: bool,
+) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    target.hash(&mut hasher);
+    active.hash(&mut hasher);
+    hash_f32(visual.height_lines, &mut hasher);
+    hash_f32(visual.placeholder_opacity, &mut hasher);
+    hash_f32(visual.focus_opacity, &mut hasher);
+    hash_f32(visual.blocked_progress, &mut hasher);
+    hash_f32(visual.submit_opacity, &mut hasher);
+    hash_f32(visual.submit_scale, &mut hasher);
+    hash_f32(visual.processing_progress, &mut hasher);
+    hasher.finish()
 }
 
 fn tool_card_palette(state: SingleSessionToolVisualState, active: bool) -> ToolCardPalette {
@@ -2654,6 +3744,61 @@ fn transcript_card_visual_from_state(
     (visual, active)
 }
 
+fn exiting_transcript_card_visual(progress: f32) -> TranscriptCardVisual {
+    let eased = ease_out_cubic_local(progress);
+    TranscriptCardVisual {
+        opacity: 1.0 - eased,
+        y_offset_pixels: -TRANSCRIPT_CARD_ENTRY_OFFSET_PIXELS * 0.42 * eased,
+        scale: 1.0 - (1.0 - TRANSCRIPT_CARD_ENTRY_SCALE) * 1.35 * eased,
+    }
+}
+
+fn inline_markdown_pill_visual_from_state(
+    state: &mut InlineMarkdownPillMotionState,
+    line_height: f32,
+    now: Instant,
+) -> (InlineMarkdownPillVisual, bool) {
+    let mut visual = InlineMarkdownPillVisual::default();
+    let mut active = false;
+
+    if let Some(entered_at) = state.entered_at {
+        let (progress, running) =
+            timed_animation_progress(entered_at, now, INLINE_MARKDOWN_PILL_ENTRY_DURATION);
+        let eased = ease_out_cubic_local(progress);
+        visual.opacity = eased;
+        visual.y_offset_pixels += (1.0 - eased) * INLINE_MARKDOWN_PILL_ENTRY_OFFSET_PIXELS;
+        visual.scale =
+            INLINE_MARKDOWN_PILL_ENTRY_SCALE + (1.0 - INLINE_MARKDOWN_PILL_ENTRY_SCALE) * eased;
+        active |= running;
+        if !running {
+            state.entered_at = None;
+        }
+    }
+
+    if let Some(shift) = state.line_shift {
+        let (progress, running) =
+            timed_animation_progress(shift.started_at, now, INLINE_MARKDOWN_PILL_SHIFT_DURATION);
+        let eased = ease_out_cubic_local(progress);
+        let line_delta = shift.from_line as f32 - state.run.line as f32;
+        visual.y_offset_pixels += line_delta * line_height * (1.0 - eased);
+        active |= running;
+        if !running {
+            state.line_shift = None;
+        }
+    }
+
+    (visual, active)
+}
+
+fn exiting_inline_markdown_pill_visual(progress: f32) -> InlineMarkdownPillVisual {
+    let eased = ease_out_cubic_local(progress);
+    InlineMarkdownPillVisual {
+        opacity: 1.0 - eased,
+        y_offset_pixels: -INLINE_MARKDOWN_PILL_ENTRY_OFFSET_PIXELS * 0.55 * eased,
+        scale: 1.0 - (1.0 - INLINE_MARKDOWN_PILL_ENTRY_SCALE) * eased,
+    }
+}
+
 fn transcript_card_visual_rect(rect: Rect, visual: TranscriptCardVisual) -> Rect {
     let scale = visual.scale.clamp(0.01, 1.5);
     let width = rect.width * scale;
@@ -2667,6 +3812,23 @@ fn transcript_card_visual_rect(rect: Rect, visual: TranscriptCardVisual) -> Rect
 }
 
 fn transcript_card_alpha(mut color: [f32; 4], opacity: f32) -> [f32; 4] {
+    color[3] *= opacity.clamp(0.0, 1.0);
+    color
+}
+
+fn inline_markdown_pill_visual_rect(rect: Rect, visual: InlineMarkdownPillVisual) -> Rect {
+    let scale = visual.scale.clamp(0.01, 1.5);
+    let width = rect.width * scale;
+    let height = rect.height * scale;
+    Rect {
+        x: rect.x + (rect.width - width) * 0.5,
+        y: rect.y + (rect.height - height) * 0.5 + visual.y_offset_pixels,
+        width,
+        height,
+    }
+}
+
+fn inline_markdown_pill_alpha(mut color: [f32; 4], opacity: f32) -> [f32; 4] {
     color[3] *= opacity.clamp(0.0, 1.0);
     color
 }
@@ -2703,6 +3865,7 @@ fn transcript_card_motion_base_key(
 
 fn transcript_card_motion_cache_key(
     visuals: &HashMap<u64, TranscriptCardVisual>,
+    exiting: &[(SingleSessionTranscriptCardRun, TranscriptCardVisual)],
     active: bool,
 ) -> u64 {
     let mut hasher = DefaultHasher::new();
@@ -2711,6 +3874,68 @@ fn transcript_card_motion_cache_key(
     entries.sort_by_key(|(key, _)| **key);
     for (key, visual) in entries {
         key.hash(&mut hasher);
+        hash_f32(visual.opacity, &mut hasher);
+        hash_f32(visual.y_offset_pixels, &mut hasher);
+        hash_f32(visual.scale, &mut hasher);
+    }
+    for (run, visual) in exiting {
+        run.line.hash(&mut hasher);
+        run.line_count.hash(&mut hasher);
+        run.style.hash(&mut hasher);
+        hash_f32(visual.opacity, &mut hasher);
+        hash_f32(visual.y_offset_pixels, &mut hasher);
+        hash_f32(visual.scale, &mut hasher);
+    }
+    hasher.finish()
+}
+
+fn inline_markdown_pill_motion_key(
+    lines: &[SingleSessionStyledLine],
+    run: &InlineMarkdownPillRun,
+    occurrences: &mut HashMap<u64, usize>,
+) -> u64 {
+    let base_key = inline_markdown_pill_motion_base_key(lines, run);
+    let occurrence = occurrences.entry(base_key).or_insert(0);
+    let mut hasher = DefaultHasher::new();
+    base_key.hash(&mut hasher);
+    occurrence.hash(&mut hasher);
+    *occurrence += 1;
+    hasher.finish()
+}
+
+fn inline_markdown_pill_motion_base_key(
+    lines: &[SingleSessionStyledLine],
+    run: &InlineMarkdownPillRun,
+) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    run.kind.hash(&mut hasher);
+    run.start_column.hash(&mut hasher);
+    run.column_count.hash(&mut hasher);
+    if let Some(line) = lines.get(run.line) {
+        line.style.hash(&mut hasher);
+        line.text.hash(&mut hasher);
+        line.inline_spans.hash(&mut hasher);
+    }
+    hasher.finish()
+}
+
+fn inline_markdown_pill_motion_cache_key(
+    visuals: &HashMap<u64, InlineMarkdownPillVisual>,
+    exiting: &[(InlineMarkdownPillRun, InlineMarkdownPillVisual)],
+    active: bool,
+) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    active.hash(&mut hasher);
+    let mut entries = visuals.iter().collect::<Vec<_>>();
+    entries.sort_by_key(|(key, _)| **key);
+    for (key, visual) in entries {
+        key.hash(&mut hasher);
+        hash_f32(visual.opacity, &mut hasher);
+        hash_f32(visual.y_offset_pixels, &mut hasher);
+        hash_f32(visual.scale, &mut hasher);
+    }
+    for (run, visual) in exiting {
+        run.hash(&mut hasher);
         hash_f32(visual.opacity, &mut hasher);
         hash_f32(visual.y_offset_pixels, &mut hasher);
         hash_f32(visual.scale, &mut hasher);
@@ -2752,34 +3977,87 @@ fn push_single_session_transcript_cards_from_viewport(
 
     let mut occurrences = HashMap::new();
     for run in single_session_transcript_card_runs(&viewport.lines) {
-        let Some(color) = single_session_line_card_color(run.style) else {
-            continue;
-        };
         let motion_key = transcript_card_motion_key(&viewport.lines, &run, &mut occurrences);
         let visual = transcript_motion
             .and_then(|motion| motion.visual_for_key(motion_key))
             .unwrap_or_default();
-        if visual.opacity <= 0.001 {
-            continue;
-        }
-        let rect = Rect {
-            x: PANEL_TITLE_LEFT_PADDING - 6.0,
-            y: body_top + viewport.top_offset_pixels + run.line as f32 * line_height + 3.0,
-            width,
-            height: (run.line_count as f32 * line_height - 6.0).max(1.0),
-        };
-        let rect = transcript_card_visual_rect(rect, visual);
-        let Some(rect) = clip_rect_to_vertical_bounds(rect, body_top, body_bottom) else {
-            continue;
-        };
-        push_rounded_rect(
+        push_single_session_transcript_card(
             vertices,
-            rect,
-            7.0,
-            transcript_card_alpha(color, visual.opacity),
-            size,
+            run,
+            visual,
+            TranscriptCardGeometryContext {
+                size,
+                line_height,
+                width,
+                body_top,
+                body_bottom,
+                top_offset_pixels: viewport.top_offset_pixels,
+            },
         );
     }
+
+    if let Some(transcript_motion) = transcript_motion {
+        for (run, visual) in transcript_motion.exiting() {
+            push_single_session_transcript_card(
+                vertices,
+                *run,
+                *visual,
+                TranscriptCardGeometryContext {
+                    size,
+                    line_height,
+                    width,
+                    body_top,
+                    body_bottom,
+                    top_offset_pixels: viewport.top_offset_pixels,
+                },
+            );
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+struct TranscriptCardGeometryContext {
+    size: PhysicalSize<u32>,
+    line_height: f32,
+    width: f32,
+    body_top: f32,
+    body_bottom: f32,
+    top_offset_pixels: f32,
+}
+
+fn push_single_session_transcript_card(
+    vertices: &mut Vec<Vertex>,
+    run: SingleSessionTranscriptCardRun,
+    visual: TranscriptCardVisual,
+    context: TranscriptCardGeometryContext,
+) {
+    let Some(color) = single_session_line_card_color(run.style) else {
+        return;
+    };
+    if visual.opacity <= 0.001 {
+        return;
+    }
+    let rect = Rect {
+        x: PANEL_TITLE_LEFT_PADDING - 6.0,
+        y: context.body_top
+            + context.top_offset_pixels
+            + run.line as f32 * context.line_height
+            + 3.0,
+        width: context.width,
+        height: (run.line_count as f32 * context.line_height - 6.0).max(1.0),
+    };
+    let rect = transcript_card_visual_rect(rect, visual);
+    let Some(rect) = clip_rect_to_vertical_bounds(rect, context.body_top, context.body_bottom)
+    else {
+        return;
+    };
+    push_rounded_rect(
+        vertices,
+        rect,
+        7.0,
+        transcript_card_alpha(color, visual.opacity),
+        context.size,
+    );
 }
 
 fn push_single_session_tool_cards(
@@ -3260,6 +4538,7 @@ fn push_single_session_inline_code_cards(
         size,
         &viewport,
         viewport.total_lines,
+        None,
     );
 }
 
@@ -3269,6 +4548,7 @@ fn push_single_session_inline_code_cards_from_viewport(
     size: PhysicalSize<u32>,
     viewport: &SingleSessionBodyViewport,
     total_lines: usize,
+    inline_markdown_motion: Option<&InlineMarkdownPillMotionFrame>,
 ) {
     if !viewport
         .lines
@@ -3287,6 +4567,17 @@ fn push_single_session_inline_code_cards_from_viewport(
     let card_height = inline_code_card_height(&typography);
     let radius = (5.0 * text_scale).clamp(4.0, 8.0);
     let horizontal_pad = (3.5 * text_scale).clamp(3.0, 6.0);
+    let pill_context = InlineMarkdownPillGeometryContext {
+        size,
+        line_height,
+        char_width,
+        body_top,
+        body_bottom,
+        card_height,
+        radius,
+        horizontal_pad,
+        top_offset_pixels: viewport.top_offset_pixels,
+    };
     let mut font_system = FontSystem::new();
     let body_buffer = single_session_body_text_buffer_from_lines(
         &mut font_system,
@@ -3296,6 +4587,7 @@ fn push_single_session_inline_code_cards_from_viewport(
     );
     let layout_runs = body_buffer.layout_runs().collect::<Vec<_>>();
 
+    let mut occurrences = HashMap::new();
     for (line_index, line) in viewport.lines.iter().enumerate() {
         if !single_session_line_style_supports_inline_code_cards(line.style) {
             continue;
@@ -3340,10 +4632,24 @@ fn push_single_session_inline_code_cards_from_viewport(
                 width: clipped_right - x,
                 height: card_height,
             };
-            let Some(rect) = clip_rect_to_vertical_bounds(rect, body_top, body_bottom) else {
-                continue;
+            let pill_run = InlineMarkdownPillRun {
+                line: line_index,
+                start_column: run.start_column,
+                column_count: run.column_count,
+                kind: InlineMarkdownPillKind::Code,
             };
-            push_rounded_rect(vertices, rect, radius, INLINE_CODE_BACKGROUND_COLOR, size);
+            let motion_key =
+                inline_markdown_pill_motion_key(&viewport.lines, &pill_run, &mut occurrences);
+            let visual = inline_markdown_motion
+                .and_then(|motion| motion.visual_for_key(motion_key))
+                .unwrap_or_default();
+            push_single_session_inline_markdown_pill_rect(
+                vertices,
+                rect,
+                InlineMarkdownPillKind::Code,
+                visual,
+                pill_context,
+            );
         }
         for run in single_session_inline_math_runs_for_line(line) {
             if code_runs.iter().any(|code_run| {
@@ -3369,11 +4675,99 @@ fn push_single_session_inline_code_cards_from_viewport(
                 width: clipped_right - x,
                 height: card_height,
             };
-            let Some(rect) = clip_rect_to_vertical_bounds(rect, body_top, body_bottom) else {
-                continue;
+            let pill_run = InlineMarkdownPillRun {
+                line: line_index,
+                start_column: run.start_column,
+                column_count: run.column_count,
+                kind: InlineMarkdownPillKind::Math,
             };
-            push_rounded_rect(vertices, rect, radius, INLINE_MATH_BACKGROUND_COLOR, size);
+            let motion_key =
+                inline_markdown_pill_motion_key(&viewport.lines, &pill_run, &mut occurrences);
+            let visual = inline_markdown_motion
+                .and_then(|motion| motion.visual_for_key(motion_key))
+                .unwrap_or_default();
+            push_single_session_inline_markdown_pill_rect(
+                vertices,
+                rect,
+                InlineMarkdownPillKind::Math,
+                visual,
+                pill_context,
+            );
         }
+    }
+
+    if let Some(inline_markdown_motion) = inline_markdown_motion {
+        for (run, visual) in inline_markdown_motion.exiting() {
+            push_single_session_inline_markdown_pill_run(vertices, *run, *visual, pill_context);
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+struct InlineMarkdownPillGeometryContext {
+    size: PhysicalSize<u32>,
+    line_height: f32,
+    char_width: f32,
+    body_top: f32,
+    body_bottom: f32,
+    card_height: f32,
+    radius: f32,
+    horizontal_pad: f32,
+    top_offset_pixels: f32,
+}
+
+fn push_single_session_inline_markdown_pill_run(
+    vertices: &mut Vec<Vertex>,
+    run: InlineMarkdownPillRun,
+    visual: InlineMarkdownPillVisual,
+    context: InlineMarkdownPillGeometryContext,
+) {
+    let x = PANEL_TITLE_LEFT_PADDING + run.start_column as f32 * context.char_width
+        - context.horizontal_pad;
+    let width = run.column_count as f32 * context.char_width + context.horizontal_pad * 2.0;
+    let clipped_right = (x + width).min(context.size.width as f32);
+    if clipped_right <= x {
+        return;
+    }
+    let line_y =
+        context.body_top + context.top_offset_pixels + run.line as f32 * context.line_height;
+    let rect = Rect {
+        x,
+        y: line_y + (context.line_height - context.card_height) * 0.5,
+        width: clipped_right - x,
+        height: context.card_height,
+    };
+    push_single_session_inline_markdown_pill_rect(vertices, rect, run.kind, visual, context);
+}
+
+fn push_single_session_inline_markdown_pill_rect(
+    vertices: &mut Vec<Vertex>,
+    rect: Rect,
+    kind: InlineMarkdownPillKind,
+    visual: InlineMarkdownPillVisual,
+    context: InlineMarkdownPillGeometryContext,
+) {
+    if visual.opacity <= 0.001 {
+        return;
+    }
+    let rect = inline_markdown_pill_visual_rect(rect, visual);
+    let Some(rect) = clip_rect_to_vertical_bounds(rect, context.body_top, context.body_bottom)
+    else {
+        return;
+    };
+    push_rounded_rect(
+        vertices,
+        rect,
+        context.radius,
+        inline_markdown_pill_alpha(inline_markdown_pill_color(kind), visual.opacity),
+        context.size,
+    );
+}
+
+fn inline_markdown_pill_color(kind: InlineMarkdownPillKind) -> [f32; 4] {
+    match kind {
+        InlineMarkdownPillKind::Code => INLINE_CODE_BACKGROUND_COLOR,
+        InlineMarkdownPillKind::Math => INLINE_MATH_BACKGROUND_COLOR,
     }
 }
 
@@ -3496,6 +4890,45 @@ pub(crate) fn single_session_inline_math_runs_for_line(
         .collect()
 }
 
+fn single_session_inline_markdown_pill_runs(
+    lines: &[SingleSessionStyledLine],
+) -> Vec<InlineMarkdownPillRun> {
+    let mut runs = Vec::new();
+    for (line_index, line) in lines.iter().enumerate() {
+        if !single_session_line_style_supports_inline_code_cards(line.style) {
+            continue;
+        }
+        let code_runs = single_session_inline_code_runs_for_line(line);
+        runs.extend(code_runs.iter().map(|run| InlineMarkdownPillRun {
+            line: line_index,
+            start_column: run.start_column,
+            column_count: run.column_count,
+            kind: InlineMarkdownPillKind::Code,
+        }));
+        runs.extend(
+            single_session_inline_math_runs_for_line(line)
+                .into_iter()
+                .filter(|math_run| {
+                    !code_runs.iter().any(|code_run| {
+                        inline_markdown_runs_overlap(
+                            math_run.start_column,
+                            math_run.column_count,
+                            code_run.start_column,
+                            code_run.column_count,
+                        )
+                    })
+                })
+                .map(|run| InlineMarkdownPillRun {
+                    line: line_index,
+                    start_column: run.start_column,
+                    column_count: run.column_count,
+                    kind: InlineMarkdownPillKind::Math,
+                }),
+        );
+    }
+    runs
+}
+
 fn inline_code_run_from_span(
     text: &str,
     span: &SingleSessionInlineSpan,
@@ -3580,6 +5013,7 @@ fn single_session_line_style_supports_inline_code_cards(style: SingleSessionLine
             | SingleSessionLineStyle::AssistantHeading
             | SingleSessionLineStyle::AssistantQuote
             | SingleSessionLineStyle::AssistantLink
+            | SingleSessionLineStyle::AssistantMedia
     )
 }
 
@@ -3832,6 +5266,7 @@ fn single_session_line_card_color(style: SingleSessionLineStyle) -> Option<[f32;
         }
         SingleSessionLineStyle::AssistantQuote => Some(QUOTE_CARD_BACKGROUND_COLOR),
         SingleSessionLineStyle::AssistantTable => Some(TABLE_CARD_BACKGROUND_COLOR),
+        SingleSessionLineStyle::AssistantMedia => Some(MARKDOWN_MEDIA_BACKGROUND_COLOR),
         SingleSessionLineStyle::Error => Some(ERROR_CARD_BACKGROUND_COLOR),
         SingleSessionLineStyle::OverlaySelection => Some(OVERLAY_SELECTION_BACKGROUND_COLOR),
         _ => None,
@@ -4052,7 +5487,7 @@ pub(crate) fn single_session_draft_top_for_app(
     size: PhysicalSize<u32>,
 ) -> f32 {
     if app.is_welcome_timeline_visible() {
-        if app.inline_widget_line_count() > 0 {
+        if app.render_inline_widget_line_count() > 0 {
             return single_session_draft_top(size);
         }
         if app.has_welcome_timeline_transcript() {
@@ -4096,7 +5531,7 @@ fn single_session_draft_top_for_total_lines(
     total_lines: usize,
 ) -> f32 {
     if app.is_welcome_timeline_visible() {
-        if app.inline_widget_line_count() > 0 {
+        if app.render_inline_widget_line_count() > 0 {
             return single_session_draft_top(size);
         }
         if app.has_welcome_timeline_transcript() {
@@ -4312,8 +5747,8 @@ fn single_session_text_key_for_body_lines(
         user_font_family: single_session_user_font_family(),
         assistant_font_family: single_session_assistant_font_family(),
         body,
-        inline_widget_kind: app.active_inline_widget(),
-        inline_widget: app.inline_widget_styled_lines(),
+        inline_widget_kind: app.render_inline_widget_kind(),
+        inline_widget: app.render_inline_widget_styled_lines(),
         draft: if welcome_input_visible {
             visualize_composer_whitespace(&app.composer_text())
         } else {
@@ -5142,21 +6577,21 @@ pub(crate) fn single_session_body_bottom_for_total_lines(
 }
 
 fn inline_widget_visible_text_height(app: &SingleSessionApp) -> f32 {
-    let lines = app.inline_widget_visible_line_count();
+    let lines = app.render_inline_widget_visible_line_count();
     if lines == 0 {
         return 0.0;
     }
     let typography = single_session_typography_for_scale(app.text_scale());
-    lines as f32 * inline_widget_line_height(app.active_inline_widget(), &typography)
+    lines as f32 * inline_widget_line_height(app.render_inline_widget_kind(), &typography)
 }
 
 fn inline_widget_reserved_height(app: &SingleSessionApp) -> f32 {
-    if app.inline_widget_line_count() == 0 {
+    if app.render_inline_widget_line_count() == 0 {
         0.0
     } else {
-        let padding_y = inline_widget_card_padding_y(app.active_inline_widget());
+        let padding_y = inline_widget_card_padding_y(app.render_inline_widget_kind());
         (inline_widget_visible_text_height(app) + padding_y * 2.0 + INLINE_WIDGET_BODY_GAP)
-            * app.inline_widget_reveal_progress().clamp(0.0, 1.0)
+            * app.render_inline_widget_reveal_progress().clamp(0.0, 1.0)
     }
 }
 
@@ -5443,6 +6878,7 @@ fn single_session_line_style_supports_markdown_inline_segments(
             | SingleSessionLineStyle::AssistantHeading
             | SingleSessionLineStyle::AssistantQuote
             | SingleSessionLineStyle::AssistantLink
+            | SingleSessionLineStyle::AssistantMedia
     )
 }
 
@@ -5627,7 +7063,8 @@ pub(crate) fn rich_line_style_to_single_session_style(
             SingleSessionLineStyle::Tool
         }
         RichLineStyle::System => SingleSessionLineStyle::Status,
-        RichLineStyle::Meta | RichLineStyle::MediaPlaceholder => SingleSessionLineStyle::Meta,
+        RichLineStyle::Meta => SingleSessionLineStyle::Meta,
+        RichLineStyle::MediaPlaceholder => SingleSessionLineStyle::AssistantMedia,
     }
 }
 
@@ -6154,7 +7591,9 @@ fn single_session_line_rgba(style: SingleSessionLineStyle) -> [f32; 4] {
         SingleSessionLineStyle::AssistantHeading => ASSISTANT_HEADING_TEXT_COLOR,
         SingleSessionLineStyle::AssistantQuote => ASSISTANT_QUOTE_TEXT_COLOR,
         SingleSessionLineStyle::AssistantTable => ASSISTANT_TABLE_TEXT_COLOR,
-        SingleSessionLineStyle::AssistantLink => ASSISTANT_LINK_TEXT_COLOR,
+        SingleSessionLineStyle::AssistantLink | SingleSessionLineStyle::AssistantMedia => {
+            ASSISTANT_LINK_TEXT_COLOR
+        }
         SingleSessionLineStyle::CodeHeader => META_TEXT_COLOR,
         SingleSessionLineStyle::Code => CODE_TEXT_COLOR,
         SingleSessionLineStyle::User => USER_TEXT_COLOR,
@@ -6192,8 +7631,8 @@ pub(crate) fn single_session_text_areas_for_app_with_scroll<'a>(
     tick: u64,
     smooth_scroll_lines: f32,
 ) -> Vec<TextArea<'a>> {
-    let inline_widget_kind = app.active_inline_widget();
-    let inline_widget_lines = app.inline_widget_styled_lines();
+    let inline_widget_kind = app.render_inline_widget_kind();
+    let inline_widget_lines = app.render_inline_widget_styled_lines();
     let inline_widget_text_width = inline_widget_text_width_for_lines(
         inline_widget_kind,
         &inline_widget_lines,
@@ -6215,7 +7654,7 @@ pub(crate) fn single_session_text_areas_for_app_with_scroll<'a>(
         body_top_offset_pixels,
         single_session_body_top_for_app(app, size),
         text_bounds_bottom(single_session_body_bottom_for_app(app, size)),
-        app.inline_widget_visible_line_count(),
+        app.render_inline_widget_visible_line_count(),
         inline_widget_kind,
         inline_widget_text_width,
         single_session_draft_top_for_app(app, size),
@@ -6225,7 +7664,7 @@ pub(crate) fn single_session_text_areas_for_app_with_scroll<'a>(
         app.text_scale(),
         welcome_hero_runtime_mask_supported(&app.welcome_hero_text()),
         1.0,
-        app.inline_widget_reveal_progress(),
+        app.render_inline_widget_reveal_progress(),
     )
 }
 
@@ -6276,8 +7715,8 @@ pub(crate) fn single_session_text_areas_for_app_with_cached_body_viewport_and_re
     viewport: SingleSessionBodyViewport,
     welcome_hero_reveal_progress: f32,
 ) -> Vec<TextArea<'a>> {
-    let inline_widget_kind = app.active_inline_widget();
-    let inline_widget_lines = app.inline_widget_styled_lines();
+    let inline_widget_kind = app.render_inline_widget_kind();
+    let inline_widget_lines = app.render_inline_widget_styled_lines();
     let inline_widget_text_width = inline_widget_text_width_for_lines(
         inline_widget_kind,
         &inline_widget_lines,
@@ -6304,7 +7743,7 @@ pub(crate) fn single_session_text_areas_for_app_with_cached_body_viewport_and_re
             size,
             viewport.total_lines,
         )),
-        app.inline_widget_visible_line_count(),
+        app.render_inline_widget_visible_line_count(),
         inline_widget_kind,
         inline_widget_text_width,
         single_session_draft_top_for_total_lines(app, size, viewport.total_lines),
@@ -6314,7 +7753,7 @@ pub(crate) fn single_session_text_areas_for_app_with_cached_body_viewport_and_re
         app.text_scale(),
         welcome_hero_runtime_mask_supported(&app.welcome_hero_text()),
         welcome_hero_reveal_progress,
-        app.inline_widget_reveal_progress(),
+        app.render_inline_widget_reveal_progress(),
     )
 }
 
@@ -6702,6 +8141,44 @@ mod tests {
         panic!("missing transcript card run at line {target_line}");
     }
 
+    fn test_inline_markdown_pill_visual_for_line(
+        frame: &InlineMarkdownPillMotionFrame,
+        lines: &[SingleSessionStyledLine],
+        target_line: usize,
+        target_kind: InlineMarkdownPillKind,
+    ) -> InlineMarkdownPillVisual {
+        let mut occurrences = HashMap::new();
+        for run in single_session_inline_markdown_pill_runs(lines) {
+            let key = inline_markdown_pill_motion_key(lines, &run, &mut occurrences);
+            if run.line == target_line && run.kind == target_kind {
+                return frame
+                    .visual_for_key(key)
+                    .expect("inline markdown pill visual");
+            }
+        }
+        panic!("missing inline markdown pill run at line {target_line}");
+    }
+
+    fn test_inline_widget_reflow_visual_for_text(
+        frame: &InlineWidgetListReflowMotionFrame,
+        kind: InlineWidgetKind,
+        lines: &[SingleSessionStyledLine],
+        needle: &str,
+    ) -> InlineWidgetListReflowVisual {
+        for run in inline_widget_list_row_runs(Some(kind), lines, lines.len()) {
+            let end = run.line.saturating_add(run.line_span).min(lines.len());
+            if lines[run.line..end]
+                .iter()
+                .any(|line| line.text.contains(needle))
+            {
+                return frame
+                    .visual_for_key(run.key)
+                    .expect("inline widget reflow visual");
+            }
+        }
+        panic!("missing inline widget reflow row containing {needle}");
+    }
+
     #[test]
     fn inline_widget_selection_target_detects_widget_row_shapes() {
         let model_lines = vec![
@@ -6800,6 +8277,153 @@ mod tests {
     }
 
     #[test]
+    fn inline_widget_list_reflow_motion_animates_filter_insert_shift_and_exit() {
+        let mut registry = InlineWidgetListReflowMotionRegistry::default();
+        let now = Instant::now();
+        let kind = InlineWidgetKind::SlashSuggestions;
+        let first = vec![
+            SingleSessionStyledLine::new(
+                "slash command suggestions",
+                SingleSessionLineStyle::OverlayTitle,
+            ),
+            SingleSessionStyledLine::new(
+                " /copy       copy latest",
+                SingleSessionLineStyle::Overlay,
+            ),
+            SingleSessionStyledLine::new(
+                " /model      switch model",
+                SingleSessionLineStyle::Overlay,
+            ),
+        ];
+
+        let initial = registry.frame_for_rows(Some(kind), &first, first.len(), now);
+        assert!(!initial.is_active());
+
+        let filtered = vec![
+            SingleSessionStyledLine::new(
+                "slash command suggestions",
+                SingleSessionLineStyle::OverlayTitle,
+            ),
+            SingleSessionStyledLine::new(
+                " /commands   show commands",
+                SingleSessionLineStyle::Overlay,
+            ),
+            SingleSessionStyledLine::new(
+                " /copy       copy latest",
+                SingleSessionLineStyle::Overlay,
+            ),
+            SingleSessionStyledLine::new(
+                " /model      switch model",
+                SingleSessionLineStyle::Overlay,
+            ),
+        ];
+        let reflow = registry.frame_for_rows(
+            Some(kind),
+            &filtered,
+            filtered.len(),
+            now + Duration::from_millis(4),
+        );
+        assert!(reflow.is_active());
+        let inserted =
+            test_inline_widget_reflow_visual_for_text(&reflow, kind, &filtered, "/commands");
+        assert!(inserted.opacity > 0.9);
+        assert!(inserted.y_offset_lines > 0.4);
+        let shifted = test_inline_widget_reflow_visual_for_text(&reflow, kind, &filtered, "/copy");
+        assert!(shifted.opacity > 0.8);
+        assert!(shifted.y_offset_lines < -0.9);
+
+        let settled = registry.frame_for_rows(
+            Some(kind),
+            &filtered,
+            filtered.len(),
+            now + Duration::from_millis(4) + INLINE_WIDGET_LIST_REFLOW_SHIFT_DURATION * 2,
+        );
+        assert!(!settled.is_active());
+
+        let removed = vec![
+            SingleSessionStyledLine::new(
+                "slash command suggestions",
+                SingleSessionLineStyle::OverlayTitle,
+            ),
+            SingleSessionStyledLine::new(
+                " /copy       copy latest",
+                SingleSessionLineStyle::Overlay,
+            ),
+        ];
+        let exit = registry.frame_for_rows(
+            Some(kind),
+            &removed,
+            removed.len(),
+            now + Duration::from_millis(4)
+                + INLINE_WIDGET_LIST_REFLOW_SHIFT_DURATION * 2
+                + Duration::from_millis(4),
+        );
+        assert!(exit.is_active());
+        assert_eq!(exit.exiting().len(), 2);
+        assert!(
+            exit.exiting()
+                .iter()
+                .all(|(_, visual)| visual.opacity > 0.9)
+        );
+    }
+
+    #[test]
+    fn composer_motion_animates_height_placeholder_focus_and_submit_affordance() {
+        let mut registry = ComposerMotionRegistry::default();
+        let now = Instant::now();
+        let empty = ComposerMotionTarget::default();
+
+        let initial = registry.frame_for_target(empty, now);
+        assert!(!initial.is_active());
+        assert_eq!(initial.visual().height_lines, 1.0);
+        assert_eq!(initial.visual().placeholder_opacity, 1.0);
+        assert_eq!(initial.visual().submit_opacity, 0.0);
+
+        let typed = ComposerMotionTarget {
+            line_count: 3,
+            empty: false,
+            blocked: false,
+            processing: false,
+            ready_to_submit: true,
+        };
+        let entry_start_time = now + Duration::from_millis(5);
+        let entry_start = registry.frame_for_target(typed, entry_start_time);
+        assert!(entry_start.is_active());
+        assert_eq!(entry_start.visual().height_lines, 1.0);
+        let entry_mid =
+            registry.frame_for_target(typed, entry_start_time + COMPOSER_MOTION_DURATION / 2);
+        assert!(entry_mid.is_active());
+        assert!(entry_mid.visual().height_lines > 1.0);
+        assert!(entry_mid.visual().height_lines < 3.0);
+        assert!(entry_mid.visual().placeholder_opacity < 1.0);
+        assert!(entry_mid.visual().submit_opacity > 0.0);
+        assert!(entry_mid.visual().submit_opacity < 1.0);
+        assert!(entry_mid.visual().submit_scale > 0.82);
+        assert!(entry_mid.visual().submit_scale < 1.0);
+
+        let settled = registry.frame_for_target(typed, now + COMPOSER_MOTION_DURATION * 2);
+        assert!(!settled.is_active());
+        assert_eq!(settled.visual(), ComposerMotionVisual::settled(typed));
+
+        let blocked = ComposerMotionTarget {
+            line_count: 3,
+            empty: false,
+            blocked: true,
+            processing: true,
+            ready_to_submit: true,
+        };
+        let blocked_start_time = now + COMPOSER_MOTION_DURATION * 2 + Duration::from_millis(5);
+        let blocked_start = registry.frame_for_target(blocked, blocked_start_time);
+        assert!(blocked_start.is_active());
+        let blocked_mid =
+            registry.frame_for_target(blocked, blocked_start_time + COMPOSER_MOTION_DURATION / 2);
+        assert!(blocked_mid.is_active());
+        assert!(blocked_mid.visual().focus_opacity < 1.0);
+        assert!(blocked_mid.visual().blocked_progress > 0.0);
+        assert!(blocked_mid.visual().processing_progress > 0.0);
+    }
+
+    #[test]
     fn transcript_card_motion_animates_new_card_entry() {
         let mut registry = TranscriptCardMotionRegistry::default();
         let now = Instant::now();
@@ -6867,6 +8491,128 @@ mod tests {
         let settled_visual = test_transcript_card_visual_for_line(&settled, &shifted_lines, 1);
         assert_eq!(settled_visual.y_offset_pixels, 0.0);
         assert!(!settled.is_active());
+    }
+
+    #[test]
+    fn transcript_card_motion_animates_card_exit() {
+        let mut registry = TranscriptCardMotionRegistry::default();
+        let now = Instant::now();
+        let line_height = 28.0;
+        let code = SingleSessionStyledLine::new("```rust", SingleSessionLineStyle::Code);
+
+        registry.frame(std::slice::from_ref(&code), line_height, now);
+        let exit_start = registry.frame(&[], line_height, now + Duration::from_millis(5));
+        assert!(exit_start.is_active());
+        assert_eq!(exit_start.exiting().len(), 1);
+        assert_eq!(
+            exit_start.exiting()[0].0.style,
+            SingleSessionLineStyle::Code
+        );
+        assert_eq!(exit_start.exiting()[0].1.opacity, 1.0);
+
+        let exit_middle = registry.frame(
+            &[],
+            line_height,
+            now + Duration::from_millis(5) + TRANSCRIPT_CARD_EXIT_DURATION / 2,
+        );
+        let middle_visual = exit_middle.exiting()[0].1;
+        assert!(exit_middle.is_active());
+        assert!(middle_visual.opacity > 0.0 && middle_visual.opacity < 1.0);
+        assert!(middle_visual.scale < 1.0);
+        assert!(middle_visual.y_offset_pixels < 0.0);
+
+        let settled = registry.frame(
+            &[],
+            line_height,
+            now + Duration::from_millis(5) + TRANSCRIPT_CARD_EXIT_DURATION * 2,
+        );
+        assert!(!settled.is_active());
+        assert!(settled.exiting().is_empty());
+    }
+
+    #[test]
+    fn inline_markdown_pill_motion_animates_entry_shift_and_exit() {
+        let mut registry = InlineMarkdownPillMotionRegistry::default();
+        let now = Instant::now();
+        let line_height = 24.0;
+        let first = SingleSessionStyledLine::with_inline_spans(
+            "Use cargo",
+            SingleSessionLineStyle::Assistant,
+            vec![SingleSessionInlineSpan {
+                start: 4,
+                end: 9,
+                kind: SingleSessionInlineSpanKind::Code,
+            }],
+        );
+        let spacer = SingleSessionStyledLine::new("between", SingleSessionLineStyle::Assistant);
+        let second = SingleSessionStyledLine::with_inline_spans(
+            "Run test",
+            SingleSessionLineStyle::Assistant,
+            vec![SingleSessionInlineSpan {
+                start: 4,
+                end: 8,
+                kind: SingleSessionInlineSpanKind::Code,
+            }],
+        );
+
+        let initial = registry.frame(std::slice::from_ref(&first), line_height, now);
+        let initial_visual = test_inline_markdown_pill_visual_for_line(
+            &initial,
+            std::slice::from_ref(&first),
+            0,
+            InlineMarkdownPillKind::Code,
+        );
+        assert_eq!(initial_visual, InlineMarkdownPillVisual::default());
+        assert!(!initial.is_active());
+
+        let lines = vec![first.clone(), spacer.clone(), second];
+        let entry = registry.frame(&lines, line_height, now + Duration::from_millis(5));
+        let entry_visual = test_inline_markdown_pill_visual_for_line(
+            &entry,
+            &lines,
+            2,
+            InlineMarkdownPillKind::Code,
+        );
+        assert!(entry.is_active());
+        assert_eq!(entry_visual.opacity, 0.0);
+        assert!(entry_visual.y_offset_pixels > 0.0);
+        assert!(entry_visual.scale < 1.0);
+
+        let shifted_lines = vec![spacer, first.clone()];
+        let shift = registry.frame(&shifted_lines, line_height, now + Duration::from_millis(10));
+        let shift_visual = test_inline_markdown_pill_visual_for_line(
+            &shift,
+            &shifted_lines,
+            1,
+            InlineMarkdownPillKind::Code,
+        );
+        assert!(shift.is_active());
+        assert!(shift_visual.y_offset_pixels < -line_height * 0.9);
+
+        let shift_settled = registry.frame(
+            &shifted_lines,
+            line_height,
+            now + Duration::from_millis(10) + INLINE_MARKDOWN_PILL_SHIFT_DURATION * 2,
+        );
+        assert!(!shift_settled.is_active());
+
+        let exit_at = now
+            + Duration::from_millis(10)
+            + INLINE_MARKDOWN_PILL_SHIFT_DURATION * 2
+            + Duration::from_millis(5);
+        let exit_start = registry.frame(&[], line_height, exit_at);
+        assert!(exit_start.is_active());
+        assert_eq!(exit_start.exiting().len(), 1);
+        assert_eq!(exit_start.exiting()[0].0.kind, InlineMarkdownPillKind::Code);
+        assert_eq!(exit_start.exiting()[0].1.opacity, 1.0);
+
+        let settled = registry.frame(
+            &[],
+            line_height,
+            exit_at + INLINE_MARKDOWN_PILL_EXIT_DURATION * 2,
+        );
+        assert!(!settled.is_active());
+        assert!(settled.exiting().is_empty());
     }
 
     #[test]
