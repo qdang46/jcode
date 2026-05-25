@@ -2082,6 +2082,7 @@ pub(super) fn handle_mission_command(app: &mut App, trimmed: &str) -> bool {
     let args = rest.trim();
     let session_id = active_session_id(app);
 
+    let mut dispatch_prompt: Option<String> = None;
     let result = match args {
         "" | "status" => match crate::mission::load(&session_id) {
             Ok(Some(mission)) => Ok(crate::mission::render_status(&mission)),
@@ -2093,11 +2094,17 @@ pub(super) fn handle_mission_command(app: &mut App, trimmed: &str) -> bool {
             crate::mission::MissionStatus::Paused,
             "Mission paused.",
         ),
-        "resume" => mission_status_message(
-            &session_id,
-            crate::mission::MissionStatus::Active,
-            "Mission resumed. Continue updating todos, expanding adjacent work, and validating progress.",
-        ),
+        "resume" => {
+            match crate::mission::update_status(&session_id, crate::mission::MissionStatus::Active)
+            {
+                Ok(Some(mission)) => {
+                    dispatch_prompt = Some(build_mission_dispatch_prompt(&mission, false));
+                    Ok("Mission resumed. Starting continuation now.".to_string())
+                }
+                Ok(None) => Ok("No active mission. Usage: `/mission <objective>`".to_string()),
+                Err(e) => Err(e),
+            }
+        }
         "complete" => mission_status_message(
             &session_id,
             crate::mission::MissionStatus::Complete,
@@ -2130,8 +2137,9 @@ pub(super) fn handle_mission_command(app: &mut App, trimmed: &str) -> bool {
             )
         }
         _ => crate::mission::set(&session_id, args).map(|mission| {
+            dispatch_prompt = Some(build_mission_dispatch_prompt(&mission, true));
             format!(
-                "Mission set: **{}**\n\n{}",
+                "Mission set: **{}**\n\n{}\n\nStarting mission now.",
                 mission.objective, mission.long_horizon_intent
             )
         }),
@@ -2140,11 +2148,32 @@ pub(super) fn handle_mission_command(app: &mut App, trimmed: &str) -> bool {
     match result {
         Ok(message) => {
             app.push_display_message(DisplayMessage::system(message));
+            if let Some(prompt) = dispatch_prompt {
+                queue_mission_dispatch(app, prompt);
+            }
             app.set_status_notice("Mission");
         }
         Err(e) => app.push_display_message(DisplayMessage::error(format!("Mission error: {}", e))),
     }
     true
+}
+
+fn build_mission_dispatch_prompt(mission: &crate::mission::Mission, is_new: bool) -> String {
+    let action = if is_new { "Start" } else { "Continue" };
+    format!(
+        "{action} the active mission now.\n\nObjective: {}\n\nLong-horizon intent: {}\n\nOperate autonomously: create or refresh todos, expand semantically adjacent work, validate progress, and continue until complete, blocked, unsafe, paused, budget-limited, or a user decision is required. Before reporting completion, run maximum reasonable verification and provide evidence plus remaining gaps.",
+        mission.objective, mission.long_horizon_intent
+    )
+}
+
+fn queue_mission_dispatch(app: &mut App, prompt: String) {
+    app.queued_messages.push(prompt);
+    if app.is_processing {
+        app.set_status_notice("Queued mission");
+    } else {
+        app.pending_queued_dispatch = true;
+        app.set_status_notice("Starting mission");
+    }
 }
 
 pub(super) fn handle_test_command(app: &mut App, trimmed: &str) -> bool {
