@@ -4,6 +4,8 @@ mod desktop_benchmark;
 mod desktop_config;
 mod desktop_gallery;
 mod desktop_ipc;
+mod desktop_issue_browser;
+mod desktop_issue_cache;
 mod desktop_log;
 mod desktop_prefs;
 mod desktop_protocol;
@@ -38,6 +40,11 @@ use desktop_app_driver::{
 use desktop_benchmark::*;
 use desktop_config::*;
 use desktop_ipc::{DesktopHostToWorkerEnvelope, write_desktop_ipc_frame};
+#[cfg(test)]
+pub(crate) use desktop_issue_browser::IssueBrowserLayoutMode;
+use desktop_issue_browser::{
+    IssueBrowserLayout, compose_single_session_issue_browser_vertices, issue_browser_layout,
+};
 use desktop_protocol::{
     DesktopHostToWorkerMessage, DesktopInputEvent, DesktopKeyEvent, DesktopKeyModifiers,
     DesktopMouseButton, DesktopMouseEvent, DesktopProtocolEnvelope, DesktopSceneUpdate,
@@ -165,7 +172,6 @@ const PRIMITIVE_VERTEX_BUFFER_MIN_CAPACITY: usize = 1024;
 const PRIMITIVE_VERTEX_BUFFER_SHRINK_RATIO: usize = 4;
 const WORKSPACE_BASE_VERTEX_CAPACITY_HINT: usize = 512;
 const WORKSPACE_SURFACE_VERTEX_CAPACITY_HINT: usize = 2048;
-
 static DESKTOP_ASYNC_JOB_COUNT: AtomicUsize = AtomicUsize::new(0);
 
 struct DesktopAsyncJobPermit<'a> {
@@ -795,6 +801,7 @@ async fn run() -> Result<()> {
     let mut pending_resize: Option<PhysicalSize<u32>> = None;
     let mut space_hold_started_at: Option<Instant> = None;
     let mut space_hold_consumed = false;
+    let mut github_issue_sync_running = false;
     let mut desktop_clipboard = DesktopClipboard::default();
 
     if pending_workspace_startup_load {
@@ -1528,6 +1535,14 @@ async fn run() -> Result<()> {
                         }
                         KeyOutcome::None => {}
                     }
+                    if start_pending_github_issue_sync(
+                        &mut app,
+                        &mut github_issue_sync_running,
+                        event_loop_proxy.clone(),
+                    ) {
+                        window.set_title(&app.status_title());
+                        window.request_redraw();
+                    }
                     log_desktop_slow_interaction(
                         "keyboard_input",
                         keyboard_started.elapsed(),
@@ -1739,6 +1754,13 @@ async fn run() -> Result<()> {
                 }
                 window.set_title(&app.status_title());
                 interaction_latency.mark("restore_crashed_sessions", Instant::now());
+                window.request_redraw();
+            }
+            Event::UserEvent(DesktopUserEvent::GitHubIssuesSyncFinished(result)) => {
+                github_issue_sync_running = false;
+                app.apply_github_issue_sync_result(result);
+                window.set_title(&app.status_title());
+                interaction_latency.mark("github_issue_sync", Instant::now());
                 window.request_redraw();
             }
             Event::UserEvent(DesktopUserEvent::SessionEvents(batch)) => {
@@ -2043,6 +2065,59 @@ fn spawn_restore_crashed_sessions(event_loop_proxy: EventLoopProxy<DesktopUserEv
         desktop_log::error(format_args!(
             "jcode-desktop: failed to start crashed-session restore: {error:#}"
         ));
+    }
+}
+
+fn spawn_github_issue_sync(event_loop_proxy: EventLoopProxy<DesktopUserEvent>) -> Result<()> {
+    spawn_bounded_desktop_async_job("jcode-desktop-github-issues-sync", move || {
+        let result = desktop_issue_cache::sync_current_repo_issue_cache()
+            .map_err(|error| format!("{error:#}"));
+        match &result {
+            Ok(summary) => desktop_log::info(format_args!(
+                "jcode-desktop: synced {} GitHub issue(s) for {} in {}ms to {} (comment_threads={} comment_errors={})",
+                summary.issue_count,
+                summary.repo,
+                summary.elapsed.as_millis(),
+                summary.cache_path.display(),
+                summary.fetched_comment_threads,
+                summary.comment_fetch_errors
+            )),
+            Err(error) => desktop_log::warn(format_args!(
+                "jcode-desktop: GitHub issue sync failed: {error}"
+            )),
+        }
+        if event_loop_proxy
+            .send_event(DesktopUserEvent::GitHubIssuesSyncFinished(result))
+            .is_err()
+        {
+            desktop_log::warn(format_args!(
+                "jcode-desktop: failed to deliver GitHub issue sync result"
+            ));
+        }
+    })
+}
+
+fn start_pending_github_issue_sync(
+    app: &mut DesktopApp,
+    sync_running: &mut bool,
+    event_loop_proxy: EventLoopProxy<DesktopUserEvent>,
+) -> bool {
+    if !app.take_github_issue_sync_request() {
+        return false;
+    }
+    if *sync_running {
+        app.note_github_issue_sync_already_running();
+        return true;
+    }
+    match spawn_github_issue_sync(event_loop_proxy) {
+        Ok(()) => {
+            *sync_running = true;
+            true
+        }
+        Err(error) => {
+            app.apply_github_issue_sync_result(Err(format!("{error:#}")));
+            true
+        }
     }
 }
 
@@ -2530,6 +2605,9 @@ enum DesktopUserEvent {
         errors: Vec<String>,
         elapsed: Duration,
     },
+    GitHubIssuesSyncFinished(
+        std::result::Result<desktop_issue_cache::GitHubIssueSyncSummary, String>,
+    ),
     RecoveryCount(usize),
 }
 
@@ -6210,6 +6288,28 @@ impl DesktopApp {
         }
     }
 
+    fn take_github_issue_sync_request(&mut self) -> bool {
+        match self {
+            Self::SingleSession(app) => app.take_github_issue_sync_request(),
+            Self::Workspace(_) => false,
+        }
+    }
+
+    fn note_github_issue_sync_already_running(&mut self) {
+        if let Self::SingleSession(app) = self {
+            app.note_github_issue_sync_already_running();
+        }
+    }
+
+    fn apply_github_issue_sync_result(
+        &mut self,
+        result: std::result::Result<desktop_issue_cache::GitHubIssueSyncSummary, String>,
+    ) {
+        if let Self::SingleSession(app) = self {
+            app.apply_github_issue_sync_result(result);
+        }
+    }
+
     fn preview_single_session_reasoning_effort_cycle(
         &mut self,
         direction: i8,
@@ -8778,6 +8878,7 @@ impl Canvas {
     fn refresh_cached_single_session_text_buffers(
         &mut self,
         app: &SingleSessionApp,
+        render_size: PhysicalSize<u32>,
         now: Instant,
         smooth_scroll_lines: f32,
         rendered_body_key: u64,
@@ -8786,15 +8887,15 @@ impl Canvas {
         let tick = desktop_spinner_tick(now);
         let viewport = single_session_body_viewport_from_lines(
             app,
-            self.size,
+            render_size,
             smooth_scroll_lines,
             &self.single_session_body_lines,
         );
         let text_cache_key =
-            single_session_text_buffer_cache_key(app, self.size, tick, rendered_body_key);
+            single_session_text_buffer_cache_key(app, render_size, tick, rendered_body_key);
         let key = single_session_text_key_for_tick_with_rendered_body(
             app,
-            self.size,
+            render_size,
             tick,
             smooth_scroll_lines,
             &self.single_session_body_lines,
@@ -8831,7 +8932,7 @@ impl Canvas {
             let body_layout_compatible = previous_key.as_ref().is_some_and(|previous| {
                 single_session_body_text_buffer_layout_compatible(
                     previous.size,
-                    self.size,
+                    render_size,
                     app.text_scale(),
                 )
             });
@@ -8848,7 +8949,7 @@ impl Canvas {
                 old_buffers[1] = single_session_body_text_buffer_from_lines(
                     font_system,
                     &self.single_session_body_lines[window_start..window_end],
-                    self.size,
+                    render_size,
                     app.text_scale(),
                 );
                 self.single_session_body_text_window_start = Some(window_start);
@@ -8862,7 +8963,7 @@ impl Canvas {
                     previous_key.as_ref(),
                     old_buffers,
                     can_reuse_body_buffer,
-                    self.size,
+                    render_size,
                     font_system,
                 );
             self.single_session_text_key = Some(key);
@@ -8874,12 +8975,13 @@ impl Canvas {
             }
             self.text_needs_prepare = true;
         }
-        self.sync_single_session_body_text_window(app, &viewport);
+        self.sync_single_session_body_text_window(app, render_size, &viewport);
     }
 
     fn sync_single_session_body_text_window(
         &mut self,
         app: &SingleSessionApp,
+        render_size: PhysicalSize<u32>,
         viewport: &SingleSessionBodyViewport,
     ) {
         let desired_body_window = self.single_session_body_buffer_window_bounds(app, viewport);
@@ -8893,7 +8995,7 @@ impl Canvas {
             viewport,
         ) {
             self.sync_single_session_body_text_scroll(viewport.start_line, window_start);
-            self.sync_single_session_streaming_text_buffer(app, viewport);
+            self.sync_single_session_streaming_text_buffer(app, render_size, viewport);
             return;
         }
 
@@ -8905,7 +9007,7 @@ impl Canvas {
             *body_buffer = single_session_body_text_buffer_from_lines(
                 font_system,
                 &window_lines,
-                self.size,
+                render_size,
                 app.text_scale(),
             );
             self.single_session_body_text_window_start = Some(window_start);
@@ -8913,7 +9015,7 @@ impl Canvas {
             self.single_session_body_text_scroll_start = None;
             self.sync_single_session_body_text_scroll(viewport.start_line, window_start);
         }
-        self.sync_single_session_streaming_text_buffer(app, viewport);
+        self.sync_single_session_streaming_text_buffer(app, render_size, viewport);
     }
 
     fn single_session_body_buffer_window_bounds(
@@ -8959,6 +9061,7 @@ impl Canvas {
     fn sync_single_session_streaming_text_buffer(
         &mut self,
         app: &SingleSessionApp,
+        render_size: PhysicalSize<u32>,
         viewport: &SingleSessionBodyViewport,
     ) {
         self.update_single_session_streaming_fade(app);
@@ -8983,7 +9086,7 @@ impl Canvas {
         };
 
         let mut hasher = DefaultHasher::new();
-        (self.size.width, self.size.height).hash(&mut hasher);
+        (render_size.width, render_size.height).hash(&mut hasher);
         app.text_scale().to_bits().hash(&mut hasher);
         start_line.hash(&mut hasher);
         end_line.hash(&mut hasher);
@@ -8999,7 +9102,7 @@ impl Canvas {
                 Some(single_session_body_text_buffer_from_lines_with_opacity(
                     font_system,
                     &lines,
-                    self.size,
+                    render_size,
                     app.text_scale(),
                     1.0,
                 ));
@@ -9078,6 +9181,7 @@ impl Canvas {
     fn update_single_session_streaming_text_buffer_opacity(
         &mut self,
         app: &SingleSessionApp,
+        render_size: PhysicalSize<u32>,
         opacity: f32,
     ) {
         let opacity = opacity.clamp(0.0, 1.0);
@@ -9102,7 +9206,7 @@ impl Canvas {
             Some(single_session_body_text_buffer_from_lines_with_opacity(
                 font_system,
                 &lines,
-                self.size,
+                render_size,
                 app.text_scale(),
                 quantized_opacity,
             ));
@@ -9270,9 +9374,10 @@ impl Canvas {
     fn cached_single_session_body_lines(
         &mut self,
         app: &SingleSessionApp,
+        render_size: PhysicalSize<u32>,
         tick: u64,
     ) -> (u64, bool) {
-        let body_layout_size = single_session_body_layout_cache_size(app, self.size);
+        let body_layout_size = single_session_body_layout_cache_size(app, render_size);
         let key = app.rendered_body_cache_key(body_layout_size);
         if self.single_session_body_key == Some(key) {
             return (key, false);
@@ -9284,7 +9389,7 @@ impl Canvas {
             let base_key = app.rendered_body_static_cache_key(body_layout_size);
             if self.single_session_streaming_base_key != Some(base_key) {
                 if let Some(base_lines) =
-                    single_session_rendered_static_body_lines_for_streaming(app, self.size, tick)
+                    single_session_rendered_static_body_lines_for_streaming(app, render_size, tick)
                 {
                     self.single_session_body_lines = base_lines;
                     self.single_session_streaming_base_len = self.single_session_body_lines.len();
@@ -9294,7 +9399,7 @@ impl Canvas {
                     self.single_session_body_text_window_end = None;
                 } else {
                     self.single_session_body_lines =
-                        single_session_rendered_body_lines_for_tick(app, self.size, tick);
+                        single_session_rendered_body_lines_for_tick(app, render_size, tick);
                     self.single_session_streaming_base_key = None;
                     self.single_session_streaming_base_len = 0;
                     self.single_session_body_key = Some(key);
@@ -9309,7 +9414,7 @@ impl Canvas {
             }
             append_single_session_streaming_response_rendered_body_lines(
                 app,
-                self.size,
+                render_size,
                 &mut self.single_session_body_lines,
             );
         } else {
@@ -9320,7 +9425,7 @@ impl Canvas {
             }
             self.single_session_body_lines = single_session_rendered_body_lines_from_raw_ref(
                 app,
-                self.size,
+                render_size,
                 &self.single_session_raw_body_lines,
             );
             self.single_session_streaming_base_key = None;
@@ -9608,6 +9713,14 @@ impl Canvas {
             (None, None, None, None)
         };
 
+        let single_session_issue_layout_for_frame =
+            if let DesktopApp::SingleSession(single_session) = app {
+                issue_browser_layout(single_session, self.size)
+            } else {
+                IssueBrowserLayout::hidden(self.size)
+            };
+        let single_session_render_size = single_session_issue_layout_for_frame.chat_size();
+
         let mut single_session_rendered_body_key = None;
         let mut workspace_text_panes = Vec::new();
         let mut body_line_count = 0usize;
@@ -9631,8 +9744,11 @@ impl Canvas {
             self.single_session_body_text_window_start = None;
             self.single_session_body_text_window_end = None;
         } else if let DesktopApp::SingleSession(single_session) = app {
-            let (rendered_body_key, rendered_body_changed) =
-                self.cached_single_session_body_lines(single_session, spinner_tick);
+            let (rendered_body_key, rendered_body_changed) = self.cached_single_session_body_lines(
+                single_session,
+                single_session_render_size,
+                spinner_tick,
+            );
             single_session_rendered_body_key = Some(rendered_body_key);
             body_line_count = self.single_session_body_lines.len();
             inline_widget_line_count = single_session.render_inline_widget_visible_line_count();
@@ -9641,6 +9757,7 @@ impl Canvas {
             frame_profile.checkpoint("font_system");
             self.refresh_cached_single_session_text_buffers(
                 single_session,
+                single_session_render_size,
                 now,
                 smooth_scroll_lines,
                 rendered_body_key,
@@ -9694,6 +9811,7 @@ impl Canvas {
         if let DesktopApp::SingleSession(single_session) = app {
             self.update_single_session_streaming_text_buffer_opacity(
                 single_session,
+                single_session_render_size,
                 streaming_text_arrival_style.opacity,
             );
         }
@@ -9711,7 +9829,7 @@ impl Canvas {
         let single_session_viewport = if let DesktopApp::SingleSession(single_session) = app {
             let viewport = single_session_body_viewport_from_lines(
                 single_session,
-                self.size,
+                single_session_render_size,
                 smooth_scroll_lines,
                 &self.single_session_body_lines,
             );
@@ -9733,7 +9851,8 @@ impl Canvas {
         let welcome_hero_uses_runtime_mask = matches!(
             app,
             DesktopApp::SingleSession(single_session)
-                if welcome_hero_runtime_mask_supported(&single_session.welcome_hero_text())
+                if !single_session_issue_layout_for_frame.visible()
+                    && welcome_hero_runtime_mask_supported(&single_session.welcome_hero_text())
         );
         if welcome_hero_reveal_active && !welcome_hero_uses_runtime_mask {
             self.text_needs_prepare = true;
@@ -9741,14 +9860,31 @@ impl Canvas {
         if self.text_needs_prepare {
             let text_areas = if let DesktopApp::SingleSession(single_session) = app {
                 if let Some(viewport) = single_session_viewport.clone() {
-                    single_session_text_areas_for_app_with_cached_body_viewport_and_reveal(
-                        single_session,
-                        text_buffers,
-                        self.size,
-                        smooth_scroll_lines,
-                        viewport,
-                        welcome_hero_reveal_progress,
-                    )
+                    let areas =
+                        single_session_text_areas_for_app_with_cached_body_viewport_and_reveal(
+                            single_session,
+                            text_buffers,
+                            single_session_render_size,
+                            smooth_scroll_lines,
+                            viewport,
+                            welcome_hero_reveal_progress,
+                        );
+                    if single_session_issue_layout_for_frame.visible() {
+                        areas
+                            .into_iter()
+                            .filter_map(|area| {
+                                let area = offset_workspace_text_area(
+                                    area,
+                                    single_session_issue_layout_for_frame.chat,
+                                );
+                                (area.bounds.right > area.bounds.left
+                                    && area.bounds.bottom > area.bounds.top)
+                                    .then_some(area)
+                            })
+                            .collect()
+                    } else {
+                        areas
+                    }
                 } else {
                     desktop_log::error(format_args!(
                         "jcode-desktop: missing single-session viewport while preparing text"
@@ -9758,7 +9894,7 @@ impl Canvas {
             } else if !workspace_text_panes.is_empty() {
                 workspace_single_session_text_areas(&workspace_text_panes)
             } else {
-                single_session_text_areas(text_buffers, self.size)
+                single_session_text_areas(text_buffers, single_session_render_size)
             };
             text_area_count = text_areas.len();
             frame_profile.checkpoint("text_areas");
@@ -9820,15 +9956,27 @@ impl Canvas {
                 self.single_session_streaming_text_buffer.as_ref(),
                 self.single_session_streaming_text_start_line,
             ) {
-                vec![single_session_streaming_text_area_for_cached_body_viewport(
+                let area = single_session_streaming_text_area_for_cached_body_viewport(
                     single_session,
                     buffer,
-                    self.size,
+                    single_session_render_size,
                     viewport,
                     start_line,
                     streaming_text_arrival_style.opacity,
                     streaming_text_arrival_style.y_offset_pixels,
-                )]
+                );
+                if single_session_issue_layout_for_frame.visible() {
+                    let area = offset_workspace_text_area(
+                        area,
+                        single_session_issue_layout_for_frame.chat,
+                    );
+                    (area.bounds.right > area.bounds.left && area.bounds.bottom > area.bounds.top)
+                        .then_some(area)
+                        .into_iter()
+                        .collect()
+                } else {
+                    vec![area]
+                }
             } else {
                 Vec::new()
             };
@@ -9930,7 +10078,7 @@ impl Canvas {
                     .frame(tool_motion_lines, now, spinner_tick);
                 let scrollbar_motion = self.single_session_scrollbar_motion.frame(
                     single_session,
-                    self.size,
+                    single_session_render_size,
                     self.single_session_body_lines.len(),
                     smooth_scroll_lines,
                     now,
@@ -9953,28 +10101,32 @@ impl Canvas {
                     || scroll_motion_frame.active
                     || welcome_hero_reveal_active
                     || streaming_text_arrival_style.active;
-                let geometry_cache_key = single_session_streaming_primitive_geometry_cache_key(
-                    single_session,
-                    self.size,
-                    focus_pulse,
-                    spinner_tick,
-                    smooth_scroll_lines,
-                    welcome_hero_reveal_progress,
-                    tool_motion.cache_key(),
-                    inline_list_reflow_motion.cache_key(),
-                    inline_preview_pane_motion.cache_key(),
-                    composer_motion.cache_key(),
-                    attachment_chip_motion.cache_key(),
-                    stdin_overlay_motion.cache_key(),
-                    transcript_message_motion.cache_key(),
-                    transcript_motion.cache_key(),
-                    inline_markdown_motion.cache_key(),
-                    activity_cue_motion.cache_key(),
-                    scrollbar_motion.cache_key(),
-                    single_session_rendered_body_key,
-                    self.single_session_body_lines.len(),
-                );
-                let vertices = if let Some(cache_key) = geometry_cache_key {
+                let geometry_cache_key = if single_session_issue_layout_for_frame.visible() {
+                    None
+                } else {
+                    single_session_streaming_primitive_geometry_cache_key(
+                        single_session,
+                        single_session_render_size,
+                        focus_pulse,
+                        spinner_tick,
+                        smooth_scroll_lines,
+                        welcome_hero_reveal_progress,
+                        tool_motion.cache_key(),
+                        inline_list_reflow_motion.cache_key(),
+                        inline_preview_pane_motion.cache_key(),
+                        composer_motion.cache_key(),
+                        attachment_chip_motion.cache_key(),
+                        stdin_overlay_motion.cache_key(),
+                        transcript_message_motion.cache_key(),
+                        transcript_motion.cache_key(),
+                        inline_markdown_motion.cache_key(),
+                        activity_cue_motion.cache_key(),
+                        scrollbar_motion.cache_key(),
+                        single_session_rendered_body_key,
+                        self.single_session_body_lines.len(),
+                    )
+                };
+                let child_vertices = if let Some(cache_key) = geometry_cache_key {
                     if self.primitive_vertices_cache_key == Some(cache_key) {
                         primitive_geometry_cache_hit = true;
                         Cow::Borrowed(self.primitive_vertices_cache.as_slice())
@@ -9982,7 +10134,7 @@ impl Canvas {
                         let vertices =
                             build_single_session_vertices_with_cached_body_and_tool_motion(
                                 single_session,
-                                self.size,
+                                single_session_render_size,
                                 focus_pulse,
                                 spinner_tick,
                                 smooth_scroll_lines,
@@ -10010,7 +10162,7 @@ impl Canvas {
                     Cow::Owned(
                         build_single_session_vertices_with_cached_body_and_tool_motion(
                             single_session,
-                            self.size,
+                            single_session_render_size,
                             focus_pulse,
                             spinner_tick,
                             smooth_scroll_lines,
@@ -10030,6 +10182,17 @@ impl Canvas {
                             Some(&scrollbar_motion),
                         ),
                     )
+                };
+                let vertices = if single_session_issue_layout_for_frame.visible() {
+                    Cow::Owned(compose_single_session_issue_browser_vertices(
+                        single_session,
+                        single_session_issue_layout_for_frame,
+                        child_vertices.as_ref(),
+                        single_session_render_size,
+                        self.size,
+                    ))
+                } else {
+                    child_vertices
                 };
                 frame_profile.checkpoint("vertices_geometry");
                 (vertices, animation_active)
@@ -10093,22 +10256,27 @@ impl Canvas {
         if let DesktopApp::SingleSession(single_session) = app
             && single_session_caret_visible_for_frame(single_session, spinner_tick)
         {
-            if let Cow::Borrowed(base_vertices) = vertices {
-                self.primitive_frame_vertices.clear();
-                self.primitive_frame_vertices
-                    .extend_from_slice(base_vertices);
+            if single_session_issue_layout_for_frame.visible() {
+                let mut caret_vertices = Vec::new();
                 push_single_session_caret(
-                    &mut self.primitive_frame_vertices,
+                    &mut caret_vertices,
                     single_session,
-                    self.size,
+                    single_session_render_size,
                     text_buffers.get(2),
                 );
-                vertices = Cow::Borrowed(self.primitive_frame_vertices.as_slice());
+                append_child_vertices_to_parent_with_opacity(
+                    vertices.to_mut(),
+                    &caret_vertices,
+                    single_session_render_size,
+                    single_session_issue_layout_for_frame.chat,
+                    self.size,
+                    1.0,
+                );
             } else {
                 push_single_session_caret(
                     vertices.to_mut(),
                     single_session,
-                    self.size,
+                    single_session_render_size,
                     text_buffers.get(2),
                 );
             }
@@ -10447,7 +10615,7 @@ impl Vertex {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 struct Rect {
     x: f32,
     y: f32,

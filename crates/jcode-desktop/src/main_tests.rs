@@ -2778,6 +2778,274 @@ fn single_session_slash_help_opens_help_without_sending_prompt() {
 }
 
 #[test]
+fn single_session_issues_slash_toggles_local_issue_browser() {
+    let mut app = SingleSessionApp::new(None);
+    app.handle_key(KeyInput::Character("/issues".to_string()));
+
+    assert_eq!(app.handle_key(KeyInput::SubmitDraft), KeyOutcome::Redraw);
+    assert!(app.issue_browser_visible());
+    assert_eq!(app.side_panel().focus, DesktopSidePanelFocus::IssueList);
+    assert!(app.draft.is_empty());
+    assert!(app.messages.is_empty());
+    assert_eq!(app.side_panel().github_issues.repo, "1jehuang/jcode");
+    assert_eq!(
+        app.side_panel()
+            .github_issues
+            .selected_issue()
+            .unwrap()
+            .number,
+        342
+    );
+
+    app.handle_key(KeyInput::Character("/issues preview".to_string()));
+    assert_eq!(app.handle_key(KeyInput::SubmitDraft), KeyOutcome::Redraw);
+    assert_eq!(app.side_panel().focus, DesktopSidePanelFocus::IssuePreview);
+
+    app.handle_key(KeyInput::Character("/issues off".to_string()));
+    assert_eq!(app.handle_key(KeyInput::SubmitDraft), KeyOutcome::Redraw);
+    assert!(!app.issue_browser_visible());
+    assert_eq!(app.side_panel().focus, DesktopSidePanelFocus::Chat);
+}
+
+#[test]
+fn single_session_issue_browser_navigates_focus_list_and_preview() {
+    let mut app = SingleSessionApp::new(None);
+    app.handle_key(KeyInput::Character("/issues".to_string()));
+    assert_eq!(app.handle_key(KeyInput::SubmitDraft), KeyOutcome::Redraw);
+
+    assert_eq!(app.side_panel().focus, DesktopSidePanelFocus::IssueList);
+    assert_eq!(
+        app.handle_key(KeyInput::Character("j".to_string())),
+        KeyOutcome::Redraw
+    );
+    assert_eq!(app.side_panel().github_issues.selected, 1);
+    assert_eq!(
+        app.side_panel()
+            .github_issues
+            .selected_issue()
+            .unwrap()
+            .number,
+        337
+    );
+
+    assert_eq!(app.handle_key(KeyInput::Autocomplete), KeyOutcome::Redraw);
+    assert_eq!(app.side_panel().focus, DesktopSidePanelFocus::IssuePreview);
+    assert_eq!(
+        app.handle_key(KeyInput::Character("j".to_string())),
+        KeyOutcome::Redraw
+    );
+    assert_eq!(app.side_panel().github_issues.preview_scroll, 1);
+
+    assert_eq!(app.handle_key(KeyInput::Autocomplete), KeyOutcome::Redraw);
+    assert_eq!(app.side_panel().focus, DesktopSidePanelFocus::Chat);
+    assert_eq!(
+        app.handle_key(KeyInput::Character("hello".to_string())),
+        KeyOutcome::Redraw
+    );
+    assert_eq!(app.draft, "hello");
+}
+
+#[test]
+fn single_session_issue_browser_investigate_injects_context() {
+    let mut app = SingleSessionApp::new(None);
+    app.handle_key(KeyInput::Character("/issues".to_string()));
+    assert_eq!(app.handle_key(KeyInput::SubmitDraft), KeyOutcome::Redraw);
+    app.handle_key(KeyInput::Character("j".to_string()));
+
+    let outcome = app.handle_key(KeyInput::SubmitDraft);
+    let KeyOutcome::StartFreshSession { message, images } = outcome else {
+        panic!("expected issue investigation to start a fresh session, got {outcome:?}");
+    };
+    assert!(images.is_empty());
+    assert!(message.contains("GitHub issue mission"));
+    assert!(message.contains("Repository: 1jehuang/jcode"));
+    assert!(message.contains("Issue: #337"));
+    assert!(message.contains("Mission objective: investigate"));
+    assert!(message.contains("Operating instructions:"));
+    assert_eq!(app.side_panel().focus, DesktopSidePanelFocus::Chat);
+    assert_eq!(
+        app.side_panel()
+            .github_issues
+            .selected_issue()
+            .unwrap()
+            .state,
+        GitHubIssueVisualState::Active
+    );
+    assert!(app.is_processing);
+    assert!(app.draft.is_empty());
+    assert_eq!(app.messages.len(), 1);
+}
+
+#[test]
+fn single_session_issue_browser_requests_and_applies_background_sync() {
+    let mut app = SingleSessionApp::new(None);
+    app.handle_key(KeyInput::Character("/issues".to_string()));
+    assert_eq!(app.handle_key(KeyInput::SubmitDraft), KeyOutcome::Redraw);
+    assert!(app.take_github_issue_sync_request());
+    assert!(!app.take_github_issue_sync_request());
+    assert!(app.side_panel().github_issue_sync.syncing);
+
+    let synced_browser = GitHubIssueBrowserState {
+        repo: "owner/repo".to_string(),
+        filter_label: "priority · open · cached now".to_string(),
+        selected: 0,
+        list_scroll: 0,
+        preview_scroll: 0,
+        issues: vec![GitHubIssuePreview {
+            number: 99,
+            priority: "P1".to_string(),
+            title: "synced desktop issue".to_string(),
+            labels: vec!["bug".to_string()],
+            age: "updated now".to_string(),
+            comments: 3,
+            state: GitHubIssueVisualState::Selected,
+            body_lines: vec!["fresh body".to_string()],
+            comment_lines: vec!["maintainer: fresh comment".to_string()],
+            priority_reason: "test sync".to_string(),
+        }],
+    };
+    app.apply_github_issue_sync_result(Ok(desktop_issue_cache::GitHubIssueSyncSummary {
+        repo: "owner/repo".to_string(),
+        issue_count: 1,
+        fetched_comment_threads: 1,
+        comment_fetch_errors: 0,
+        cache_path: PathBuf::from("owner_repo.json"),
+        elapsed: Duration::from_millis(12),
+        browser: synced_browser,
+    }));
+
+    assert!(!app.side_panel().github_issue_sync.syncing);
+    assert_eq!(app.side_panel().github_issues.repo, "owner/repo");
+    assert_eq!(
+        app.side_panel()
+            .github_issues
+            .selected_issue()
+            .unwrap()
+            .number,
+        99
+    );
+    assert!(
+        app.status
+            .as_deref()
+            .unwrap()
+            .contains("synced 1 GitHub issues")
+    );
+    assert!(
+        app.side_panel()
+            .github_issue_sync
+            .last_message
+            .as_deref()
+            .unwrap()
+            .contains("cache owner_repo.json")
+    );
+
+    app.handle_key(KeyInput::Character("r".to_string()));
+    assert!(app.take_github_issue_sync_request());
+}
+
+#[test]
+fn single_session_issue_browser_keeps_cached_data_when_sync_fails() {
+    let mut app = SingleSessionApp::new(None);
+    app.handle_key(KeyInput::Character("/issues".to_string()));
+    assert_eq!(app.handle_key(KeyInput::SubmitDraft), KeyOutcome::Redraw);
+    let original_repo = app.side_panel().github_issues.repo.clone();
+    let original_issue = app
+        .side_panel()
+        .github_issues
+        .selected_issue()
+        .unwrap()
+        .number;
+
+    app.apply_github_issue_sync_result(Err(
+        "gh issue list failed because authentication is missing and the message is intentionally long".to_string(),
+    ));
+
+    assert!(!app.side_panel().github_issue_sync.syncing);
+    assert_eq!(app.side_panel().github_issues.repo, original_repo);
+    assert_eq!(
+        app.side_panel()
+            .github_issues
+            .selected_issue()
+            .unwrap()
+            .number,
+        original_issue
+    );
+    assert!(app.side_panel().github_issue_sync.last_error.is_some());
+    assert_eq!(
+        app.side_panel().github_issue_sync.last_message.as_deref(),
+        Some("Run `gh auth login` or refresh GitHub CLI auth, then press r or Ctrl+R to sync.")
+    );
+    assert_eq!(
+        app.side_panel().github_issue_sync.guidance().as_deref(),
+        Some("Run `gh auth login` or refresh GitHub CLI auth, then press r or Ctrl+R to sync.")
+    );
+    assert!(
+        app.status
+            .as_deref()
+            .unwrap()
+            .contains("GitHub issue sync failed")
+    );
+}
+
+#[test]
+fn single_session_issue_browser_guides_missing_gh_sync_failure() {
+    let mut app = SingleSessionApp::new(None);
+    app.handle_key(KeyInput::Character("/issues".to_string()));
+    assert_eq!(app.handle_key(KeyInput::SubmitDraft), KeyOutcome::Redraw);
+
+    app.apply_github_issue_sync_result(Err(
+        "GitHub CLI `gh` is not installed or not on PATH".to_string()
+    ));
+
+    assert_eq!(
+        app.side_panel().github_issue_sync.last_message.as_deref(),
+        Some("Install GitHub CLI `gh`, authenticate it, then press r or Ctrl+R to sync.")
+    );
+    assert_eq!(
+        app.side_panel().github_issue_sync.guidance().as_deref(),
+        Some("Install GitHub CLI `gh`, authenticate it, then press r or Ctrl+R to sync.")
+    );
+}
+
+#[test]
+fn issue_browser_layout_uses_three_panes_when_wide() {
+    let mut app = SingleSessionApp::new(None);
+    app.handle_key(KeyInput::Character("/issues".to_string()));
+    assert_eq!(app.handle_key(KeyInput::SubmitDraft), KeyOutcome::Redraw);
+
+    let layout = issue_browser_layout(&app, PhysicalSize::new(1440, 900));
+    assert_eq!(layout.mode, IssueBrowserLayoutMode::Wide);
+    let list = layout.list.expect("wide layout should have issue list");
+    let preview = layout
+        .preview
+        .expect("wide layout should have issue preview");
+    assert!(list.x < preview.x);
+    assert!(preview.x + preview.width < layout.chat.x);
+    assert!(layout.chat.width > 360.0);
+}
+
+#[test]
+fn issue_browser_layout_collapses_for_medium_and_narrow_windows() {
+    let mut app = SingleSessionApp::new(None);
+    app.handle_key(KeyInput::Character("/issues".to_string()));
+    assert_eq!(app.handle_key(KeyInput::SubmitDraft), KeyOutcome::Redraw);
+
+    let medium = issue_browser_layout(&app, PhysicalSize::new(980, 720));
+    assert_eq!(medium.mode, IssueBrowserLayoutMode::Medium);
+    let list = medium.list.expect("medium layout should keep list");
+    let preview = medium.preview.expect("medium layout should keep preview");
+    assert_eq!(list.x, preview.x);
+    assert!(list.y + list.height < preview.y);
+    assert!(medium.chat.x > list.x + list.width);
+
+    let narrow = issue_browser_layout(&app, PhysicalSize::new(760, 720));
+    assert_eq!(narrow.mode, IssueBrowserLayoutMode::Narrow);
+    assert!(narrow.list.is_none());
+    assert!(narrow.preview.is_none());
+    assert_eq!(narrow.chat.width, 760.0);
+}
+
+#[test]
 fn single_session_commands_alias_opens_help_without_sending_prompt() {
     let mut app = SingleSessionApp::new(None);
     app.handle_key(KeyInput::Character("/commands".to_string()));

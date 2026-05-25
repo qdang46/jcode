@@ -10290,7 +10290,7 @@ fn single_session_body_bottom_base_for_total_lines(
     total_lines: usize,
 ) -> f32 {
     if app.is_welcome_timeline_visible() {
-        return (welcome_timeline_draft_top_for_total_lines(app, size, total_lines)
+        return (single_session_draft_top_for_total_lines(app, size, total_lines)
             - welcome_timeline_body_draft_gap())
         .max(single_session_body_top_for_app(app, size));
     }
