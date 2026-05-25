@@ -800,6 +800,7 @@ pub(super) fn insert_input_text(app: &mut App, text: &str) {
     app.input.insert_str(app.cursor_pos, text);
     app.cursor_pos += text.len();
     app.reset_tab_completion();
+    app.reset_input_history_browse();
     app.sync_model_picker_preview_from_input();
 }
 
@@ -2240,11 +2241,23 @@ pub(super) fn handle_basic_key(app: &mut App, code: KeyCode) -> bool {
             true
         }
         KeyCode::Up | KeyCode::PageUp => {
+            if code == KeyCode::Up
+                && (app.input.is_empty() || app.input_history_index.is_some())
+                && app.input_history_up()
+            {
+                return true;
+            }
             let inc = if code == KeyCode::PageUp { 10 } else { 1 };
             app.scroll_up(inc);
             true
         }
         KeyCode::Down | KeyCode::PageDown => {
+            if code == KeyCode::Down
+                && app.input_history_index.is_some()
+                && app.input_history_down()
+            {
+                return true;
+            }
             let dec = if code == KeyCode::PageDown { 10 } else { 1 };
             app.scroll_down(dec);
             true
@@ -2302,6 +2315,8 @@ pub(super) fn take_prepared_input(app: &mut App) -> PreparedInput {
     let images = std::mem::take(&mut app.pending_images);
     app.cursor_pos = 0;
     app.clear_input_undo_history();
+    app.reset_input_history_browse();
+    app.push_input_history(expanded.clone());
     PreparedInput {
         raw_input,
         expanded,
@@ -2746,6 +2761,7 @@ impl App {
         self.pasted_contents.clear();
         self.cursor_pos = 0;
         self.clear_input_undo_history();
+        self.reset_input_history_browse();
         self.follow_chat_bottom(); // Reset to bottom and resume auto-scroll on new input
 
         // If the previous assistant turn still has visible streamed text that has not yet been
@@ -2776,6 +2792,11 @@ impl App {
         // etc.) are checked first below, so this only fires for user-defined
         // templates.
         let mut input = expand_prompt_template_invocation(&input).unwrap_or(input);
+
+        // Issue #265 (input history): record submitted input for Up/Down recall.
+        // Done after template expansion so the recall menu shows the
+        // user-typed string, not the expanded body.
+        self.push_input_history(input.clone());
 
         let trimmed = input.trim();
         let handled = commands::handle_help_command(self, trimmed)

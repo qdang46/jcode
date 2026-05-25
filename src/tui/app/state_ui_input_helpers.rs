@@ -75,6 +75,10 @@ pub(super) const REGISTERED_COMMANDS: &[RegisteredCommand] = &[
     RegisteredCommand::public("/alignment", "Show/change default text alignment"),
     RegisteredCommand::public("/clear", "Clear conversation history"),
     RegisteredCommand::public("/rewind", "Rewind conversation to previous message"),
+    RegisteredCommand::public(
+        "/history",
+        "Input history: list, load N, search, delete N, clear",
+    ),
     RegisteredCommand::public("/poke", "Poke model to resume with incomplete todos"),
     RegisteredCommand::public("/improve", "Autonomously improve the repository"),
     RegisteredCommand::public("/refactor", "Run a safe refactor loop"),
@@ -1710,6 +1714,8 @@ impl App {
             self.input_undo_stack.remove(0);
         }
         self.input_undo_stack.push(snapshot);
+        // Any manual edit cancels history browsing
+        self.reset_input_history_browse();
     }
 
     pub(super) fn clear_input_undo_history(&mut self) {
@@ -1721,6 +1727,7 @@ impl App {
             self.input = input;
             self.cursor_pos = cursor_pos.min(self.input.len());
             self.reset_tab_completion();
+            self.reset_input_history_browse();
             self.sync_model_picker_preview_from_input();
             self.set_status_notice("↶ Input restored");
         } else {
@@ -1768,6 +1775,7 @@ impl App {
                 | "/improve"
                 | "/refactor"
                 | "/rewind"
+                | "/history"
                 | "/compact"
                 | "/compact mode"
                 | "/alignment"

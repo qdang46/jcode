@@ -2062,6 +2062,131 @@ pub(super) fn handle_session_command(app: &mut App, trimmed: &str) -> bool {
         return true;
     }
 
+    if trimmed == "/history input" || trimmed == "/history" {
+        if app.input_history.is_empty() {
+            app.push_display_message(DisplayMessage::system("No input history yet.".to_string()));
+            return true;
+        }
+        let mut listing = String::from("**Input history:**\n\n");
+        for (i, entry) in app.input_history.iter().enumerate() {
+            let preview = crate::util::truncate_str(entry, 80);
+            listing.push_str(&format!("  `{}` {}\n", i + 1, preview));
+        }
+        listing.push_str("\nUse `/history input N` to load entry N into the input box.");
+        listing.push_str("\nUse `/history search <term>` to search.");
+        listing.push_str("\nUse `/history delete N` to remove entry N.");
+        listing.push_str("\nUse `/history clear` to remove all entries.");
+        app.push_display_message(DisplayMessage::system(listing));
+        return true;
+    }
+
+    if trimmed == "/history clear" {
+        let count = app.input_history.len();
+        app.clear_input_history();
+        app.set_status_notice(format!("🗑 Cleared {} input history entries", count));
+        return true;
+    }
+
+    if let Some(term) = trimmed.strip_prefix("/history search ") {
+        let term = term.trim();
+        if term.is_empty() {
+            app.push_display_message(DisplayMessage::system(
+                "Usage: `/history search <term>`".to_string(),
+            ));
+            return true;
+        }
+        let term_lower = term.to_lowercase();
+        let matches: Vec<(usize, &str)> = app
+            .input_history
+            .iter()
+            .enumerate()
+            .filter(|(_, entry)| entry.to_lowercase().contains(&term_lower))
+            .map(|(i, e)| (i + 1, e.as_str()))
+            .collect();
+        if matches.is_empty() {
+            app.push_display_message(DisplayMessage::system(format!(
+                "No history entries match \"{}\".",
+                term
+            )));
+        } else {
+            let mut listing = format!("**History matches for \"{}\":**\n\n", term);
+            for (i, entry) in &matches {
+                let preview = crate::util::truncate_str(entry, 80);
+                listing.push_str(&format!("  `{}` {}\n", i, preview));
+            }
+            listing.push_str(&format!(
+                "\n{} match{} found.",
+                matches.len(),
+                if matches.len() == 1 { "" } else { "es" }
+            ));
+            app.push_display_message(DisplayMessage::system(listing));
+        }
+        return true;
+    }
+
+    if let Some(num_str) = trimmed.strip_prefix("/history delete ") {
+        let num_str = num_str.trim();
+        if app.input_history.is_empty() {
+            app.push_display_message(DisplayMessage::system(
+                "No input history to delete.".to_string(),
+            ));
+            return true;
+        }
+        match num_str.parse::<usize>() {
+            Ok(n) if n >= 1 && n <= app.input_history.len() => {
+                let entry = app.input_history[n - 1].clone();
+                let preview = crate::util::truncate_str(&entry, 40).to_string();
+                app.delete_input_history_entry(n - 1);
+                app.set_status_notice(format!("🗑 Deleted history #{}: {}", n, preview));
+            }
+            _ => {
+                app.push_display_message(DisplayMessage::system(format!(
+                    "Invalid index. Use `/history delete N` where N is 1..{}.",
+                    app.input_history.len()
+                )));
+            }
+        }
+        return true;
+    }
+
+    if let Some(num_str) = trimmed.strip_prefix("/history input ") {
+        let num_str = num_str.trim();
+        match num_str.parse::<usize>() {
+            Ok(n) if n >= 1 && n <= app.input_history.len() => {
+                let entry = app.input_history[n - 1].clone();
+                if !app.input.is_empty() {
+                    app.remember_input_undo_state();
+                }
+                app.input = entry;
+                app.cursor_pos = app.input.len();
+                app.reset_tab_completion();
+                app.reset_input_history_browse();
+                app.sync_model_picker_preview_from_input();
+                app.set_status_notice(format!("📋 Loaded input #{}", n));
+            }
+            _ => {
+                if app.input_history.is_empty() {
+                    app.push_display_message(DisplayMessage::system(
+                        "No input history yet.".to_string(),
+                    ));
+                } else {
+                    app.push_display_message(DisplayMessage::system(format!(
+                        "Invalid index. Use `/history input N` where N is 1..{}.",
+                        app.input_history.len()
+                    )));
+                }
+            }
+        }
+        return true;
+    }
+
+    if trimmed.starts_with("/history ") {
+        app.push_display_message(DisplayMessage::system(
+            "Unknown /history subcommand. Use: input N, search <term>, delete N, clear".to_string(),
+        ));
+        return true;
+    }
+
     if trimmed == "/rewind" {
         let visible_messages = app.session.visible_conversation_messages();
         if visible_messages.is_empty() {
