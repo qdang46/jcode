@@ -384,10 +384,21 @@ pub(super) fn draw_help_overlay(frame: &mut Frame, area: Rect, scroll: usize, ap
         "Copy visible chat viewport plus nearby context",
     ));
     lines.push(key_entry("Ctrl+U", "Clear input line"));
+    lines.push(key_entry("Ctrl+K", "Delete to end of input"));
     lines.push(key_entry(
-        "Cmd/Super+Backspace",
+        "Alt+Backspace / Alt+Delete",
         "Delete previous word in input",
     ));
+    lines.push(key_entry(
+        "Cmd/Super+Backspace / Delete",
+        "Delete to start of input",
+    ));
+    lines.push(key_entry(
+        "Cmd/Super+Left / Right",
+        "Move to start / end of input",
+    ));
+    lines.push(key_entry("Cmd/Super+Z", "Undo input edit"));
+    lines.push(key_entry("Cmd/Super+X / V", "Cut input / paste clipboard"));
     lines.push(key_entry("Ctrl+S", "Stash / pop input (save for later)"));
     lines.push(key_entry("Ctrl+Backspace", "Delete previous word in input"));
     lines.push(key_entry("Ctrl+B / Ctrl+F", "Move by word left / right"));

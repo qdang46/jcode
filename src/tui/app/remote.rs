@@ -1167,6 +1167,36 @@ fn handle_disconnected_key_internal(
         return Ok(());
     }
 
+    if modifiers.contains(KeyModifiers::SUPER) {
+        match code {
+            KeyCode::Backspace | KeyCode::Delete | KeyCode::Char('\u{7f}') => {
+                input::delete_input_to_start(app);
+                return Ok(());
+            }
+            KeyCode::Left | KeyCode::Home | KeyCode::Char('a') => {
+                app.cursor_pos = 0;
+                return Ok(());
+            }
+            KeyCode::Right | KeyCode::End | KeyCode::Char('e') => {
+                app.cursor_pos = app.input.len();
+                return Ok(());
+            }
+            KeyCode::Char('z') => {
+                app.undo_input_change();
+                return Ok(());
+            }
+            KeyCode::Char('x') => {
+                input::cut_input_line_to_clipboard(app);
+                return Ok(());
+            }
+            KeyCode::Char('v') => {
+                app.paste_from_clipboard();
+                return Ok(());
+            }
+            _ => {}
+        }
+    }
+
     if code == KeyCode::Enter && modifiers.contains(KeyModifiers::CONTROL) {
         queue_message_for_reconnect(app);
         return Ok(());

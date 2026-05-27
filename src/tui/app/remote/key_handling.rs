@@ -367,13 +367,8 @@ async fn handle_remote_key_internal(
                 app.input.drain(app.cursor_pos..end);
                 return Ok(());
             }
-            KeyCode::Backspace => {
-                let start = app.find_word_boundary_back();
-                if start < app.cursor_pos {
-                    app.remember_input_undo_state();
-                }
-                app.input.drain(start..app.cursor_pos);
-                app.cursor_pos = start;
+            KeyCode::Backspace | KeyCode::Delete | KeyCode::Char('\u{7f}') => {
+                input::delete_input_word_back(app);
                 return Ok(());
             }
             KeyCode::Char('v') => {
@@ -384,9 +379,34 @@ async fn handle_remote_key_internal(
         }
     }
 
-    if modifiers.contains(KeyModifiers::SUPER) && matches!(code, KeyCode::Backspace) {
-        input::delete_input_word_back(app);
-        return Ok(());
+    if modifiers.contains(KeyModifiers::SUPER) {
+        match code {
+            KeyCode::Backspace | KeyCode::Delete | KeyCode::Char('\u{7f}') => {
+                input::delete_input_to_start(app);
+                return Ok(());
+            }
+            KeyCode::Left | KeyCode::Home | KeyCode::Char('a') => {
+                app.cursor_pos = 0;
+                return Ok(());
+            }
+            KeyCode::Right | KeyCode::End | KeyCode::Char('e') => {
+                app.cursor_pos = app.input.len();
+                return Ok(());
+            }
+            KeyCode::Char('z') => {
+                app.undo_input_change();
+                return Ok(());
+            }
+            KeyCode::Char('x') => {
+                input::cut_input_line_to_clipboard(app);
+                return Ok(());
+            }
+            KeyCode::Char('v') => {
+                app.paste_from_clipboard();
+                return Ok(());
+            }
+            _ => {}
+        }
     }
 
     if app.handle_command_suggestion_key(code, modifiers) {
@@ -484,18 +504,11 @@ async fn handle_remote_key_internal(
                 return Ok(());
             }
             KeyCode::Char('u') => {
-                if app.cursor_pos > 0 {
-                    app.remember_input_undo_state();
-                }
-                app.input.drain(..app.cursor_pos);
-                app.cursor_pos = 0;
+                input::delete_input_to_start(app);
                 return Ok(());
             }
             KeyCode::Char('k') => {
-                if app.cursor_pos < app.input.len() {
-                    app.remember_input_undo_state();
-                }
-                app.input.truncate(app.cursor_pos);
+                input::delete_input_to_end(app);
                 return Ok(());
             }
             KeyCode::Char('z') => {
@@ -533,13 +546,7 @@ async fn handle_remote_key_internal(
                 return Ok(());
             }
             KeyCode::Char('w') | KeyCode::Char('\u{8}') | KeyCode::Backspace => {
-                let start = app.find_word_boundary_back();
-                if start < app.cursor_pos {
-                    app.remember_input_undo_state();
-                }
-                app.input.drain(start..app.cursor_pos);
-                app.cursor_pos = start;
-                app.sync_model_picker_preview_from_input();
+                input::delete_input_word_back(app);
                 return Ok(());
             }
             KeyCode::Char('s') => {

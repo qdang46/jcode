@@ -1092,6 +1092,10 @@ pub(super) fn handle_control_key(app: &mut App, code: KeyCode) -> bool {
             delete_input_to_start(app);
             true
         }
+        KeyCode::Char('k') => {
+            delete_input_to_end(app);
+            true
+        }
         KeyCode::Char('z') => {
             app.undo_input_change();
             true
@@ -1175,13 +1179,41 @@ pub(super) fn delete_input_to_start(app: &mut App) {
     app.sync_model_picker_preview_from_input();
 }
 
+pub(super) fn delete_input_to_end(app: &mut App) {
+    if app.cursor_pos < app.input.len() {
+        app.remember_input_undo_state();
+    }
+    app.input.truncate(app.cursor_pos);
+    app.sync_model_picker_preview_from_input();
+}
+
 pub(super) fn handle_super_key(app: &mut App, code: KeyCode) -> bool {
     match code {
-        // macOS terminals that report Command+Backspace to the application mark it as Super.
-        // In Jcode, make it a word-delete shortcut so it works in terminals that do not
-        // translate Option+Backspace into a word-delete sequence for us.
-        KeyCode::Backspace => {
-            delete_input_word_back(app);
+        // macOS terminals that forward Command may report Command+Delete as Super+Backspace,
+        // Super+Delete, or Super+DEL. Treat all of them as delete-to-start, matching native
+        // macOS text fields and avoiding overlap with Option/Alt word-delete shortcuts.
+        KeyCode::Backspace | KeyCode::Delete | KeyCode::Char('\u{7f}') => {
+            delete_input_to_start(app);
+            true
+        }
+        KeyCode::Left | KeyCode::Home | KeyCode::Char('a') => {
+            app.cursor_pos = 0;
+            true
+        }
+        KeyCode::Right | KeyCode::End | KeyCode::Char('e') => {
+            app.cursor_pos = app.input.len();
+            true
+        }
+        KeyCode::Char('z') => {
+            app.undo_input_change();
+            true
+        }
+        KeyCode::Char('x') => {
+            cut_input_line_to_clipboard(app);
+            true
+        }
+        KeyCode::Char('v') => {
+            paste_from_clipboard(app);
             true
         }
         _ => false,
@@ -1217,7 +1249,9 @@ pub(super) fn handle_alt_key(app: &mut App, code: KeyCode) -> bool {
             app.sync_model_picker_preview_from_input();
             true
         }
-        KeyCode::Backspace => {
+        // macOS terminals vary between Backspace, Delete, and DEL for Option+Delete.
+        // Keep all aliases on word-delete-back so the documented Alt/Option+Backspace works.
+        KeyCode::Backspace | KeyCode::Delete | KeyCode::Char('\u{7f}') => {
             delete_input_word_back(app);
             true
         }
@@ -1380,6 +1414,14 @@ pub(super) fn handle_pre_control_shortcuts(
     code: KeyCode,
     modifiers: KeyModifiers,
 ) -> bool {
+    if modifiers.contains(KeyModifiers::CONTROL)
+        && matches!(code, KeyCode::Char('k'))
+        && !app.input.is_empty()
+    {
+        delete_input_to_end(app);
+        return true;
+    }
+
     let macos_option_shortcut =
         crate::tui::keybind::shortcut_char_for_macos_option_key(code, modifiers);
     if (modifiers.contains(KeyModifiers::ALT) && matches!(code, KeyCode::Char('y')))
