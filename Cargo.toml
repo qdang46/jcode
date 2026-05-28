@@ -182,8 +182,18 @@ tokio-stream = "0.1"
 bytes = "1"
 
 # TUI
-ratatui = "0.30"
-crossterm = { version = "0.29", features = ["event-stream"] }
+ratatui = { version = "0.28", default-features = false, features = ["crossterm"] }
+crossterm = { version = "0.29", default-features = false, features = ["events", "event-stream", "bracketed-paste", "use-dev-tty"] }
+
+ftui = { path = "/data/projects/frankentui/crates/ftui" }
+ftui-core = { path = "/data/projects/frankentui/crates/ftui-core" }
+ftui-style = { path = "/data/projects/frankentui/crates/ftui-style" }
+ftui-render = { path = "/data/projects/frankentui/crates/ftui-render" }
+ftui-text = { path = "/data/projects/frankentui/crates/ftui-text" }
+ftui-layout = { path = "/data/projects/frankentui/crates/ftui-layout" }
+ftui-widgets = { path = "/data/projects/frankentui/crates/ftui-widgets" }
+ftui-runtime = { path = "/data/projects/frankentui/crates/ftui-runtime" }
+ftui-tty = { path = "/data/projects/frankentui/crates/ftui-tty" }
 arboard = "3"              # Clipboard support
 image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }  # Only PNG/JPEG (skip avif/rav1e, exr, gif, tiff, etc)
 

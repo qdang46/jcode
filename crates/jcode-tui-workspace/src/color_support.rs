@@ -1,8 +1,11 @@
-use ratatui::style::Color;
+// FrankenTUI-compatible color support
+// Phase 5 will fully port this to frankentui's color system
+
+use ftui_style::Color;
 use std::sync::OnceLock;
 
-use ratatui::buffer::Buffer;
-use ratatui::layout::Rect;
+use ftui_render::buffer::Buffer;
+use ftui_core::geometry::Rect;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ColorCapability {
@@ -62,26 +65,19 @@ pub fn has_truecolor() -> bool {
     color_capability() == ColorCapability::TrueColor
 }
 
-pub fn clear_buf(area: Rect, buf: &mut Buffer) {
-    for x in area.left()..area.right() {
-        for y in area.top()..area.bottom() {
-            buf[(x, y)].reset();
-        }
-    }
+pub fn clear_buf(_area: Rect, _buf: &mut Buffer) {
+    // Phase 5: Implement using frankentui's buffer API
 }
 
 #[inline]
 pub fn rgb(r: u8, g: u8, b: u8) -> Color {
     if has_truecolor() {
-        Color::Rgb(r, g, b)
+        Color::rgb(r, g, b)
     } else {
-        Color::Indexed(rgb_to_xterm256(r, g, b))
+        Color::Ansi256(rgb_to_xterm256(r, g, b))
     }
 }
 
-// The xterm-256 color cube: indices 16-231 map to a 6x6x6 RGB cube.
-// Each axis uses values: 0, 95, 135, 175, 215, 255 (indices 0-5).
-// Indices 232-255 are a grayscale ramp from rgb(8,8,8) to rgb(238,238,238).
 fn rgb_to_xterm256(r: u8, g: u8, b: u8) -> u8 {
     let gray_avg = (r as u16 + g as u16 + b as u16) / 3;
     let is_grayish = (r as i16 - g as i16).unsigned_abs() < 15
@@ -135,7 +131,6 @@ fn cube_index_to_rgb(idx: u16) -> (u8, u8, u8) {
 }
 
 fn nearest_gray_index(v: u8) -> u8 {
-    // Grayscale ramp: 232-255, values 8, 18, 28, ..., 238 (24 steps, step=10)
     if v < 4 {
         return 0;
     }
@@ -153,7 +148,6 @@ fn color_distance(r1: u8, g1: u8, b1: u8, r2: u8, g2: u8, b2: u8) -> u32 {
     let dr = r1 as i32 - r2 as i32;
     let dg = g1 as i32 - g2 as i32;
     let db = b1 as i32 - b2 as i32;
-    // Weighted Euclidean - human eye is more sensitive to green
     (2 * dr * dr + 4 * dg * dg + 3 * db * db) as u32
 }
 
@@ -192,62 +186,51 @@ mod tests {
     #[test]
     fn test_pure_black() {
         let idx = rgb_to_xterm256(0, 0, 0);
-        assert_eq!(idx, 16); // cube index 0,0,0
+        assert_eq!(idx, 16);
     }
 
     #[test]
     fn test_pure_white() {
         let idx = rgb_to_xterm256(255, 255, 255);
-        assert_eq!(idx, 231); // cube index 5,5,5
+        assert_eq!(idx, 231);
     }
 
     #[test]
     fn test_mid_gray() {
         let idx = rgb_to_xterm256(128, 128, 128);
-        // Should pick grayscale 243 (value 128) or nearby
-        assert!(
-            (232..=255).contains(&u16::from(idx)),
-            "Expected grayscale, got {}",
-            idx
-        );
+        assert!((232..=255).contains(&u16::from(idx)));
     }
 
     #[test]
     fn test_dim_gray() {
         let idx = rgb_to_xterm256(80, 80, 80);
-        assert!(
-            (232..=255).contains(&u16::from(idx)),
-            "Expected grayscale for dim, got {}",
-            idx
-        );
+        assert!((232..=255).contains(&u16::from(idx)));
     }
 
     #[test]
     fn test_red() {
         let idx = rgb_to_xterm256(255, 0, 0);
-        assert_eq!(idx, 196); // cube 5,0,0
+        assert_eq!(idx, 196);
     }
 
     #[test]
     fn test_green() {
         let idx = rgb_to_xterm256(0, 255, 0);
-        assert_eq!(idx, 46); // cube 0,5,0
+        assert_eq!(idx, 46);
     }
 
     #[test]
     fn test_blue() {
         let idx = rgb_to_xterm256(0, 0, 255);
-        assert_eq!(idx, 21); // cube 0,0,5
+        assert_eq!(idx, 21);
     }
 
     #[test]
     fn test_rgb_truecolor() {
-        // When we have truecolor, rgb() should return Color::Rgb
-        // (can't easily test since it depends on env, but test the mapper)
-        let color = Color::Indexed(rgb_to_xterm256(138, 180, 248));
+        let color = Color::Ansi256(rgb_to_xterm256(138, 180, 248));
         match color {
-            Color::Indexed(n) => assert!(n >= 16, "Should be extended color"),
-            _ => panic!("Expected indexed color"),
+            Color::Ansi256(n) => assert!(n >= 16),
+            _ => panic!("Expected Ansi256 color"),
         }
     }
 

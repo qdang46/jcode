@@ -8,7 +8,7 @@ use std::net::ToSocketAddrs;
 
 use crate::{browser, gateway, memory, session, storage, tui};
 
-use super::terminal::{cleanup_tui_runtime, init_tui_runtime};
+use super::terminalinit::{cleanup_tui_runtime, init_tui_runtime};
 
 mod provider_setup;
 mod report_info;
@@ -381,7 +381,8 @@ async fn run_ambient_visible() -> Result<()> {
         crossterm::terminal::SetTitle("🤖 jcode ambient cycle")
     );
 
-    let result = app.run(terminal).await;
+    let config = tui::runtime::FrankenTuiConfig::default();
+    let result = tui::runtime::run_frankentui(app, config);
 
     cleanup_tui_runtime(&tui_runtime, true);
 

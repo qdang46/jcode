@@ -5,9 +5,12 @@ edition = "2024"
 publish = false
 
 [dependencies]
+ftui = { path = "/data/projects/frankentui/crates/ftui" }
+ftui-text = { path = "/data/projects/frankentui/crates/ftui-text" }
+ftui-style = { path = "/data/projects/frankentui/crates/ftui-style" }
+ftui-widgets = { path = "/data/projects/frankentui/crates/ftui-widgets" }
 jcode-config-types = { path = "../jcode-config-types" }
 jcode-message-types = { path = "../jcode-message-types" }
 jcode-session-types = { path = "../jcode-session-types" }
 jcode-tui-markdown = { path = "../jcode-tui-markdown" }
-ratatui = "0.30"
 serde_json = "1"

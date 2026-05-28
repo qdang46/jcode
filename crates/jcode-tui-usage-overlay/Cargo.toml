@@ -5,7 +5,9 @@ edition = "2024"
 publish = false
 
 [dependencies]
-ratatui = "0.30"
+ftui = { path = "/data/projects/frankentui/crates/ftui" }
+ftui-style = { path = "/data/projects/frankentui/crates/ftui-style" }
+ftui-widgets = { path = "/data/projects/frankentui/crates/ftui-widgets" }
 serde = { version = "1", features = ["derive"], optional = true }
 
 [features]

@@ -4,4 +4,9 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-ratatui = "0.30"
+ftui = { path = "/data/projects/frankentui/crates/ftui" }
+ftui-core = { path = "/data/projects/frankentui/crates/ftui-core" }
+ftui-style = { path = "/data/projects/frankentui/crates/ftui-style" }
+ftui-render = { path = "/data/projects/frankentui/crates/ftui-render" }
+ftui-widgets = { path = "/data/projects/frankentui/crates/ftui-widgets" }
+ftui-layout = { path = "/data/projects/frankentui/crates/ftui-layout" }

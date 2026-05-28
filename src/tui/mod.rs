@@ -17,6 +17,7 @@ mod memory_profile;
 pub mod mermaid;
 pub mod permissions;
 mod remote_diff;
+pub mod runtime;
 pub mod screenshot;
 pub mod session_picker;
 mod stream_buffer;

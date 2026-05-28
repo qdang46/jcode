@@ -13,9 +13,9 @@ use crate::{
 use super::hot_exec::{execute_requested_action, has_requested_action};
 
 use super::terminal::{
-    cleanup_tui_runtime, cleanup_tui_runtime_for_run_result, init_tui_runtime,
     print_session_resume_hint, set_current_session, spawn_session_signal_watchers,
 };
+use super::terminalinit::{cleanup_tui_runtime, cleanup_tui_runtime_for_run_result, init_tui_runtime};
 
 pub(crate) fn resumed_window_title(session_id: &str) -> String {
     let session_name = crate::process_title::session_name(session_id);
@@ -173,9 +173,9 @@ pub async fn run_tui_client(
     startup_profile::mark("pre_run_remote");
     startup_profile::report_to_log();
 
-    let result = app.run_remote(terminal).await;
-
-    let run_result = result?;
+    // Run using frankentui runtime instead of ratatui
+    let config = tui::runtime::FrankenTuiConfig::default();
+    let run_result = tui::runtime::run_frankentui(app, config)?;
 
     cleanup_tui_runtime_for_run_result(&tui_runtime, &run_result, false);
 
