@@ -394,6 +394,283 @@ pub(crate) fn build_single_session_vertices_with_cached_body_and_tool_motion(
     )
 }
 
+// =============================================================================
+// SingleSessionView — Elm-style view coordinator
+// =============================================================================
+
+/// Organizes all single-session rendering into clean view_* methods while
+/// preserving exact existing behavior. All push_* functions remain unchanged.
+struct SingleSessionView<'a> {
+    app: &'a SingleSessionApp,
+    size: PhysicalSize<u32>,
+    rendered_body_lines: &'a [SingleSessionStyledLine],
+    focus_pulse: f32,
+    spinner_tick: u64,
+    smooth_scroll_lines: f32,
+    welcome_hero_reveal_progress: f32,
+    layout: SingleSessionLayout,
+    welcome_chrome_offset: f32,
+    viewport: SingleSessionBodyViewport,
+    inline_selection_motion: Option<&'a InlineWidgetSelectionMotionFrame>,
+    inline_list_reflow_motion: Option<&'a InlineWidgetListReflowMotionFrame>,
+    inline_preview_pane_motion: Option<&'a InlineWidgetPreviewPaneMotionFrame>,
+    composer_motion: Option<&'a ComposerMotionFrame>,
+    attachment_chip_motion: Option<&'a AttachmentChipMotionFrame>,
+    stdin_overlay_motion: Option<&'a StdinOverlayMotionFrame>,
+    transcript_message_motion: Option<&'a TranscriptMessageMotionFrame>,
+    transcript_motion: Option<&'a TranscriptCardMotionFrame>,
+    inline_markdown_motion: Option<&'a InlineMarkdownPillMotionFrame>,
+    activity_cue_motion: Option<&'a StreamingActivityCueMotionFrame>,
+    tool_motion: Option<&'a ToolCardMotionFrame>,
+    scrollbar_motion: Option<&'a SingleSessionScrollbarMotionFrame>,
+}
+
+impl<'a> SingleSessionView<'a> {
+    fn new(
+        app: &'a SingleSessionApp,
+        size: PhysicalSize<u32>,
+        rendered_body_lines: &'a [SingleSessionStyledLine],
+        focus_pulse: f32,
+        spinner_tick: u64,
+        smooth_scroll_lines: f32,
+        welcome_hero_reveal_progress: f32,
+        inline_selection_motion: Option<&'a InlineWidgetSelectionMotionFrame>,
+        inline_list_reflow_motion: Option<&'a InlineWidgetListReflowMotionFrame>,
+        inline_preview_pane_motion: Option<&'a InlineWidgetPreviewPaneMotionFrame>,
+        composer_motion: Option<&'a ComposerMotionFrame>,
+        attachment_chip_motion: Option<&'a AttachmentChipMotionFrame>,
+        stdin_overlay_motion: Option<&'a StdinOverlayMotionFrame>,
+        transcript_message_motion: Option<&'a TranscriptMessageMotionFrame>,
+        transcript_motion: Option<&'a TranscriptCardMotionFrame>,
+        inline_markdown_motion: Option<&'a InlineMarkdownPillMotionFrame>,
+        activity_cue_motion: Option<&'a StreamingActivityCueMotionFrame>,
+        tool_motion: Option<&'a ToolCardMotionFrame>,
+        scrollbar_motion: Option<&'a SingleSessionScrollbarMotionFrame>,
+    ) -> Self {
+        let layout =
+            single_session_layout_for_total_lines(app, size, rendered_body_lines.len());
+        let welcome_chrome_offset = if app.is_welcome_timeline_visible() {
+            welcome_timeline_visual_offset_pixels_for_total_lines(
+                app,
+                size,
+                smooth_scroll_lines,
+                rendered_body_lines.len(),
+            )
+        } else {
+            0.0
+        };
+        let viewport =
+            single_session_body_viewport_from_lines(app, size, smooth_scroll_lines, rendered_body_lines);
+        Self {
+            app,
+            size,
+            rendered_body_lines,
+            focus_pulse,
+            spinner_tick,
+            smooth_scroll_lines,
+            welcome_hero_reveal_progress,
+            layout,
+            welcome_chrome_offset,
+            viewport,
+            inline_selection_motion,
+            inline_list_reflow_motion,
+            inline_preview_pane_motion,
+            composer_motion,
+            attachment_chip_motion,
+            stdin_overlay_motion,
+            transcript_message_motion,
+            transcript_motion,
+            inline_markdown_motion,
+            activity_cue_motion,
+            tool_motion,
+            scrollbar_motion,
+        }
+    }
+
+    fn view_all(&self, vertices: &mut Vec<Vertex>) {
+        self.view_background(vertices);
+        self.view_composer_pane(vertices);
+        self.view_header(vertices);
+        self.view_inline_widget_pane(vertices);
+        self.view_stdin_overlay(vertices);
+        self.view_chat_pane(vertices);
+        self.view_activity_indicator(vertices);
+        self.view_selection(vertices);
+        self.view_scrollbar(vertices);
+    }
+
+    /// Background gradient + surface chrome
+    fn view_background(&self, vertices: &mut Vec<Vertex>) {
+        let width = self.size.width as f32;
+        let height = self.size.height as f32;
+        push_gradient_rect(
+            vertices,
+            Rect {
+                x: 0.0,
+                y: 0.0,
+                width,
+                height,
+            },
+            BACKGROUND_TOP_LEFT,
+            BACKGROUND_BOTTOM_LEFT,
+            BACKGROUND_BOTTOM_RIGHT,
+            BACKGROUND_TOP_RIGHT,
+            self.size,
+        );
+
+        let rect = Rect {
+            x: 0.0,
+            y: 0.0,
+            width: width.max(1.0),
+            height: height.max(1.0),
+        };
+        let surface = single_session_surface(self.app.session.as_ref());
+        push_single_session_surface_without_bottom_rule(
+            vertices,
+            rect,
+            surface.color_index,
+            self.focus_pulse,
+            self.size,
+        );
+    }
+
+    /// Welcome hero + ambient (rendered when welcome timeline is visible)
+    fn view_header(&self, vertices: &mut Vec<Vertex>) {
+        if welcome_timeline_chrome_visible(self.app, self.size, self.welcome_chrome_offset) {
+            push_fresh_welcome_ambient(
+                vertices,
+                self.size,
+                self.spinner_tick,
+                self.welcome_chrome_offset,
+            );
+            push_handwritten_welcome_hero_with_offset(
+                vertices,
+                &self.app.welcome_hero_text(),
+                self.size,
+                self.app.text_scale(),
+                self.welcome_hero_reveal_progress,
+                self.welcome_chrome_offset,
+            );
+        }
+    }
+
+    /// Composer chrome
+    fn view_composer_pane(&self, vertices: &mut Vec<Vertex>) {
+        push_single_session_composer_chrome(
+            vertices,
+            self.app,
+            self.size,
+            self.composer_motion,
+            self.attachment_chip_motion,
+            Some(self.layout),
+        );
+    }
+
+    /// Inline widget card
+    fn view_inline_widget_pane(&self, vertices: &mut Vec<Vertex>) {
+        push_single_session_inline_widget_card(
+            vertices,
+            self.app,
+            self.size,
+            self.welcome_chrome_offset,
+            self.rendered_body_lines.len(),
+            self.inline_selection_motion,
+            self.inline_list_reflow_motion,
+            self.inline_preview_pane_motion,
+        );
+    }
+
+    /// Stdin overlay
+    fn view_stdin_overlay(&self, vertices: &mut Vec<Vertex>) {
+        push_single_session_stdin_overlay(
+            vertices,
+            self.app,
+            self.size,
+            self.rendered_body_lines,
+            self.stdin_overlay_motion,
+        );
+    }
+
+    /// Chat pane: transcript cards, tool cards, markdown rules, highlights
+    fn view_chat_pane(&self, vertices: &mut Vec<Vertex>) {
+        push_single_session_transcript_message_highlights_from_viewport(
+            vertices,
+            self.app,
+            self.size,
+            &self.viewport,
+            self.rendered_body_lines.len(),
+            self.transcript_message_motion,
+        );
+        push_single_session_transcript_cards_from_viewport(
+            vertices,
+            self.app,
+            self.size,
+            &self.viewport,
+            self.rendered_body_lines.len(),
+            self.transcript_motion,
+        );
+        push_single_session_tool_cards_from_viewport(
+            vertices,
+            self.app,
+            self.size,
+            &self.viewport,
+            self.rendered_body_lines.len(),
+            self.spinner_tick,
+            self.tool_motion,
+        );
+        push_single_session_inline_code_cards_from_viewport(
+            vertices,
+            self.app,
+            self.size,
+            &self.viewport,
+            self.rendered_body_lines.len(),
+            self.inline_markdown_motion,
+        );
+        push_single_session_markdown_rule_lines_from_viewport(
+            vertices,
+            self.app,
+            self.size,
+            &self.viewport,
+            self.rendered_body_lines.len(),
+        );
+    }
+
+    /// Streaming activity cue
+    fn view_activity_indicator(&self, vertices: &mut Vec<Vertex>) {
+        if self.app.has_activity_indicator()
+            || self
+                .activity_cue_motion
+                .is_some_and(|motion| motion.exiting().is_some())
+        {
+            push_streaming_activity_cue(
+                vertices,
+                self.app,
+                self.size,
+                self.spinner_tick,
+                Some(&self.viewport),
+                self.activity_cue_motion,
+            );
+        }
+    }
+
+    /// Selection overlay
+    fn view_selection(&self, vertices: &mut Vec<Vertex>) {
+        push_single_session_selection(vertices, self.app, self.size);
+    }
+
+    /// Scrollbar
+    fn view_scrollbar(&self, vertices: &mut Vec<Vertex>) {
+        push_single_session_scrollbar_for_total_lines(
+            vertices,
+            self.app,
+            self.size,
+            self.smooth_scroll_lines,
+            self.rendered_body_lines.len(),
+            self.scrollbar_motion,
+        );
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 fn build_single_session_vertices_with_cached_body_internal(
     app: &SingleSessionApp,
@@ -416,159 +693,30 @@ fn build_single_session_vertices_with_cached_body_internal(
     tool_motion: Option<&ToolCardMotionFrame>,
     scrollbar_motion: Option<&SingleSessionScrollbarMotionFrame>,
 ) -> Vec<Vertex> {
-    let width = size.width as f32;
-    let height = size.height as f32;
+    // DELEGATE to SingleSessionView
     let mut vertices = Vec::with_capacity(2048);
-
-    push_gradient_rect(
-        &mut vertices,
-        Rect {
-            x: 0.0,
-            y: 0.0,
-            width,
-            height,
-        },
-        BACKGROUND_TOP_LEFT,
-        BACKGROUND_BOTTOM_LEFT,
-        BACKGROUND_BOTTOM_RIGHT,
-        BACKGROUND_TOP_RIGHT,
+    let view = SingleSessionView::new(
+        app,
         size,
-    );
-
-    let rect = Rect {
-        x: 0.0,
-        y: 0.0,
-        width: width.max(1.0),
-        height: height.max(1.0),
-    };
-    let surface = single_session_surface(app.session.as_ref());
-    push_single_session_surface_without_bottom_rule(
-        &mut vertices,
-        rect,
-        surface.color_index,
+        rendered_body_lines,
         focus_pulse,
-        size,
-    );
-
-    let layout = single_session_layout_for_total_lines(app, size, rendered_body_lines.len());
-    push_single_session_composer_chrome(
-        &mut vertices,
-        app,
-        size,
-        composer_motion,
-        attachment_chip_motion,
-        Some(layout),
-    );
-
-    let welcome_chrome_offset = if app.is_welcome_timeline_visible() {
-        welcome_timeline_visual_offset_pixels_for_total_lines(
-            app,
-            size,
-            smooth_scroll_lines,
-            rendered_body_lines.len(),
-        )
-    } else {
-        0.0
-    };
-    if welcome_timeline_chrome_visible(app, size, welcome_chrome_offset) {
-        push_fresh_welcome_ambient(&mut vertices, size, spinner_tick, welcome_chrome_offset);
-        push_handwritten_welcome_hero_with_offset(
-            &mut vertices,
-            &app.welcome_hero_text(),
-            size,
-            app.text_scale(),
-            welcome_hero_reveal_progress,
-            welcome_chrome_offset,
-        );
-    }
-
-    push_single_session_inline_widget_card(
-        &mut vertices,
-        app,
-        size,
-        welcome_chrome_offset,
-        rendered_body_lines.len(),
+        spinner_tick,
+        smooth_scroll_lines,
+        welcome_hero_reveal_progress,
         inline_selection_motion,
         inline_list_reflow_motion,
         inline_preview_pane_motion,
-    );
-
-    push_single_session_stdin_overlay(
-        &mut vertices,
-        app,
-        size,
-        rendered_body_lines,
+        composer_motion,
+        attachment_chip_motion,
         stdin_overlay_motion,
-    );
-
-    let viewport = single_session_body_viewport_from_lines(
-        app,
-        size,
-        smooth_scroll_lines,
-        rendered_body_lines,
-    );
-    push_single_session_transcript_message_highlights_from_viewport(
-        &mut vertices,
-        app,
-        size,
-        &viewport,
-        rendered_body_lines.len(),
         transcript_message_motion,
-    );
-    push_single_session_transcript_cards_from_viewport(
-        &mut vertices,
-        app,
-        size,
-        &viewport,
-        rendered_body_lines.len(),
         transcript_motion,
-    );
-    push_single_session_tool_cards_from_viewport(
-        &mut vertices,
-        app,
-        size,
-        &viewport,
-        rendered_body_lines.len(),
-        spinner_tick,
-        tool_motion,
-    );
-    push_single_session_inline_code_cards_from_viewport(
-        &mut vertices,
-        app,
-        size,
-        &viewport,
-        rendered_body_lines.len(),
         inline_markdown_motion,
-    );
-    push_single_session_markdown_rule_lines_from_viewport(
-        &mut vertices,
-        app,
-        size,
-        &viewport,
-        rendered_body_lines.len(),
-    );
-    if app.has_activity_indicator()
-        || activity_cue_motion.is_some_and(|motion| motion.exiting().is_some())
-    {
-        push_streaming_activity_cue(
-            &mut vertices,
-            app,
-            size,
-            spinner_tick,
-            Some(&viewport),
-            activity_cue_motion,
-        );
-    }
-    push_single_session_selection(&mut vertices, app, size);
-    push_single_session_scrollbar_for_total_lines(
-        &mut vertices,
-        app,
-        size,
-        smooth_scroll_lines,
-        rendered_body_lines.len(),
+        activity_cue_motion,
+        tool_motion,
         scrollbar_motion,
     );
-
+    view.view_all(&mut vertices);
     vertices
 }
 
