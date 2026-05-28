@@ -1,7 +1,9 @@
 use super::*;
+use ftui_render::cell::PackedRgba;
+use ftui_style::{Color, Style};
 
 pub(super) fn hotkey(text: &'static str) -> Span<'static> {
-    Span::styled(text, Style::default().fg(Color::White).bg(Color::DarkGray))
+    Span::styled(text, Style::new().fg(PackedRgba::rgb(255, 255, 255)).bg(PackedRgba::rgb(80, 80, 80)))
 }
 
 pub(super) fn provider_header_line(
@@ -24,9 +26,9 @@ pub(super) fn provider_header_line(
         )
     };
     Line::from(vec![
-        Span::styled(" ", Style::default()),
+        Span::styled(" ", Style::new()),
         Span::styled(provider_label.to_string(), provider_style(provider_id)),
-        Span::styled(summary, Style::default().fg(MUTED_DARK)),
+        Span::styled(summary, Style::new().fg(MUTED_DARK)),
     ])
 }
 
@@ -107,17 +109,17 @@ pub(super) fn action_icon(item: &AccountPickerItem) -> (&'static str, Color) {
         ActionSection::Switch => (
             if account_is_active(item) { "*" } else { "o" },
             if account_is_active(item) {
-                Color::Rgb(110, 214, 158)
+                PackedRgba::rgb(110, 214, 158)
             } else {
-                Color::Rgb(160, 168, 188)
+                PackedRgba::rgb(160, 168, 188)
             },
         ),
-        ActionSection::Add => ("+", Color::Rgb(140, 176, 255)),
-        ActionSection::Login => ("R", Color::Rgb(229, 187, 111)),
-        ActionSection::Overview => ("S", Color::Rgb(140, 176, 255)),
-        ActionSection::Setting => (".", Color::Rgb(189, 200, 255)),
-        ActionSection::Remove => ("x", Color::Rgb(255, 140, 140)),
-        ActionSection::Other => ("-", Color::Rgb(180, 190, 220)),
+        ActionSection::Add => ("+", PackedRgba::rgb(140, 176, 255)),
+        ActionSection::Login => ("R", PackedRgba::rgb(229, 187, 111)),
+        ActionSection::Overview => ("S", PackedRgba::rgb(140, 176, 255)),
+        ActionSection::Setting => (".", PackedRgba::rgb(189, 200, 255)),
+        ActionSection::Remove => ("x", PackedRgba::rgb(255, 140, 140)),
+        ActionSection::Other => ("-", PackedRgba::rgb(180, 190, 220)),
     }
 }
 
@@ -135,12 +137,12 @@ pub(super) fn action_kind_label(command: &AccountPickerCommand) -> &'static str 
 
 pub(super) fn action_kind_badge(command: &AccountPickerCommand) -> (&'static str, Color) {
     match action_kind_label(command) {
-        "overview" => ("overview", Color::Rgb(129, 184, 255)),
-        "login" => ("login", Color::Rgb(111, 214, 181)),
-        "setting" => ("setting", Color::Rgb(229, 187, 111)),
-        "danger" => ("remove", Color::Rgb(255, 140, 140)),
-        "account" => ("account", Color::Rgb(182, 154, 255)),
-        _ => ("action", Color::Rgb(180, 190, 220)),
+        "overview" => ("overview", PackedRgba::rgb(129, 184, 255)),
+        "login" => ("login", PackedRgba::rgb(111, 214, 181)),
+        "setting" => ("setting", PackedRgba::rgb(229, 187, 111)),
+        "danger" => ("remove", PackedRgba::rgb(255, 140, 140)),
+        "account" => ("account", PackedRgba::rgb(182, 154, 255)),
+        _ => ("action", PackedRgba::rgb(180, 190, 220)),
     }
 }
 
@@ -229,18 +231,18 @@ pub(super) fn command_preview(command: &AccountPickerCommand) -> String {
 pub(super) fn metric_span(label: &'static str, value: usize, color: Color) -> Span<'static> {
     Span::styled(
         format!("{} {}", label, value),
-        Style::default().fg(color).bold(),
+        Style::new().fg(color).bold(),
     )
 }
 
 pub(super) fn provider_style(provider_id: &str) -> Style {
     let color = match provider_id {
-        "claude" => Color::Rgb(229, 187, 111),
-        "openai" => Color::Rgb(111, 214, 181),
-        "gemini" | "google" => Color::Rgb(129, 184, 255),
-        "copilot" => Color::Rgb(182, 154, 255),
-        "cursor" => Color::Rgb(131, 215, 255),
-        "account-flow" => Color::Rgb(196, 170, 255),
+        "claude" => PackedRgba::rgb(229, 187, 111),
+        "openai" => PackedRgba::rgb(111, 214, 181),
+        "gemini" | "google" => PackedRgba::rgb(129, 184, 255),
+        "copilot" => PackedRgba::rgb(182, 154, 255),
+        "cursor" => PackedRgba::rgb(131, 215, 255),
+        "account-flow" => PackedRgba::rgb(196, 170, 255),
         "openrouter"
         | "openai-compatible"
         | "opencode"
@@ -250,10 +252,10 @@ pub(super) fn provider_style(provider_id: &str) -> Style {
         | "cerebras"
         | "alibaba-coding-plan"
         | "jcode"
-        | "defaults" => Color::Rgb(189, 200, 255),
-        _ => Color::Rgb(180, 190, 220),
+        | "defaults" => PackedRgba::rgb(189, 200, 255),
+        _ => PackedRgba::rgb(180, 190, 220),
     };
-    Style::default().fg(color).bold()
+    Style::new().fg(color).bold()
 }
 
 pub(super) fn truncate_with_ellipsis(input: &str, width: usize) -> String {

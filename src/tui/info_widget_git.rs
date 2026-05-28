@@ -1,7 +1,9 @@
 use super::text::truncate_smart;
 use super::{GitInfo, InfoWidgetData};
 use crate::tui::color_support::rgb;
-use ratatui::prelude::*;
+use ftui_core::geometry::Rect;
+use ftui_style::{Color, Modifier, Style};
+use ftui_text::text::{Line, Span};
 
 pub(super) fn render_git_widget(data: &InfoWidgetData, inner: Rect) -> Vec<Line<'static>> {
     let Some(info) = &data.git_info else {
@@ -15,7 +17,7 @@ pub(super) fn render_git_widget(data: &InfoWidgetData, inner: Rect) -> Vec<Line<
     let mut lines: Vec<Line> = Vec::new();
 
     let mut parts: Vec<Span> = Vec::new();
-    parts.push(Span::styled(" ", Style::default().fg(rgb(240, 160, 60))));
+    parts.push(Span::styled(" ", Style::new().fg(rgb(240, 160, 60))));
 
     let mut stats_len = 0usize;
     if info.ahead > 0 {
@@ -38,7 +40,7 @@ pub(super) fn render_git_widget(data: &InfoWidgetData, inner: Rect) -> Vec<Line<
     let branch_display = truncate_smart(&info.branch, branch_max);
     parts.push(Span::styled(
         branch_display,
-        Style::default()
+        Style::new()
             .fg(rgb(200, 200, 210))
             .add_modifier(Modifier::BOLD),
     ));
@@ -46,31 +48,31 @@ pub(super) fn render_git_widget(data: &InfoWidgetData, inner: Rect) -> Vec<Line<
     if info.modified > 0 {
         parts.push(Span::styled(
             format!(" ~{}", info.modified),
-            Style::default().fg(rgb(240, 200, 80)),
+            Style::new().fg(rgb(240, 200, 80)),
         ));
     }
     if info.staged > 0 {
         parts.push(Span::styled(
             format!(" +{}", info.staged),
-            Style::default().fg(rgb(100, 200, 100)),
+            Style::new().fg(rgb(100, 200, 100)),
         ));
     }
     if info.untracked > 0 {
         parts.push(Span::styled(
             format!(" ?{}", info.untracked),
-            Style::default().fg(rgb(140, 140, 150)),
+            Style::new().fg(rgb(140, 140, 150)),
         ));
     }
     if info.ahead > 0 {
         parts.push(Span::styled(
             format!(" ↑{}", info.ahead),
-            Style::default().fg(rgb(100, 200, 100)),
+            Style::new().fg(rgb(100, 200, 100)),
         ));
     }
     if info.behind > 0 {
         parts.push(Span::styled(
             format!(" ↓{}", info.behind),
-            Style::default().fg(rgb(255, 140, 100)),
+            Style::new().fg(rgb(255, 140, 100)),
         ));
     }
 
@@ -81,7 +83,7 @@ pub(super) fn render_git_widget(data: &InfoWidgetData, inner: Rect) -> Vec<Line<
         let display = truncate_smart(file, w.saturating_sub(4));
         lines.push(Line::from(vec![
             Span::raw("  "),
-            Span::styled(display, Style::default().fg(rgb(140, 140, 155))),
+            Span::styled(display, Style::new().fg(rgb(140, 140, 155))),
         ]));
     }
     if info.dirty_files.len() > max_files {
@@ -89,7 +91,7 @@ pub(super) fn render_git_widget(data: &InfoWidgetData, inner: Rect) -> Vec<Line<
             Span::raw("  "),
             Span::styled(
                 format!("+{} more", info.dirty_files.len() - max_files),
-                Style::default().fg(rgb(100, 100, 115)),
+                Style::new().fg(rgb(100, 100, 115)),
             ),
         ]));
     }
@@ -102,40 +104,40 @@ pub(super) fn render_git_compact(info: &GitInfo, width: u16) -> Vec<Line<'static
     let mut parts: Vec<Span> = Vec::new();
 
     let branch_display = truncate_smart(&info.branch, w.saturating_sub(12).max(6));
-    parts.push(Span::styled(" ", Style::default().fg(rgb(240, 160, 60))));
+    parts.push(Span::styled(" ", Style::new().fg(rgb(240, 160, 60))));
     parts.push(Span::styled(
         branch_display,
-        Style::default().fg(rgb(160, 160, 170)),
+        Style::new().fg(rgb(160, 160, 170)),
     ));
 
     if info.ahead > 0 {
         parts.push(Span::styled(
             format!(" ↑{}", info.ahead),
-            Style::default().fg(rgb(100, 200, 100)),
+            Style::new().fg(rgb(100, 200, 100)),
         ));
     }
     if info.behind > 0 {
         parts.push(Span::styled(
             format!(" ↓{}", info.behind),
-            Style::default().fg(rgb(255, 140, 100)),
+            Style::new().fg(rgb(255, 140, 100)),
         ));
     }
     if info.modified > 0 {
         parts.push(Span::styled(
             format!(" ~{}", info.modified),
-            Style::default().fg(rgb(240, 200, 80)),
+            Style::new().fg(rgb(240, 200, 80)),
         ));
     }
     if info.staged > 0 {
         parts.push(Span::styled(
             format!(" +{}", info.staged),
-            Style::default().fg(rgb(100, 200, 100)),
+            Style::new().fg(rgb(100, 200, 100)),
         ));
     }
     if info.untracked > 0 {
         parts.push(Span::styled(
             format!(" ?{}", info.untracked),
-            Style::default().fg(rgb(140, 140, 150)),
+            Style::new().fg(rgb(140, 140, 150)),
         ));
     }
 

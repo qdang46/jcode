@@ -1,7 +1,10 @@
 use super::{BackgroundInfo, InfoWidgetData, SwarmInfo, truncate_smart};
 use crate::protocol::SwarmMemberStatus;
 use crate::tui::color_support::rgb;
-use ratatui::prelude::*;
+use ftui_core::geometry::Rect;
+use ftui_style::{Color, Style};
+use ftui_text::text::Line;
+use ftui_text::text::{Line, Span};
 
 pub(super) fn render_swarm_widget(data: &InfoWidgetData, inner: Rect) -> Vec<Line<'static>> {
     let Some(info) = &data.swarm_info else {
@@ -14,10 +17,10 @@ pub(super) fn render_swarm_widget(data: &InfoWidgetData, inner: Rect) -> Vec<Lin
         && let Some(status) = &info.subagent_status
     {
         lines.push(Line::from(vec![
-            Span::styled("▶ ", Style::default().fg(rgb(255, 200, 100))),
+            Span::styled("▶ ", Style::new().fg(rgb(255, 200, 100))),
             Span::styled(
                 truncate_smart(status, inner.width.saturating_sub(4) as usize),
-                Style::default().fg(rgb(200, 200, 210)),
+                Style::new().fg(rgb(200, 200, 210)),
             ),
         ]));
     }
@@ -90,30 +93,30 @@ fn swarm_member_line(member: &SwarmMemberStatus, max_width: usize) -> Line<'stat
     Line::from(vec![
         Span::styled(
             role_prefix.to_string(),
-            Style::default().fg(rgb(255, 200, 100)),
+            Style::new().fg(rgb(255, 200, 100)),
         ),
-        Span::styled(format!("{} ", icon), Style::default().fg(color)),
-        Span::styled(line_text, Style::default().fg(rgb(140, 140, 150))),
+        Span::styled(format!("{} ", icon), Style::new().fg(color)),
+        Span::styled(line_text, Style::new().fg(rgb(140, 140, 150))),
     ])
 }
 
 fn render_swarm_stats_line(info: &SwarmInfo) -> Line<'static> {
     let mut stats_parts: Vec<Span> =
-        vec![Span::styled("🐝 ", Style::default().fg(rgb(255, 200, 100)))];
+        vec![Span::styled("🐝 ", Style::new().fg(rgb(255, 200, 100)))];
 
     if info.session_count > 0 {
         stats_parts.push(Span::styled(
             format!("{}s", info.session_count),
-            Style::default().fg(rgb(160, 160, 170)),
+            Style::new().fg(rgb(160, 160, 170)),
         ));
     }
     if let Some(clients) = info.client_count {
         if info.session_count > 0 {
-            stats_parts.push(Span::styled(" · ", Style::default().fg(rgb(100, 100, 110))));
+            stats_parts.push(Span::styled(" · ", Style::new().fg(rgb(100, 100, 110))));
         }
         stats_parts.push(Span::styled(
             format!("{}c", clients),
-            Style::default().fg(rgb(160, 160, 170)),
+            Style::new().fg(rgb(160, 160, 170)),
         ));
     }
 
@@ -122,10 +125,10 @@ fn render_swarm_stats_line(info: &SwarmInfo) -> Line<'static> {
 
 fn render_swarm_name_line(name: &str, max_name_len: usize) -> Line<'static> {
     Line::from(vec![
-        Span::styled("  · ", Style::default().fg(rgb(100, 100, 110))),
+        Span::styled("  · ", Style::new().fg(rgb(100, 100, 110))),
         Span::styled(
             truncate_smart(name, max_name_len),
-            Style::default().fg(rgb(140, 140, 150)),
+            Style::new().fg(rgb(140, 140, 150)),
         ),
     ])
 }
@@ -135,8 +138,8 @@ fn render_background_lines(info: &BackgroundInfo, width: usize) -> Vec<Line<'sta
         return Vec::new();
     };
     let mut lines = vec![Line::from(vec![
-        Span::styled("⏳ ", Style::default().fg(rgb(180, 140, 255))),
-        Span::styled(summary, Style::default().fg(rgb(160, 160, 170))),
+        Span::styled("⏳ ", Style::new().fg(rgb(180, 140, 255))),
+        Span::styled(summary, Style::new().fg(rgb(160, 160, 170))),
     ])];
 
     let row_width = width.saturating_sub(4).max(12);
@@ -152,18 +155,18 @@ fn render_background_lines(info: &BackgroundInfo, width: usize) -> Vec<Line<'sta
             truncate_smart(task, row_width)
         };
         lines.push(Line::from(vec![
-            Span::styled("  • ", Style::default().fg(rgb(120, 120, 130))),
-            Span::styled(row_text, Style::default().fg(rgb(180, 180, 190))),
+            Span::styled("  • ", Style::new().fg(rgb(120, 120, 130))),
+            Span::styled(row_text, Style::new().fg(rgb(180, 180, 190))),
         ]));
     }
 
     let hidden = info.running_tasks.len().saturating_sub(3);
     if hidden > 0 {
         lines.push(Line::from(vec![
-            Span::styled("   ", Style::default().fg(rgb(100, 100, 110))),
+            Span::styled("   ", Style::new().fg(rgb(100, 100, 110))),
             Span::styled(
                 format!("+{} more", hidden),
-                Style::default().fg(rgb(140, 140, 150)),
+                Style::new().fg(rgb(140, 140, 150)),
             ),
         ]));
     }

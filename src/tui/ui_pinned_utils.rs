@@ -1,5 +1,5 @@
 use super::*;
-use std::collections::VecDeque;
+use ftui_core::geometry::Rect;
 
 pub(super) fn lru_touch<K: PartialEq>(order: &mut VecDeque<K>, key: &K) {
     if let Some(pos) = order.iter().position(|existing| existing == key) {

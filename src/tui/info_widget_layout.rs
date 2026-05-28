@@ -2,7 +2,7 @@ use super::info_widget::{
     InfoWidgetData, Side, WidgetKind, WidgetPlacement, calculate_widget_height,
     is_overview_mergeable,
 };
-use ratatui::layout::Rect;
+use ftui_core::geometry::Rect;
 use std::collections::HashSet;
 
 /// Minimum width needed to show the widget.

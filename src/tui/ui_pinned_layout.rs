@@ -3,7 +3,7 @@ use super::{
     SidePanelImageLayout, SidePanelImageRenderMode,
 };
 use crate::tui::mermaid;
-use ratatui::prelude::Rect;
+use ftui_core::geometry::Rect;
 
 const SIDE_PANEL_INLINE_IMAGE_TARGET_UTILIZATION_PERCENT: u16 = 85;
 const SIDE_PANEL_INLINE_IMAGE_MAX_AUTO_FILL_ZOOM_PERCENT: u16 = 1000;

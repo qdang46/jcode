@@ -1,4 +1,10 @@
 use super::*;
+use ftui_core::geometry::Rect;
+use ftui_style::{Color, Modifier, Style};
+use ftui_text::text::Line;
+use ftui_text::text::{Line, Span};
+use std::sync::Mutex;
+use std::time::Instant;
 
 const TIP_CYCLE_SECONDS: u64 = 15;
 const STATUS_TIP_PERIOD_SECONDS: u64 = 90;
@@ -113,10 +119,10 @@ pub(super) fn render_tips_widget(inner: Rect) -> Vec<Line<'static>> {
 
     let mut lines: Vec<Line<'static>> = Vec::new();
     lines.push(Line::from(vec![
-        Span::styled("💡 ", Style::default().fg(rgb(255, 210, 80))),
+        Span::styled("💡 ", Style::new().fg(rgb(255, 210, 80))),
         Span::styled(
             "Did you know?",
-            Style::default()
+            Style::new()
                 .fg(rgb(200, 200, 210))
                 .add_modifier(Modifier::BOLD),
         ),
@@ -125,7 +131,7 @@ pub(super) fn render_tips_widget(inner: Rect) -> Vec<Line<'static>> {
     for line_text in wrapped {
         lines.push(Line::from(vec![
             Span::raw("  "),
-            Span::styled(line_text, Style::default().fg(rgb(160, 160, 175))),
+            Span::styled(line_text, Style::new().fg(rgb(160, 160, 175))),
         ]));
     }
 

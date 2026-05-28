@@ -7,7 +7,7 @@ use super::{
     truncate_smart,
 };
 use crate::protocol::SwarmMemberStatus;
-use ratatui::layout::Rect;
+use ftui_core::geometry::Rect;
 use std::time::{Duration, Instant};
 
 #[test]
@@ -129,7 +129,7 @@ fn edge(source: usize, target: usize, kind: &str) -> GraphEdge {
     }
 }
 
-fn lines_text(lines: &[ratatui::text::Line<'_>]) -> String {
+fn lines_text(lines: &[ftui_text::text::Line<'_>]) -> String {
     lines
         .iter()
         .flat_map(|line| line.spans.iter())

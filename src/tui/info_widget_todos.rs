@@ -1,4 +1,8 @@
 use super::*;
+use ftui_core::geometry::Rect;
+use ftui_style::{Color, Modifier, Style};
+use ftui_text::text::Line;
+use ftui_text::text::{Line, Span};
 
 fn todo_confidence_weight(priority: &str) -> u32 {
     match priority {
@@ -41,7 +45,7 @@ fn confidence_style(score: Option<u8>) -> Style {
         Some(_) => rgb(220, 120, 100),
         None => rgb(100, 100, 110),
     };
-    Style::default().fg(color)
+    Style::new().fg(color)
 }
 
 fn confidence_label(score: Option<u8>) -> String {
@@ -56,7 +60,7 @@ fn todo_confidence_suffix_width(todo: &crate::todo::TodoItem) -> u16 {
 
 fn push_todo_confidence_suffix(spans: &mut Vec<Span<'static>>, todo: &crate::todo::TodoItem) {
     let score = todo_display_confidence(todo);
-    spans.push(Span::styled(" · ", Style::default().fg(rgb(80, 80, 90))));
+    spans.push(Span::styled(" · ", Style::new().fg(rgb(80, 80, 90))));
     spans.push(Span::styled(
         confidence_label(score),
         confidence_style(score),
@@ -67,10 +71,10 @@ fn push_aggregate_confidence_suffix(spans: &mut Vec<Span<'static>>, data: &InfoW
     let Some(score) = aggregate_todo_confidence(&data.todos) else {
         return;
     };
-    spans.push(Span::styled(" · ", Style::default().fg(rgb(100, 100, 110))));
+    spans.push(Span::styled(" · ", Style::new().fg(rgb(100, 100, 110))));
     spans.push(Span::styled(
         "confidence ",
-        Style::default().fg(rgb(140, 140, 150)),
+        Style::new().fg(rgb(140, 140, 150)),
     ));
     spans.push(Span::styled(
         confidence_label(Some(score)),
@@ -99,10 +103,10 @@ pub(super) fn render_todos_widget(data: &InfoWidgetData, inner: Rect) -> Vec<Lin
 
     // Header with progress
     let mut header = vec![
-        Span::styled("Todos ", Style::default().fg(rgb(180, 180, 190)).bold()),
+        Span::styled("Todos ", Style::new().fg(rgb(180, 180, 190)).bold()),
         Span::styled(
             format!("{}/{}", completed, total),
-            Style::default().fg(rgb(140, 140, 150)),
+            Style::new().fg(rgb(140, 140, 150)),
         ),
     ];
     push_aggregate_confidence_suffix(&mut header, data);
@@ -114,10 +118,10 @@ pub(super) fn render_todos_widget(data: &InfoWidgetData, inner: Rect) -> Vec<Lin
         let filled = ((completed as f64 / total as f64) * bar_width as f64).round() as usize;
         let empty = bar_width.saturating_sub(filled);
         lines.push(Line::from(vec![
-            Span::styled("[", Style::default().fg(rgb(90, 90, 100))),
-            Span::styled("█".repeat(filled), Style::default().fg(rgb(100, 180, 100))),
-            Span::styled("░".repeat(empty), Style::default().fg(rgb(50, 50, 60))),
-            Span::styled("]", Style::default().fg(rgb(90, 90, 100))),
+            Span::styled("[", Style::new().fg(rgb(90, 90, 100))),
+            Span::styled("█".repeat(filled), Style::new().fg(rgb(100, 180, 100))),
+            Span::styled("░".repeat(empty), Style::new().fg(rgb(50, 50, 60))),
+            Span::styled("]", Style::new().fg(rgb(90, 90, 100))),
         ]));
     }
 
@@ -171,14 +175,14 @@ pub(super) fn render_todos_widget(data: &InfoWidgetData, inner: Rect) -> Vec<Lin
         };
 
         let mut spans = vec![
-            Span::styled(format!("{} ", icon), Style::default().fg(status_color)),
-            Span::styled(content, Style::default().fg(text_color)),
+            Span::styled(format!("{} ", icon), Style::new().fg(status_color)),
+            Span::styled(content, Style::new().fg(text_color)),
         ];
         push_todo_confidence_suffix(&mut spans, todo);
         if !suffix.is_empty() {
             spans.push(Span::styled(
                 suffix.to_string(),
-                Style::default().fg(rgb(100, 100, 110)),
+                Style::new().fg(rgb(100, 100, 110)),
             ));
         }
         lines.push(Line::from(spans));
@@ -190,7 +194,7 @@ pub(super) fn render_todos_widget(data: &InfoWidgetData, inner: Rect) -> Vec<Lin
         let remaining = data.todos.len() - shown;
         lines.push(Line::from(vec![Span::styled(
             format!("  +{} more", remaining),
-            Style::default().fg(rgb(100, 100, 110)),
+            Style::new().fg(rgb(100, 100, 110)),
         )]));
     }
 
@@ -218,10 +222,10 @@ pub(super) fn render_todos_expanded(data: &InfoWidgetData, inner: Rect) -> Vec<L
 
     // Header with progress
     let mut header = vec![
-        Span::styled("Todos ", Style::default().fg(rgb(180, 180, 190)).bold()),
+        Span::styled("Todos ", Style::new().fg(rgb(180, 180, 190)).bold()),
         Span::styled(
             format!("{}/{}", completed, total),
-            Style::default().fg(rgb(140, 140, 150)),
+            Style::new().fg(rgb(140, 140, 150)),
         ),
     ];
     push_aggregate_confidence_suffix(&mut header, data);
@@ -233,10 +237,10 @@ pub(super) fn render_todos_expanded(data: &InfoWidgetData, inner: Rect) -> Vec<L
         let filled = ((completed as f64 / total as f64) * bar_width as f64).round() as usize;
         let empty = bar_width.saturating_sub(filled);
         lines.push(Line::from(vec![
-            Span::styled("[", Style::default().fg(rgb(90, 90, 100))),
-            Span::styled("█".repeat(filled), Style::default().fg(rgb(100, 180, 100))),
-            Span::styled("░".repeat(empty), Style::default().fg(rgb(50, 50, 60))),
-            Span::styled("]", Style::default().fg(rgb(90, 90, 100))),
+            Span::styled("[", Style::new().fg(rgb(90, 90, 100))),
+            Span::styled("█".repeat(filled), Style::new().fg(rgb(100, 180, 100))),
+            Span::styled("░".repeat(empty), Style::new().fg(rgb(50, 50, 60))),
+            Span::styled("]", Style::new().fg(rgb(90, 90, 100))),
         ]));
     }
 
@@ -299,23 +303,23 @@ pub(super) fn render_todos_expanded(data: &InfoWidgetData, inner: Rect) -> Vec<L
 
         let mut spans = vec![Span::styled(
             format!("{} ", icon),
-            Style::default().fg(status_color),
+            Style::new().fg(status_color),
         )];
 
         if !priority_marker.0.is_empty() {
             spans.push(Span::styled(
                 priority_marker.0,
-                Style::default().fg(priority_marker.1),
+                Style::new().fg(priority_marker.1),
             ));
         }
 
-        spans.push(Span::styled(content, Style::default().fg(text_color)));
+        spans.push(Span::styled(content, Style::new().fg(text_color)));
         push_todo_confidence_suffix(&mut spans, todo);
 
         if !suffix.is_empty() {
             spans.push(Span::styled(
                 suffix.to_string(),
-                Style::default().fg(rgb(100, 100, 110)),
+                Style::new().fg(rgb(100, 100, 110)),
             ));
         }
 
@@ -340,7 +344,7 @@ pub(super) fn render_todos_expanded(data: &InfoWidgetData, inner: Rect) -> Vec<L
         };
         lines.push(Line::from(vec![Span::styled(
             desc,
-            Style::default().fg(rgb(100, 100, 110)),
+            Style::new().fg(rgb(100, 100, 110)),
         )]));
     }
 
@@ -365,17 +369,17 @@ pub(super) fn render_todos_compact(data: &InfoWidgetData, _inner: Rect) -> Vec<L
     let mut summary = vec![
         Span::styled(
             format!("{} total", total),
-            Style::default().fg(rgb(160, 160, 170)),
+            Style::new().fg(rgb(160, 160, 170)),
         ),
-        Span::styled(" · ", Style::default().fg(rgb(100, 100, 110))),
+        Span::styled(" · ", Style::new().fg(rgb(100, 100, 110))),
         Span::styled(
             format!("{} active", in_progress),
-            Style::default().fg(rgb(255, 200, 100)),
+            Style::new().fg(rgb(255, 200, 100)),
         ),
-        Span::styled(" · ", Style::default().fg(rgb(100, 100, 110))),
+        Span::styled(" · ", Style::new().fg(rgb(100, 100, 110))),
         Span::styled(
             format!("{} open", pending),
-            Style::default().fg(rgb(140, 140, 150)),
+            Style::new().fg(rgb(140, 140, 150)),
         ),
     ];
     push_aggregate_confidence_suffix(&mut summary, data);
@@ -383,7 +387,7 @@ pub(super) fn render_todos_compact(data: &InfoWidgetData, _inner: Rect) -> Vec<L
     vec![
         Line::from(vec![Span::styled(
             "Todos",
-            Style::default().fg(rgb(180, 180, 190)).bold(),
+            Style::new().fg(rgb(180, 180, 190)).bold(),
         )]),
         Line::from(summary),
     ]

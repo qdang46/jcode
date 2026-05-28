@@ -1,6 +1,9 @@
 use super::{InfoWidgetData, UsageInfo, UsageProvider};
 use crate::tui::color_support::rgb;
-use ratatui::prelude::*;
+use ftui_core::geometry::Rect;
+use ftui_style::{Color, Modifier, Style};
+use ftui_text::text::Line;
+use ftui_text::text::{Line, Span};
 use unicode_width::UnicodeWidthStr;
 
 pub(super) fn render_usage_widget(data: &InfoWidgetData, inner: Rect) -> Vec<Line<'static>> {
@@ -19,16 +22,16 @@ pub(super) fn render_usage_widget(data: &InfoWidgetData, inner: Rect) -> Vec<Lin
                     format_tokens(info.input_tokens),
                     format_tokens(info.output_tokens)
                 ),
-                Style::default().fg(rgb(140, 140, 150)),
+                Style::new().fg(rgb(140, 140, 150)),
             )])]
         }
         UsageProvider::CostBased => {
             vec![
                 Line::from(vec![
-                    Span::styled("💰 ", Style::default().fg(rgb(140, 180, 255))),
+                    Span::styled("💰 ", Style::new().fg(rgb(140, 180, 255))),
                     Span::styled(
                         format!("${:.4}", info.total_cost),
-                        Style::default().fg(rgb(180, 180, 190)).bold(),
+                        Style::new().fg(rgb(180, 180, 190)).bold(),
                     ),
                 ]),
                 Line::from(vec![Span::styled(
@@ -37,7 +40,7 @@ pub(super) fn render_usage_widget(data: &InfoWidgetData, inner: Rect) -> Vec<Lin
                         format_tokens(info.input_tokens),
                         format_tokens(info.output_tokens)
                     ),
-                    Style::default().fg(rgb(140, 140, 150)),
+                    Style::new().fg(rgb(140, 140, 150)),
                 )]),
             ]
         }
@@ -61,9 +64,9 @@ pub(super) fn render_usage_widget(data: &InfoWidgetData, inner: Rect) -> Vec<Lin
             if !label.is_empty() {
                 lines.push(Line::from(vec![Span::styled(
                     format!("{} limits", label),
-                    Style::default()
+                    Style::new()
                         .fg(rgb(140, 140, 150))
-                        .add_modifier(ratatui::style::Modifier::DIM),
+.add_modifier(Modifier::DIM),
                 )]));
             }
             lines.push(render_labeled_bar(
@@ -123,9 +126,9 @@ pub(super) fn render_usage_compact(info: &UsageInfo, width: u16) -> Vec<Line<'st
     if !label.is_empty() {
         lines.push(Line::from(vec![Span::styled(
             format!("{} limits", label),
-            Style::default()
+            Style::new()
                 .fg(rgb(140, 140, 150))
-                .add_modifier(ratatui::style::Modifier::DIM),
+                .add_modifier(Modifier::DIM),
         )]));
     }
     lines.push(render_labeled_bar(
@@ -200,10 +203,10 @@ fn render_labeled_bar(
     let padded_label = format!("{:<7}", label);
 
     Line::from(vec![
-        Span::styled(padded_label, Style::default().fg(rgb(140, 140, 150))),
-        Span::styled(bar_filled, Style::default().fg(color)),
-        Span::styled(bar_empty, Style::default().fg(rgb(50, 50, 60))),
-        Span::styled(suffix, Style::default().fg(color)),
+        Span::styled(padded_label, Style::new().fg(rgb(140, 140, 150))),
+        Span::styled(bar_filled, Style::new().fg(color)),
+        Span::styled(bar_empty, Style::new().fg(rgb(50, 50, 60))),
+        Span::styled(suffix, Style::new().fg(color)),
     ])
 }
 
@@ -244,7 +247,7 @@ pub(super) fn render_usage_bar(
     );
     let show_label = UnicodeWidthStr::width(label.as_str()) <= bar_width;
     let mut spans = Vec::new();
-    spans.push(Span::styled("[", Style::default().fg(rgb(90, 90, 100))));
+    spans.push(Span::styled("[", Style::new().fg(rgb(90, 90, 100))));
     if show_label {
         let label_start = (bar_width - label.len()) / 2;
         let label_end = label_start + label.len();
@@ -258,14 +261,14 @@ pub(super) fn render_usage_bar(
             };
             let style = if idx >= label_start && idx < label_end {
                 if in_used {
-                    Style::default().fg(rgb(20, 30, 35)).bold()
+                    Style::new().fg(rgb(20, 30, 35)).bold()
                 } else {
-                    Style::default().fg(rgb(170, 170, 180)).bold()
+                    Style::new().fg(rgb(170, 170, 180)).bold()
                 }
             } else if in_used {
-                Style::default().fg(used_color)
+                Style::new().fg(used_color)
             } else {
-                Style::default().fg(rgb(50, 50, 60))
+                Style::new().fg(rgb(50, 50, 60))
             };
             spans.push(Span::styled(ch.to_string(), style));
         }
@@ -273,16 +276,16 @@ pub(super) fn render_usage_bar(
         let empty_cells = bar_width.saturating_sub(used_cells);
         spans.push(Span::styled(
             "█".repeat(used_cells),
-            Style::default().fg(used_color),
+            Style::new().fg(used_color),
         ));
         if empty_cells > 0 {
             spans.push(Span::styled(
                 "░".repeat(empty_cells),
-                Style::default().fg(rgb(50, 50, 60)),
+                Style::new().fg(rgb(50, 50, 60)),
             ));
         }
     }
-    spans.push(Span::styled("]", Style::default().fg(rgb(90, 90, 100))));
+    spans.push(Span::styled("]", Style::new().fg(rgb(90, 90, 100))));
     Line::from(spans)
 }
 
@@ -297,7 +300,7 @@ pub(super) fn render_context_usage_line(
 
     if bar_width < 3 {
         return Line::from(vec![
-            Span::styled(label.to_string(), Style::default().fg(rgb(140, 140, 150))),
+            Span::styled(label.to_string(), Style::new().fg(rgb(140, 140, 150))),
             Span::raw(" "),
             Span::styled(
                 format!(
@@ -305,14 +308,14 @@ pub(super) fn render_context_usage_line(
                     format_token_k(used_tokens),
                     format_token_k(limit_tokens)
                 ),
-                Style::default().fg(rgb(100, 200, 100)).bold(),
+                Style::new().fg(rgb(100, 200, 100)).bold(),
             ),
         ]);
     }
 
     let mut spans = vec![Span::styled(
         format!("{label} "),
-        Style::default().fg(rgb(140, 140, 150)),
+        Style::new().fg(rgb(140, 140, 150)),
     )];
     spans.extend(render_usage_bar(used_tokens, limit_tokens, bar_width).spans);
     Line::from(spans)

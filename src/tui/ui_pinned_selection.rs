@@ -1,4 +1,6 @@
 use super::*;
+use ftui_style::{Color, Style};
+use ftui_text::text::{Line, Span};
 
 fn selection_bg_for(base_bg: Option<Color>) -> Color {
     let fallback = rgb(32, 38, 48);

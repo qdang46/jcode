@@ -1,4 +1,8 @@
 use super::*;
+use ftui_core::geometry::Rect;
+use ftui_style::{Color, Modifier, Style};
+use ftui_text::text::{Line, Span};
+use unicode_width::UnicodeWidthStr;;
 
 pub(super) fn render_memory_widget(data: &InfoWidgetData, inner: Rect) -> Vec<Line<'static>> {
     let Some(info) = &data.memory_info else {
@@ -75,10 +79,10 @@ fn render_memory_header_line(
     };
 
     let mut spans = vec![
-        Span::styled("🧠 ", Style::default().fg(rgb(200, 150, 255))),
+        Span::styled("🧠 ", Style::new().fg(rgb(200, 150, 255))),
         Span::styled(
             truncate_with_ellipsis(&title, available_title.max(6)),
-            Style::default().fg(rgb(210, 210, 220)).bold(),
+            Style::new().fg(rgb(210, 210, 220)).bold(),
         ),
     ];
 
@@ -86,7 +90,7 @@ fn render_memory_header_line(
         spans.push(Span::raw(" "));
         spans.push(Span::styled(
             badge_text,
-            Style::default().fg(badge_color).bg(rgb(32, 32, 40)).bold(),
+            Style::new().fg(badge_color).bg(rgb(32, 32, 40)).bold(),
         ));
     }
 
@@ -100,7 +104,7 @@ fn render_memory_count_line(info: &MemoryInfo, max_width: usize) -> Option<Line<
 
     Some(Line::from(vec![Span::styled(
         truncate_with_ellipsis(&memory_count_label(info.total_count), max_width.max(8)),
-        Style::default().fg(rgb(160, 160, 170)).bold(),
+        Style::new().fg(rgb(160, 160, 170)).bold(),
     )]))
 }
 
@@ -214,10 +218,10 @@ fn render_memory_model_line(info: &MemoryInfo, max_width: usize) -> Option<Line<
 
     let available = max_width.saturating_sub(7);
     Some(Line::from(vec![
-        Span::styled("Model: ", Style::default().fg(rgb(120, 120, 130))),
+        Span::styled("Model: ", Style::new().fg(rgb(120, 120, 130))),
         Span::styled(
             truncate_with_ellipsis(model, available),
-            Style::default().fg(rgb(140, 200, 255)).bold(),
+            Style::new().fg(rgb(140, 200, 255)).bold(),
         ),
     ]))
 }
@@ -254,16 +258,16 @@ fn render_memory_status_line(activity: &MemoryActivity, max_width: usize) -> Lin
     };
 
     let mut spans = vec![
-        Span::styled(prefix, Style::default().fg(rgb(120, 120, 130))),
+        Span::styled(prefix, Style::new().fg(rgb(120, 120, 130))),
         Span::styled(
             truncate_smart(&summary, available),
-            Style::default().fg(badge_color).bold(),
+            Style::new().fg(badge_color).bold(),
         ),
     ];
 
     if show_age {
-        spans.push(Span::styled(" · ", Style::default().fg(rgb(90, 90, 100))));
-        spans.push(Span::styled(age, Style::default().fg(rgb(120, 120, 130))));
+        spans.push(Span::styled(" · ", Style::new().fg(rgb(90, 90, 100))));
+        spans.push(Span::styled(age, Style::new().fg(rgb(120, 120, 130))));
     }
 
     Line::from(spans)
@@ -434,11 +438,11 @@ fn render_memory_last_trace_line(
     }
 
     Some(Line::from(vec![
-        Span::styled("Trace: ", Style::default().fg(rgb(120, 120, 130))),
-        Span::styled(format!("{} ", icon), Style::default().fg(color)),
+        Span::styled("Trace: ", Style::new().fg(rgb(120, 120, 130))),
+        Span::styled(format!("{} ", icon), Style::new().fg(color)),
         Span::styled(
             truncate_with_ellipsis(&text, max_width.saturating_sub(7)),
-            Style::default().fg(rgb(160, 160, 170)),
+            Style::new().fg(rgb(160, 160, 170)),
         ),
     ]))
 }
@@ -502,20 +506,20 @@ fn render_memory_step_line(
     };
 
     Line::from(vec![
-        Span::styled(prefix.to_string(), Style::default().fg(rail_color)),
-        Span::styled(format!("{} ", marker), Style::default().fg(marker_color)),
+        Span::styled(prefix.to_string(), Style::new().fg(rail_color)),
+        Span::styled(format!("{} ", marker), Style::new().fg(marker_color)),
         Span::styled(
             label.to_string(),
             if matches!(status, StepStatus::Running | StepStatus::Done) {
-                Style::default().fg(label_color).bold()
+                Style::new().fg(label_color).bold()
             } else {
-                Style::default().fg(label_color)
+                Style::new().fg(label_color)
             },
         ),
-        Span::styled("  ", Style::default().fg(rgb(100, 100, 110))),
+        Span::styled("  ", Style::new().fg(rgb(100, 100, 110))),
         Span::styled(
             truncate_smart(&detail, available),
-            Style::default().fg(detail_color),
+            Style::new().fg(detail_color),
         ),
     ])
 }
@@ -611,12 +615,12 @@ pub(super) fn render_memory_compact(info: &MemoryInfo, inner_width: u16) -> Vec<
     };
 
     vec![Line::from(vec![
-        Span::styled("🧠 ", Style::default().fg(rgb(200, 150, 255))),
-        Span::styled(title, Style::default().fg(rgb(180, 180, 190)).bold()),
-        Span::styled(" · ", Style::default().fg(rgb(100, 100, 110))),
+        Span::styled("🧠 ", Style::new().fg(rgb(200, 150, 255))),
+        Span::styled(title, Style::new().fg(rgb(180, 180, 190)).bold()),
+        Span::styled(" · ", Style::new().fg(rgb(100, 100, 110))),
         Span::styled(
             truncate_with_ellipsis(&summary, summary_width.max(8)),
-            Style::default().fg(accent),
+            Style::new().fg(accent),
         ),
     ])]
 }

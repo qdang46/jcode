@@ -1,4 +1,14 @@
 use super::*;
+use crate::tui::color_support::rgb;
+use ftui_core::geometry::Rect;
+use ftui_render::cell::PackedRgba;
+use ftui_style::{Color, Modifier, Style};
+use ftui_text::text::{Line, Span, Text};
+use ftui_widgets::block::{Alignment, Block, Borders};
+use ftui_widgets::paragraph::Paragraph;
+use ftui_widgets::wrap::Wrap;
+use ftui_widgets::Widget;
+
 mod ui_pinned_table;
 use ui_pinned_table::is_rendered_table_line;
 
@@ -6,20 +16,18 @@ use ui_pinned_table::is_rendered_table_line;
 mod layout_support;
 #[path = "ui_pinned_utils.rs"]
 mod util_support;
-use crate::tui::mermaid;
-#[cfg(test)]
-use layout_support::{clamp_side_panel_image_rows, estimate_side_panel_image_rows_with_font};
+#[path = "ui_pinned_selection.rs"]
+mod selection_support;
+
 use layout_support::{
     estimate_side_panel_image_layout, estimate_side_panel_image_layout_with_font,
     fit_image_area_with_font, plan_fit_image_render, scaled_image_rows,
     side_panel_viewport_scroll_x,
 };
-#[cfg(test)]
-use std::cell::RefCell;
-use std::collections::{HashMap, VecDeque};
 use util_support::{
     compact_image_label, estimate_side_panel_pane_area, lru_touch, side_panel_content_signature,
 };
+use selection_support::apply_side_selection_highlight;
 
 const SIDE_PANEL_HEADER_HEIGHT: u16 = 1;
 
@@ -29,8 +37,8 @@ fn side_panel_border_style(focused: bool) -> Style {
 }
 
 fn side_panel_inner(area: Rect) -> Rect {
-    ratatui::widgets::Block::default()
-        .borders(ratatui::widgets::Borders::LEFT)
+    Block::new()
+        .borders(Borders::LEFT)
         .inner(area)
 }
 
@@ -802,8 +810,6 @@ pub(super) fn draw_pinned_content_cached(
     line_wrap: bool,
     focused: bool,
 ) {
-    use ratatui::widgets::{Paragraph, Wrap};
-
     if area.width < 10 || area.height < 3 {
         return;
     }
@@ -853,7 +859,7 @@ pub(super) fn draw_pinned_content_cached(
         "Pinned",
         Style::default()
             .fg(rgb(180, 200, 255))
-            .add_modifier(ratatui::style::Modifier::BOLD),
+            .add_modifier(Modifier::BOLD),
     ));
     title_parts.push(Span::styled(" ", Style::default().fg(dim_color())));
     if total_diffs > 0 {
@@ -941,7 +947,7 @@ pub(super) fn draw_pinned_content_cached(
                             short_path,
                             Style::default()
                                 .fg(rgb(180, 200, 255))
-                                .add_modifier(ratatui::style::Modifier::BOLD),
+                                .add_modifier(Modifier::BOLD),
                         ),
                         Span::styled(" (", Style::default().fg(dim_color())),
                         Span::styled(
@@ -998,7 +1004,7 @@ pub(super) fn draw_pinned_content_cached(
                                 group_label.to_uppercase(),
                                 Style::default()
                                     .fg(group_color)
-                                    .add_modifier(ratatui::style::Modifier::BOLD),
+                                    .add_modifier(Modifier::BOLD),
                             ),
                         ]));
                         last_image_group = Some(group);
@@ -1023,7 +1029,7 @@ pub(super) fn draw_pinned_content_cached(
                             short_label,
                             Style::default()
                                 .fg(rgb(180, 200, 255))
-                                .add_modifier(ratatui::style::Modifier::BOLD),
+                                .add_modifier(Modifier::BOLD),
                         ),
                         Span::styled(format!(" {dimensions}"), Style::default().fg(dim_color())),
                         Span::styled(
@@ -1137,12 +1143,13 @@ pub(super) fn draw_pinned_content_cached(
     apply_side_selection_highlight(app, &mut visible_lines, clamped_scroll);
     super::clear_area(frame, inner);
 
-    let paragraph = if line_wrap {
-        Paragraph::new(visible_lines).wrap(Wrap { trim: false })
+    if line_wrap {
+        let paragraph = Paragraph::new(Text::from(visible_lines)).wrap(Wrap { trim: false });
+        paragraph.render(frame, inner);
     } else {
-        Paragraph::new(visible_lines)
-    };
-    frame.render_widget(paragraph, inner);
+        let paragraph = Paragraph::new(Text::from(visible_lines));
+        paragraph.render(frame, inner);
+    }
 
     let has_protocol = mermaid::protocol_type().is_some();
     if has_protocol {
@@ -1288,7 +1295,7 @@ pub(super) fn draw_side_panel_markdown(
         page.title.clone(),
         Style::default()
             .fg(rgb(180, 200, 255))
-            .add_modifier(ratatui::style::Modifier::BOLD),
+            .add_modifier(Modifier::BOLD),
     ));
     title_parts.push(Span::styled(
         format!(" {}/{} ", page_index, page_count),
@@ -1322,7 +1329,7 @@ pub(super) fn draw_side_panel_markdown(
             " readable ",
             Style::default()
                 .fg(accent_color())
-                .add_modifier(ratatui::style::Modifier::BOLD),
+                .add_modifier(Modifier::BOLD),
         ));
         title_parts.push(Span::styled(" scroll ", Style::default().fg(dim_color())));
         if focused {
@@ -1398,7 +1405,8 @@ pub(super) fn draw_side_panel_markdown(
     );
     apply_side_selection_highlight(app, &mut visible_lines, clamped_scroll);
     super::clear_area(frame, content_inner);
-    frame.render_widget(Paragraph::new(visible_lines), content_inner);
+    let paragraph = Paragraph::new(Text::from(visible_lines));
+    paragraph.render(frame, content_inner);
 
     if let Some(scrollbar_area) = scrollbar_area {
         super::clear_area(frame, scrollbar_area);

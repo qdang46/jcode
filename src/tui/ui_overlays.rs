@@ -5,12 +5,17 @@ use super::{
 };
 use crate::tui::TuiState;
 use crate::tui::info_widget::WidgetPlacement;
-use ratatui::{
-    prelude::*,
-    widgets::{Block, Borders, Paragraph},
+use ftui_core::geometry::Rect;
+use ftui_render::cell::PackedRgba;
+use ftui_style::{Color, Modifier, Style};
+use ftui_text::text::{Line, Span, Text};
+use ftui_widgets::{
+    block::{Alignment, Block, Borders},
+    paragraph::Paragraph,
+    Widget,
 };
 
-pub(super) fn draw_changelog_overlay(frame: &mut Frame, area: Rect, scroll: usize) {
+pub(super) fn draw_changelog_overlay(frame: &mut ftui::Frame, area: Rect, scroll: usize) {
     clear_area(frame, area);
 
     let groups = get_grouped_changelog();
@@ -61,7 +66,7 @@ pub(super) fn draw_changelog_overlay(frame: &mut Frame, area: Rect, scroll: usiz
     };
 
     let title = format!(" Changelog {} ", scroll_info);
-    let block = Block::default()
+    let block = Block::new()
         .title(Span::styled(
             title,
             Style::default()
@@ -75,14 +80,14 @@ pub(super) fn draw_changelog_overlay(frame: &mut Frame, area: Rect, scroll: usiz
         .borders(Borders::ALL)
         .border_style(Style::default().fg(dim_color()));
 
-    let paragraph = Paragraph::new(lines)
+    let paragraph = Paragraph::new(Text::from(lines))
         .block(block)
         .scroll((scroll as u16, 0));
 
-    frame.render_widget(paragraph, area);
+    paragraph.render(area, frame);
 }
 
-pub(super) fn draw_help_overlay(frame: &mut Frame, area: Rect, scroll: usize, app: &dyn TuiState) {
+pub(super) fn draw_help_overlay(frame: &mut ftui::Frame, area: Rect, scroll: usize, app: &dyn TuiState) {
     clear_area(frame, area);
 
     let section_style = Style::default()
@@ -456,7 +461,7 @@ pub(super) fn draw_help_overlay(frame: &mut Frame, area: Rect, scroll: usize, ap
     };
 
     let title = format!(" Help {} ", scroll_info);
-    let block = Block::default()
+    let block = Block::new()
         .title(Span::styled(
             title,
             Style::default()
@@ -470,15 +475,15 @@ pub(super) fn draw_help_overlay(frame: &mut Frame, area: Rect, scroll: usize, ap
         .borders(Borders::ALL)
         .border_style(Style::default().fg(dim_color()));
 
-    let paragraph = Paragraph::new(lines)
+    let paragraph = Paragraph::new(Text::from(lines))
         .block(block)
         .scroll((scroll as u16, 0));
 
-    frame.render_widget(paragraph, area);
+    paragraph.render(area, frame);
 }
 
 pub(super) fn draw_model_status_overlay(
-    frame: &mut Frame,
+    frame: &mut ftui::Frame,
     area: Rect,
     scroll: usize,
     content: &str,
@@ -517,18 +522,18 @@ pub(super) fn draw_model_status_overlay(
         dim_style,
     )));
 
-    let paragraph = Paragraph::new(lines)
+    let paragraph = Paragraph::new(Text::from(lines))
         .block(
-            Block::default()
+            Block::new()
                 .borders(Borders::ALL)
                 .title(" /provider-test-coverage "),
         )
         .scroll((scroll.min(u16::MAX as usize) as u16, 0));
-    frame.render_widget(paragraph, area);
+    paragraph.render(area, frame);
 }
 
 pub(super) fn draw_debug_overlay(
-    frame: &mut Frame,
+    frame: &mut ftui::Frame,
     placements: &[WidgetPlacement],
     chunks: &[Rect],
 ) {
@@ -550,15 +555,15 @@ pub(super) fn draw_debug_overlay(
     }
 }
 
-fn render_overlay_box(frame: &mut Frame, area: Rect, title: &str, color: Color) {
+fn render_overlay_box(frame: &mut ftui::Frame, area: Rect, title: &str, color: Color) {
     if area.width == 0 || area.height == 0 {
         return;
     }
-    let block = Block::default()
+    let block = Block::new()
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(color))
-        .title(Span::styled(title.to_string(), Style::default().fg(color)));
-    frame.render_widget(block, area);
+        .border_style(Style::new().fg(color))
+        .title(Span::styled(title.to_string(), Style::new().fg(color)));
+    block.render(area, frame);
 }
 
 pub(super) fn debug_palette_json() -> Option<serde_json::Value> {

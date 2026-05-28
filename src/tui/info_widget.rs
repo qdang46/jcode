@@ -38,9 +38,14 @@ use crate::protocol::SwarmMemberStatus;
 use crate::provider::DEFAULT_CONTEXT_LIMIT;
 use crate::todo::TodoItem;
 use memory_render::{render_memory_compact, render_memory_expanded, render_memory_widget};
-use ratatui::{
-    prelude::*,
-    widgets::{Block, BorderType, Borders, Paragraph},
+use ftui_core::geometry::Rect;
+use ftui_style::{Color, Modifier, Style};
+use ftui_text::text::{Line, Text};
+use ftui_widgets::{
+    block::{Alignment, Block, BorderType, Borders, Constraint, Direction, Layout},
+    paragraph::Paragraph,
+    wrap::Wrap,
+    Widget,
 };
 use std::collections::HashMap;
 #[cfg(test)]
@@ -1084,12 +1089,12 @@ fn render_single_widget(frame: &mut Frame, placement: &WidgetPlacement, data: &I
     let mut block = Block::default()
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
-        .border_style(Style::default().fg(rgb(70, 70, 80)).dim());
+        .border_style(Style::new().fg(rgb(70, 70, 80)).dim());
 
     if placement.kind == WidgetKind::WorkspaceMap {
         block = block.title(Span::styled(
             " Workspace ",
-            Style::default().fg(rgb(120, 120, 130)).dim(),
+            Style::new().fg(rgb(120, 120, 130)).dim(),
         ));
     }
 
@@ -1201,9 +1206,9 @@ fn render_overview_widget(frame: &mut Frame, inner: Rect, data: &InfoWidgetData)
         let mut dots: Vec<Span<'static>> = Vec::new();
         for i in 0..layout.pages.len() {
             if i == page_index {
-                dots.push(Span::styled("● ", Style::default().fg(rgb(170, 170, 180))));
+                dots.push(Span::styled("● ", Style::new().fg(rgb(170, 170, 180))));
             } else {
-                dots.push(Span::styled("○ ", Style::default().fg(rgb(100, 100, 110))));
+                dots.push(Span::styled("○ ", Style::new().fg(rgb(100, 100, 110))));
             }
         }
         if !dots.is_empty() {
@@ -1421,16 +1426,16 @@ fn render_compaction_widget(data: &InfoWidgetData, inner: Rect) -> Vec<Line<'sta
     );
     vec![
         Line::from(vec![
-            Span::styled("Compaction ", Style::default().fg(label_color)),
-            Span::styled(status, Style::default().fg(title_color).bold()),
+            Span::styled("Compaction ", Style::new().fg(label_color)),
+            Span::styled(status, Style::new().fg(title_color).bold()),
             Span::styled(
                 format!(" · {}", info.mode),
-                Style::default().fg(label_color),
+                Style::new().fg(label_color),
             ),
         ]),
         Line::from(Span::styled(
             truncate_smart(&detail, inner.width as usize),
-            Style::default().fg(rgb(180, 180, 190)),
+            Style::new().fg(rgb(180, 180, 190)),
         )),
     ]
 }
@@ -1443,13 +1448,13 @@ fn render_kv_cache_widget(data: &InfoWidgetData, _inner: Rect) -> Vec<Line<'stat
 
     lines.push(Line::from(vec![Span::styled(
         "miss attribution",
-        Style::default().fg(rgb(140, 140, 150)).bold(),
+        Style::new().fg(rgb(140, 140, 150)).bold(),
     )]));
 
     if cache.miss_attributions.is_empty() {
         lines.push(Line::from(vec![Span::styled(
             "none",
-            Style::default().fg(rgb(110, 210, 140)),
+            Style::new().fg(rgb(110, 210, 140)),
         )]));
         return lines;
     }
@@ -1461,22 +1466,22 @@ fn render_kv_cache_widget(data: &InfoWidgetData, _inner: Rect) -> Vec<Line<'stat
         .sum();
     lines.push(Line::from(vec![Span::styled(
         format!("{} missed total", compact_token_count(total_missed)),
-        Style::default().fg(rgb(180, 180, 190)),
+        Style::new().fg(rgb(180, 180, 190)),
     )]));
 
     for sample in cache.miss_attributions.iter().take(5) {
         lines.push(Line::from(vec![
             Span::styled(
                 format_cache_turn_label(sample.turn_number, sample.call_index),
-                Style::default().fg(rgb(140, 180, 255)).bold(),
+                Style::new().fg(rgb(140, 180, 255)).bold(),
             ),
             Span::styled(
                 format!(" {} miss ", compact_token_count(sample.missed_tokens)),
-                Style::default().fg(rgb(255, 200, 100)),
+                Style::new().fg(rgb(255, 200, 100)),
             ),
             Span::styled(
                 format!("({})", sample.reason),
-                Style::default().fg(rgb(140, 140, 150)),
+                Style::new().fg(rgb(140, 140, 150)),
             ),
         ]));
     }
@@ -1484,7 +1489,7 @@ fn render_kv_cache_widget(data: &InfoWidgetData, _inner: Rect) -> Vec<Line<'stat
     if cache.miss_attributions.len() > 5 {
         lines.push(Line::from(vec![Span::styled(
             format!("… {} more", cache.miss_attributions.len() - 5),
-            Style::default().fg(rgb(100, 100, 110)),
+            Style::new().fg(rgb(100, 100, 110)),
         )]));
     }
 
@@ -1508,50 +1513,50 @@ fn render_kv_cache_summary_line(cache: &CacheHitInfo) -> Line<'static> {
 
     let mut spans = vec![Span::styled(
         "KV cache: ",
-        Style::default().fg(rgb(180, 180, 190)).bold(),
+        Style::new().fg(rgb(180, 180, 190)).bold(),
     )];
 
     if let Some(warm_pct) = warm_pct {
         spans.push(Span::styled(
             "warm ",
-            Style::default().fg(rgb(140, 140, 150)),
+            Style::new().fg(rgb(140, 140, 150)),
         ));
         spans.push(Span::styled(
             format!("{}%", warm_pct),
-            Style::default().fg(color).bold(),
+            Style::new().fg(color).bold(),
         ));
     } else {
         spans.push(Span::styled(
             "warming",
-            Style::default().fg(color).add_modifier(Modifier::BOLD),
+            Style::new().fg(color).add_modifier(Modifier::BOLD),
         ));
     }
 
     if let Some(last_pct) = last_pct {
-        spans.push(Span::styled(" · ", Style::default().fg(rgb(80, 80, 90))));
+        spans.push(Span::styled(" · ", Style::new().fg(rgb(80, 80, 90))));
         spans.push(Span::styled(
             "last ",
-            Style::default().fg(rgb(140, 140, 150)),
+            Style::new().fg(rgb(140, 140, 150)),
         ));
         spans.push(Span::styled(
             format!("{}%", last_pct),
-            Style::default().fg(color).bold(),
+            Style::new().fg(color).bold(),
         ));
     }
 
-    spans.push(Span::styled(" · ", Style::default().fg(rgb(80, 80, 90))));
+    spans.push(Span::styled(" · ", Style::new().fg(rgb(80, 80, 90))));
     spans.push(Span::styled(
         "all ",
-        Style::default().fg(rgb(140, 140, 150)),
+        Style::new().fg(rgb(140, 140, 150)),
     ));
     spans.push(Span::styled(
         format!("{}%", lifetime_pct),
-        Style::default().fg(color).bold(),
+        Style::new().fg(color).bold(),
     ));
 
     spans.push(Span::styled(
         " lifetime",
-        Style::default().fg(rgb(100, 100, 110)),
+        Style::new().fg(rgb(100, 100, 110)),
     ));
 
     Line::from(spans)
@@ -1650,10 +1655,10 @@ fn render_ambient_widget(data: &InfoWidgetData, inner: Rect) -> Vec<Line<'static
     };
 
     lines.push(Line::from(vec![
-        Span::styled(format!("{} ", icon), Style::default().fg(status_color)),
+        Span::styled(format!("{} ", icon), Style::new().fg(status_color)),
         Span::styled(
             truncate_smart(&status_text, inner.width.saturating_sub(3) as usize),
-            Style::default().fg(rgb(180, 180, 190)),
+            Style::new().fg(rgb(180, 180, 190)),
         ),
     ]));
 
@@ -1684,13 +1689,13 @@ fn render_ambient_widget(data: &InfoWidgetData, inner: Rect) -> Vec<Line<'static
                 format!("{} tasks queued", queue_count)
             };
         let mut spans = vec![
-            Span::styled("  ", Style::default()),
-            Span::styled(count_text, Style::default().fg(label_color)),
+            Span::styled("  ", Style::new()),
+            Span::styled(count_text, Style::new().fg(label_color)),
         ];
         if let Some(preview) = queue_preview {
             spans.push(Span::styled(
                 truncate_smart(&format!(" ({})", preview), max_w.saturating_sub(18)),
-                Style::default().fg(dim),
+                Style::new().fg(dim),
             ));
         }
         lines.push(Line::from(spans));
@@ -1699,15 +1704,15 @@ fn render_ambient_widget(data: &InfoWidgetData, inner: Rect) -> Vec<Line<'static
     // Last run
     if let Some(ref ago) = info.last_run_ago {
         let mut spans = vec![
-            Span::styled("  ", Style::default()),
-            Span::styled(format!("Ran {}", ago), Style::default().fg(label_color)),
+            Span::styled("  ", Style::new()),
+            Span::styled(format!("Ran {}", ago), Style::new().fg(label_color)),
         ];
         if let Some(ref summary) = info.last_summary {
             let remaining = max_w.saturating_sub(6 + ago.len());
             if remaining > 5 {
                 spans.push(Span::styled(
                     truncate_smart(&format!(" - {}", summary), remaining),
-                    Style::default().fg(dim),
+                    Style::new().fg(dim),
                 ));
             }
         }
@@ -1728,10 +1733,10 @@ fn render_ambient_widget(data: &InfoWidgetData, inner: Rect) -> Vec<Line<'static
             "Next run"
         };
         lines.push(Line::from(vec![
-            Span::styled("  ", Style::default()),
+            Span::styled("  ", Style::new()),
             Span::styled(
                 format!("{} {}", prefix, next),
-                Style::default().fg(label_color),
+                Style::new().fg(label_color),
             ),
         ]));
     }
@@ -1752,10 +1757,10 @@ fn render_ambient_widget(data: &InfoWidgetData, inner: Rect) -> Vec<Line<'static
         };
 
         lines.push(Line::from(vec![
-            Span::styled("  ", Style::default()),
-            Span::styled("█".repeat(filled), Style::default().fg(bar_color)),
-            Span::styled("░".repeat(empty), Style::default().fg(rgb(50, 50, 60))),
-            Span::styled(format!(" {}%", pct), Style::default().fg(bar_color)),
+            Span::styled("  ", Style::new()),
+            Span::styled("█".repeat(filled), Style::new().fg(bar_color)),
+            Span::styled("░".repeat(empty), Style::new().fg(rgb(50, 50, 60))),
+            Span::styled(format!(" {}%", pct), Style::new().fg(bar_color)),
         ]));
     }
 

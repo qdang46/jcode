@@ -11,7 +11,13 @@ use crate::tui::color_support::rgb;
 use crate::tui::detect_kv_cache_problem;
 use crate::tui::info_widget::occasional_status_tip;
 use crate::tui::layout_utils;
-use ratatui::{prelude::*, widgets::Paragraph};
+use ftui_style::{Color, Style};
+use ftui_text::text::{Line, Span};
+use ftui_widgets::block::Alignment;
+use ftui_widgets::paragraph::Paragraph;
+use ftui_widgets::Widget;
+use ftui::Frame;
+use ftui_core::geometry::Rect;
 
 fn shell_mode_color() -> Color {
     rgb(110, 214, 151)
@@ -329,7 +335,7 @@ pub(super) fn draw_queued(frame: &mut Frame, app: &dyn TuiState, area: Rect, sta
     } else {
         Paragraph::new(lines)
     };
-    frame.render_widget(paragraph, area);
+    paragraph.render(area, frame);
 }
 
 fn format_stream_tokens(tokens: u64) -> String {
@@ -889,7 +895,7 @@ pub(super) fn draw_status(frame: &mut Frame, app: &dyn TuiState, area: Rect, pen
     } else {
         line
     };
-    frame.render_widget(Paragraph::new(aligned_line), area);
+    Paragraph::new(aligned_line).render(area, frame);
 }
 
 fn streaming_status_spans(
@@ -921,7 +927,7 @@ fn streaming_status_spans(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ratatui::style::Modifier;
+    use ftui_style::Modifier;
 
     #[test]
     fn session_history_warning_is_clear_and_occasional() {
@@ -1455,7 +1461,7 @@ pub(super) fn draw_notification(frame: &mut Frame, app: &dyn TuiState, area: Rec
     } else {
         line
     };
-    frame.render_widget(Paragraph::new(aligned_line), area);
+    Paragraph::new(aligned_line).render(area, frame);
 }
 
 pub(super) fn draw_input(
@@ -1595,7 +1601,7 @@ pub(super) fn draw_input(
     } else {
         Paragraph::new(lines.clone())
     };
-    frame.render_widget(paragraph, area);
+    paragraph.render(area, frame);
 
     let cursor_screen_line = cursor_line.saturating_sub(scroll_offset) + suggestions_offset;
     let cursor_y = area.y + (cursor_screen_line as u16).min(area.height.saturating_sub(1));
@@ -1893,7 +1899,7 @@ fn draw_send_mode_indicator(frame: &mut Frame, app: &dyn TuiState, area: Rect) {
     };
     let line = Line::from(Span::styled(icon, Style::default().fg(color)));
     let paragraph = Paragraph::new(line).alignment(Alignment::Right);
-    frame.render_widget(paragraph, indicator_area);
+    paragraph.render(indicator_area, frame);
 }
 
 #[derive(Clone, Copy)]

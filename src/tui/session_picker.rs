@@ -9,13 +9,16 @@ use crate::tui::{DisplayMessage, markdown};
 use anyhow::Result;
 use crossterm::event::{self, Event, KeyCode, KeyEventKind, KeyModifiers, MouseEventKind};
 use jcode_session_types::SessionStatus;
-use ratatui::{
-    Frame,
-    layout::{Alignment, Constraint, Direction, Layout, Rect},
-    style::{Color, Modifier, Style},
-    text::{Line, Span},
-    widgets::{Block, BorderType, Borders, List, ListItem, ListState, Paragraph},
-};
+use ftui::Frame;
+use ftui_core::geometry::Rect;
+use ftui_render::cell::PackedRgba;
+use ftui_style::{Color, Style, Modifier};
+use ftui_text::text::{Line, Span, Text};
+use ftui_widgets::block::{Alignment, Block, BorderType, Borders, Constraint, Direction, Layout};
+use ftui_widgets::paragraph::Paragraph;
+use ftui_widgets::list::{List, ListItem, ListState};
+use ftui_widgets::wrap::Wrap;
+use ftui_widgets::Widget;
 use std::collections::HashSet;
 use std::io::IsTerminal;
 use std::time::Duration;
@@ -776,8 +779,8 @@ impl SessionPicker {
                     Style::default().fg(Color::DarkGray),
                 )]),
             ];
-            let paragraph = Paragraph::new(body).block(block);
-            frame.render_widget(paragraph, area);
+            let paragraph = Paragraph::new(Text::from(body)).block(block);
+            paragraph.render(area, frame);
             return;
         }
 
@@ -790,10 +793,10 @@ impl SessionPicker {
                 .border_type(BorderType::Rounded)
                 .title(" Preview ")
                 .border_style(Style::default().fg(empty_border_color));
-            let paragraph = Paragraph::new("No session selected")
+            let paragraph = Paragraph::new(Text::from("No session selected"))
                 .block(block)
                 .style(Style::default().fg(Color::DarkGray));
-            frame.render_widget(paragraph, area);
+            paragraph.render(area, frame);
             return;
         };
 
@@ -1163,11 +1166,11 @@ impl SessionPicker {
             self.scroll_offset = self.scroll_offset.min(max_scroll);
         }
 
-        let paragraph = Paragraph::new(lines)
+        let paragraph = Paragraph::new(Text::from(lines))
             .block(block)
             .scroll((self.scroll_offset, 0));
 
-        frame.render_widget(paragraph, area);
+        paragraph.render(area, frame);
     }
 
     pub fn render(&mut self, frame: &mut Frame) {
@@ -1219,8 +1222,8 @@ impl SessionPicker {
                 },
             ]);
             let search_widget =
-                Paragraph::new(search_line).style(Style::default().bg(rgb(25, 25, 30)));
-            frame.render_widget(search_widget, search_area);
+                Paragraph::new(Text::from(search_line)).style(Style::default().bg(rgb(25, 25, 30)));
+            search_widget.render(search_area, frame);
         }
 
         let main_area = v_chunks[chunk_idx];

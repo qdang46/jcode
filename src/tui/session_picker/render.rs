@@ -487,6 +487,6 @@ impl SessionPicker {
                     .border_style(Style::default().fg(rgb(255, 140, 140))),
             )
             .wrap(Wrap { trim: false });
-        frame.render_widget(block, area);
+        block.render(area, frame);
     }
 }
