@@ -205,6 +205,44 @@ fn test_on_auth_changed_hot_initializes_anthropic_and_marks_routes_available() {
 }
 
 #[test]
+fn test_on_auth_changed_hot_initializes_anthropic_from_api_key_and_marks_routes_available() {
+    with_clean_provider_test_env(|| {
+        let runtime = enter_test_runtime();
+        let _enter = runtime.enter();
+
+        let provider = MultiProvider {
+            claude: RwLock::new(None),
+            anthropic: RwLock::new(None),
+            openai: RwLock::new(None),
+            copilot_api: RwLock::new(None),
+            antigravity: RwLock::new(None),
+            gemini: RwLock::new(None),
+            cursor: RwLock::new(None),
+            bedrock: RwLock::new(None),
+            openrouter: RwLock::new(None),
+            active: RwLock::new(ActiveProvider::Claude),
+            use_claude_cli: false,
+            startup_notices: RwLock::new(Vec::new()),
+            forced_provider: Some(ActiveProvider::Claude),
+        };
+
+        crate::provider_catalog::save_env_value_to_env_file(
+            "ANTHROPIC_API_KEY",
+            "anthropic.env",
+            Some("sk-ant-test-key"),
+        )
+        .expect("save test Anthropic API key");
+
+        provider.on_auth_changed();
+
+        assert!(provider.anthropic_provider().is_some());
+        assert!(provider.model_routes().iter().any(|route| {
+            route.provider == "Anthropic" && route.api_method == "claude-api" && route.available
+        }));
+    });
+}
+
+#[test]
 fn test_anthropic_model_routes_keep_plain_4_6_available_without_extra_usage() {
     with_clean_provider_test_env(|| {
         let runtime = enter_test_runtime();

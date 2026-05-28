@@ -387,6 +387,8 @@ const DEFAULT_MAX_TOKENS: u32 = 32_768;
 
 /// Available models
 pub const AVAILABLE_MODELS: &[&str] = &[
+    "claude-opus-4-8",
+    "claude-opus-4-8[1m]",
     "claude-opus-4-6",
     "claude-opus-4-6[1m]",
     "claude-sonnet-4-6",
@@ -496,6 +498,7 @@ impl AnthropicProvider {
     fn model_supports_output_effort(model: &str) -> bool {
         let model = Self::normalized_model_key(model);
         model.contains("claude-mythos")
+            || model.contains("claude-opus-4-8")
             || model.contains("claude-opus-4-7")
             || model.contains("claude-opus-4-6")
             || model.contains("claude-sonnet-4-6")
@@ -505,6 +508,7 @@ impl AnthropicProvider {
     fn model_supports_adaptive_thinking(model: &str) -> bool {
         let model = Self::normalized_model_key(model);
         model.contains("claude-mythos")
+            || model.contains("claude-opus-4-8")
             || model.contains("claude-opus-4-7")
             || model.contains("claude-opus-4-6")
             || model.contains("claude-sonnet-4-6")
@@ -518,7 +522,8 @@ impl AnthropicProvider {
     }
 
     fn model_supports_xhigh_effort(model: &str) -> bool {
-        Self::normalized_model_key(model).contains("claude-opus-4-7")
+        let model = Self::normalized_model_key(model);
+        model.contains("claude-opus-4-8") || model.contains("claude-opus-4-7")
     }
 
     fn model_supports_reasoning_effort(model: &str) -> bool {
