@@ -5,6 +5,10 @@ use std::process::Command;
 
 /// Default system prompt for jcode (embedded at compile time)
 pub const DEFAULT_SYSTEM_PROMPT: &str = include_str!("prompt/system_prompt.md");
+/// Mission-continuation template (embedded at compile time). Consumed by the
+/// `mission` module in the upper `jcode-app-core` layer; the asset lives here
+/// alongside the other prompt templates.
+pub const MISSION_CONTINUATION_TEMPLATE: &str = include_str!("prompt/mission_continuation.md");
 const SELFDEV_HINT_PROMPT: &str = include_str!("prompt/selfdev_hint.txt");
 const SELFDEV_MODE_PROMPT: &str = include_str!("prompt/selfdev_mode.txt");
 const SELFDEV_FOCUS_TUI_PROMPT: &str = include_str!("prompt/selfdev_focus_tui.txt");

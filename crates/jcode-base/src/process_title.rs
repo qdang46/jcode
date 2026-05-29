@@ -79,7 +79,7 @@ fn set_killall_process_name() {
     }
 }
 
-pub(crate) fn set_server_title(server_name: &str) {
+pub fn set_server_title(server_name: &str) {
     set_title(compact_process_title("jcode:s:", Some(server_name)));
 }
 

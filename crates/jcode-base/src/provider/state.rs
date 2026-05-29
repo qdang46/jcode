@@ -21,21 +21,21 @@ pub(crate) struct ProviderState<'a> {
 /// encode ad-hoc precedence rules. They should report what happened, and the
 /// reducer decides how later auth/catalog work may reconcile with that choice.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum ProviderModelSelectionSource {
+pub enum ProviderModelSelectionSource {
     Startup,
     User,
     Auth,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) enum ProviderStateEvent {
+pub enum ProviderStateEvent {
     RuntimeModelObserved { model: String },
     UserSelectedModel { model: String },
     AuthSelectedModel { model: String },
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct ProviderRuntimeState {
+pub struct ProviderRuntimeState {
     selected_model: Option<String>,
     selection_source: ProviderModelSelectionSource,
     selection_generation: u64,
@@ -52,7 +52,7 @@ impl Default for ProviderRuntimeState {
 }
 
 impl ProviderStateEvent {
-    pub(crate) fn selected_model(
+    pub fn selected_model(
         source: ProviderModelSelectionSource,
         model: impl Into<String>,
     ) -> Self {
@@ -71,7 +71,7 @@ impl ProviderStateEvent {
 }
 
 impl ProviderRuntimeState {
-    pub(crate) fn observed(model: impl Into<String>) -> Self {
+    pub fn observed(model: impl Into<String>) -> Self {
         let mut state = Self::default();
         state.apply(ProviderStateEvent::RuntimeModelObserved {
             model: model.into(),
@@ -79,16 +79,16 @@ impl ProviderRuntimeState {
         state
     }
 
-    pub(crate) fn selection_generation(&self) -> u64 {
+    pub fn selection_generation(&self) -> u64 {
         self.selection_generation
     }
 
-    pub(crate) fn user_selected_after(&self, generation: u64) -> bool {
+    pub fn user_selected_after(&self, generation: u64) -> bool {
         self.selection_generation > generation
             && self.selection_source == ProviderModelSelectionSource::User
     }
 
-    pub(crate) fn apply(&mut self, event: ProviderStateEvent) {
+    pub fn apply(&mut self, event: ProviderStateEvent) {
         match event {
             ProviderStateEvent::RuntimeModelObserved { model } => {
                 self.selected_model = Some(model);
