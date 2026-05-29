@@ -8,10 +8,7 @@ use super::output;
 use super::provider_init::ProviderChoice;
 
 pub use jcode_selfdev_types::CLIENT_SELFDEV_ENV;
-
-pub fn client_selfdev_requested() -> bool {
-    std::env::var(CLIENT_SELFDEV_ENV).is_ok()
-}
+pub use jcode_selfdev_types::client_selfdev_requested;
 
 async fn wait_for_reloading_server() -> bool {
     match crate::server::await_reload_handoff(

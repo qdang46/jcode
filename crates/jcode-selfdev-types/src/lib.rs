@@ -9,6 +9,13 @@ use std::path::PathBuf;
 /// the `cli` subsystem.
 pub const CLIENT_SELFDEV_ENV: &str = "JCODE_CLIENT_SELFDEV_MODE";
 
+/// Returns true if the current process was launched in self-dev client mode
+/// (i.e. `CLIENT_SELFDEV_ENV` is set). Defined in this low-level crate so any
+/// consumer can check self-dev mode without depending on the `cli` subsystem.
+pub fn client_selfdev_requested() -> bool {
+    std::env::var(CLIENT_SELFDEV_ENV).is_ok()
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ReloadRecoveryDirective {
     pub reconnect_notice: Option<String>,

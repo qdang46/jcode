@@ -42,6 +42,39 @@ pub async fn run() -> Result<()> {
             .dispatch_permission_request(action, description, request_id);
     });
 
+    // Invert the legacy memory -> skill dependency: memory collects synthetic
+    // entries from registered providers, and skill (the higher layer that
+    // depends on MemoryEntry) registers its registry->memory adapter here.
+    crate::memory::register_synthetic_entry_provider(|| {
+        crate::skill::SkillRegistry::shared_snapshot()
+            .list()
+            .into_iter()
+            .map(|skill| skill.as_memory_entry())
+            .collect()
+    });
+
+    // Invert the legacy server -> tui dependency: the TUI session picker owns
+    // the session-list cache and registers its invalidator here, so the server
+    // can drop the cache (e.g. after a rename) without referencing tui.
+    crate::session_list_cache::register_invalidator(
+        crate::tui::session_picker::invalidate_session_list_cache,
+    );
+
+    // Invert the legacy tui -> cli dependency for shared-server spawning: the
+    // CLI owns the provider-bootstrap spawn logic and registers it here, so the
+    // TUI reconnect loop can request a replacement server via server_spawn
+    // without referencing cli.
+    crate::server_spawn::register_default_server_spawner(Box::new(|| {
+        Box::pin(async {
+            dispatch::spawn_server(
+                &crate::cli::provider_init::ProviderChoice::Auto,
+                None,
+                None,
+            )
+            .await
+        })
+    }));
+
     crate::platform::raise_nofile_limit_best_effort(8_192);
     startup_profile::mark("nofile_limit");
 
@@ -213,7 +246,7 @@ fn parse_and_prepare_args() -> Result<Args> {
         server::set_socket_path(socket);
     }
 
-    crate::process_title::set_initial_title(&args);
+    crate::cli::proctitle::set_initial_title(&args);
 
     Ok(args)
 }
@@ -262,7 +295,7 @@ fn spawn_background_update_check(args: &Args) {
                 && update_available
             {
                 Bus::global().publish(BusEvent::UpdateStatus(UpdateStatus::Available {
-                    current: env!("JCODE_VERSION").to_string(),
+                    current: jcode_build_meta::VERSION.to_string(),
                     latest: "latest source".to_string(),
                 }));
                 if auto_update {
