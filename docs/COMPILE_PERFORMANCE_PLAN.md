@@ -602,6 +602,56 @@ moved into its own crate shrinks the largest unit, lowering peak per-process RSS
 lets more parallel jobs run without OOM (complementing the memory-adaptive job count above). It also
 sharpens incremental caching: editing one file rebuilds one small crate instead of the whole monolith.
 
+## Results: Phases A/B/C (2026-05-29) and the stop decision
+
+The monolithic root crate was physically split into a strict downward DAG of separately-compiled
+crates. Each is its own rustc unit, so each type-checks/codegens independently and the global peak
+per-process memory is the max over units (not their sum).
+
+```
+jcode (root: cli + bin)        depends on
+  -> jcode-tui (tui + video_export)   depends on
+       -> jcode-app-core (server/tool/agent SCC + leaves)  depends on
+            -> jcode-base (provider/auth/config/session/message/memory foundation)
+```
+
+Ground-truth per-rustc peak `VmHWM` (selfdev profile, single-job, `/tmp/peakrss2.sh`):
+
+| unit | peak VmHWM | note |
+| --- | --- | --- |
+| monolith (before) | **3.18 GiB** | the unit that OOM-killed the 15 GB/no-swap machine |
+| jcode-base | 1.126 GiB | FLOOR: bottom crate, fewest internal deps |
+| jcode-app-core | 1.176 GiB | base + 0.050 |
+| jcode-tui | 1.280 GiB | app-core + 0.104 (98K loc adds only +0.104) |
+| jcode (root cli) | 0.664 GiB | thin shell, fast incremental for cli iteration |
+
+**Outcome: largest single compilation unit 3.18 -> 1.28 GiB (-60%).** No unit exceeds ~1.3 GiB, so the
+memory-adaptive job limiter can schedule parallel rustc jobs without OOM. Commits: `4dd91a9c` (Phase A),
+`4aec863e` (Phase B), `f649daeb` (test import), `85c96735` (Phase C jcode-tui), `2591c0e5` (test-support
+feature restoring cross-crate `#[cfg(test)]` helpers). Full `cargo check --workspace --all-targets` is
+clean.
+
+### Why we STOPPED here (the Stop Conditions above)
+
+A further split of `jcode-tui` (the current 1.280 GiB max) was analyzed and deliberately **not** done:
+
+- **It is feasible but low-value.** The render layer already depends on a 106-method `TuiState` trait
+  (`ui::draw(frame, app: &dyn TuiState)`), not the concrete `App`; production back-edges from render
+  modules into `app` are essentially nil (one `ui_input.rs` use of two pure helpers/consts), so a clean
+  `app` vs `render` cut exists.
+- **But the peak is floor-bound, not tui-bound.** `jcode-base` alone is already 1.126 GiB because every
+  crate inherits the same external-dep monomorphization (serde/tokio/reqwest/ratatui). tui's entire 98K
+  loc adds only +0.104 over app-core, so splitting it into ~49K halves would shave only ~30-50 MB and
+  **cannot** reach the "<1.13 GiB" target, which is structurally pinned by the base floor.
+- **It adds real maintenance cost:** partitioning the 1535-line `mod.rs` glue (view-model types
+  `DisplayMessage`/`ToolCall`/`ProcessingStatus`/`TuiState` itself) and extending every feature-forwarding
+  chain (jemalloc/embeddings/pdf/test-support) by another hop.
+
+Per the Stop Conditions, continuing high-churn refactors on compile-memory grounds alone is not justified
+once the binding peak is the shared base floor. The remaining levers (lower the floor itself) are profile-
+level (codegen-units/debuginfo) or dependency-level (trim/feature-gate heavy external deps), not further
+crate carving.
+
 ## Developer Workflow Guidance
 
 ### Fast local cargo wrapper
