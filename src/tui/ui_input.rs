@@ -15,7 +15,7 @@ use crate::tui::info_widget::occasional_status_tip;
 use crate::tui::layout_utils;
 use ftui_core::geometry::Rect;
 use ftui::Frame;
-use ftui_style::{Color, Style};
+use ftui_style::{Ansi16, Color, Style};
 use ftui_text::text::{Line, Span};
 use ftui_widgets::block::Alignment;
 use ftui_widgets::paragraph::Paragraph;
@@ -331,7 +331,7 @@ pub(super) fn draw_queued(frame: &mut Frame, app: &dyn TuiState, area: Rect, sta
         Paragraph::new(
             lines
                 .iter()
-                .map(|line| line.clone().alignment(Alignment::Center))
+                .map(|line| line.clone())
                 .collect::<Vec<_>>(),
         )
     } else {
@@ -892,12 +892,7 @@ pub(super) fn draw_status(frame: &mut Frame, app: &dyn TuiState, area: Rect, pen
 
     crate::memory::check_staleness();
 
-    let aligned_line = if app.centered_mode() {
-        line.alignment(Alignment::Center)
-    } else {
-        line
-    };
-    Paragraph::new(aligned_line).render(area, frame);
+    Paragraph::new(line).render(area, frame);
 }
 
 fn streaming_status_spans(
@@ -1352,7 +1347,7 @@ pub(super) fn build_notification_spans(app: &dyn TuiState) -> Vec<Span<'static>>
             let feedback_style = if success {
                 Style::default().fg(ai_color()).bold()
             } else {
-                Style::default().fg_compat(Color::Mono(Ansi16::Red)).bold()
+                Style::default().fg_compat(Color::Ansi16(Ansi16::Red)).bold()
             };
             let feedback_text = if success {
                 "✓ Copied! "
@@ -1459,7 +1454,7 @@ pub(super) fn draw_notification(frame: &mut Frame, app: &dyn TuiState, area: Rec
     }
     let line = Line::from_spans(spans);
     let aligned_line = if app.centered_mode() {
-        line.alignment(Alignment::Center)
+        line
     } else {
         line
     };
@@ -1597,7 +1592,7 @@ pub(super) fn draw_input(
         Paragraph::new(
             lines
                 .iter()
-                .map(|l| l.clone().alignment(Alignment::Center))
+                .map(|l| l.clone())
                 .collect::<Vec<_>>(),
         )
     } else {

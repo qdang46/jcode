@@ -2,7 +2,7 @@ pub mod account_picker;
 mod app;
 pub mod backend;
 pub(crate) mod color_support;
-mod compat;
+pub mod compat;
 mod core;
 mod generated_image;
 pub mod image;
@@ -28,11 +28,13 @@ mod ui_diff;
 pub mod usage_overlay;
 pub mod visual_debug;
 pub mod workspace_client;
+mod ui_layout;
 pub use jcode_tui_workspace::workspace_map;
 pub use jcode_tui_workspace::workspace_map_widget;
 
 pub use app::{App, CopyBadgeUiState, ProcessingStatus, RunResult};
 pub use compat::StyleCompatExt;
+pub use jcode_tui_style::theme::dim_color;
 pub use generated_image::{
     generated_image_side_panel_markdown, generated_image_side_panel_page_id,
     write_generated_image_side_panel_page,

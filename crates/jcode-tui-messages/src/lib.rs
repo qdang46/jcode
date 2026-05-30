@@ -1,4 +1,14 @@
 // Phase 5 widget work - stubbed for Phase 1.3 compilation
+mod wrapped_line_map;
+pub use wrapped_line_map::WrappedLineMap;
+
+mod prepared;
+pub use prepared::{
+    CopyTarget, EditToolRange, ImageRegion, PreparedChatFrame, PreparedMessages,
+    PreparedSection, PreparedSectionKind,
+};
+
+use std::sync::Arc;
 use ftui_text::text::Line;
 
 #[derive(Debug, Clone)]
@@ -82,6 +92,70 @@ impl DisplayMessage {
             tool_data: None,
         }
     }
+    pub fn tool(content: impl Into<String>, _tool_name: impl Into<String>) -> Self {
+        Self {
+            role: "tool".to_string(),
+            content: content.into(),
+            tool_calls: Vec::new(),
+            duration_secs: None,
+            title: None,
+            tool_data: None,
+        }
+    }
+    pub fn usage(_msg: impl Into<String>) -> Self {
+        Self {
+            role: "usage".to_string(),
+            content: _msg.into(),
+            tool_calls: Vec::new(),
+            duration_secs: None,
+            title: None,
+            tool_data: None,
+        }
+    }
+    pub fn memory(summary: impl Into<String>, _detail: impl Into<String>) -> Self {
+        Self {
+            role: "memory".to_string(),
+            content: summary.into(),
+            tool_calls: Vec::new(),
+            duration_secs: None,
+            title: None,
+            tool_data: None,
+        }
+    }
+    pub fn background_task(_msg: impl Into<String>) -> Self {
+        Self {
+            role: "background_task".to_string(),
+            content: _msg.into(),
+            tool_calls: Vec::new(),
+            duration_secs: None,
+            title: None,
+            tool_data: None,
+        }
+    }
+    pub fn overnight(_msg: impl Into<String>) -> Self {
+        Self {
+            role: "overnight".to_string(),
+            content: _msg.into(),
+            tool_calls: Vec::new(),
+            duration_secs: None,
+            title: None,
+            tool_data: None,
+        }
+    }
+    pub fn swarm(_title: impl Into<String>, _body: impl Into<String>) -> Self {
+        Self {
+            role: "swarm".to_string(),
+            content: _body.into(),
+            tool_calls: Vec::new(),
+            duration_secs: None,
+            title: Some(_title.into()),
+            tool_data: None,
+        }
+    }
+    pub fn with_title(mut self, title: impl Into<String>) -> Self {
+        self.title = Some(title.into());
+        self
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -125,22 +199,4 @@ pub fn truncate_transcript_preview(_preview: &str, _max_lines: usize) -> String 
     String::new()
 }
 
-#[derive(Debug, Clone)]
-pub struct CopyTarget;
-#[derive(Debug, Clone)]
-pub struct EditToolRange;
-#[derive(Debug, Clone)]
-pub struct ImageRegion;
-#[derive(Debug, Clone)]
-pub struct PreparedChatFrame;
-#[derive(Debug, Clone)]
-pub struct PreparedMessages;
-#[derive(Debug, Clone)]
-pub struct PreparedSection;
-#[derive(Debug, Clone)]
-pub enum PreparedSectionKind {
-    Unknown,
-}
 
-#[derive(Debug, Clone)]
-pub struct WrappedLineMap;

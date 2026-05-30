@@ -401,8 +401,7 @@ pub(super) fn build_persistent_header(app: &dyn TuiState, width: u16) -> Vec<Lin
             Line::from_spans(vec![Span::styled(
                 badge_text,
                 Style::default().fg(dim_color()),
-            )])
-            .alignment(align),
+            )]),
         );
     } else {
         lines.push(Line::from_spans(vec![]));
@@ -419,8 +418,7 @@ pub(super) fn build_persistent_header(app: &dyn TuiState, width: u16) -> Vec<Lin
             Line::from_spans(vec![Span::styled(
                 server_text,
                 Style::default().fg(header_name_color()),
-            )])
-            .alignment(align),
+            )]),
         );
     }
 
@@ -430,16 +428,14 @@ pub(super) fn build_persistent_header(app: &dyn TuiState, width: u16) -> Vec<Lin
             Line::from_spans(vec![Span::styled(
                 client_text,
                 Style::default().fg(header_name_color()),
-            )])
-            .alignment(align),
+            )]),
         );
     } else if server_name.is_none() {
         lines.push(
             Line::from_spans(vec![Span::styled(
                 "JCode".to_string(),
                 Style::default().fg(header_name_color()),
-            )])
-            .alignment(align),
+            )]),
         );
     }
 
@@ -447,8 +443,7 @@ pub(super) fn build_persistent_header(app: &dyn TuiState, width: u16) -> Vec<Lin
         Line::from_spans(vec![Span::styled(
             nice_model,
             Style::default().fg(header_session_color()),
-        )])
-        .alignment(align),
+        )]),
     );
 
     let version_text = if is_running_stable_release() {
@@ -480,8 +475,7 @@ pub(super) fn build_persistent_header(app: &dyn TuiState, width: u16) -> Vec<Lin
         Line::from_spans(vec![Span::styled(
             version_text,
             Style::default().fg(dim_color()),
-        )])
-        .alignment(align),
+        )]),
     );
 
     if let Some(dir) = app.working_dir() {
@@ -490,8 +484,7 @@ pub(super) fn build_persistent_header(app: &dyn TuiState, width: u16) -> Vec<Lin
             Line::from_spans(vec![Span::styled(
                 display_dir,
                 Style::default().fg(dim_color()),
-            )])
-            .alignment(align),
+            )]),
         );
     }
 
@@ -572,14 +565,13 @@ pub(crate) fn build_header_lines(app: &dyn TuiState, width: u16) -> Vec<Line<'st
             Line::from_spans(vec![Span::styled(
                 model_info,
                 Style::default().fg(dim_color()),
-            )])
-            .alignment(align),
+            )]),
         );
     }
 
     let auth_line = build_auth_status_line(&auth, w);
-    if !auth_line.spans.is_empty() {
-        lines.push(auth_line.alignment(align));
+    if !auth_line.spans().is_empty() {
+        lines.push(auth_line);
     }
 
     if let Some(goal_badge) = crate::goal::header_badge(
@@ -590,8 +582,7 @@ pub(crate) fn build_header_lines(app: &dyn TuiState, width: u16) -> Vec<Line<'st
             Line::from_spans(vec![Span::styled(
                 goal_badge,
                 Style::default().fg(rgb(170, 200, 120)),
-            )])
-            .alignment(align),
+            )]),
         );
     }
 
@@ -608,8 +599,7 @@ pub(crate) fn build_header_lines(app: &dyn TuiState, width: u16) -> Vec<Line<'st
                 Line::from_spans(vec![Span::styled(
                     format!("• {}", entry),
                     Style::default().fg(dim_color()),
-                )])
-                .alignment(align),
+                )]),
             );
         }
         if has_more {
@@ -620,8 +610,7 @@ pub(crate) fn build_header_lines(app: &dyn TuiState, width: u16) -> Vec<Line<'st
                         new_entries.len() - MAX_LINES
                     ),
                     Style::default().fg(dim_color()),
-                )])
-                .alignment(align),
+                )]),
             );
         }
 
@@ -632,7 +621,7 @@ pub(crate) fn build_header_lines(app: &dyn TuiState, width: u16) -> Vec<Line<'st
             Style::default().fg(dim_color()),
         );
         for line in boxed {
-            lines.push(line.alignment(align));
+            lines.push(line);
         }
     }
 
@@ -676,8 +665,7 @@ pub(crate) fn build_header_lines(app: &dyn TuiState, width: u16) -> Vec<Line<'st
         Line::from_spans(vec![Span::styled(
             mcp_text,
             Style::default().fg(dim_color()),
-        )])
-        .alignment(align),
+        )]),
     );
 
     let skills = app.available_skills();
@@ -699,8 +687,7 @@ pub(crate) fn build_header_lines(app: &dyn TuiState, width: u16) -> Vec<Line<'st
             Line::from_spans(vec![Span::styled(
                 skills_text,
                 Style::default().fg(dim_color()),
-            )])
-            .alignment(align),
+            )]),
         );
     }
 
@@ -722,8 +709,7 @@ pub(crate) fn build_header_lines(app: &dyn TuiState, width: u16) -> Vec<Line<'st
             Line::from_spans(vec![Span::styled(
                 format!("server: {}", parts.join(", ")),
                 Style::default().fg(dim_color()),
-            )])
-            .alignment(align),
+            )]),
         );
     }
 
@@ -800,7 +786,7 @@ mod tests {
         let lines = build_persistent_header(&app, 80);
         let non_empty: Vec<&Line<'_>> = lines
             .iter()
-            .filter(|line| !line.spans.iter().all(|span| span.content.trim().is_empty()))
+            .filter(|line| !line.spans().iter().all(|span| span.content.trim().is_empty()))
             .collect();
 
         assert!(!non_empty.is_empty(), "expected persistent header lines");
@@ -820,7 +806,7 @@ mod tests {
         let lines = build_header_lines(&app, 80);
         let non_empty: Vec<&Line<'_>> = lines
             .iter()
-            .filter(|line| !line.spans.iter().all(|span| span.content.trim().is_empty()))
+            .filter(|line| !line.spans().iter().all(|span| span.content.trim().is_empty()))
             .collect();
 
         assert!(!non_empty.is_empty(), "expected header detail lines");
@@ -879,7 +865,7 @@ mod tests {
         let lines = build_persistent_header(&app, 80);
         let rendered = lines
             .iter()
-            .flat_map(|line| line.spans.iter())
+            .flat_map(|line| line.spans().iter())
             .map(|span| span.content.as_ref())
             .collect::<String>();
 
@@ -907,7 +893,7 @@ mod tests {
         let rendered = lines
             .first()
             .expect("header line")
-            .spans
+            .spans()
             .iter()
             .map(|span| span.content.as_ref())
             .collect::<String>();
@@ -924,7 +910,7 @@ mod tests {
         let lines = build_header_lines(&app, 80);
         let rendered = lines
             .iter()
-            .flat_map(|line| line.spans.iter())
+            .flat_map(|line| line.spans().iter())
             .map(|span| span.content.as_ref())
             .collect::<String>();
 
@@ -951,7 +937,7 @@ mod tests {
 
         let line = build_auth_status_line(&auth, 120);
         let rendered = line
-            .spans
+            .spans()
             .iter()
             .map(|span| span.content.as_ref())
             .collect::<String>();
@@ -969,6 +955,6 @@ mod tests {
     #[test]
     fn auth_status_line_is_empty_when_nothing_was_attempted() {
         let line = build_auth_status_line(&AuthStatus::default(), 120);
-        assert!(line.spans.is_empty(), "line should be empty: {line:?}");
+        assert!(line.spans().is_empty(), "line should be empty: {line:?}");
     }
 }

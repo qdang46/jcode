@@ -441,23 +441,29 @@ impl App {
     }
 
     /// Run the TUI in replay mode, playing back a timeline of events.
+    ///
+    /// NOTE: This currently returns an error as frankentui doesn't support
+    /// the ratatui-style replay API. The main TUI uses `tui::runtime::run_frankentui()`.
     pub async fn run_replay(
         self,
-        terminal: DefaultTerminal,
-        timeline: Vec<crate::replay::TimelineEvent>,
-        speed: f64,
+        _terminal: (),
+        _timeline: Vec<crate::replay::TimelineEvent>,
+        _speed: f64,
     ) -> Result<RunResult> {
-        replay::run_replay(self, terminal, timeline, speed).await
+        anyhow::bail!("replay mode not yet supported with frankentui");
     }
 
     /// Run an interactive swarm replay, rendering multiple sessions in tiled panes.
+    ///
+    /// NOTE: This currently returns an error as frankentui doesn't support
+    /// the ratatui-style swarm replay API.
     pub async fn run_swarm_replay(
-        terminal: DefaultTerminal,
-        panes: Vec<crate::replay::PaneReplayInput>,
-        speed: f64,
-        centered_override: Option<bool>,
+        _terminal: (),
+        _panes: Vec<crate::replay::PaneReplayInput>,
+        _speed: f64,
+        _centered_override: Option<bool>,
     ) -> Result<()> {
-        replay::run_swarm_replay(terminal, panes, speed, centered_override).await
+        anyhow::bail!("swarm replay mode not yet supported with frankentui");
     }
 
     /// Run replay headlessly, rendering each frame to an in-memory buffer.
@@ -627,7 +633,7 @@ mod tests {
         let area = Rect::new(0, 0, 8, 2);
         let mut buffer = Buffer::empty(area);
         buffer.set_string(0, 0, "abcdefgh", Style::default().fg_compat(Color::Mono(MonoColor::White)));
-        buffer.set_string(0, 1, "ABCDEFGH", Style::default().fg_compat(Color::Mono(Ansi16::Blue)));
+        buffer.set_string(0, 1, "ABCDEFGH", Style::default().fg_compat(Color::Ansi16(Ansi16::Blue)));
         let before = buffer.clone();
 
         let status_area = Rect::new(2, 1, 6, 1);

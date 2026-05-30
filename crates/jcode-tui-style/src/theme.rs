@@ -72,11 +72,11 @@ pub fn prompt_entry_shimmer_color() -> Color {
 pub fn rainbow_prompt_color(_i: usize) -> Color {
     rgb(128, 128, 128)
 }
-pub fn user_bg() -> ftui_style::Style {
-    ftui_style::Style::default()
+pub fn user_bg() -> Color {
+    rgb(30, 30, 30)
 }
-pub fn user_text() -> ftui_style::Style {
-    ftui_style::Style::default()
+pub fn user_text() -> Color {
+    rgb(245, 245, 255)
 }
 pub fn activity_indicator(_frame: usize) -> Color {
     rgb(128, 128, 128)

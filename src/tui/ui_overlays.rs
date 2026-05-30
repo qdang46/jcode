@@ -574,18 +574,18 @@ pub(super) fn draw_debug_overlay(
     if chunks.len() < 5 {
         return;
     }
-    render_overlay_box(frame, chunks[0], "messages", Color::Mono(Ansi16::Red));
-    render_overlay_box(frame, chunks[1], "queued", Color::Mono(Ansi16::Yellow));
-    render_overlay_box(frame, chunks[2], "status", Color::Mono(Ansi16::Cyan));
-    render_overlay_box(frame, chunks[3], "picker", Color::Mono(Ansi16::Magenta));
-    render_overlay_box(frame, chunks[4], "input", Color::Mono(Ansi16::Green));
+    render_overlay_box(frame, chunks[0], "messages", Color::Ansi16(Ansi16::Red));
+    render_overlay_box(frame, chunks[1], "queued", Color::Ansi16(Ansi16::Yellow));
+    render_overlay_box(frame, chunks[2], "status", Color::Ansi16(Ansi16::Cyan));
+    render_overlay_box(frame, chunks[3], "picker", Color::Ansi16(Ansi16::Magenta));
+    render_overlay_box(frame, chunks[4], "input", Color::Ansi16(Ansi16::Green));
     if chunks.len() > 5 && chunks[5].height > 0 {
-        render_overlay_box(frame, chunks[5], "donut", Color::Mono(Ansi16::Blue));
+        render_overlay_box(frame, chunks[5], "donut", Color::Ansi16(Ansi16::Blue));
     }
 
     for placement in placements {
         let title = format!("widget:{}", placement.kind.as_str());
-        render_overlay_box(frame, placement.rect, &title, Color::Mono(Ansi16::Magenta));
+        render_overlay_box(frame, placement.rect, &title, Color::Ansi16(Ansi16::Magenta));
     }
 }
 

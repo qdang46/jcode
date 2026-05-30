@@ -111,7 +111,7 @@ fn test_prepare_messages_centered_live_batch_rows_keep_dedicated_padding_span() 
 
     assert!(batch_rows.len() >= 2, "rendered={rendered:?}");
     for line in batch_rows {
-        let Some(first_span) = line.spans.first() else {
+        let Some(first_span) = line.spans().first() else {
             panic!("missing spans: {rendered:?}");
         };
         assert!(
@@ -387,7 +387,7 @@ fn test_prepare_messages_live_batch_centered_mode_uses_left_aligned_padding() {
             "centered live batch lines should be left-aligned with padding"
         );
         assert!(
-            line.spans
+            line.spans()
                 .first()
                 .is_some_and(|span| span.content.starts_with(' ')),
             "centered live batch lines should start with padding"
@@ -749,7 +749,7 @@ fn test_render_tool_message_batch_subcall_lines_alignment_unset() {
             "centered tool lines should be left-aligned with padding"
         );
         assert!(
-            line.spans[0].content.starts_with(' '),
+            line.spans()[0].content.starts_with(' '),
             "first span should be padding spaces"
         );
     }

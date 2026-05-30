@@ -283,14 +283,14 @@ impl AccountPicker {
             }
         }
 
-        let mut spans = vec![Span::styled("Providers ", Style::new().fg(MUTED_DARK))];
+        let mut spans = vec![Span::styled("Providers ", Style::new().fg_compat(MUTED_DARK))];
         let mut first = true;
         for provider_id in seen {
             let Some((label, accounts, actions)) = stats.get(&provider_id) else {
                 continue;
             };
             if !first {
-                spans.push(Span::styled(" | ", Style::new().fg(MUTED_DARK)));
+                spans.push(Span::styled(" | ", Style::new().fg_compat(MUTED_DARK)));
             }
             first = false;
             let summary = if *accounts > 0 {
@@ -308,7 +308,7 @@ impl AccountPicker {
         if first {
             spans.push(Span::styled(
                 "No providers available",
-                Style::new().fg(MUTED),
+                Style::new().fg_compat(MUTED),
             ));
         }
         Line::from_spans(spans)
@@ -418,18 +418,18 @@ impl AccountPicker {
             .title(format!(" {} ", self.title))
             .title_bottom(Line::from_spans(vec![
                 hotkey(" Enter "),
-                Span::styled(" run  ", Style::new().fg(MUTED_DARK)),
+                Span::styled(" run  ", Style::new().fg_compat(MUTED_DARK)),
                 hotkey(" Up/Down "),
-                Span::styled(" navigate  ", Style::new().fg(MUTED_DARK)),
+                Span::styled(" navigate  ", Style::new().fg_compat(MUTED_DARK)),
                 hotkey(" Click "),
-                Span::styled(" select  ", Style::new().fg(MUTED_DARK)),
+                Span::styled(" select  ", Style::new().fg_compat(MUTED_DARK)),
                 hotkey(" type "),
-                Span::styled(" filter  ", Style::new().fg(MUTED_DARK)),
+                Span::styled(" filter  ", Style::new().fg_compat(MUTED_DARK)),
                 hotkey(" Esc "),
-                Span::styled(" clear / close ", Style::new().fg(MUTED_DARK)),
+                Span::styled(" clear / close ", Style::new().fg_compat(MUTED_DARK)),
             ]))
             .borders(Borders::ALL)
-            .border_style(Style::new().fg(PANEL_BORDER));
+            .border_style(Style::new().fg_compat(PANEL_BORDER));
         block.render(area, frame);
 
         let inner = Rect {
@@ -456,10 +456,10 @@ impl AccountPicker {
         self.render_detail_pane(frame, body[1]);
 
         let footer = Paragraph::new(Text::from_line(Line::from_spans(vec![
-            Span::styled("Focus ", Style::new().fg(MUTED_DARK)),
+            Span::styled("Focus ", Style::new().fg_compat(MUTED_DARK)),
             Span::styled(
                 "saved accounts stay surfaced here; click actions to focus them, use Left/Right to jump provider groups, or use `/account <provider> settings` for the full text view.",
-                Style::new().fg(MUTED),
+                Style::new().fg_compat(MUTED),
             ),
         ])));
         footer.render(rows[2], frame);
@@ -472,14 +472,14 @@ impl AccountPicker {
                 Style::new().fg_compat(Color::Mono(MonoColor::White)).bold(),
             ))
             .borders(Borders::ALL)
-            .style(Style::new().bg(PANEL_BG))
-            .border_style(Style::new().fg(SECTION_BORDER));
+            .style(Style::new().bg_compat(PANEL_BG))
+            .border_style(Style::new().fg_compat(SECTION_BORDER));
         let inner = block.inner(area);
         block.render(area, frame);
 
         let lines = vec![
             Line::from_spans(vec![
-                Span::styled("Filter ", Style::new().fg(MUTED_DARK)),
+                Span::styled("Filter ", Style::new().fg_compat(MUTED_DARK)),
                 Span::styled(
                     if self.filter.is_empty() {
                         "type provider or account name".to_string()
@@ -494,7 +494,7 @@ impl AccountPicker {
                 ),
                 Span::styled(
                     format!("  -  {} results", self.filtered.len()),
-                    Style::new().fg(MUTED_DARK),
+                    Style::new().fg_compat(MUTED_DARK),
                 ),
             ]),
             self.provider_overview_line(),
@@ -519,8 +519,8 @@ impl AccountPicker {
         let block = Block::new()
             .title(Span::styled(title, Style::new().fg_compat(Color::Mono(MonoColor::White)).bold()))
             .borders(Borders::ALL)
-            .style(Style::new().bg(PANEL_BG))
-            .border_style(Style::new().fg(PANEL_BORDER_ACTIVE));
+            .style(Style::new().bg_compat(PANEL_BG))
+            .border_style(Style::new().fg_compat(PANEL_BORDER_ACTIVE));
         let list_inner = block.inner(area);
         block.render(area, frame);
         self.last_action_list_area = Some(list_inner);
@@ -537,7 +537,7 @@ impl AccountPicker {
             )]));
             lines.push(Line::from_spans(vec![Span::styled(
                 "Try `openai`, `claude`, an account label, `login`, or `default`.",
-                Style::new().fg(MUTED),
+                Style::new().fg_compat(MUTED),
             )]));
         } else {
             let mut current_provider: Option<&str> = None;
@@ -557,7 +557,7 @@ impl AccountPicker {
                 }
 
                 let row_style = if selected {
-                    Style::new().bg(SELECTED_BG)
+                    Style::new().bg_compat(SELECTED_BG)
                 } else {
                     Style::new()
                 };
@@ -570,13 +570,13 @@ impl AccountPicker {
                         if selected { "> " } else { "  " },
                         row_style.fg_compat(Color::Mono(MonoColor::White)),
                     ),
-                    Span::styled(format!("{} ", icon), row_style.fg(icon_color).bold()),
+                    Span::styled(format!("{} ", icon), row_style.fg_compat(icon_color).bold()),
                     Span::styled(
                         truncate_with_ellipsis(&title, 22),
                         row_style.fg_compat(Color::Mono(MonoColor::White)),
                     ),
-                    Span::styled(" - ", row_style.fg(MUTED_DARK)),
-                    Span::styled(meta, row_style.fg(MUTED)),
+                    Span::styled(" - ", row_style.fg_compat(MUTED_DARK)),
+                    Span::styled(meta, row_style.fg_compat(MUTED)),
                 ]));
             }
         }
@@ -593,8 +593,8 @@ impl AccountPicker {
         let block = Block::new()
             .title(Span::styled(title, Style::new().fg_compat(Color::Mono(MonoColor::White)).bold()))
             .borders(Borders::ALL)
-            .style(Style::new().bg(PANEL_BG))
-            .border_style(Style::new().fg(SECTION_BORDER));
+            .style(Style::new().bg_compat(PANEL_BG))
+            .border_style(Style::new().fg_compat(SECTION_BORDER));
         let inner = block.inner(area);
         block.render(area, frame);
 
@@ -636,14 +636,14 @@ impl AccountPicker {
 
         let mut lines = vec![
             Line::from_spans(vec![
-                Span::styled("Provider ", Style::new().fg(MUTED_DARK)),
+                Span::styled("Provider ", Style::new().fg_compat(MUTED_DARK)),
                 Span::styled(
                     item.provider_label.clone(),
                     provider_style(&item.provider_id),
                 ),
             ]),
             Line::from_spans(vec![
-                Span::styled("Saved accounts ", Style::new().fg(MUTED_DARK)),
+                Span::styled("Saved accounts ", Style::new().fg_compat(MUTED_DARK)),
                 Span::styled(
                     account_count_summary(account_items.len()),
                     Style::new().fg_compat(Color::Mono(MonoColor::White)).bold(),
@@ -652,14 +652,14 @@ impl AccountPicker {
             Line::from_spans(vec![]),
             Line::from_spans(vec![Span::styled(
                 "Quick switch",
-                Style::new().fg(MUTED_DARK).bold(),
+                Style::new().fg_compat(MUTED_DARK).bold(),
             )]),
         ];
 
         if account_items.is_empty() {
             lines.push(Line::from_spans(vec![Span::styled(
                 "No saved accounts for this provider yet.",
-                Style::new().fg(MUTED),
+                Style::new().fg_compat(MUTED),
             )]));
         } else {
             for account in &account_items {
@@ -669,7 +669,7 @@ impl AccountPicker {
                 lines.push(Line::from_spans(vec![
                     Span::styled(
                         format!("{} ", bullet),
-                        Style::new().fg(if account_is_active(account) {
+                        Style::new().fg_compat(if account_is_active(account) {
                             Color::Rgb(Rgb::new(110, 214, 158))
                         } else {
                             MUTED_DARK
@@ -692,7 +692,7 @@ impl AccountPicker {
                             inner.width.saturating_sub(3) as usize,
                         )
                     ),
-                    Style::new().fg(MUTED),
+                    Style::new().fg_compat(MUTED),
                 )]));
             }
         }
@@ -700,21 +700,21 @@ impl AccountPicker {
         lines.push(Line::from_spans(vec![]));
         lines.push(Line::from_spans(vec![Span::styled(
             "Selected action",
-            Style::new().fg(MUTED_DARK).bold(),
+            Style::new().fg_compat(MUTED_DARK).bold(),
         )]));
         lines.push(Line::from_spans(vec![
-            Span::styled(kind_label, Style::new().fg(kind_color).bold()),
-            Span::styled(" - ", Style::new().fg(MUTED_DARK)),
+            Span::styled(kind_label, Style::new().fg_compat(kind_color).bold()),
+            Span::styled(" - ", Style::new().fg_compat(MUTED_DARK)),
             Span::styled(item.title.clone(), Style::new().fg_compat(Color::Mono(MonoColor::White)).bold()),
         ]));
         lines.push(Line::from_spans(vec![Span::styled(
             item.subtitle.clone(),
-            Style::new().fg(MUTED),
+            Style::new().fg_compat(MUTED),
         )]));
         lines.push(Line::from_spans(vec![]));
         lines.push(Line::from_spans(vec![Span::styled(
             "Runs",
-            Style::new().fg(MUTED_DARK).bold(),
+            Style::new().fg_compat(MUTED_DARK).bold(),
         )]));
         lines.push(Line::from_spans(vec![Span::styled(
             command_preview(&item.command),
@@ -722,18 +722,18 @@ impl AccountPicker {
         )]));
         lines.push(Line::from_spans(vec![Span::styled(
             action_kind_help(&item.command),
-            Style::new().fg(MUTED),
+            Style::new().fg_compat(MUTED),
         )]));
 
         if !secondary_items.is_empty() {
             lines.push(Line::from_spans(vec![]));
             lines.push(Line::from_spans(vec![Span::styled(
                 "Other controls",
-                Style::new().fg(MUTED_DARK).bold(),
+                Style::new().fg_compat(MUTED_DARK).bold(),
             )]));
             for related in secondary_items {
                 lines.push(Line::from_spans(vec![
-                    Span::styled("- ", Style::new().fg(MUTED_DARK)),
+                    Span::styled("- ", Style::new().fg_compat(MUTED_DARK)),
                     Span::styled(compact_item_title(related), Style::new().fg_compat(Color::Mono(MonoColor::White))),
                 ]));
             }
@@ -781,7 +781,7 @@ impl AccountPicker {
 
         Line::from_spans(vec![Span::styled(
             format!("{} actions available", self.filtered.len()),
-            Style::new().fg(MUTED),
+            Style::new().fg_compat(MUTED),
         )])
     }
 
@@ -789,7 +789,7 @@ impl AccountPicker {
         let Some(summary) = &self.summary else {
             return Line::from_spans(vec![Span::styled(
                 "Type to narrow actions by provider, account label, or setting.",
-                Style::new().fg(MUTED),
+                Style::new().fg_compat(MUTED),
             )]);
         };
 
@@ -800,10 +800,10 @@ impl AccountPicker {
             .unwrap_or("provider default");
 
         Line::from_spans(vec![
-            Span::styled("Defaults ", Style::new().fg(MUTED_DARK)),
-            Span::styled("provider ", Style::new().fg(MUTED_DARK)),
+            Span::styled("Defaults ", Style::new().fg_compat(MUTED_DARK)),
+            Span::styled("provider ", Style::new().fg_compat(MUTED_DARK)),
             Span::styled(provider.to_string(), Style::new().fg_compat(Color::Mono(MonoColor::White))),
-            Span::styled("  -  model ", Style::new().fg(MUTED_DARK)),
+            Span::styled("  -  model ", Style::new().fg_compat(MUTED_DARK)),
             Span::styled(model.to_string(), Style::new().fg_compat(Color::Mono(MonoColor::White))),
         ])
     }

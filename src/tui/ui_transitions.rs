@@ -14,5 +14,5 @@ pub(crate) fn inline_ui_gap_height(app: &dyn TuiState) -> u16 {
 
 #[cfg(test)]
 pub(crate) fn extract_line_text(line: &Line) -> String {
-    line.spans.iter().map(|s| s.content.as_ref()).collect()
+    line.spans().iter().map(|s| s.content.as_ref()).collect()
 }

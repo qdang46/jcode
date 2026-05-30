@@ -8,13 +8,28 @@ pub struct MermaidRenderOptions {
 }
 
 #[derive(Debug, Clone)]
-pub struct DiagramInfo;
+pub struct DiagramInfo {
+    pub width: u32,
+    pub height: u32,
+    pub hash: u64,
+}
 
 #[derive(Debug, Clone)]
 pub struct RenderResult;
 
-#[derive(Debug, Clone)]
-pub struct DebugStats;
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DebugStats {
+    pub deferred_pending: usize,
+    pub deferred_enqueued: usize,
+    pub deferred_deduped: usize,
+    pub deferred_worker_renders: usize,
+    pub image_state_hits: usize,
+    pub image_state_misses: usize,
+    pub fit_state_reuse_hits: usize,
+    pub fit_protocol_rebuilds: usize,
+    pub viewport_state_reuse_hits: usize,
+    pub viewport_protocol_rebuilds: usize,
+}
 
 #[derive(Debug, Clone)]
 pub struct ImageState;
@@ -47,7 +62,18 @@ pub fn protocol_type() -> &'static str {
     "mermaid"
 }
 pub fn debug_stats() -> DebugStats {
-    DebugStats
+    DebugStats {
+        deferred_pending: 0usize,
+        deferred_enqueued: 0usize,
+        deferred_deduped: 0usize,
+        deferred_worker_renders: 0usize,
+        image_state_hits: 0usize,
+        image_state_misses: 0usize,
+        fit_state_reuse_hits: 0usize,
+        fit_protocol_rebuilds: 0usize,
+        viewport_state_reuse_hits: 0usize,
+        viewport_protocol_rebuilds: 0usize,
+    }
 }
 pub fn debug_stats_json() -> String {
     String::new()
@@ -84,7 +110,7 @@ pub fn get_font_size() -> u16 {
     14
 }
 pub fn with_preferred_aspect_ratio(_width: u32, _height: u32) {}
-pub fn diagram_placeholder_lines() -> usize {
+pub fn diagram_placeholder_lines(_width: u32, _height: u32) -> usize {
     0
 }
 pub fn render_image_widget_viewport(_area: ftui_core::geometry::Rect) {}

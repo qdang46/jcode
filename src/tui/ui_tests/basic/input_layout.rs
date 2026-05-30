@@ -220,7 +220,9 @@ fn test_copy_badge_truncates_full_width_line_before_appending_shortcut() {
     let mut line = Line::from("x".repeat(viewport_width));
 
     truncate_copy_badge_line_to_width(&mut line, viewport_width.saturating_sub(reserved));
-    line.spans.push(Span::raw("[Alt] [⇧] [A]"));
+    let mut new_spans = line.spans().to_vec();
+    new_spans.push(Span::raw("[Alt] [⇧] [A]"));
+    line = Line::from_spans(new_spans);
 
     assert_eq!(line.width(), viewport_width);
     assert!(line.width() <= viewport_width);

@@ -467,7 +467,6 @@ pub(super) fn viewport_stability_hash(
     visible_lines.len().hash(&mut hasher);
     visible_user_indices.hash(&mut hasher);
     for line in visible_lines {
-        line.alignment.hash(&mut hasher);
         line_plain_text(line).hash(&mut hasher);
     }
     hasher.finish()

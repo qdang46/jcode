@@ -575,7 +575,7 @@ pub(super) fn render_memory_tiles(
             if placed.x > cursor {
                 spans.push(Span::raw(" ".repeat(placed.x - cursor)));
             }
-            spans.extend(placed.plan.lines[y - placed.y].spans.clone());
+            spans.extend(placed.plan.lines[y - placed.y].spans().to_vec());
             cursor = placed.x + placed.plan.width;
             row_has_content = true;
         }

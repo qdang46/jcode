@@ -233,7 +233,7 @@ pub(super) fn draw_idle_animation(frame: &mut Frame, app: &dyn TuiState, area: R
                         }
                     })
                     .collect();
-                Line::from_spans(spans).alignment(align)
+                Line::from_spans(spans)
             })
             .collect();
 

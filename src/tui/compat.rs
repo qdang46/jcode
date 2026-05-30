@@ -3,16 +3,27 @@ use ftui_style::Color as FtuiColor;
 use ftui_style::{Ansi16, MonoColor};
 use ftui_style::Rgb;
 use ftui_style::Style;
-use ftui_text::text::{Line, Span, Text};
+use ftui_text::text::Line as FtuiLine;
+use ftui_text::text::Span as FtuiSpan;
+use ftui_text::text::Text as FtuiText;
 
-impl From<FtuiColor> for PackedRgba {
+/// Newtype wrapper around PackedRgba that we own, so we can implement
+/// From<FtuiColor> for it. This lets us satisfy Style::fg's Into<PackedRgba> bound.
+#[derive(Clone, Copy, Debug)]
+pub struct PackedRgbaCompat(pub PackedRgba);
+
+impl From<FtuiColor> for PackedRgbaCompat {
     fn from(color: FtuiColor) -> Self {
-        color_to_packedrgba(&color)
+        PackedRgbaCompat(color_to_packedrgba(&color))
     }
 }
 
-/// Extension trait to let `Style` accept `Color` directly in `.fg()`.
-/// Use `.fg_compat(color)` instead of `.fg(color)` when `color` is a `ftui_style::Color`.
+impl From<PackedRgbaCompat> for PackedRgba {
+    fn from(c: PackedRgbaCompat) -> Self {
+        c.0
+    }
+}
+
 pub trait StyleCompatExt {
     fn fg_compat(self, color: FtuiColor) -> Self;
     fn bg_compat(self, color: FtuiColor) -> Self;
@@ -55,28 +66,24 @@ pub fn rgb_to_packedrgba(rgb: Rgb) -> PackedRgba {
     PackedRgba::rgb(rgb.r, rgb.g, rgb.b)
 }
 
-/// Helper to build a `Line` from a `Vec<Span>`.
 #[inline]
-pub fn line_from_spans<'a>(spans: Vec<Span<'a>>) -> Line<'a> {
-    Line::from_spans(spans)
+pub fn line_from_spans<'a>(spans: Vec<FtuiSpan<'a>>) -> FtuiLine<'a> {
+    FtuiLine::from_spans(spans)
 }
 
-/// Helper to build a `Text` from a `Vec<Line>`.
 #[inline]
-pub fn text_from_lines<'a>(lines: Vec<Line<'a>>) -> Text<'a> {
-    Text::from_lines(lines)
+pub fn text_from_lines<'a>(lines: Vec<FtuiLine<'a>>) -> FtuiText<'a> {
+    FtuiText::from_lines(lines)
 }
 
-/// Helper to build a `Line` from a single `Span`.
 #[inline]
-pub fn line_from_span<'a>(span: Span<'a>) -> Line<'a> {
-    Line::from_spans(vec![span])
+pub fn line_from_span<'a>(span: FtuiSpan<'a>) -> FtuiLine<'a> {
+    FtuiLine::from_spans(vec![span])
 }
 
-/// Helper to build a `Text` from a single `Line`.
 #[inline]
-pub fn text_from_line<'a>(line: Line<'a>) -> Text<'a> {
-    Text::from_line(line)
+pub fn text_from_line<'a>(line: FtuiLine<'a>) -> FtuiText<'a> {
+    FtuiText::from_line(line)
 }
 
 /// Convert an ANSI 256-color index to RGB components.

@@ -4,14 +4,16 @@ use ftui_render::frame::Frame;
 use ftui_style::{Color, Style};
 use ftui_text::text::{Line, Span, Text};
 use ftui_widgets::paragraph::Paragraph;
+use jcode_tui_style::theme::blend_color;
+use jcode_tui_style::theme::accent_color;
 
 fn selection_bg_for(base_bg: Option<Color>) -> Color {
-    let fallback = rgb(32, 38, 48);
+    let fallback = Color::rgb(32, 38, 48);
     blend_color(base_bg.unwrap_or(fallback), accent_color(), 0.34)
 }
 
 fn selection_fg_for(base_fg: Option<Color>) -> Option<Color> {
-    base_fg.map(|fg| blend_color(fg, rgb(255, 255, 255), 0.15))
+    base_fg.map(|fg| blend_color(fg, Color::rgb(255, 255, 255), 0.15))
 }
 
 fn highlight_line_selection(
@@ -38,7 +40,7 @@ fn highlight_line_selection(
         }
     };
 
-    for span in &line.spans {
+    for span in line.spans() {
         for ch in span.content.chars() {
             let width = unicode_width::UnicodeWidthChar::width(ch).unwrap_or(0);
             let selected = if width == 0 {
@@ -72,7 +74,6 @@ fn highlight_line_selection(
     Line {
         spans: rebuilt,
         style: line.style,
-        alignment: line.alignment,
     }
 }
 

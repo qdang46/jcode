@@ -62,15 +62,15 @@ fn map_display_lines_to_logical_lines(
 }
 
 fn user_prompt_number_style(color: Color) -> Style {
-    Style::default().fg(color).bg(user_bg())
+    Style::default().fg_compat(color).bg_compat(user_bg())
 }
 
 fn user_prompt_accent_style() -> Style {
-    Style::default().fg(user_color()).bg(user_bg())
+    Style::default().fg_compat(user_color()).bg_compat(user_bg())
 }
 
 fn user_prompt_text_style() -> Style {
-    Style::default().fg(user_text()).bg(user_bg())
+    Style::default().fg_compat(user_text()).bg_compat(user_bg())
 }
 
 fn default_message_alignment(role: &str, centered: bool) -> ftui_widgets::block::Alignment {
@@ -201,7 +201,7 @@ fn push_user_prompt_lines(
             content_line.to_string(),
             user_prompt_text_style(),
         ));
-        lines.push(Line::from_spans(spans).alignment(align));
+        lines.push(Line::from_spans(spans));
         line_raw_overrides.push(Some(WrappedLineMap {
             raw_line,
             start_col: 0,
@@ -481,7 +481,7 @@ fn prepare_messages_inner(app: &dyn TuiState, width: u16, height: u16) -> Prepar
                         Span::styled(label.clone(), Style::default().fg(rgb(200, 200, 200))),
                     ]
                 };
-                wrapped_lines.push(Line::from_spans(spans).alignment(suggestion_align));
+                wrapped_lines.push(Line::from_spans(spans));
             }
             if suggestions.len() > 1 {
                 wrapped_lines.push(Line::from_spans(vec![]));
@@ -494,7 +494,6 @@ fn prepare_messages_inner(app: &dyn TuiState, width: u16, height: u16) -> Prepar
                         },
                         Style::default().fg(dim_color()),
                     )])
-                    .alignment(suggestion_align),
                 );
             }
         }
@@ -716,7 +715,6 @@ pub(super) fn prepare_body_incremental(
                         Span::raw(if centered { "" } else { "  " }),
                         Span::styled(msg.content.clone(), Style::default().fg(dim_color())),
                     ])
-                    .alignment(align),
                 );
                 new_line_raw_overrides.push(Some(WrappedLineMap {
                     raw_line,
@@ -845,8 +843,7 @@ pub(super) fn prepare_body_incremental(
                 } else {
                     format!("🧠 {} memories", count)
                 };
-                let header = Line::from_spans(vec![Span::styled(header_text, border_style)])
-                    .alignment(align);
+                let header = Line::from_spans(vec![Span::styled(header_text, border_style)]);
 
                 let total_width = if centered {
                     (width.saturating_sub(4) as usize).min(120)
@@ -912,7 +909,6 @@ pub(super) fn prepare_body_incremental(
                         ),
                         Span::styled(msg.content.clone(), Style::default().fg_compat(Color::Mono(Ansi16::Red))),
                     ])
-                    .alignment(align),
                 );
                 new_line_raw_overrides.push(Some(WrappedLineMap {
                     raw_line,
@@ -1189,7 +1185,6 @@ pub(super) fn prepare_body(
                         Span::raw(if centered { "" } else { "  " }),
                         Span::styled(msg.content.clone(), Style::default().fg(dim_color())),
                     ])
-                    .alignment(align),
                 );
                 line_raw_overrides.push(Some(WrappedLineMap {
                     raw_line,
@@ -1322,8 +1317,7 @@ pub(super) fn prepare_body(
                 } else {
                     format!("🧠 {} memories", count)
                 };
-                let header = Line::from_spans(vec![Span::styled(header_text, border_style)])
-                    .alignment(align);
+                let header = Line::from_spans(vec![Span::styled(header_text, border_style)]);
 
                 let total_width = if centered {
                     (width.saturating_sub(4) as usize).min(120)
@@ -1389,7 +1383,6 @@ pub(super) fn prepare_body(
                         ),
                         Span::styled(msg.content.clone(), Style::default().fg_compat(Color::Mono(Ansi16::Red))),
                     ])
-                    .alignment(align),
                 );
                 line_raw_overrides.push(Some(WrappedLineMap {
                     raw_line,
@@ -1503,8 +1496,8 @@ fn wrap_lines(
         if let Some(hash) = super::super::mermaid::parse_image_placeholder(line) {
             let mut height = 1u16;
             for subsequent in wrapped_lines.iter().skip(idx + 1) {
-                if subsequent.spans.is_empty()
-                    || (subsequent.spans.len() == 1 && subsequent.spans[0].content.is_empty())
+                if subsequent.spans().is_empty()
+                    || (subsequent.spans().len() == 1 && subsequent.spans()[0].content.is_empty())
                 {
                     height += 1;
                 } else {
@@ -1622,8 +1615,8 @@ fn wrap_lines_with_map(
         if let Some(hash) = super::super::mermaid::parse_image_placeholder(line) {
             let mut height = 1u16;
             for subsequent in wrapped_lines.iter().skip(idx + 1) {
-                if subsequent.spans.is_empty()
-                    || (subsequent.spans.len() == 1 && subsequent.spans[0].content.is_empty())
+                if subsequent.spans().is_empty()
+                    || (subsequent.spans().len() == 1 && subsequent.spans()[0].content.is_empty())
                 {
                     height += 1;
                 } else {

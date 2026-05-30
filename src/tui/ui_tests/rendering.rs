@@ -25,7 +25,7 @@ fn test_render_rounded_box_sides_aligned() {
             i,
             line.width(),
             top_width,
-            line.spans
+            line.spans()
                 .iter()
                 .map(|s| s.content.as_ref())
                 .collect::<Vec<_>>()
@@ -444,7 +444,7 @@ fn test_render_memory_tiles_do_not_use_background_tint() {
         lines
             .iter()
             .skip(1)
-            .flat_map(|line| line.spans.iter())
+            .flat_map(|line| line.spans().iter())
             .all(|span| span.style.bg.is_none())
     );
 }

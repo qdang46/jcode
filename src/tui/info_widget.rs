@@ -1106,7 +1106,7 @@ fn render_single_widget(frame: &mut Frame, placement: &WidgetPlacement, data: &I
 
     // Diagrams need special handling - render image instead of text
     if placement.kind == WidgetKind::Diagrams {
-        frame.render_widget(block, rect);
+        block.clone().render(rect, &mut frame.buffer);
         render_diagrams_widget(frame, inner, data);
         return;
     }
@@ -1119,7 +1119,7 @@ fn render_single_widget(frame: &mut Frame, placement: &WidgetPlacement, data: &I
         if layout.pages.is_empty() || layout.max_page_height == 0 {
             return;
         }
-        frame.render_widget(block, rect);
+        block.clone().render(rect, &mut frame.buffer);
         render_overview_widget(frame, inner, data);
         return;
     }
@@ -1127,9 +1127,9 @@ fn render_single_widget(frame: &mut Frame, placement: &WidgetPlacement, data: &I
         if data.workspace_rows.is_empty() || inner.width == 0 || inner.height == 0 {
             return;
         }
-        frame.render_widget(block, rect);
+        block.clone().render(rect, &mut frame.buffer);
         super::workspace_map_widget::render_workspace_map(
-            frame.buffer_mut(),
+            &mut frame.buffer,
             inner,
             &data.workspace_rows,
             data.workspace_animation_tick,
@@ -1140,9 +1140,9 @@ fn render_single_widget(frame: &mut Frame, placement: &WidgetPlacement, data: &I
     if lines.is_empty() {
         return;
     }
-    frame.render_widget(block, rect);
+    block.clone().render(rect, &mut frame.buffer);
     let para = Paragraph::new(lines);
-    frame.render_widget(para, inner);
+    para.render(inner, &mut frame.buffer);
 }
 
 /// Render mermaid diagrams widget (renders images, not text)
@@ -1157,7 +1157,7 @@ fn render_diagrams_widget(frame: &mut Frame, inner: Rect, data: &InfoWidgetData)
 
     // Scale up as well as down so margin diagrams use the whole widget instead
     // of appearing as a small top-left crop in a large panel.
-    super::mermaid::render_image_widget_scale(diagram.hash, inner, frame.buffer_mut(), false);
+    super::mermaid::render_image_widget_scale(diagram.hash, inner, &mut frame.buffer, false);
 }
 
 fn render_overview_widget(frame: &mut Frame, inner: Rect, data: &InfoWidgetData) {

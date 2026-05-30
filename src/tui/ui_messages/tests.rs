@@ -1,7 +1,7 @@
 use super::*;
 
 fn extract_line_text(line: &Line<'_>) -> String {
-    line.spans
+    line.spans()
         .iter()
         .map(|span| span.content.as_ref())
         .collect::<String>()
@@ -28,7 +28,7 @@ fn render_system_message_forces_system_color_on_all_spans() {
 
     assert!(!lines.is_empty(), "expected rendered system message lines");
     for line in lines {
-        for span in line.spans {
+        for span in line.spans() {
             assert_eq!(span.style.fg, Some(system_message_color()));
         }
     }
@@ -50,7 +50,7 @@ fn render_system_message_centered_mode_left_aligns_with_padding() {
             "centered system lines should be left-aligned with padding"
         );
         assert!(
-            line.spans
+            line.spans()
                 .first()
                 .is_some_and(|span| span.content.starts_with(' ')),
             "centered system lines should start with padding"
@@ -102,7 +102,7 @@ fn render_background_task_message_uses_box_and_truncates_preview_lines() {
     let plain = lines
         .iter()
         .map(|line| {
-            line.spans
+            line.spans()
                 .iter()
                 .map(|span| span.content.as_ref())
                 .collect::<String>()
@@ -320,7 +320,7 @@ fn render_assistant_message_truncates_tool_calls_to_single_line() {
         .iter()
         .skip(2)
         .map(|line| {
-            line.spans
+            line.spans()
                 .iter()
                 .map(|span| span.content.as_ref())
                 .collect()
@@ -366,7 +366,7 @@ fn render_assistant_message_centers_single_line_tool_summary() {
         .iter()
         .skip(2)
         .map(|line| {
-            line.spans
+            line.spans()
                 .iter()
                 .map(|span| span.content.as_ref())
                 .collect()
@@ -492,7 +492,7 @@ fn render_system_message_centered_mode_caps_wrap_width_for_visible_gutters() {
     let rendered: Vec<String> = lines
         .iter()
         .map(|line| {
-            line.spans
+            line.spans()
                 .iter()
                 .map(|span| span.content.as_ref())
                 .collect()
@@ -596,7 +596,7 @@ fn render_tool_message_prefers_subagent_title_with_model() {
 
     let lines = render_tool_message(&msg, 80, crate::config::DiffDisplayMode::Off);
     let rendered: String = lines[0]
-        .spans
+        .spans()
         .iter()
         .map(|span| span.content.as_ref())
         .collect();
@@ -652,7 +652,7 @@ fn render_tool_message_shows_token_badge() {
 
     let lines = render_tool_message(&msg, 120, crate::config::DiffDisplayMode::Off);
     let badge_span = lines[0]
-        .spans
+        .spans()
         .iter()
         .find(|span| span.content.contains("1.9k tok"))
         .expect("missing token badge");
@@ -678,7 +678,7 @@ fn render_tool_message_colors_high_token_badge() {
 
     let lines = render_tool_message(&msg, 120, crate::config::DiffDisplayMode::Off);
     let badge_span = lines[0]
-        .spans
+        .spans()
         .iter()
         .find(|span| span.content.contains("12k tok"))
         .expect("missing token badge");
@@ -834,7 +834,7 @@ fn render_tool_message_memory_recall_centered_mode_left_aligns_with_padding() {
     let rendered: Vec<String> = lines
         .iter()
         .map(|line| {
-            line.spans
+            line.spans()
                 .iter()
                 .map(|span| span.content.as_ref())
                 .collect()
@@ -887,7 +887,7 @@ fn render_tool_message_memory_store_centered_mode_left_aligns_with_padding() {
     let rendered: Vec<String> = lines
         .iter()
         .map(|line| {
-            line.spans
+            line.spans()
                 .iter()
                 .map(|span| span.content.as_ref())
                 .collect()
@@ -929,7 +929,7 @@ fn render_tool_message_shows_swarm_spawn_prompt_summary() {
 
     let lines = render_tool_message(&msg, 120, crate::config::DiffDisplayMode::Off);
     let rendered: String = lines[0]
-        .spans
+        .spans()
         .iter()
         .map(|span| span.content.as_ref())
         .collect();

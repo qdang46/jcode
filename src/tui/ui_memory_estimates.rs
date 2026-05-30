@@ -15,9 +15,9 @@ fn estimate_lines_bytes(lines: &[Line<'static>]) -> usize {
         .iter()
         .map(|line| {
             std::mem::size_of::<Line<'static>>()
-                + line.spans.capacity() * std::mem::size_of::<Span<'static>>()
+                + line.spans().len() * std::mem::size_of::<Span<'static>>()
                 + line
-                    .spans
+                    .spans()
                     .iter()
                     .map(|span| span.content.len())
                     .sum::<usize>()

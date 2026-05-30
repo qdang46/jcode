@@ -132,7 +132,7 @@ fn edge(source: usize, target: usize, kind: &str) -> GraphEdge {
 fn lines_text(lines: &[ftui_text::text::Line<'_>]) -> String {
     lines
         .iter()
-        .flat_map(|line| line.spans.iter())
+        .flat_map(|line| line.spans().iter())
         .map(|span| span.content.as_ref())
         .collect::<Vec<_>>()
         .join("\n")
@@ -155,7 +155,7 @@ fn memory_widget_shows_sidecar_model_when_idle() {
 
     let text = render_memory_widget(&data, Rect::new(0, 0, 40, 5))
         .iter()
-        .flat_map(|line| line.spans.iter())
+        .flat_map(|line| line.spans().iter())
         .map(|span| span.content.as_ref())
         .collect::<Vec<_>>()
         .join("\n")
@@ -218,7 +218,7 @@ fn memory_widget_renders_current_cycle_activity() {
 
     let text = render_memory_widget(&data, Rect::new(0, 0, 40, 8))
         .iter()
-        .flat_map(|line| line.spans.iter())
+        .flat_map(|line| line.spans().iter())
         .map(|span| span.content.as_ref())
         .collect::<Vec<_>>()
         .join("\n")
@@ -274,7 +274,7 @@ fn memory_widget_marks_completed_pipeline_even_when_state_is_idle() {
 
     let text = render_memory_widget(&data, Rect::new(0, 0, 40, 4))
         .iter()
-        .flat_map(|line| line.spans.iter())
+        .flat_map(|line| line.spans().iter())
         .map(|span| span.content.as_ref())
         .collect::<Vec<_>>()
         .join("\n")
@@ -319,7 +319,7 @@ fn memory_widget_does_not_stay_done_after_idle_settles() {
 
     let text = render_memory_widget(&data, Rect::new(0, 0, 50, 6))
         .iter()
-        .flat_map(|line| line.spans.iter())
+        .flat_map(|line| line.spans().iter())
         .map(|span| span.content.as_ref())
         .collect::<Vec<_>>()
         .join("\n")
@@ -365,7 +365,7 @@ fn memory_widget_uses_distinct_trace_label_when_idle() {
 
     let text = render_memory_widget(&data, Rect::new(0, 0, 60, 8))
         .iter()
-        .flat_map(|line| line.spans.iter())
+        .flat_map(|line| line.spans().iter())
         .map(|span| span.content.as_ref())
         .collect::<Vec<_>>()
         .join("\n")
@@ -387,7 +387,7 @@ fn memory_compact_shows_short_model_only() {
 
     let text = lines
         .iter()
-        .flat_map(|line| line.spans.iter())
+        .flat_map(|line| line.spans().iter())
         .map(|span| span.content.as_ref())
         .collect::<Vec<_>>()
         .join("\n")
@@ -416,7 +416,7 @@ fn memory_compact_shows_memory_count_before_status() {
 
     let text = lines
         .iter()
-        .flat_map(|line| line.spans.iter())
+        .flat_map(|line| line.spans().iter())
         .map(|span| span.content.as_ref())
         .collect::<Vec<_>>()
         .join("\n")
@@ -445,7 +445,7 @@ fn memory_widget_shows_option_a_steps_without_pipeline_object() {
 
     let text = render_memory_widget(&data, Rect::new(0, 0, 40, 8))
         .iter()
-        .flat_map(|line| line.spans.iter())
+        .flat_map(|line| line.spans().iter())
         .map(|span| span.content.as_ref())
         .collect::<Vec<_>>()
         .join("\n")
@@ -616,7 +616,7 @@ fn model_widget_renders_connection_type() {
     let lines = render_model_widget(&data, Rect::new(0, 0, 40, 10));
     let text = lines
         .iter()
-        .flat_map(|line| line.spans.iter())
+        .flat_map(|line| line.spans().iter())
         .map(|span| span.content.as_ref())
         .collect::<Vec<_>>()
         .join("\n")

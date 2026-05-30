@@ -1,13 +1,14 @@
+use ftui_layout::Flex;
 use ftui_style::Rgb;
 use ftui_style::{Ansi16, MonoColor};
 use crate::tui::compat::StyleCompatExt;
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyModifiers};
 use ftui_core::geometry::Rect;
-use ftui_layout::{Constraint, Direction, Flex};
+use ftui_layout::{Constraint, Direction};
 use ftui_render::frame::Frame;
 use ftui_style::{Color, Style};
-use ftui_text::text::{Line, Span};
+use ftui_text::text::{Line, Span, Text};
 use ftui_text::wrap::WrapMode;
 use ftui_widgets::block::Block;
 use ftui_widgets::borders::Borders;
@@ -294,17 +295,17 @@ impl UsageOverlay {
             .title(format!(" {} ", self.title))
             .title_bottom(Line::from_spans(vec![
                 hotkey(" Up/Down "),
-                Span::styled(" navigate  ", Style::default().fg(MUTED_DARK)),
+                Span::styled(" navigate  ", Style::default().fg_compat(MUTED_DARK)),
                 hotkey(" type "),
-                Span::styled(" filter  ", Style::default().fg(MUTED_DARK)),
+                Span::styled(" filter  ", Style::default().fg_compat(MUTED_DARK)),
                 hotkey(" /usage "),
-                Span::styled(" refresh  ", Style::default().fg(MUTED_DARK)),
+                Span::styled(" refresh  ", Style::default().fg_compat(MUTED_DARK)),
                 hotkey(" Esc "),
-                Span::styled(" clear / close ", Style::default().fg(MUTED_DARK)),
+                Span::styled(" clear / close ", Style::default().fg_compat(MUTED_DARK)),
             ]))
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(PANEL_BORDER));
-        block.render(area, &mut frame.buffer);
+            .border_style(Style::default().fg_compat(PANEL_BORDER));
+        block.render(area, frame);
 
         let inner = Rect {
             x: area.x + 1,
@@ -329,29 +330,31 @@ impl UsageOverlay {
         self.render_item_list(frame, body[0]);
         self.render_detail_pane(frame, body[1]);
 
-        let footer = Paragraph::new(Line::from_spans(vec![
-            Span::styled("Focus ", Style::default().fg(MUTED_DARK)),
+        let footer = Paragraph::new(Text::from_line(Line::from_spans(vec![
+            Span::styled("Focus ", Style::default().fg_compat(MUTED_DARK)),
             Span::styled(
                 "Use this panel to compare provider headroom and reset times without cluttering the chat transcript.",
-                Style::default().fg(MUTED),
+                Style::default().fg_compat(MUTED),
             ),
-        ]));
-        footer.render(rows[2], &mut frame.buffer);
+        ])));
+        footer.render(rows[2], frame);
     }
 
     fn render_header(&self, frame: &mut Frame, area: Rect) {
         let block = Block::default()
-            .title(" Usage overview ")
-            .style(Style::default().fg_compat(Color::Mono(MonoColor::White)).bold())
+            .title(Span::styled(
+                " Usage overview ",
+                Style::default().fg_compat(Color::Mono(MonoColor::White)).bold(),
+            ))
             .borders(Borders::ALL)
-            .style(Style::default().bg(PANEL_BG))
-            .border_style(Style::default().fg(SECTION_BORDER));
+            .style(Style::default().bg_compat(PANEL_BG))
+            .border_style(Style::default().fg_compat(SECTION_BORDER));
         let inner = block.inner(area);
-        block.render(area, &mut frame.buffer);
+        block.render(area, frame);
 
         let lines = vec![
             Line::from_spans(vec![
-                Span::styled("Filter ", Style::default().fg(MUTED_DARK)),
+                Span::styled("Filter ", Style::default().fg_compat(MUTED_DARK)),
                 Span::styled(
                     if self.filter.is_empty() {
                         "type provider or plan name".to_string()
@@ -366,7 +369,7 @@ impl UsageOverlay {
                 ),
                 Span::styled(
                     format!("  ·  {} results", self.filtered.len()),
-                    Style::default().fg(MUTED_DARK),
+                    Style::default().fg_compat(MUTED_DARK),
                 ),
             ]),
             Line::from_spans(vec![
@@ -394,16 +397,16 @@ impl UsageOverlay {
                     Color::Rgb(Rgb { r: 232, g: 134, b: 134 }),
                 ),
                 if self.summary.session_visible {
-                    Span::styled("  · session included", Style::default().fg(MUTED_DARK))
+                    Span::styled("  · session included", Style::default().fg_compat(MUTED_DARK))
                 } else {
                     Span::raw("")
                 },
             ]),
         ];
 
-        Paragraph::new(lines)
+        Paragraph::new(Text::from_lines(lines))
             .wrap(WrapMode::Word)
-            .render(inner, &mut frame.buffer);
+            .render(inner, frame);
     }
 
     fn render_item_list(&self, frame: &mut Frame, area: Rect) {
@@ -413,19 +416,17 @@ impl UsageOverlay {
             format!(" Sources ({}/{}) ", self.selected + 1, self.filtered.len())
         };
         let block = Block::default()
-            .title(&title)
-            .style(Style::default().fg_compat(Color::Mono(MonoColor::White)).bold())
+            .title(Span::styled(title, Style::default().fg_compat(Color::Mono(MonoColor::White)).bold()))
             .borders(Borders::ALL)
-            .style(Style::default().bg(PANEL_BG))
-            .border_style(Style::default().fg(PANEL_BORDER_ACTIVE));
+            .style(Style::default().bg_compat(PANEL_BG))
+            .border_style(Style::default().fg_compat(PANEL_BORDER_ACTIVE));
         let inner = block.inner(area);
-        block.render(area, &mut frame.buffer);
+        block.render(area, frame);
 
         if self.filtered.is_empty() {
-            Paragraph::new("No usage items match the current filter.")
-                .style(Style::default().fg(MUTED))
+            Paragraph::new(Text::from_line(Line::styled("No usage items match the current filter.", Style::default().fg_compat(MUTED))))
                 .wrap(WrapMode::Word)
-                .render(inner, &mut frame.buffer);
+                .render(inner, frame);
             return;
         }
 
@@ -438,24 +439,24 @@ impl UsageOverlay {
                 selected_line = lines.len();
             }
             let title_style = if selected {
-                Style::default().fg_compat(Color::Mono(MonoColor::White)).bg(SELECTED_BG).bold()
+                Style::default().fg_compat(Color::Mono(MonoColor::White)).bg_compat(SELECTED_BG).bold()
             } else {
                 Style::default().fg_compat(Color::Mono(MonoColor::White))
             };
             let subtitle_style = if selected {
-                Style::default().fg(MUTED).bg(SELECTED_BG)
+                Style::default().fg_compat(MUTED).bg_compat(SELECTED_BG)
             } else {
-                Style::default().fg(MUTED)
+                Style::default().fg_compat(MUTED)
             };
             let badge_style = Style::default()
-                .fg(item.status.color())
-                .bg(if selected { SELECTED_BG } else { PANEL_BG })
+                .fg_compat(item.status.color())
+                .bg_compat(if selected { SELECTED_BG } else { PANEL_BG })
                 .bold();
             let marker = if selected { "›" } else { " " };
             lines.push(Line::from_spans(vec![
                 Span::styled(
                     format!("{} {} ", marker, item.status.icon()),
-                    Style::default().fg(item.status.color()).bg(if selected {
+                    Style::default().fg_compat(item.status.color()).bg_compat(if selected {
                         SELECTED_BG
                     } else {
                         PANEL_BG
@@ -477,10 +478,10 @@ impl UsageOverlay {
 
         let visible_height = inner.height.max(1) as usize;
         let scroll = selected_line.saturating_sub(visible_height.saturating_sub(3));
-        Paragraph::new(lines)
+        Paragraph::new(Text::from_lines(lines))
             .scroll((scroll.min(u16::MAX as usize) as u16, 0))
             .wrap(WrapMode::Word)
-            .render(inner, &mut frame.buffer);
+            .render(inner, frame);
     }
 
     fn render_detail_pane(&self, frame: &mut Frame, area: Rect) {
@@ -497,10 +498,10 @@ impl UsageOverlay {
                 Style::default().fg_compat(Color::Mono(MonoColor::White)).bold(),
             ))
             .borders(Borders::ALL)
-            .style(Style::default().bg(PANEL_BG))
-            .border_style(Style::default().fg(border_color));
+            .style(Style::default().bg_compat(PANEL_BG))
+            .border_style(Style::default().fg_compat(border_color));
         let inner = block.inner(area);
-        block.render(area, &mut frame.buffer);
+        block.render(area, frame);
 
         let lines: Vec<Line<'static>> = match selected {
             Some(item) => item
@@ -516,26 +517,26 @@ impl UsageOverlay {
                         )])
                     } else if let Some(rest) = line.strip_prefix("• ") {
                         Line::from_spans(vec![
-                            Span::styled("  • ", Style::default().fg(MUTED_DARK)),
-                            Span::styled(rest.to_string(), Style::default().fg(MUTED)),
+                            Span::styled("  • ", Style::default().fg_compat(MUTED_DARK)),
+                            Span::styled(rest.to_string(), Style::default().fg_compat(MUTED)),
                         ])
                     } else {
                         Line::from_spans(vec![Span::styled(
                             line.clone(),
-                            Style::default().fg(MUTED),
+                            Style::default().fg_compat(MUTED),
                         )])
                     }
                 })
                 .collect(),
             None => vec![Line::from_spans(vec![Span::styled(
                 "No usage item selected.",
-                Style::default().fg(MUTED),
+                Style::default().fg_compat(MUTED),
             )])],
         };
 
-        Paragraph::new(lines)
+        Paragraph::new(Text::from_lines(lines))
             .wrap(WrapMode::Word)
-            .render(inner, &mut frame.buffer);
+            .render(inner, frame);
     }
 }
 
@@ -551,13 +552,13 @@ fn estimate_item_bytes(item: &UsageOverlayItem) -> usize {
 }
 
 fn hotkey(text: &'static str) -> Span<'static> {
-    Span::styled(text, Style::default().fg_compat(Color::Mono(MonoColor::White)).bg_compat(Color::Mono(Ansi16::BrightBlack)))
+    Span::styled(text, Style::default().fg_compat(Color::Mono(MonoColor::White)).bg_compat(Color::Ansi16(Ansi16::BrightBlack)))
 }
 
 fn metric_span(label: &'static str, value: usize, color: Color) -> Span<'static> {
     Span::styled(
         format!("{} {}", label, value),
-        Style::default().fg(color).bold(),
+        Style::default().fg_compat(color).bold(),
     )
 }
 
@@ -708,18 +709,20 @@ fn truncate_with_ellipsis(input: &str, width: usize) -> String {
 }
 
 fn centered_rect(percent_x: u16, percent_y: u16, area: Rect) -> Rect {
+    let percent_y_f = percent_y as f32;
+    let percent_x_f = percent_x as f32;
     let popup = Flex::vertical()
         .constraints([
-            Constraint::Percentage((100 - percent_y) / 2),
-            Constraint::Percentage(percent_y),
-            Constraint::Percentage((100 - percent_y) / 2),
+            Constraint::Percentage((100.0 - percent_y_f) / 2.0),
+            Constraint::Percentage(percent_y_f),
+            Constraint::Percentage((100.0 - percent_y_f) / 2.0),
         ])
         .split(area);
     Flex::horizontal()
         .constraints([
-            Constraint::Percentage((100 - percent_x) / 2),
-            Constraint::Percentage(percent_x),
-            Constraint::Percentage((100 - percent_x) / 2),
+            Constraint::Percentage((100.0 - percent_x_f) / 2.0),
+            Constraint::Percentage(percent_x_f),
+            Constraint::Percentage((100.0 - percent_x_f) / 2.0),
         ])
         .split(popup[1])[1]
 }

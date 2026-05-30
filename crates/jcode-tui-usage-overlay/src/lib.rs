@@ -48,10 +48,52 @@ impl UsageOverlayStatus {
 }
 
 #[derive(Debug, Clone)]
-pub struct UsageOverlayItem;
+pub struct UsageOverlayItem {
+    pub id: String,
+    pub title: String,
+    pub subtitle: String,
+    pub status: UsageOverlayStatus,
+    pub detail_lines: Vec<String>,
+}
+
+impl UsageOverlayItem {
+    pub fn new(
+        id: impl Into<String>,
+        title: impl Into<String>,
+        subtitle: impl Into<String>,
+        status: UsageOverlayStatus,
+        detail_lines: Vec<String>,
+    ) -> Self {
+        Self {
+            id: id.into(),
+            title: title.into(),
+            subtitle: subtitle.into(),
+            status,
+            detail_lines,
+        }
+    }
+}
 
 #[derive(Debug, Clone)]
-pub struct UsageOverlaySummary;
+pub struct UsageOverlaySummary {
+    pub provider_count: usize,
+    pub warning_count: usize,
+    pub critical_count: usize,
+    pub error_count: usize,
+    pub session_visible: bool,
+}
+
+impl Default for UsageOverlaySummary {
+    fn default() -> Self {
+        Self {
+            provider_count: 0,
+            warning_count: 0,
+            critical_count: 0,
+            error_count: 0,
+            session_visible: false,
+        }
+    }
+}
 
 pub fn item_matches_filter(_item: &UsageOverlayItem, _filter: &str) -> bool {
     true

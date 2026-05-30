@@ -1,4 +1,4 @@
-use ftui_style::{Ansi16, MonoColor};
+use ftui_style::{Ansi16, Color, MonoColor, Style};
 use crate::tui::compat::StyleCompatExt;
 use ftui_render::frame::Frame;
 use ftui_text::text::{Line, Span};
@@ -33,7 +33,7 @@ pub(super) fn render_recovered_panic_frame(
     let lines = vec![
         Line::from_spans(vec![Span::styled(
             "rendering error recovered",
-            Style::default().fg_compat(Color::Mono(Ansi16::Red)),
+            Style::default().fg_compat(Color::Ansi16(Ansi16::Red)),
         )]),
         Line::from_spans(vec![Span::styled(
             "continuing with a safe fallback frame",

@@ -3,6 +3,7 @@ use super::{
     SidePanelImageLayout, SidePanelImageRenderMode,
 };
 use crate::tui::mermaid;
+use crate::tui::ui::diagram_pane;
 use ftui_core::geometry::Rect;
 
 const SIDE_PANEL_INLINE_IMAGE_TARGET_UTILIZATION_PERCENT: u16 = 85;
@@ -61,7 +62,7 @@ pub(super) fn estimate_side_panel_image_layout_with_font(
     let (cell_w, cell_h) = font_size.unwrap_or((8, 16));
     let cell_w = cell_w.max(1) as u32;
     let cell_h = cell_h.max(1) as u32;
-    let image_h_cells = super::diagram_pane::div_ceil_u32(height.max(1), cell_h).max(1);
+    let image_h_cells = diagram_pane::div_ceil_u32(height.max(1), cell_h).max(1);
     let available_width = available_width.max(1) as u32;
     let inner_height = inner_height.max(1);
     let fit_area = Rect::new(0, 0, available_width as u16, inner_height);
@@ -150,7 +151,7 @@ pub(super) fn scaled_image_rows(image_h_cells: u32, zoom_percent: u16) -> u16 {
         return 0;
     }
 
-    super::diagram_pane::div_ceil_u32(image_h_cells.saturating_mul(zoom_percent as u32), 100)
+    diagram_pane::div_ceil_u32(image_h_cells.saturating_mul(zoom_percent as u32), 100)
         .min(u16::MAX as u32) as u16
 }
 
@@ -169,12 +170,12 @@ pub(super) fn estimate_side_panel_image_rows_with_font(
     let cell_w = cell_w.max(1) as u32;
     let cell_h = cell_h.max(1) as u32;
 
-    let image_w_cells = super::diagram_pane::div_ceil_u32(width.max(1), cell_w).max(1);
-    let image_h_cells = super::diagram_pane::div_ceil_u32(height.max(1), cell_h).max(1);
+    let image_w_cells = diagram_pane::div_ceil_u32(width.max(1), cell_w).max(1);
+    let image_h_cells = diagram_pane::div_ceil_u32(height.max(1), cell_h).max(1);
     let available_width = available_width.max(1) as u32;
 
     let fitted_h_cells = if image_w_cells > available_width {
-        super::diagram_pane::div_ceil_u32(
+        diagram_pane::div_ceil_u32(
             image_h_cells.saturating_mul(available_width),
             image_w_cells,
         )
@@ -210,7 +211,7 @@ pub(super) fn side_panel_viewport_scroll_x(
         return 0;
     }
 
-    let cell_w_px = super::diagram_pane::div_ceil_u32(font_w.saturating_mul(100), zoom).max(1);
+    let cell_w_px = diagram_pane::div_ceil_u32(font_w.saturating_mul(100), zoom).max(1);
 
     let base_cells = if centered {
         ((max_scroll_x_px / 2) / cell_w_px).min(i32::MAX as u32) as i32

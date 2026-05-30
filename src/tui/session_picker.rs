@@ -844,7 +844,7 @@ impl SessionPicker {
                     Span::styled(format!("  {}", label), Style::default().fg(dim_color))
                 },
             ])
-            .alignment(align),
+            .into(),
         );
 
         // Title
@@ -853,7 +853,7 @@ impl SessionPicker {
                 session.title.clone(),
                 Style::default().fg(Color::White),
             )])
-            .alignment(align),
+            .into(),
         );
 
         // Saved/bookmark indicator
@@ -867,8 +867,7 @@ impl SessionPicker {
                 Line::from(vec![Span::styled(
                     saved_label,
                     Style::default().fg(rgb(255, 180, 100)),
-                )])
-                .alignment(align),
+                )]),
             );
         }
 
@@ -878,8 +877,7 @@ impl SessionPicker {
                 Line::from(vec![Span::styled(
                     format!("📁 {}", dir),
                     Style::default().fg(dim_color),
-                )])
-                .alignment(align),
+                )]),
             );
         }
 
@@ -913,8 +911,7 @@ impl SessionPicker {
                     Style::default().fg(status_color),
                 ),
                 Span::styled(status_text, Style::default().fg(status_color)),
-            ])
-            .alignment(align),
+            ]),
         );
 
         if self.crashed_session_ids.contains(&session.id) {
@@ -924,8 +921,7 @@ impl SessionPicker {
                     Style::default()
                         .fg(rgb(255, 140, 140))
                         .bold(),
-                )])
-                .alignment(align),
+                )]),
             );
         }
 
@@ -936,20 +932,18 @@ impl SessionPicker {
                     Style::default()
                         .fg(rgb(140, 220, 160))
                         .bold(),
-                )])
-                .alignment(align),
+                )]),
             );
         }
 
-        lines.push(Line::from("").alignment(align));
+        lines.push(Line::from(""));
         lines.push(
             Line::from(vec![Span::styled(
                 "─".repeat(area.width.saturating_sub(4) as usize),
                 Style::default().fg(rgb(60, 60, 60)),
-            )])
-            .alignment(align),
+            )]),
         );
-        lines.push(Line::from("").alignment(align));
+        lines.push(Line::from(""));
 
         // Messages preview - styled like the actual TUI
         let mut prompt_num = 0;
@@ -960,7 +954,7 @@ impl SessionPicker {
             }
 
             if !lines.is_empty() && msg.role != "tool" && msg.role != "meta" {
-                lines.push(Line::from("").alignment(align));
+                lines.push(Line::from(""));
             }
 
             let display_msg = DisplayMessage {
@@ -983,8 +977,7 @@ impl SessionPicker {
                             ),
                             Span::styled("› ", Style::default().fg(user_color)),
                             Span::styled(display_msg.content, Style::default().fg(user_text)),
-                        ])
-                        .alignment(align),
+                        ]),
                     );
                     rendered_messages += 1;
                 }
@@ -1002,8 +995,7 @@ impl SessionPicker {
                                 Line::from(vec![Span::styled(
                                     "[mermaid diagram]",
                                     Style::default().fg(dim_color),
-                                )])
-                                .alignment(align),
+                                )]),
                             );
                             skip_mermaid_blank = true;
                             rendered_messages += 1;
@@ -1011,8 +1003,8 @@ impl SessionPicker {
                         }
 
                         if skip_mermaid_blank
-                            && line.spans.len() == 1
-                            && line.spans[0].content.trim().is_empty()
+                            && line.spans().len() == 1
+                            && line.spans()[0].content.trim().is_empty()
                         {
                             continue;
                         }
@@ -1038,8 +1030,7 @@ impl SessionPicker {
                         Line::from(vec![Span::styled(
                             msg.content.clone(),
                             Style::default().fg(dim_color),
-                        )])
-                        .alignment(align),
+                        )]),
                     );
                     rendered_messages += 1;
                 }
@@ -1088,7 +1079,6 @@ impl SessionPicker {
                                 Style::default().fg(rgb(140, 210, 255)),
                             ),
                         ])
-                        .alignment(align),
                     );
                     rendered_messages += 1;
                 }
@@ -1097,8 +1087,7 @@ impl SessionPicker {
                         Line::from(vec![Span::styled(
                             msg.content.clone(),
                             Style::default().fg(dim_color),
-                        )])
-                        .alignment(align),
+                        )]),
                     );
                     rendered_messages += 1;
                 }
@@ -1107,8 +1096,7 @@ impl SessionPicker {
                         Line::from(vec![
                             Span::styled("✗ ", Style::default().fg(Color::Red)),
                             Span::styled(msg.content.clone(), Style::default().fg(Color::Red)),
-                        ])
-                        .alignment(align),
+                        ]),
                     );
                     rendered_messages += 1;
                 }
@@ -1117,8 +1105,7 @@ impl SessionPicker {
                         Line::from(vec![Span::styled(
                             msg.content.clone(),
                             Style::default().fg(Color::White),
-                        )])
-                        .alignment(align),
+                        )]),
                     );
                     rendered_messages += 1;
                 }
@@ -1137,8 +1124,7 @@ impl SessionPicker {
                 "(empty session)"
             };
             lines.push(
-                Line::from(vec![Span::styled(text, Style::default().fg(dim_color))])
-                    .alignment(align),
+                Line::from(vec![Span::styled(text, Style::default().fg(dim_color))]),
             );
         }
 

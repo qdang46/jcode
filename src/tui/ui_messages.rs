@@ -60,11 +60,11 @@ pub(crate) fn render_assistant_message(
     }
     if !msg.tool_calls.is_empty() {
         if lines.iter().any(|line| {
-            line.spans
+            line.spans()
                 .iter()
                 .any(|span| !span.content.trim().is_empty())
         }) {
-            lines.push(Line::default().alignment(Alignment::Left));
+            lines.push(Line::default());
         }
         lines.extend(render_assistant_tool_call_lines(
             &msg.tool_calls,
@@ -205,7 +205,7 @@ pub(crate) fn render_system_message(
         left_pad_lines_for_centered_mode(&mut lines, width);
     }
     for line in &mut lines {
-        for span in &mut line.spans {
+        for span in line.iter_spans_mut() {
             span.style.fg = Some(system_message_color());
         }
     }
@@ -1000,7 +1000,7 @@ fn render_connection_system_message(msg: &DisplayMessage, width: u16) -> Vec<Lin
                 left_pad_lines_for_centered_mode(&mut lines, width);
             }
             for line in &mut lines {
-                for span in &mut line.spans {
+                for span in line.iter_spans_mut() {
                     span.style.fg = Some(system_message_color());
                 }
             }
@@ -1329,7 +1329,7 @@ pub(crate) fn render_swarm_message(
 
     if !content.is_empty() {
         body_lines.retain(|line| {
-            line.spans
+            line.spans()
                 .iter()
                 .any(|span| !span.content.trim().is_empty())
         });
@@ -1342,10 +1342,10 @@ pub(crate) fn render_swarm_message(
     }
 
     for line in &mut body_lines {
-        if line.spans.is_empty() {
-            line.spans.push(Span::styled(String::new(), body_style));
+        if line.spans().is_empty() {
+            line.push_span(Span::styled(String::new(), body_style));
         }
-        for span in &mut line.spans {
+        for span in line.iter_spans_mut() {
             if span.style.fg.is_none() {
                 span.style.fg = Some(text_color);
             }
@@ -1354,7 +1354,7 @@ pub(crate) fn render_swarm_message(
 
     for line in body_lines {
         let mut spans = vec![Span::styled("│ ", rail_style)];
-        spans.extend(line.spans);
+        spans.extend(line.spans().to_vec());
         lines.push(Line::from_spans(spans));
     }
 
@@ -1768,8 +1768,7 @@ pub(crate) fn render_tool_message(
             Line::from_spans(vec![Span::styled(
                 format!("{}┌─ diff", pad_str),
                 Style::default().fg(dim_color()),
-            )])
-            .alignment(Alignment::Left),
+            )]),
         );
 
         let mut shown_truncation = false;
@@ -1781,8 +1780,7 @@ pub(crate) fn render_tool_message(
                     Line::from_spans(vec![Span::styled(
                         format!("{}│ ... {} more changes ...", pad_str, skipped),
                         Style::default().fg(dim_color()),
-                    )])
-                    .alignment(Alignment::Left),
+                    )]),
                 );
                 shown_truncation = true;
             }
@@ -1832,7 +1830,7 @@ pub(crate) fn render_tool_message(
                 }
             }
 
-            lines.push(Line::from_spans(spans).alignment(Alignment::Left));
+            lines.push(Line::from_spans(spans));
         }
 
         let footer = if total_changes > 0 && truncated {
@@ -1841,8 +1839,7 @@ pub(crate) fn render_tool_message(
             format!("{}└─", pad_str)
         };
         lines.push(
-            Line::from_spans(vec![Span::styled(footer, Style::default().fg(dim_color()))])
-                .alignment(Alignment::Left),
+            Line::from_spans(vec![Span::styled(footer, Style::default().fg(dim_color()))]),
         );
     }
 

@@ -313,7 +313,7 @@ pub(super) fn render_context_usage_line(
         format!("{label} "),
         Style::new().fg(rgb(140, 140, 150)),
     )];
-    spans.extend(render_usage_bar(used_tokens, limit_tokens, bar_width).spans);
+    spans.extend(render_usage_bar(used_tokens, limit_tokens, bar_width).spans().to_vec());
     Line::from_spans(spans)
 }
 

@@ -1,4 +1,5 @@
 use super::{accent_color, clear_area, dim_color, tool_color};
+use ftui_text::text::Span;
 use crate::tui::info_widget;
 use ftui_core::geometry::Rect;
 use ftui_render::cell::PackedRgba;
@@ -8,10 +9,9 @@ use ratatui::style::Modifier;
 use ftui_text::text::Line;
 use ftui_text::text::Text;
 use ftui_widgets::block::Block;
-use ftui_widgets::borders::{BorderType, Borders};
+use ftui_widgets::borders::BorderType;
 use ftui_widgets::paragraph::Paragraph;
 use ftui_widgets::Widget;
-use ftui_widgets::Wrap;
 use serde::Serialize;
 use std::cell::RefCell;
 
@@ -931,7 +931,7 @@ use ftui_widgets::borders::{BorderType, Borders};
                     rendered = super::super::mermaid::render_image_widget_viewport(
                         diagram.hash,
                         inner,
-                        frame.buffer_mut(),
+                        &mut frame.buffer,
                         scroll_x,
                         scroll_y,
                         zoom_percent,
@@ -943,7 +943,7 @@ use ftui_widgets::borders::{BorderType, Borders};
                             rendered = super::super::mermaid::render_image_widget_scale(
                                 diagram.hash,
                                 render_area,
-                                frame.buffer_mut(),
+                                &mut frame.buffer,
                                 false,
                             );
                         }
@@ -955,7 +955,7 @@ use ftui_widgets::borders::{BorderType, Borders};
                             rendered = super::super::mermaid::render_image_widget_viewport_precise(
                                 diagram.hash,
                                 inner,
-                                frame.buffer_mut(),
+                                &mut frame.buffer,
                                 scroll_x,
                                 scroll_y,
                                 zoom_percent,
@@ -971,7 +971,7 @@ use ftui_widgets::borders::{BorderType, Borders};
             super::super::mermaid::write_video_export_marker(
                 diagram.hash,
                 inner,
-                frame.buffer_mut(),
+                &mut frame.buffer,
             );
         } else if rendered == 0 {
             clear_area(frame, inner);

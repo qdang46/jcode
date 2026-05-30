@@ -646,7 +646,7 @@ fn render_side_panel_markdown_keeps_table_rows_intact() {
     let text: Vec<String> = rendered
         .lines
         .iter()
-        .map(|line| line.spans.iter().map(|s| s.content.as_ref()).collect())
+        .map(|line| line.spans().iter().map(|s| s.content.as_ref()).collect())
         .collect();
 
     assert!(
@@ -692,7 +692,7 @@ fn render_side_panel_markdown_live_syncs_file_content() {
     let first_text: Vec<String> = first
         .lines
         .iter()
-        .map(|line| line.spans.iter().map(|s| s.content.as_ref()).collect())
+        .map(|line| line.spans().iter().map(|s| s.content.as_ref()).collect())
         .collect();
     assert!(
         first_text.iter().any(|line| line.contains("First")),
@@ -712,7 +712,7 @@ fn render_side_panel_markdown_live_syncs_file_content() {
     let second_text: Vec<String> = second
         .lines
         .iter()
-        .map(|line| line.spans.iter().map(|s| s.content.as_ref()).collect())
+        .map(|line| line.spans().iter().map(|s| s.content.as_ref()).collect())
         .collect();
     assert!(
         second_text.iter().any(|line| line.contains("Second")),
@@ -777,12 +777,12 @@ fn render_side_panel_content_change_with_same_revision_invalidates_cache() {
     let first_text: Vec<String> = first
         .lines
         .iter()
-        .map(|line| line.spans.iter().map(|s| s.content.as_ref()).collect())
+        .map(|line| line.spans().iter().map(|s| s.content.as_ref()).collect())
         .collect();
     let second_text: Vec<String> = second
         .lines
         .iter()
-        .map(|line| line.spans.iter().map(|s| s.content.as_ref()).collect())
+        .map(|line| line.spans().iter().map(|s| s.content.as_ref()).collect())
         .collect();
 
     assert!(
@@ -856,7 +856,7 @@ fn render_side_panel_managed_pages_ignore_disk_file_content() {
     let text: Vec<String> = rendered
         .lines
         .iter()
-        .map(|line| line.spans.iter().map(|s| s.content.as_ref()).collect())
+        .map(|line| line.spans().iter().map(|s| s.content.as_ref()).collect())
         .collect();
 
     assert!(
@@ -890,7 +890,7 @@ fn render_side_panel_linked_file_missing_file_falls_back_to_snapshot_content() {
     let text: Vec<String> = rendered
         .lines
         .iter()
-        .map(|line| line.spans.iter().map(|s| s.content.as_ref()).collect())
+        .map(|line| line.spans().iter().map(|s| s.content.as_ref()).collect())
         .collect();
 
     assert!(

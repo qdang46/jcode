@@ -1472,7 +1472,7 @@ pub(super) fn render_batch_subcall_line(
     }
 
     if let Some(token_suffix) = token_suffix {
-        spans.extend(token_suffix.spans);
+        spans.extend(token_suffix.spans().to_vec());
     }
 
     Line::from_spans(spans)

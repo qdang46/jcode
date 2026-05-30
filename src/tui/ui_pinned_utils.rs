@@ -1,5 +1,8 @@
 use super::*;
 use ftui_core::geometry::Rect;
+use ftui_style::Color;
+use ftui_style::Style;
+use std::collections::VecDeque;
 
 pub(super) fn lru_touch<K: PartialEq>(order: &mut VecDeque<K>, key: &K) {
     if let Some(pos) = order.iter().position(|existing| existing == key) {
@@ -15,6 +18,32 @@ pub(super) fn side_panel_content_signature(page: &crate::side_panel::SidePanelPa
     page.updated_at_ms.hash(&mut hasher);
     page.content.hash(&mut hasher);
     hasher.finish()
+}
+
+pub(super) fn side_panel_content_area(area: Rect) -> Option<Rect> {
+    if area.width < 2 || area.height < 2 {
+        return None;
+    }
+    Some(Rect::new(area.x + 1, area.y + 1, area.width - 2, area.height - 2))
+}
+
+pub(super) fn side_panel_border_style(focused: bool) -> Style {
+    crate::tui::ui_layout::right_rail_border_style(
+        focused,
+        jcode_tui_style::theme::accent_color(),
+    )
+}
+
+pub(super) fn pinned_diagram_preferred_aspect_ratio(
+    page: Rect,
+    content_inner: Rect,
+    pane_position: crate::config::DiagramPanePosition,
+) -> Option<f32> {
+    crate::tui::ui::diagram_pane::pinned_diagram_preferred_aspect_ratio(
+        page,
+        content_inner,
+        pane_position,
+    )
 }
 
 pub(super) fn estimate_side_panel_pane_area(

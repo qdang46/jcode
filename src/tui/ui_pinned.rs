@@ -1,16 +1,35 @@
 use ftui_style::MonoColor;
-use crate::tui::compat::StyleCompatExt;
-use super::*;
-use crate::tui::color_support::rgb;
 use ftui_core::geometry::Rect;
 use ftui_render::cell::PackedRgba;
 use ftui_style::{Color, Style};
-use ratatui::style::Modifier;
 use ftui_text::text::{Line, Span, Text};
-use ftui_widgets::block::{Alignment, Block, Borders};
-use ftui_widgets::paragraph::Paragraph;
-use ftui_widgets::Wrap;
-use ftui_widgets::Widget;
+use ftui_text::wrap::WrapMode;
+use ftui_widgets::{
+    Widget,
+    block::{Alignment, Block},
+    borders::Borders,
+    paragraph::Paragraph,
+};
+use crate::tui::mermaid;
+use crate::tui::markdown;
+use crate::tui::ui::diagram_pane::pinned_diagram_preferred_aspect_ratio;
+use crate::tui::ui_diff::{DiffLineKind, ParsedDiffLine, collect_diff_lines, diff_add_color, diff_del_color, generate_diff_lines_from_tool_input, tint_span_with_diff_color};
+use jcode_tui_messages::WrappedLineMap;
+use crate::tui::color_support::rgb;
+use jcode_tui_style::theme::dim_color;
+use jcode_tui_style::theme::accent_color;
+use jcode_tui_style::theme::blend_color;
+use jcode_tui_style::theme::tool_color;
+use std::collections::{HashMap, VecDeque};
+use std::sync::{Mutex, OnceLock};
+use super::tools_ui;
+use crate::tui::ui_layout::right_rail_border_style;
+use crate::tui::ui::line_left_margins_for_area;
+use crate::tui::DisplayMessage;
+use crate::tui::Frame;
+use crate::tui::TuiState;
+use crate::tui::ui::align_if_unset;
+use crate::tui::ui::record_side_pane_snapshot_precomputed;
 
 mod ui_pinned_table;
 use ui_pinned_table::is_rendered_table_line;
@@ -29,6 +48,7 @@ use layout_support::{
 };
 use util_support::{
     compact_image_label, estimate_side_panel_pane_area, lru_touch, side_panel_content_signature,
+    side_panel_content_area, side_panel_border_style,
 };
 use selection_support::apply_side_selection_highlight;
 
@@ -67,7 +87,7 @@ fn image_group_for(source: &crate::session::RenderedImageSource) -> ImageGroup {
 
 fn image_group_heading(group: ImageGroup) -> (&'static str, Color) {
     match group {
-        ImageGroup::Inputs => ("inputs", rgb(138, 180, 248)),
+        ImageGroup::Inputs => ("inputs", Color::rgb(138, 180, 248)),
         ImageGroup::Tools => ("tools", accent_color()),
         ImageGroup::Other => ("other", dim_color()),
     }
@@ -173,9 +193,9 @@ fn estimate_lines_bytes(lines: &[Line<'static>]) -> usize {
         .iter()
         .map(|line| {
             std::mem::size_of::<Line<'static>>()
-                + line.spans.capacity() * std::mem::size_of::<Span<'static>>()
+                + line.spans().len() * std::mem::size_of::<Span<'static>>()
                 + line
-                    .spans
+                    .spans()
                     .iter()
                     .map(|span| span.content.len())
                     .sum::<usize>()
@@ -809,7 +829,7 @@ pub(super) fn draw_pinned_content_cached(
     let mut title_parts = vec![Span::styled(" side ", Style::default().fg(tool_color()))];
     title_parts.push(Span::styled(
         "Pinned",
-        Style::default().fg(rgb(180, 200, 255)).bold(),
+        Style::default().fg(Color::rgb(180, 200, 255)).bold(),
     ));
     title_parts.push(Span::styled(" ", Style::default().fg(dim_color())));
     if total_diffs > 0 {
@@ -973,7 +993,7 @@ pub(super) fn draw_pinned_content_cached(
                         Span::styled(
                             format!(" [{}]", source_badge),
                             Style::default().fg(match group {
-                                ImageGroup::Inputs => rgb(138, 180, 248),
+                                ImageGroup::Inputs => Color::rgb(138, 180, 248),
                                 ImageGroup::Tools => accent_color(),
                                 ImageGroup::Other => dim_color(),
                             }),
@@ -1231,7 +1251,7 @@ pub(super) fn draw_side_panel_markdown(
     let mut title_parts = vec![Span::styled(" side ", Style::default().fg(tool_color()))];
     title_parts.push(Span::styled(
         page.title.clone(),
-        Style::default().fg(rgb(180, 200, 255)).bold(),
+        Style::default().fg(Color::rgb(180, 200, 255)).bold(),
     ));
     title_parts.push(Span::styled(
         format!(" {}/{} ", page_index, page_count),

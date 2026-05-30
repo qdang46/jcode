@@ -2,6 +2,7 @@ use super::{
     SidePanelImageLayout, SidePanelImageRenderMode, estimate_side_panel_image_layout_with_font,
     fit_image_area_with_font,
 };
+use crate::tui::mermaid;
 use ftui_core::geometry::Rect;
 use serde::Serialize;
 
