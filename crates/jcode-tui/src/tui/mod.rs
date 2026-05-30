@@ -1,5 +1,13 @@
 pub mod account_picker;
 mod app;
+
+#[derive(Clone)]
+pub struct ContextSnapshot {
+    pub info: Option<crate::prompt::ContextInfo>,
+    pub revision: u64,
+    pub fresh: bool,
+}
+
 pub mod backend;
 pub(crate) mod color_support;
 mod core;
@@ -31,11 +39,11 @@ pub mod workspace_client;
 pub use jcode_tui_workspace::workspace_map;
 pub use jcode_tui_workspace::workspace_map_widget;
 
-pub use app::{App, CopyBadgeUiState, ProcessingStatus, RunResult};
 pub use crate::generated_image::{
     generated_image_side_panel_markdown, generated_image_side_panel_page_id,
     write_generated_image_side_panel_page,
 };
+pub use app::{App, CopyBadgeUiState, ProcessingStatus, RunResult};
 
 use crate::message::ToolCall;
 use ratatui::prelude::Frame;
@@ -211,6 +219,15 @@ pub trait TuiState {
     }
     /// Context info (what's loaded in context window - static + dynamic)
     fn context_info(&self) -> crate::prompt::ContextInfo;
+    /// Authoritative, freshness-tagged context snapshot used by widgets.
+    fn context_snapshot(&self) -> ContextSnapshot {
+        let info = self.context_info();
+        ContextSnapshot {
+            info: (info.total_chars > 0).then_some(info),
+            revision: 0,
+            fresh: true,
+        }
+    }
     /// Context window limit in tokens (if known)
     fn context_limit(&self) -> Option<usize>;
     /// Whether a newer client binary is available
@@ -270,6 +287,10 @@ pub trait TuiState {
     fn side_panel(&self) -> &crate::side_panel::SidePanelSnapshot;
     /// Whether to pin read images to a side pane
     fn pin_images(&self) -> bool;
+    /// Remaining seconds before the pinned image side pane auto-hides.
+    fn pinned_images_auto_hide_remaining_secs(&self) -> Option<u64> {
+        None
+    }
     /// Whether to show a native terminal scrollbar for the chat viewport
     fn chat_native_scrollbar(&self) -> bool;
     /// Whether to show a native terminal scrollbar for the side panel
@@ -319,6 +340,13 @@ pub trait TuiState {
     /// Whether the first-run onboarding empty state is being previewed in this session.
     fn onboarding_preview_mode(&self) -> bool {
         false
+    }
+    /// Whether to render the dedicated first-run onboarding welcome screen
+    /// (gray telemetry header, prominent donut, welcome text, and the login
+    /// prompt). True for brand-new installs / unauthenticated users, or when
+    /// previewing onboarding.
+    fn onboarding_welcome_active(&self) -> bool {
+        self.onboarding_preview_mode()
     }
     /// Suggestion prompts for new users (shown in initial empty state).
     /// Returns (label, prompt_text) pairs. Empty if user is experienced or not authenticated.
@@ -971,6 +999,7 @@ pub struct PickerEntry {
     pub selected_option: usize,
     pub is_current: bool,
     pub is_default: bool,
+    pub is_favorite: bool,
     pub recommended: bool,
     pub recommendation_rank: usize,
     pub usage_score: u32,

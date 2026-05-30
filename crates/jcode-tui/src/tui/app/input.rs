@@ -1145,7 +1145,7 @@ pub(super) fn clear_input_for_escape(app: &mut App) {
     app.reset_tab_completion();
     app.sync_model_picker_preview_from_input();
     if had_input {
-        app.set_status_notice("Input cleared — Ctrl+Z to restore");
+        app.set_status_notice("Input cleared - Ctrl+Z to restore");
     }
 }
 
@@ -1817,19 +1817,26 @@ impl App {
             if todos.is_empty() {
                 return false;
             }
-            self.push_display_message(DisplayMessage::system(
-                "✅ Todos complete. Auto-poke finished; queued hidden confidence reminder."
-                    .to_string(),
-            ));
-            self.hidden_queued_system_messages.push(
-                super::commands::build_todo_confidence_summary_message(&todos),
-            );
-            self.pending_queued_dispatch = true;
-            return true;
+            let confidence_summary = super::commands::todo_confidence_summary(&todos);
+            let confidence_label =
+                super::commands::format_todo_completion_confidence(confidence_summary);
+            self.push_display_message(DisplayMessage::system(format!(
+                "✅ Todos complete. Auto-poke finished. Cumulative confidence: {}.",
+                confidence_label
+            )));
+            if confidence_summary.needs_more_work {
+                self.hidden_queued_system_messages.push(
+                    super::commands::build_todo_confidence_summary_message(&todos),
+                );
+                self.pending_queued_dispatch = true;
+                return true;
+            }
+            self.pending_queued_dispatch = false;
+            return false;
         }
 
         self.push_display_message(DisplayMessage::system(format!(
-            "👉 Auto-poking: {} incomplete todo{}. `/poke off` to stop.",
+            "👉 Auto-poking: {} incomplete todo{}. /poke off to stop.",
             incomplete.len(),
             if incomplete.len() == 1 { "" } else { "s" },
         )));
@@ -2300,7 +2307,6 @@ pub(super) fn handle_pre_control_shortcuts(
         return true;
     }
     if cfg!(target_os = "macos")
-        && app.input.is_empty()
         && !matches!(app.status, ProcessingStatus::RunningTool(_))
         && let Some(direction) = app
             .effort_switch_keys
@@ -2775,6 +2781,13 @@ impl App {
             return Ok(());
         }
 
+        if modifiers.contains(KeyModifiers::ALT)
+            && matches!(code, KeyCode::Char(c) if c.eq_ignore_ascii_case(&'f'))
+        {
+            self.cycle_model_favorite_hotkey();
+            return Ok(());
+        }
+
         if self.pending_provider_failover.is_some() && !self.is_processing {
             if code == KeyCode::Esc {
                 self.cancel_pending_provider_failover("Provider auto-switch canceled");
@@ -3199,6 +3212,7 @@ impl App {
             || commands::handle_session_command(self, trimmed)
             || commands::handle_dictation_command(self, trimmed)
             || commands::handle_config_command(self, trimmed)
+            || commands::handle_log_command(self, trimmed)
             || commands::handle_model_status_command(self, trimmed)
             || super::debug::handle_debug_command(self, trimmed)
             || super::model_context::handle_model_command(self, trimmed)
@@ -3219,7 +3233,7 @@ impl App {
 
             if command.is_empty() {
                 self.push_display_message(DisplayMessage::system(
-                    "Shell command cannot be empty after `!`.",
+                    "Shell command cannot be empty after !.",
                 ));
                 self.set_status_notice("Shell command is empty");
                 return;
@@ -3227,7 +3241,7 @@ impl App {
 
             if self.is_remote {
                 self.push_display_message(DisplayMessage::system(
-                    "Input-line `!` shell commands are only available in a local jcode TUI session.",
+                    "Input-line ! shell commands are only available in a local jcode TUI session.",
                 ));
                 self.set_status_notice("Local shell unavailable in remote mode");
                 return;

@@ -5,7 +5,7 @@ use crate::tui::{
     PickerOption,
 };
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 #[path = "inline_interactive/helpers.rs"]
@@ -26,6 +26,8 @@ const REMOTE_MODEL_CATALOG_CACHE_FILE: &str = "remote_model_catalog_cache.json";
 const REMOTE_MODEL_CATALOG_CACHE_VERSION: u8 = 1;
 const MODEL_PICKER_USAGE_FILE: &str = "model_picker_usage.json";
 const MODEL_PICKER_USAGE_VERSION: u8 = 1;
+const MODEL_PICKER_FAVORITES_FILE: &str = "model_picker_favorites.json";
+const MODEL_PICKER_FAVORITES_VERSION: u8 = 1;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct RemoteModelCatalogCache {
@@ -47,10 +49,22 @@ struct ModelPickerUsageStore {
     selections: HashMap<String, ModelPickerUsageEntry>,
 }
 
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+struct ModelPickerFavoritesStore {
+    version: u8,
+    favorites: HashSet<String>,
+}
+
 fn model_picker_usage_path() -> Option<std::path::PathBuf> {
     crate::storage::app_config_dir()
         .ok()
         .map(|dir| dir.join(MODEL_PICKER_USAGE_FILE))
+}
+
+fn model_picker_favorites_path() -> Option<std::path::PathBuf> {
+    crate::storage::app_config_dir()
+        .ok()
+        .map(|dir| dir.join(MODEL_PICKER_FAVORITES_FILE))
 }
 
 fn model_picker_usage_key(model_name: &str, route: &PickerOption, effort: Option<&str>) -> String {
@@ -113,6 +127,58 @@ fn record_model_picker_selection(model_name: &str, route: &PickerOption, effort:
     entry.count = entry.count.saturating_add(1);
     entry.last_selected_unix_secs = remote_model_catalog_observed_at_unix_secs();
     save_model_picker_usage_store(&store);
+}
+
+fn load_model_picker_favorites_store() -> ModelPickerFavoritesStore {
+    let Some(path) = model_picker_favorites_path() else {
+        return ModelPickerFavoritesStore::default();
+    };
+    let Ok(bytes) = std::fs::read(path) else {
+        return ModelPickerFavoritesStore::default();
+    };
+    let Ok(mut store) = serde_json::from_slice::<ModelPickerFavoritesStore>(&bytes) else {
+        return ModelPickerFavoritesStore::default();
+    };
+    if store.version != MODEL_PICKER_FAVORITES_VERSION {
+        return ModelPickerFavoritesStore::default();
+    }
+    store.favorites.retain(|key| !key.trim().is_empty());
+    store
+}
+
+fn save_model_picker_favorites_store(store: &ModelPickerFavoritesStore) {
+    let Some(path) = model_picker_favorites_path() else {
+        return;
+    };
+    if let Some(parent) = path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    if let Ok(json) = serde_json::to_vec_pretty(store) {
+        let _ = std::fs::write(path, json);
+    }
+}
+
+fn model_picker_is_favorite(
+    store: &ModelPickerFavoritesStore,
+    model_name: &str,
+    route: &PickerOption,
+    effort: Option<&str>,
+) -> bool {
+    store
+        .favorites
+        .contains(&model_picker_usage_key(model_name, route, effort))
+}
+
+fn picker_is_runtime_model_picker(picker: &InlineInteractiveState) -> bool {
+    picker.kind == PickerKind::Model
+        && picker
+            .entries
+            .iter()
+            .any(|entry| matches!(entry.action, PickerAction::Model))
+}
+
+fn key_char_eq_ignore_ascii_case(code: KeyCode, expected: char) -> bool {
+    matches!(code, KeyCode::Char(c) if c.eq_ignore_ascii_case(&expected))
 }
 
 fn remote_model_catalog_cache_path() -> Option<std::path::PathBuf> {
@@ -604,6 +670,7 @@ impl App {
                 selected_option: 0,
                 is_current: true,
                 is_default: false,
+                is_favorite: false,
                 recommended: false,
                 recommendation_rank: usize::MAX,
                 usage_score: 0,
@@ -881,6 +948,7 @@ impl App {
 
         let entries_started = std::time::Instant::now();
         let usage_store = load_model_picker_usage_store();
+        let favorites_store = load_model_picker_favorites_store();
         let mut entries: Vec<PickerEntry> = Vec::new();
         for name in &model_order {
             let mut entry_routes = model_options.remove(name).unwrap_or_default();
@@ -952,6 +1020,12 @@ impl App {
                             created_date: or_created.map(format_created),
                             effort: Some(effort.to_string()),
                             is_default: is_config_default(name, route),
+                            is_favorite: model_picker_is_favorite(
+                                &favorites_store,
+                                name,
+                                route,
+                                Some(effort),
+                            ),
                         });
                     }
                 }
@@ -981,6 +1055,7 @@ impl App {
                         created_date: or_created.map(format_created),
                         effort: None,
                         is_default,
+                        is_favorite: model_picker_is_favorite(&favorites_store, name, &route, None),
                     });
                 }
             }
@@ -1009,6 +1084,8 @@ impl App {
             };
             let a_rec = if a.recommended { 0u8 } else { 1 };
             let b_rec = if b.recommended { 0u8 } else { 1 };
+            let a_favorite = if a.is_favorite { 0u8 } else { 1 };
+            let b_favorite = if b.is_favorite { 0u8 } else { 1 };
             let a_usage = std::cmp::Reverse(a.usage_score);
             let b_usage = std::cmp::Reverse(b.usage_score);
             let a_rec_rank = if a.recommended {
@@ -1035,6 +1112,7 @@ impl App {
             let b_old = if b.old { 1u8 } else { 0 };
             a_current
                 .cmp(&b_current)
+                .then(a_favorite.cmp(&b_favorite))
                 .then(a_recent.cmp(&b_recent))
                 .then(a_usage.cmp(&b_usage))
                 .then(a_rec.cmp(&b_rec))
@@ -1573,13 +1651,13 @@ impl App {
 
             if names.len() == 1 {
                 self.push_display_message(DisplayMessage::system(format!(
-                    "Queued Catch Up for **{}**.",
+                    "Queued Catch Up for {}.",
                     names[0],
                 )));
                 self.set_status_notice(format!("Catch Up → {}", names[0]));
             } else {
                 self.push_display_message(DisplayMessage::system(format!(
-                    "Queued Catch Up for **{} sessions**: {}.",
+                    "Queued Catch Up for {} sessions: {}.",
                     names.len(),
                     names.join(", "),
                 )));
@@ -1650,13 +1728,13 @@ impl App {
         if spawned > 0 && failed.is_empty() {
             if names.len() == 1 {
                 self.push_display_message(DisplayMessage::system(format!(
-                    "Resumed **{}** in new window.",
+                    "Resumed {} in new window.",
                     names[0],
                 )));
                 self.set_status_notice(format!("Resumed {}", names[0]));
             } else {
                 self.push_display_message(DisplayMessage::system(format!(
-                    "Resumed **{} sessions** in new windows: {}.",
+                    "Resumed {} sessions in new windows: {}.",
                     names.len(),
                     names.join(", "),
                 )));
@@ -1669,7 +1747,7 @@ impl App {
 
         if spawned > 0 {
             self.push_display_message(DisplayMessage::system(format!(
-                "Resumed **{} session(s)** in new windows. {} failed:\n```\n{}\n```",
+                "Resumed {} session(s) in new windows. {} failed:\n{}",
                 spawned,
                 failed.len(),
                 manual.join("\n")
@@ -1677,7 +1755,7 @@ impl App {
             self.set_status_notice(format!("Resumed {} session(s)", spawned));
         } else {
             self.push_display_message(DisplayMessage::system(format!(
-                "No terminal found. Resume manually:\n```\n{}\n```",
+                "No terminal found. Resume manually:\n{}",
                 manual.join("\n")
             )));
         }
@@ -1734,7 +1812,7 @@ impl App {
 
         if targets.len() > 1 {
             self.push_display_message(DisplayMessage::system(format!(
-                "Selected {} sessions; resuming **{}** in this terminal.",
+                "Selected {} sessions; resuming {} in this terminal.",
                 targets.len(),
                 name
             )));
@@ -1804,7 +1882,7 @@ impl App {
                 .map(|id| format!("  jcode --resume {}", id))
                 .collect();
             self.push_display_message(DisplayMessage::system(format!(
-                "Restored {} session(s) in new windows. {} failed:\n```\n{}\n```",
+                "Restored {} session(s) in new windows. {} failed:\n{}",
                 spawned,
                 failed.len(),
                 manual.join("\n")
@@ -1815,7 +1893,7 @@ impl App {
                 .map(|id| format!("  jcode --resume {}", id))
                 .collect();
             self.push_display_message(DisplayMessage::system(format!(
-                "No terminal found. Resume manually:\n```\n{}\n```",
+                "No terminal found. Resume manually:\n{}",
                 manual.join("\n")
             )));
         }
@@ -1861,6 +1939,102 @@ impl App {
             }
         }
         Ok(())
+    }
+
+    fn toggle_selected_model_favorite(&mut self) {
+        let Some((entry_name, is_favorite, store)) = (|| {
+            let picker = self.inline_interactive_state.as_mut()?;
+            if !picker_is_runtime_model_picker(picker) || picker.filtered.is_empty() {
+                return None;
+            }
+            let idx = picker.filtered[picker.selected];
+            let entry = picker.entries.get_mut(idx)?;
+            if !matches!(entry.action, PickerAction::Model) {
+                return None;
+            }
+            let base_name = model_entry_base_name(entry);
+            let effort = entry.effort.clone();
+            let route = entry.options.get(entry.selected_option).cloned()?;
+            let key = model_picker_usage_key(&base_name, &route, effort.as_deref());
+            let mut store = load_model_picker_favorites_store();
+            store.version = MODEL_PICKER_FAVORITES_VERSION;
+            let is_favorite = if store.favorites.remove(&key) {
+                false
+            } else {
+                store.favorites.insert(key);
+                true
+            };
+            entry.is_favorite = is_favorite;
+            Some((entry.name.clone(), is_favorite, store))
+        })() else {
+            return;
+        };
+        save_model_picker_favorites_store(&store);
+        self.invalidate_model_picker_cache();
+        let action = if is_favorite {
+            "Favorited"
+        } else {
+            "Unfavorited"
+        };
+        self.set_status_notice(format!("{} {}", action, entry_name));
+    }
+
+    fn cycle_selected_model_favorite(&mut self) {
+        let selected_name = (|| {
+            let picker = self.inline_interactive_state.as_mut()?;
+            if !picker_is_runtime_model_picker(picker) || picker.filtered.is_empty() {
+                return None;
+            }
+            let total = picker.filtered.len();
+            for offset in 1..=total {
+                let next = (picker.selected + offset) % total;
+                let entry_idx = picker.filtered[next];
+                if picker
+                    .entries
+                    .get(entry_idx)
+                    .map(|entry| entry.is_favorite)
+                    .unwrap_or(false)
+                {
+                    picker.selected = next;
+                    picker.column = 0;
+                    return picker
+                        .entries
+                        .get(entry_idx)
+                        .map(|entry| entry.name.clone());
+                }
+            }
+            None
+        })();
+        if let Some(entry_name) = selected_name {
+            self.set_status_notice(format!("Favorite → {}", entry_name));
+        } else {
+            self.set_status_notice("No favorited models yet. Use Ctrl+F to favorite one.");
+        }
+    }
+
+    pub(super) fn cycle_model_favorite_hotkey(&mut self) {
+        if self
+            .inline_interactive_state
+            .as_ref()
+            .map(picker_is_runtime_model_picker)
+            .unwrap_or(false)
+        {
+            self.cycle_selected_model_favorite();
+            return;
+        }
+
+        self.open_model_picker();
+        if !self
+            .inline_interactive_state
+            .as_ref()
+            .map(picker_is_runtime_model_picker)
+            .unwrap_or(false)
+        {
+            self.set_status_notice("Model favorites unavailable until model routes finish loading");
+            return;
+        }
+        self.cycle_selected_model_favorite();
+        let _ = self.handle_inline_interactive_key(KeyCode::Enter, KeyModifiers::NONE);
     }
 
     pub(super) fn handle_inline_interactive_key(
@@ -1969,9 +2143,11 @@ impl App {
                     }
                 }
             }
-            KeyCode::Char('d') if modifiers.contains(KeyModifiers::CONTROL) => {
+            code if modifiers.contains(KeyModifiers::CONTROL)
+                && key_char_eq_ignore_ascii_case(code, 'd') =>
+            {
                 if let Some(ref picker) = self.inline_interactive_state {
-                    if picker.uses_compact_navigation() {
+                    if !picker_is_runtime_model_picker(picker) {
                         return Ok(());
                     }
                     if picker.filtered.is_empty() {
@@ -2019,7 +2195,7 @@ impl App {
                                 }
                             }
                             self.push_display_message(DisplayMessage::system(format!(
-                                "Saved default model: **{}** via **{}**. This affects future sessions.",
+                                "Saved default model: {} via {}. This affects future sessions.",
                                 model_spec,
                                 provider_key.as_deref().unwrap_or("auto")
                             )));
@@ -2028,6 +2204,16 @@ impl App {
                         Err(e) => self.set_status_notice(format!("Failed to save default: {}", e)),
                     }
                 }
+            }
+            code if modifiers.contains(KeyModifiers::CONTROL)
+                && key_char_eq_ignore_ascii_case(code, 'f') =>
+            {
+                self.toggle_selected_model_favorite();
+            }
+            code if modifiers.contains(KeyModifiers::ALT)
+                && key_char_eq_ignore_ascii_case(code, 'f') =>
+            {
+                self.cycle_selected_model_favorite();
             }
             KeyCode::Enter => {
                 let Some(ref mut picker) = self.inline_interactive_state else {
@@ -2059,7 +2245,7 @@ impl App {
                         route.detail.clone()
                     };
                     self.inline_interactive_state = None;
-                    self.set_status_notice(format!("{} — {}", entry.name, detail));
+                    self.set_status_notice(format!("{} - {}", entry.name, detail));
                     return Ok(());
                 }
 
@@ -2362,12 +2548,15 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::{
-        RemoteModelCatalogCache, model_picker_route_is_current, model_picker_route_is_default,
-        model_picker_route_is_recommended,
+        RemoteModelCatalogCache, key_char_eq_ignore_ascii_case, model_picker_route_is_current,
+        model_picker_route_is_default, model_picker_route_is_recommended,
+        picker_is_runtime_model_picker,
     };
     use crate::tui::{
-        App, InlineInteractiveState, PickerAction, PickerEntry, PickerKind, PickerOption,
+        AgentModelTarget, App, InlineInteractiveState, PickerAction, PickerEntry, PickerKind,
+        PickerOption,
     };
+    use crossterm::event::KeyCode;
 
     fn picker_entry(name: &str, provider: &str, usage_score: u32) -> PickerEntry {
         PickerEntry {
@@ -2377,6 +2566,7 @@ mod tests {
             selected_option: 0,
             is_current: false,
             is_default: false,
+            is_favorite: false,
             recommended: false,
             recommendation_rank: usize::MAX,
             usage_score,
@@ -2398,6 +2588,41 @@ mod tests {
 
     fn picker_option(provider: &str) -> PickerOption {
         picker_option_with_method(provider, "test")
+    }
+
+    #[test]
+    fn model_picker_hotkey_char_matching_is_case_insensitive() {
+        assert!(key_char_eq_ignore_ascii_case(KeyCode::Char('f'), 'f'));
+        assert!(key_char_eq_ignore_ascii_case(KeyCode::Char('F'), 'f'));
+        assert!(key_char_eq_ignore_ascii_case(KeyCode::Char('D'), 'd'));
+        assert!(!key_char_eq_ignore_ascii_case(KeyCode::Char('x'), 'f'));
+    }
+
+    #[test]
+    fn runtime_model_picker_scope_excludes_agent_model_picker() {
+        let runtime = InlineInteractiveState {
+            kind: PickerKind::Model,
+            filtered: vec![0],
+            entries: vec![picker_entry("gpt-5.5", "OpenAI", 0)],
+            selected: 0,
+            column: 0,
+            filter: String::new(),
+            preview: false,
+        };
+        let mut agent_entry = picker_entry("Swarm / subagent", "gpt-5 default", 0);
+        agent_entry.action = PickerAction::AgentTarget(AgentModelTarget::Swarm);
+        let agent = InlineInteractiveState {
+            kind: PickerKind::Model,
+            filtered: vec![0],
+            entries: vec![agent_entry],
+            selected: 0,
+            column: 0,
+            filter: String::new(),
+            preview: false,
+        };
+
+        assert!(picker_is_runtime_model_picker(&runtime));
+        assert!(!picker_is_runtime_model_picker(&agent));
     }
 
     #[test]

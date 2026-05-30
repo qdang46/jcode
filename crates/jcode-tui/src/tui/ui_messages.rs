@@ -152,6 +152,91 @@ fn render_assistant_tool_call_lines(
     lines
 }
 
+/// Wrap plaintext content into lines without any markdown interpretation.
+///
+/// System messages are status/notice text and must render verbatim (no bold,
+/// headings, list bullets, code fences, etc.). This word-wraps on whitespace
+/// and hard-splits tokens that are wider than `wrap_width`, preserving the
+/// author's own line breaks and leading indentation. Wrapped continuation
+/// lines are hang-indented to match the original line's indentation so that
+/// authored plaintext layout (indented commands, aligned blocks) survives.
+fn render_plaintext_lines(content: &str, wrap_width: usize) -> Vec<Line<'static>> {
+    let wrap_width = wrap_width.max(1);
+    let mut lines: Vec<Line<'static>> = Vec::new();
+
+    for raw_line in content.split('\n') {
+        let raw_line = raw_line.trim_end_matches('\r');
+        if raw_line.trim().is_empty() {
+            lines.push(Line::from(String::new()));
+            continue;
+        }
+
+        // Preserve the line's leading indentation (tabs normalized to spaces).
+        // Wrapped continuation lines reuse this indent so authored plaintext
+        // layout (indented commands, aligned blocks) survives. If the indent
+        // leaves no room for content, fall back to no continuation indent.
+        let indent: String = raw_line
+            .chars()
+            .take_while(|c| *c == ' ' || *c == '\t')
+            .map(|c| if c == '\t' { ' ' } else { c })
+            .collect();
+        let indent_width = indent.width();
+        let cont_indent = if indent_width < wrap_width {
+            indent.as_str()
+        } else {
+            ""
+        };
+        let body = raw_line.trim_start_matches([' ', '\t']);
+
+        // Width available to content on each wrapped line.
+        let avail = wrap_width.saturating_sub(cont_indent.width()).max(1);
+
+        // `current` always begins with the active indent; `content_width`
+        // tracks how much real content sits after that indent on this visual
+        // line (so we know whether to insert a separating space and when to
+        // wrap).
+        let mut current = indent.clone();
+        let mut content_width = 0usize;
+
+        for word in body.split_whitespace() {
+            let word_width = word.width();
+
+            // Hard-split a token wider than the available content width.
+            if word_width > avail {
+                if content_width > 0 {
+                    lines.push(Line::from(std::mem::take(&mut current)));
+                }
+                for chunk in split_by_display_width(word, avail) {
+                    lines.push(Line::from(format!("{}{}", cont_indent, chunk)));
+                }
+                current = cont_indent.to_string();
+                content_width = 0;
+                continue;
+            }
+
+            let sep = if content_width > 0 { 1 } else { 0 };
+            if content_width > 0 && content_width + sep + word_width > avail {
+                lines.push(Line::from(std::mem::take(&mut current)));
+                current = cont_indent.to_string();
+                content_width = 0;
+            }
+            if content_width > 0 {
+                current.push(' ');
+                content_width += 1;
+            }
+            current.push_str(word);
+            content_width += word_width;
+        }
+
+        lines.push(Line::from(current));
+    }
+
+    if lines.is_empty() {
+        lines.push(Line::from(String::new()));
+    }
+    lines
+}
+
 pub(crate) fn render_system_message(
     msg: &DisplayMessage,
     width: u16,
@@ -168,8 +253,8 @@ pub(crate) fn render_system_message(
 
     if msg
         .content
-        .starts_with("⚡ Server reload in progress — waiting for handoff")
-        || msg.content.starts_with("⚡ Connection lost — retrying")
+        .starts_with("⚡ Server reload in progress - waiting for handoff")
+        || msg.content.starts_with("⚡ Connection lost - retrying")
     {
         return render_connection_system_message(msg, width);
     }
@@ -181,22 +266,8 @@ pub(crate) fn render_system_message(
     let centered = markdown::center_code_blocks();
     let wrap_width = centered_wrap_width(width.saturating_sub(4), centered, 96);
     let display_content = normalize_system_content_for_display(&msg.content);
-    let mut lines = markdown::render_markdown_with_width(&display_content, Some(wrap_width));
-    if lines.iter().any(|line| line.width() > wrap_width) {
-        lines = display_content
-            .lines()
-            .flat_map(|line| {
-                if line.is_empty() {
-                    vec![Line::from("")]
-                } else {
-                    split_by_display_width(line, wrap_width)
-                        .into_iter()
-                        .map(Line::from)
-                        .collect::<Vec<_>>()
-                }
-            })
-            .collect();
-    }
+    // System messages render as plaintext, never markdown.
+    let mut lines = render_plaintext_lines(&display_content, wrap_width);
     if centered {
         left_pad_lines_for_centered_mode(&mut lines, width);
     }
@@ -915,8 +986,8 @@ fn truncate_connection_line(input: &str, width: usize) -> String {
 }
 
 fn parse_connection_retry_message(content: &str) -> Option<(String, String, Option<String>)> {
-    let rest = content.strip_prefix("⚡ Connection lost — retrying (attempt ")?;
-    let (attempt_and_elapsed, detail) = rest.split_once(") — ")?;
+    let rest = content.strip_prefix("⚡ Connection lost - retrying (attempt ")?;
+    let (attempt_and_elapsed, detail) = rest.split_once(") - ")?;
     let (attempt, elapsed) = attempt_and_elapsed
         .split_once(", ")
         .or_else(|| attempt_and_elapsed.split_once(", in "))?;
@@ -929,8 +1000,8 @@ fn parse_connection_retry_message(content: &str) -> Option<(String, String, Opti
 }
 
 fn parse_connection_waiting_message(content: &str) -> Option<(String, String, Option<String>)> {
-    let rest = content.strip_prefix("⚡ Server reload in progress — waiting for handoff (")?;
-    let (elapsed, detail) = rest.split_once(") — ")?;
+    let rest = content.strip_prefix("⚡ Server reload in progress - waiting for handoff (")?;
+    let (elapsed, detail) = rest.split_once(") - ")?;
     let (detail, hint) = split_resume_hint(detail);
     Some((
         format!("Waiting for handoff · {}", elapsed.trim()),
@@ -981,8 +1052,8 @@ fn render_connection_system_message(msg: &DisplayMessage, width: u16) -> Vec<Lin
             )
         } else {
             let display_content = normalize_system_content_for_display(content);
-            let mut lines =
-                markdown::render_markdown_with_width(&display_content, Some(inner_width));
+            // System messages render as plaintext, never markdown.
+            let mut lines = render_plaintext_lines(&display_content, inner_width);
             if centered {
                 left_pad_lines_for_centered_mode(&mut lines, width);
             }

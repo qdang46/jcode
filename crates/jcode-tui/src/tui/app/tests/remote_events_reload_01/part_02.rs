@@ -124,6 +124,81 @@ fn test_remote_auto_poke_followup_preserves_visible_timer_and_stays_hidden() {
 }
 
 #[test]
+fn test_remote_auto_poke_completion_above_threshold_only_updates_ui() {
+    with_temp_jcode_home(|| {
+        let mut app = create_test_app();
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let _guard = rt.enter();
+        let mut remote = crate::tui::backend::RemoteConnection::dummy();
+        crate::todo::save_todos(
+            &app.session.id,
+            &[crate::todo::TodoItem {
+                id: "todo-1".to_string(),
+                content: "Finished work".to_string(),
+                status: "completed".to_string(),
+                priority: "high".to_string(),
+                blocked_by: Vec::new(),
+                assigned_to: None,
+                confidence: Some(95),
+                completion_confidence: Some(95),
+            }],
+        )
+        .expect("save todos");
+        app.is_remote = true;
+        app.auto_poke_incomplete_todos = true;
+        app.is_processing = true;
+        app.status = ProcessingStatus::Streaming;
+        app.current_message_id = Some(42);
+        app.handle_server_event(crate::protocol::ServerEvent::Done { id: 42 }, &mut remote);
+        assert!(!app.auto_poke_incomplete_todos);
+        assert!(!app.pending_queued_dispatch);
+        assert!(app.hidden_queued_system_messages.is_empty());
+        assert!(app.display_messages().iter().any(|msg| {
+            msg.content
+                .contains("Todos complete. Auto-poke finished. Cumulative confidence: 95%.")
+        }));
+    });
+}
+
+#[test]
+fn test_remote_auto_poke_completion_below_threshold_tells_model_to_keep_working() {
+    with_temp_jcode_home(|| {
+        let mut app = create_test_app();
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let _guard = rt.enter();
+        let mut remote = crate::tui::backend::RemoteConnection::dummy();
+        crate::todo::save_todos(
+            &app.session.id,
+            &[crate::todo::TodoItem {
+                id: "todo-1".to_string(),
+                content: "Needs validation".to_string(),
+                status: "completed".to_string(),
+                priority: "high".to_string(),
+                blocked_by: Vec::new(),
+                assigned_to: None,
+                confidence: Some(80),
+                completion_confidence: Some(80),
+            }],
+        )
+        .expect("save todos");
+        app.is_remote = true;
+        app.auto_poke_incomplete_todos = true;
+        app.is_processing = true;
+        app.status = ProcessingStatus::Streaming;
+        app.current_message_id = Some(42);
+        app.handle_server_event(crate::protocol::ServerEvent::Done { id: 42 }, &mut remote);
+        assert!(!app.auto_poke_incomplete_todos);
+        assert!(app.pending_queued_dispatch);
+        assert_eq!(app.hidden_queued_system_messages.len(), 1);
+        assert!(app.hidden_queued_system_messages[0].contains("Keep working"));
+        assert!(app.display_messages().iter().any(|msg| {
+            msg.content
+                .contains("Todos complete. Auto-poke finished. Cumulative confidence: 80%.")
+        }));
+    });
+}
+
+#[test]
 fn test_remote_poke_status_and_off_update_state() {
     with_temp_jcode_home(|| {
         let mut app = create_test_app();
@@ -203,8 +278,8 @@ fn test_remote_rewind_lists_display_history_when_session_transcript_is_empty() {
 
     let last = app.display_messages().last().expect("history message");
     assert!(last.content.contains("**Conversation history:**"));
-    assert!(last.content.contains("`1` 👤 User - hello"));
-    assert!(last.content.contains("`2` 🤖 Assistant - hi there"));
+    assert!(last.content.contains("1 👤 User - hello"));
+    assert!(last.content.contains("2 🤖 Assistant - hi there"));
     assert!(!last.content.contains("No messages in conversation"));
 }
 
@@ -272,5 +347,5 @@ fn test_remote_rewind_completion_shows_undo_hint_after_history_refresh() {
         .last()
         .expect("rewind completion notice");
     assert!(last.content.contains("✓ Rewound to message 1"));
-    assert!(last.content.contains("Undo anytime with `/rewind undo`"));
+    assert!(last.content.contains("Undo anytime with /rewind undo"));
 }

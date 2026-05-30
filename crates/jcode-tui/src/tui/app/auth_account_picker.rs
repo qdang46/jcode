@@ -14,7 +14,7 @@ impl App {
                 Some(provider) => vec![provider],
                 None => {
                     self.push_display_message(DisplayMessage::error(format!(
-                        "Unknown provider `{}`.",
+                        "Unknown provider {}.",
                         provider_id
                     )));
                     self.set_status_notice("Account center unavailable");
@@ -347,7 +347,7 @@ impl App {
                 items.push(AccountPickerItem::action(
                     "claude",
                     "Claude",
-                    format!("Replace account `{label}`"),
+                    format!("Replace account {label}"),
                     "Refresh this saved Claude account in place",
                     AccountPickerCommand::SubmitInput(format!("/account claude add {}", label)),
                 ));
@@ -367,7 +367,7 @@ impl App {
                 items.push(AccountPickerItem::action(
                     "openai",
                     "OpenAI",
-                    format!("Replace account `{label}`"),
+                    format!("Replace account {label}"),
                     "Refresh this saved OpenAI account in place",
                     AccountPickerCommand::SubmitInput(format!("/account openai add {}", label)),
                 ));
@@ -388,12 +388,12 @@ impl App {
         let Some(scope_key) = self.inline_account_picker_scope_key(provider_filter) else {
             if let Some(provider_id) = provider_filter {
                 self.push_display_message(DisplayMessage::system(format!(
-                    "Inline `/account` picker is only available for Claude and OpenAI accounts. Use `/account {} settings` for provider details.",
+                    "Inline /account picker is only available for Claude and OpenAI accounts. Use /account {} settings for provider details.",
                     provider_id
                 )));
             } else {
                 self.push_display_message(DisplayMessage::system(
-                    "Inline `/account` picker is available for Claude and OpenAI accounts. Use `/account claude` or `/account openai` to choose explicitly.".to_string(),
+                    "Inline /account picker is available for Claude and OpenAI accounts. Use /account claude or /account openai to choose explicitly.".to_string(),
                 ));
             }
             self.set_status_notice("Account picker unavailable");
@@ -532,6 +532,7 @@ impl App {
                 selected_option: 0,
                 is_current: is_active,
                 is_default: false,
+                is_favorite: false,
                 recommended: false,
                 recommendation_rank: usize::MAX,
                 usage_score: 0,
@@ -580,6 +581,7 @@ impl App {
                 selected_option: 0,
                 is_current: is_active,
                 is_default: false,
+                is_favorite: false,
                 recommended: false,
                 recommendation_rank: usize::MAX,
                 usage_score: 0,
@@ -604,6 +606,7 @@ impl App {
             selected_option: 0,
             is_current: false,
             is_default: false,
+            is_favorite: false,
             recommended: false,
             recommendation_rank: usize::MAX,
             usage_score: 0,
@@ -627,6 +630,7 @@ impl App {
             selected_option: 0,
             is_current: false,
             is_default: false,
+            is_favorite: false,
             recommended: false,
             recommendation_rank: usize::MAX,
             usage_score: 0,
@@ -661,6 +665,7 @@ impl App {
             selected_option: 0,
             is_current: false,
             is_default: false,
+            is_favorite: false,
             recommended: false,
             recommendation_rank: usize::MAX,
             usage_score: 0,
@@ -695,6 +700,7 @@ impl App {
             selected_option: 0,
             is_current: false,
             is_default: false,
+            is_favorite: false,
             recommended: false,
             recommendation_rank: usize::MAX,
             usage_score: 0,
@@ -720,6 +726,7 @@ impl App {
             selected_option: 0,
             is_current: false,
             is_default: false,
+            is_favorite: false,
             recommended: false,
             recommendation_rank: usize::MAX,
             usage_score: 0,
@@ -783,6 +790,7 @@ impl App {
                 selected_option: 0,
                 is_current: is_active,
                 is_default: false,
+                is_favorite: false,
                 recommended: false,
                 recommendation_rank: usize::MAX,
                 usage_score: 0,
@@ -807,6 +815,7 @@ impl App {
             selected_option: 0,
             is_current: false,
             is_default: false,
+            is_favorite: false,
             recommended: false,
             recommendation_rank: usize::MAX,
             usage_score: 0,
@@ -841,6 +850,7 @@ impl App {
             selected_option: 0,
             is_current: false,
             is_default: false,
+            is_favorite: false,
             recommended: false,
             recommendation_rank: usize::MAX,
             usage_score: 0,
@@ -866,6 +876,7 @@ impl App {
             selected_option: 0,
             is_current: false,
             is_default: false,
+            is_favorite: false,
             recommended: false,
             recommendation_rank: usize::MAX,
             usage_score: 0,
@@ -929,6 +940,7 @@ impl App {
                 selected_option: 0,
                 is_current: is_active,
                 is_default: false,
+                is_favorite: false,
                 recommended: false,
                 recommendation_rank: usize::MAX,
                 usage_score: 0,
@@ -953,6 +965,7 @@ impl App {
             selected_option: 0,
             is_current: false,
             is_default: false,
+            is_favorite: false,
             recommended: false,
             recommendation_rank: usize::MAX,
             usage_score: 0,
@@ -987,6 +1000,7 @@ impl App {
             selected_option: 0,
             is_current: false,
             is_default: false,
+            is_favorite: false,
             recommended: false,
             recommendation_rank: usize::MAX,
             usage_score: 0,
@@ -1012,6 +1026,7 @@ impl App {
             selected_option: 0,
             is_current: false,
             is_default: false,
+            is_favorite: false,
             recommended: false,
             recommendation_rank: usize::MAX,
             usage_score: 0,
@@ -1083,7 +1098,7 @@ impl App {
             crate::tui::account_picker::AccountProviderKind::OpenAi => ("openai", "OpenAI"),
         };
         self.push_display_message(DisplayMessage::system(format!(
-            "Enter a label for the new {} account, then press Enter. Use `/cancel` to abort.",
+            "Enter a label for the new {} account, then press Enter. Use /cancel to abort.",
             display_name
         )));
         self.set_status_notice(format!("Account: new {} label...", display_name));
@@ -1127,7 +1142,7 @@ impl App {
         status_notice: String,
     ) {
         self.push_display_message(DisplayMessage::system(format!(
-            "{} Use `/cancel` to abort.",
+            "{} Use /cancel to abort.",
             prompt
         )));
         self.set_status_notice(status_notice.clone());
