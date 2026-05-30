@@ -8,10 +8,10 @@
 //! (see PLAN.md §9.1).
 
 use crate::message::{ContentBlock, Message as JMsg, Role as JRole};
-use dcp_types::{Message as DcpMessage, Part, Role as DcpRole, ToolStatus};
+use dynamic_context_pruning::{Message as DcpMessage, Part, Role as DcpRole, ToolStatus};
 
 /// Convert jcode messages to DCP canonical IR.
-pub fn jcode_to_dcp(msgs: &[JMsg]) -> Vec<DcpMessage> {
+pub fn jcode_to_dcp(msgs:&[JMsg]) -> Vec<DcpMessage> {
     msgs.iter().map(jmsg_to_dcp).collect()
 }
 
@@ -28,9 +28,8 @@ fn jmsg_to_dcp(m: &JMsg) -> DcpMessage {
         .unwrap_or(0);
 
     // Generate a stable ID from the message content
-    let id = crate::message::stable_message_hash(m)
-        .map(|h| format!("{:x}", h))
-        .unwrap_or_else(|| format!("msg_{}", time));
+    let hash = crate::message::stable_message_hash(m);
+    let id = format!("{:x}", hash);
 
     let parts: Vec<Part> = m
         .content
@@ -43,6 +42,7 @@ fn jmsg_to_dcp(m: &JMsg) -> DcpMessage {
         role,
         parts,
         time,
+        ignored: false,
     }
 }
 
@@ -90,6 +90,7 @@ fn dcp_msg_to_jcode(m: DcpMessage) -> JMsg {
         DcpRole::User => JRole::User,
         DcpRole::Assistant => JRole::Assistant,
         DcpRole::System => JRole::User, // shouldn't happen in practice
+        _ => JRole::User, // exhaustive fallback for non-exhaustive enum
     };
 
     let timestamp = if m.time != 0 {
@@ -136,6 +137,7 @@ fn part_to_content(p: Part) -> Option<ContentBlock> {
             is_error: matches!(status, ToolStatus::Error).then_some(true),
         },
         Part::Image { media_type, data } => ContentBlock::Image { media_type, data },
+        _ => return None, // exhaustive fallback for non-exhaustive enum
     })
 }
 
@@ -167,7 +169,7 @@ mod tests {
 
     #[test]
     fn test_tool_call_roundtrip() {
-        use dcp_types::Part;
+        use dynamic_context_pruning::Part;
 
         let dcp_msg = DcpMessage {
             id: "test123".to_string(),
@@ -181,6 +183,7 @@ mod tests {
                 },
             ],
             time: 1234567890,
+            ignored: false,
         };
 
         let jmsg = dcp_msg_to_jcode(dcp_msg);

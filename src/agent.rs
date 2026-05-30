@@ -227,6 +227,9 @@ pub struct Agent {
     stdin_request_tx: Option<tokio::sync::mpsc::UnboundedSender<crate::tool::StdinInputRequest>>,
     /// Canonical reducer-backed view of runtime provider/model selection.
     provider_runtime_state: ProviderRuntimeState,
+    /// DCP plugin for context pruning (behind feature flag).
+    #[cfg(feature = "dcp")]
+    dcp: Option<crate::dcp_plugin::DcpPlugin>,
 }
 
 impl Agent {
@@ -277,6 +280,8 @@ impl Agent {
             rewind_undo_snapshot: None,
             stdin_request_tx: None,
             provider_runtime_state: ProviderRuntimeState::observed(initial_provider_model),
+            #[cfg(feature = "dcp")]
+            dcp: crate::dcp_plugin::DcpPlugin::new().ok(),
         };
         crate::tool::set_session_tool_policy(
             &agent.session.id,
@@ -579,6 +584,39 @@ impl Agent {
     }
 
     fn messages_for_provider(&mut self) -> (Vec<Message>, Option<CompactionEvent>) {
+        // ── Phase 1: DCP Plugin Layer ──────────────────────────────────
+        #[cfg(feature = "dcp")]
+        let messages = {
+            let all_messages = self.session.provider_messages();
+            if let Some(dcp) = &mut self.dcp {
+                let output = dcp.transform(&all_messages).unwrap_or_else(|e| {
+                    logging::warn(&format!("DCP transform failed: {e}"));
+                    crate::dcp_plugin::DcpTransformOutput {
+                        messages: all_messages.to_vec(),
+                        tokens_saved: 0,
+                        removed_count: 0,
+                        changed: false,
+                    }
+                });
+
+                if output.changed {
+                    logging::info(&format!(
+                        "DCP: pruned {} messages, saved ~{} tokens",
+                        output.removed_count,
+                        output.tokens_saved,
+                    ));
+                }
+
+                output.messages
+            } else {
+                all_messages.to_vec()
+            }
+        };
+
+        #[cfg(not(feature = "dcp"))]
+        let messages = self.session.provider_messages().to_vec();
+
+        // ── Phase 2: CompactionManager (existing) ──────────────────────
         if self.provider.supports_compaction() || self.session.compaction.is_some() {
             let compaction = self.registry.compaction();
             match compaction.try_write() {
@@ -586,10 +624,9 @@ impl Agent {
                     let discarded_oversized_native =
                         manager.discard_oversized_openai_native_compaction();
                     let messages = {
-                        let all_messages = self.session.provider_messages();
                         if self.provider.uses_jcode_compaction() {
                             let action =
-                                manager.ensure_context_fits(all_messages, self.provider.clone());
+                                manager.ensure_context_fits(&messages, self.provider.clone());
                             match action {
                                 crate::compaction::CompactionAction::BackgroundStarted {
                                     trigger,
@@ -608,7 +645,7 @@ impl Agent {
                                 crate::compaction::CompactionAction::None => {}
                             }
                         }
-                        manager.messages_for_api_with(all_messages)
+                        manager.messages_for_api_with(&messages)
                     };
                     let event = manager.take_compaction_event();
                     if event.is_some() || discarded_oversized_native {
@@ -637,8 +674,6 @@ impl Agent {
             };
         }
 
-        let all_messages = self.session.provider_messages();
-        let messages = all_messages.to_vec();
         let user_count = messages
             .iter()
             .filter(|message| matches!(message.role, Role::User))

@@ -1706,6 +1706,7 @@ checksum = "be1e0bca6c3637f992fc1cc7cbc52a78c1ef6db076dbf1059c4323d6a2048376"
 [[package]]
 name = "dcp-compress"
 version = "0.1.0"
+source = "git+https://github.com/quangdang46/dynamic_context_pruning?branch=main#5bf0196bfdbd6b9aa57d9975d959ef6f77f4d30b"
 dependencies = [
  "dcp-protected",
  "dcp-state",
@@ -1719,6 +1720,7 @@ dependencies = [
 [[package]]
 name = "dcp-config"
 version = "0.1.0"
+source = "git+https://github.com/quangdang46/dynamic_context_pruning?branch=main#5bf0196bfdbd6b9aa57d9975d959ef6f77f4d30b"
 dependencies = [
  "dcp-compress",
  "dcp-nudges",
@@ -1738,11 +1740,15 @@ dependencies = [
 [[package]]
 name = "dcp-core"
 version = "0.1.0"
+source = "git+https://github.com/quangdang46/dynamic_context_pruning?branch=main#5bf0196bfdbd6b9aa57d9975d959ef6f77f4d30b"
 dependencies = [
  "chrono",
  "dcp-compress",
  "dcp-config",
+ "dcp-messages",
+ "dcp-notification",
  "dcp-nudges",
+ "dcp-permissions",
  "dcp-prompts",
  "dcp-protected",
  "dcp-prune",
@@ -1752,6 +1758,44 @@ dependencies = [
  "dcp-tokens",
  "dcp-traits",
  "dcp-types",
+ "lazy_static",
+ "regex",
+ "serde",
+ "serde_json",
+ "thiserror 1.0.69",
+]
+
+[[package]]
+name = "dcp-messages"
+version = "0.1.0"
+source = "git+https://github.com/quangdang46/dynamic_context_pruning?branch=main#5bf0196bfdbd6b9aa57d9975d959ef6f77f4d30b"
+dependencies = [
+ "anyhow",
+ "dcp-config",
+ "dcp-prompts",
+ "dcp-protected",
+ "dcp-state",
+ "dcp-tokens",
+ "dcp-traits",
+ "dcp-types",
+ "regex",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "thiserror 1.0.69",
+]
+
+[[package]]
+name = "dcp-notification"
+version = "0.1.0"
+source = "git+https://github.com/quangdang46/dynamic_context_pruning?branch=main#5bf0196bfdbd6b9aa57d9975d959ef6f77f4d30b"
+dependencies = [
+ "anyhow",
+ "dcp-compress",
+ "dcp-config",
+ "dcp-state",
+ "dcp-tokens",
+ "dcp-types",
  "serde",
  "serde_json",
  "thiserror 1.0.69",
@@ -1760,17 +1804,34 @@ dependencies = [
 [[package]]
 name = "dcp-nudges"
 version = "0.1.0"
+source = "git+https://github.com/quangdang46/dynamic_context_pruning?branch=main#5bf0196bfdbd6b9aa57d9975d959ef6f77f4d30b"
 dependencies = [
  "dcp-prompts",
  "dcp-state",
  "dcp-traits",
  "dcp-types",
+ "lazy_static",
+ "regex",
  "serde",
+]
+
+[[package]]
+name = "dcp-permissions"
+version = "0.1.0"
+source = "git+https://github.com/quangdang46/dynamic_context_pruning?branch=main#5bf0196bfdbd6b9aa57d9975d959ef6f77f4d30b"
+dependencies = [
+ "anyhow",
+ "base64 0.22.1",
+ "dcp-config",
+ "dcp-state",
+ "dcp-types",
+ "regex",
 ]
 
 [[package]]
 name = "dcp-prompts"
 version = "0.1.0"
+source = "git+https://github.com/quangdang46/dynamic_context_pruning?branch=main#5bf0196bfdbd6b9aa57d9975d959ef6f77f4d30b"
 dependencies = [
  "serde",
  "thiserror 1.0.69",
@@ -1779,16 +1840,20 @@ dependencies = [
 [[package]]
 name = "dcp-protected"
 version = "0.1.0"
+source = "git+https://github.com/quangdang46/dynamic_context_pruning?branch=main#5bf0196bfdbd6b9aa57d9975d959ef6f77f4d30b"
 dependencies = [
  "dcp-traits",
  "dcp-types",
  "globset",
+ "serde",
+ "serde_json",
  "thiserror 1.0.69",
 ]
 
 [[package]]
 name = "dcp-prune"
 version = "0.1.0"
+source = "git+https://github.com/quangdang46/dynamic_context_pruning?branch=main#5bf0196bfdbd6b9aa57d9975d959ef6f77f4d30b"
 dependencies = [
  "dcp-protected",
  "dcp-state",
@@ -1801,10 +1866,13 @@ dependencies = [
 [[package]]
 name = "dcp-state"
 version = "0.1.0"
+source = "git+https://github.com/quangdang46/dynamic_context_pruning?branch=main#5bf0196bfdbd6b9aa57d9975d959ef6f77f4d30b"
 dependencies = [
  "chrono",
  "dcp-traits",
  "dcp-types",
+ "once_cell",
+ "regex",
  "serde",
  "serde_json",
  "thiserror 1.0.69",
@@ -1813,6 +1881,7 @@ dependencies = [
 [[package]]
 name = "dcp-storage"
 version = "0.1.0"
+source = "git+https://github.com/quangdang46/dynamic_context_pruning?branch=main#5bf0196bfdbd6b9aa57d9975d959ef6f77f4d30b"
 dependencies = [
  "dcp-traits",
  "dcp-types",
@@ -1825,6 +1894,7 @@ dependencies = [
 [[package]]
 name = "dcp-telemetry"
 version = "0.1.0"
+source = "git+https://github.com/quangdang46/dynamic_context_pruning?branch=main#5bf0196bfdbd6b9aa57d9975d959ef6f77f4d30b"
 dependencies = [
  "dcp-traits",
  "serde",
@@ -1834,6 +1904,7 @@ dependencies = [
 [[package]]
 name = "dcp-tokens"
 version = "0.1.0"
+source = "git+https://github.com/quangdang46/dynamic_context_pruning?branch=main#5bf0196bfdbd6b9aa57d9975d959ef6f77f4d30b"
 dependencies = [
  "dcp-traits",
  "thiserror 1.0.69",
@@ -1842,6 +1913,7 @@ dependencies = [
 [[package]]
 name = "dcp-traits"
 version = "0.1.0"
+source = "git+https://github.com/quangdang46/dynamic_context_pruning?branch=main#5bf0196bfdbd6b9aa57d9975d959ef6f77f4d30b"
 dependencies = [
  "dcp-types",
  "serde",
@@ -1852,6 +1924,7 @@ dependencies = [
 [[package]]
 name = "dcp-types"
 version = "0.1.0"
+source = "git+https://github.com/quangdang46/dynamic_context_pruning?branch=main#5bf0196bfdbd6b9aa57d9975d959ef6f77f4d30b"
 dependencies = [
  "chrono",
  "serde",
@@ -2079,6 +2152,7 @@ checksum = "15401da73a9ed8c80e3b2d4dc05fe10e7b72d7243b9f614e516a44fa99986e88"
 [[package]]
 name = "dynamic_context_pruning"
 version = "0.1.0"
+source = "git+https://github.com/quangdang46/dynamic_context_pruning?branch=main#5bf0196bfdbd6b9aa57d9975d959ef6f77f4d30b"
 dependencies = [
  "dcp-config",
  "dcp-core",

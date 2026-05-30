@@ -227,7 +227,7 @@ aws-sdk-bedrock = "1.141.0"
 aws-sdk-sts = "1.103.0"
 
 # DCP integration (dynamic_context_pruning)
-dynamic_context_pruning = { path = "/data/projects/dynamic_context_pruning/crates/dynamic_context_pruning", optional = true }
+dynamic_context_pruning = { git = "https://github.com/quangdang46/dynamic_context_pruning", branch = "main", package = "dynamic_context_pruning", optional = true }
 
 [features]
 # Include local ONNX/tokenizer embeddings in default builds so memory recall,

@@ -104,6 +104,12 @@ pub mod usage;
 pub mod util;
 pub mod video_export;
 
+#[cfg(feature = "dcp")]
+pub mod dcp_bridge;
+
+#[cfg(feature = "dcp")]
+pub mod dcp_plugin;
+
 use anyhow::Result;
 use std::sync::Mutex;
 
