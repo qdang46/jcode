@@ -577,7 +577,7 @@ impl LiveVerificationEvent {
             statuses.insert(checkpoint.clone(), LiveVerificationStageStatus::NotRun);
         }
         for stage in &self.stages {
-            statuses.insert(stage.name.clone(), stage.status.clone());
+            statuses.insert(stage.name.clone(), stage.status);
         }
         statuses
     }
@@ -780,16 +780,8 @@ impl LiveProviderModelCoveragePair {
             .any(|passed| passed == checkpoint)
         {
             Some(LiveVerificationStageStatus::Passed)
-        } else if let Some(status) = self.non_passing_checkpoints.get(checkpoint) {
-            Some(status.clone())
-        } else if self
-            .missing_checkpoints
-            .iter()
-            .any(|missing| missing == checkpoint)
-        {
-            None
         } else {
-            None
+            self.non_passing_checkpoints.get(checkpoint).copied()
         }
     }
 }
@@ -1235,7 +1227,7 @@ impl ProviderModelCoverageBuilder {
                     passed_checkpoints.push((*checkpoint).to_string());
                 }
                 Some(status) => {
-                    non_passing_checkpoints.insert((*checkpoint).to_string(), status.clone());
+                    non_passing_checkpoints.insert((*checkpoint).to_string(), *status);
                 }
                 None => missing_checkpoints.push((*checkpoint).to_string()),
             }
@@ -1277,8 +1269,8 @@ fn merge_checkpoint_status(
     }
 
     match current {
-        Some(existing) if rank(existing) >= rank(incoming) => existing.clone(),
-        _ => incoming.clone(),
+        Some(existing) if rank(existing) >= rank(incoming) => *existing,
+        _ => *incoming,
     }
 }
 
@@ -1312,8 +1304,8 @@ pub fn strict_live_provider_model_coverage_summary(
     let mut covered_pairs = Vec::new();
     let mut uncovered_pairs = Vec::new();
     let mut provider_labels = BTreeMap::new();
-    let mut provider_totals: BTreeMap<String, (usize, usize, Vec<String>, usize, usize, usize)> =
-        BTreeMap::new();
+    type ProviderTotals = (usize, usize, Vec<String>, usize, usize, usize);
+    let mut provider_totals: BTreeMap<String, ProviderTotals> = BTreeMap::new();
 
     for pair in builders
         .into_values()
@@ -1435,10 +1427,10 @@ pub fn strict_live_provider_model_coverage_summary(
 fn latest_coverage_entries_by_provider_model_test(
     coverage: &LiveVerificationCoverage,
 ) -> BTreeMap<String, &LiveVerificationCoverageEntry> {
-    let mut latest_by_target_and_checkpoints: BTreeMap<
-        (String, String, String, Vec<String>),
-        (&String, &LiveVerificationCoverageEntry),
-    > = BTreeMap::new();
+    type TargetAndCheckpoints = (String, String, String, Vec<String>);
+    type LatestEntryRef<'a> = (&'a String, &'a LiveVerificationCoverageEntry);
+    let mut latest_by_target_and_checkpoints: BTreeMap<TargetAndCheckpoints, LatestEntryRef> =
+        BTreeMap::new();
     for (key, entry) in &coverage.latest {
         let provider_identity =
             canonical_live_provider_identity(&entry.provider_id, &entry.provider_label);
@@ -1705,9 +1697,11 @@ fn provider_has_credential(provider_id: &str) -> bool {
         "gemini" | "google" => &["GEMINI_API_KEY", "GOOGLE_API_KEY"],
         _ => &[],
     };
-    env_candidates
-        .iter()
-        .any(|key| std::env::var(key).map(|v| !v.trim().is_empty()).unwrap_or(false))
+    env_candidates.iter().any(|key| {
+        std::env::var(key)
+            .map(|v| !v.trim().is_empty())
+            .unwrap_or(false)
+    })
 }
 
 /// Build the full provider-monitoring roster: union of every OpenAI-compatible
@@ -1715,9 +1709,7 @@ fn provider_has_credential(provider_id: &str) -> bool {
 /// credential presence, and the READY/observed pair tallies already computed for
 /// the report. Lets `provider-test-coverage` enumerate *every* provider jcode
 /// knows about, not just ones that already have ledger evidence.
-fn build_provider_roster(
-    providers: &[LiveProviderCoverageSummary],
-) -> Vec<ProviderMonitorEntry> {
+fn build_provider_roster(providers: &[LiveProviderCoverageSummary]) -> Vec<ProviderMonitorEntry> {
     use std::collections::BTreeMap;
 
     // Tally ledger evidence per provider id.
@@ -1956,7 +1948,11 @@ pub fn format_strict_live_provider_model_coverage_summary(
             .max(8);
         out.push_str(&format!(
             "  {:<id_width$}  {:<18}  {:<7}  {:<4}  {}\n",
-            "provider", "status", "doctor", "key", "READY/seen",
+            "provider",
+            "status",
+            "doctor",
+            "key",
+            "READY/seen",
             id_width = id_width
         ));
         for entry in rows {

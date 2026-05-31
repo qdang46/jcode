@@ -885,7 +885,7 @@ fn apply_diff_mode(app: &mut App, mode: crate::config::DiffDisplayMode) {
     if !app.diff_pane_visible() {
         app.diff_pane_focus = false;
     }
-    app.set_status_notice(&format!("Diffs: {}", app.diff_mode.label()));
+    app.set_status_notice(format!("Diffs: {}", app.diff_mode.label()));
 }
 
 pub(super) fn handle_diff_command(app: &mut App, trimmed: &str) -> bool {
@@ -2052,7 +2052,8 @@ pub(super) fn handle_session_command(app: &mut App, trimmed: &str) -> bool {
             Ok(out) if out.status.success() => {
                 let _ = std::fs::remove_file(&tmp_path);
                 let url = String::from_utf8_lossy(&out.stdout)
-                    .lines().rfind(|l| l.starts_with("https://"))
+                    .lines()
+                    .rfind(|l| l.starts_with("https://"))
                     .unwrap_or("")
                     .trim()
                     .to_string();

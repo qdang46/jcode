@@ -186,9 +186,9 @@ impl App {
             WidgetProviderKind::OpenAI => {
                 if matches!(runtime_provider.as_deref(), Some("openai-api")) {
                     crate::tui::info_widget::AuthMethod::OpenAIApiKey
-                } else if matches!(runtime_provider.as_deref(), Some("openai")) {
-                    crate::tui::info_widget::AuthMethod::OpenAIOAuth
-                } else if auth_status.openai_has_oauth {
+                } else if matches!(runtime_provider.as_deref(), Some("openai"))
+                    || auth_status.openai_has_oauth
+                {
                     crate::tui::info_widget::AuthMethod::OpenAIOAuth
                 } else if auth_status.openai_has_api_key {
                     crate::tui::info_widget::AuthMethod::OpenAIApiKey

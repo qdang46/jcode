@@ -321,7 +321,9 @@ fn telemetry_endpoint() -> Option<String> {
 /// off by default and only enabled when the user explicitly opts in (e.g. via
 /// the first-run onboarding flow).
 fn share_content_marker_path() -> Option<std::path::PathBuf> {
-    storage::jcode_dir().ok().map(|d| d.join("telemetry_share_content"))
+    storage::jcode_dir()
+        .ok()
+        .map(|d| d.join("telemetry_share_content"))
 }
 
 /// Whether the user has opted in to sharing prompt/transcript content.

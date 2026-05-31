@@ -240,9 +240,7 @@ impl App {
         let mut errors: Vec<String> = Vec::new();
 
         match crate::auth::claude::clear_accounts() {
-            Ok(removed) if removed > 0 => {
-                summary.push(format!("{} Anthropic account(s)", removed))
-            }
+            Ok(removed) if removed > 0 => summary.push(format!("{} Anthropic account(s)", removed)),
             Ok(_) => {}
             Err(err) => errors.push(format!("Anthropic: {}", err)),
         }

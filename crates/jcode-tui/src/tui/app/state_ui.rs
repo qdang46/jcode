@@ -828,7 +828,7 @@ fn human_count(value: u64) -> String {
 }
 
 fn bold_count(value: u64) -> String {
-    format!("{}", human_count(value))
+    human_count(value)
 }
 
 fn bold_count_usize(value: usize) -> String {
@@ -847,7 +847,7 @@ fn opt_usize(value: Option<usize>) -> String {
 
 fn opt_string(value: Option<&str>) -> String {
     value
-        .map(|value| format!("{}", value))
+        .map(str::to_string)
         .unwrap_or_else(|| "None".to_string())
 }
 

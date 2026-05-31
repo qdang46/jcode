@@ -337,7 +337,8 @@ fn notify_config_reloaded() {
 /// subsystems (auth cache, event bus) on reload, those subsystems register a
 /// reaction here at startup. This keeps config free of upward dependencies and
 /// breaks the config -> auth / config -> bus cycle edges.
-static CONFIG_RELOAD_LISTENERS: LazyLock<RwLock<Vec<fn()>>> =
+type ReloadListener = fn();
+static CONFIG_RELOAD_LISTENERS: LazyLock<RwLock<Vec<ReloadListener>>> =
     LazyLock::new(|| RwLock::new(Vec::new()));
 
 /// Register a callback to run after the config cache reloads.

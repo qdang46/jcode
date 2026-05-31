@@ -699,10 +699,9 @@ impl AnthropicProvider {
         // Max/Pro users expect.
         if matches!(mode, AnthropicCredentialMode::Auto)
             && auth::claude::load_credentials().is_err()
+            && let Ok(key) = load_anthropic_api_key()
         {
-            if let Ok(key) = load_anthropic_api_key() {
-                return Ok((key, false));
-            }
+            return Ok((key, false));
         }
 
         self.get_oauth_access_token().await

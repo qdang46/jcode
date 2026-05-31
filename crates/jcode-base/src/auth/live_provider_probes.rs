@@ -18,7 +18,11 @@ fn apply_provider_auth(
     resolved: &ResolvedOpenAiCompatibleProfile,
     api_key: &str,
 ) -> reqwest::RequestBuilder {
-    if resolved.api_base.to_ascii_lowercase().contains("api.anthropic.com") {
+    if resolved
+        .api_base
+        .to_ascii_lowercase()
+        .contains("api.anthropic.com")
+    {
         return request
             .header("x-api-key", api_key)
             .header("anthropic-version", "2023-06-01");
@@ -36,7 +40,11 @@ fn set_output_token_cap(
     resolved: &ResolvedOpenAiCompatibleProfile,
     cap: u32,
 ) {
-    let key = if resolved.api_base.to_ascii_lowercase().contains("api.openai.com") {
+    let key = if resolved
+        .api_base
+        .to_ascii_lowercase()
+        .contains("api.openai.com")
+    {
         "max_completion_tokens"
     } else {
         "max_tokens"
@@ -61,8 +69,7 @@ pub async fn fetch_live_openai_compatible_models(
 ) -> anyhow::Result<Vec<String>> {
     let resolved = crate::provider_catalog::resolve_openai_compatible_profile(profile);
     let url = format!("{}/models", resolved.api_base.trim_end_matches('/'));
-    let request = crate::provider::shared_http_client()
-        .get(&url);
+    let request = crate::provider::shared_http_client().get(&url);
     let request = apply_provider_auth(request, &resolved, api_key);
     let response = tokio::time::timeout(std::time::Duration::from_secs(20), request.send())
         .await
@@ -123,9 +130,7 @@ pub async fn run_live_openai_compatible_smoke(
         ],
         "stream": false
     });
-    let request = crate::provider::shared_http_client()
-        .post(&url)
-        .json(&body);
+    let request = crate::provider::shared_http_client().post(&url).json(&body);
     let request = apply_provider_auth(request, &resolved, api_key);
     let response = tokio::time::timeout(std::time::Duration::from_secs(30), request.send())
         .await
@@ -189,9 +194,7 @@ pub async fn run_live_openai_compatible_stream_smoke(
         "stream": true,
         "stream_options": {"include_usage": true}
     });
-    let request = crate::provider::shared_http_client()
-        .post(&url)
-        .json(&body);
+    let request = crate::provider::shared_http_client().post(&url).json(&body);
     let request = apply_provider_auth(request, &resolved, api_key);
     let response = tokio::time::timeout(std::time::Duration::from_secs(45), request.send())
         .await
@@ -302,9 +305,7 @@ pub async fn run_live_openai_compatible_tool_smoke(
     if !resolved.api_base.contains("fptcloud.com") {
         body["tool_choice"] = serde_json::json!("auto");
     }
-    let request = crate::provider::shared_http_client()
-        .post(&url)
-        .json(&body);
+    let request = crate::provider::shared_http_client().post(&url).json(&body);
     let request = apply_provider_auth(request, &resolved, api_key);
     let response = tokio::time::timeout(std::time::Duration::from_secs(45), request.send())
         .await

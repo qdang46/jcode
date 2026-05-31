@@ -3,21 +3,19 @@
 //! After the user logs in / imports credentials on a fresh install, we walk
 //! them through a short guided flow:
 //!
-//!   1. `Login`           - if we boot without working credentials, ask the
-//!                          user to log in right inside the TUI (the fresh
-//!                          install no longer runs a blocking CLI login).
-//!                          Skipped entirely when credentials already exist.
-//!   2. `ModelSelect`     - let them pick a model.
-//!   3. `ContinuePrompt`  - if we detect an external Codex or Claude Code
-//!                          OAuth login, ask whether they want to continue
-//!                          where they last left off. Auto-selects "Yes" after
-//!                          [`AUTO_ADVANCE`] if they don't choose.
-//!   4. `TranscriptPick`  - render their recent external transcripts in a
-//!                          resume-style picker (single select). Auto-selects
-//!                          the most recent after [`AUTO_ADVANCE`].
-//!   5. `Suggestions`     - the existing prompt-suggestion cards. Reached when
-//!                          they answer "No", when there is no external OAuth,
-//!                          or as the terminal resting state.
+//!   1. `Login` - if we boot without working credentials, ask the user to
+//!      log in right inside the TUI (the fresh install no longer runs a
+//!      blocking CLI login). Skipped entirely when credentials already exist.
+//!   2. `ModelSelect` - let them pick a model.
+//!   3. `ContinuePrompt` - if we detect an external Codex or Claude Code OAuth
+//!      login, ask whether they want to continue where they last left off.
+//!      Auto-selects "Yes" after [`AUTO_ADVANCE`] if they don't choose.
+//!   4. `TranscriptPick` - render their recent external transcripts in a
+//!      resume-style picker (single select). Auto-selects the most recent
+//!      after [`AUTO_ADVANCE`].
+//!   5. `Suggestions` - the existing prompt-suggestion cards. Reached when
+//!      they answer "No", when there is no external OAuth, or as the terminal
+//!      resting state.
 //!
 //! If anything fails along the continue path (no transcripts, load error,
 //! resume failure) we fall back to seeding the input with a prompt that asks
@@ -239,12 +237,16 @@ impl OnboardingFlow {
             OnboardingPhase::Login {
                 import: Some(review),
             } => Some(review.seconds_remaining()),
-            OnboardingPhase::TelemetryConsent { shown_at, .. } => {
-                Some(DECISION_TIMEOUT.saturating_sub(shown_at.elapsed()).as_secs())
-            }
-            OnboardingPhase::ContinuePrompt { shown_at, .. } => {
-                Some(DECISION_TIMEOUT.saturating_sub(shown_at.elapsed()).as_secs())
-            }
+            OnboardingPhase::TelemetryConsent { shown_at, .. } => Some(
+                DECISION_TIMEOUT
+                    .saturating_sub(shown_at.elapsed())
+                    .as_secs(),
+            ),
+            OnboardingPhase::ContinuePrompt { shown_at, .. } => Some(
+                DECISION_TIMEOUT
+                    .saturating_sub(shown_at.elapsed())
+                    .as_secs(),
+            ),
             _ => None,
         }
     }
@@ -355,7 +357,9 @@ mod tests {
             },
         };
         let remaining = flow.decision_seconds_remaining().unwrap();
-        assert!(remaining >= DECISION_TIMEOUT.as_secs() - 2 && remaining <= DECISION_TIMEOUT.as_secs());
+        assert!(
+            remaining >= DECISION_TIMEOUT.as_secs() - 2 && remaining <= DECISION_TIMEOUT.as_secs()
+        );
         assert!(!flow.decision_timed_out());
     }
 

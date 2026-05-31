@@ -19,15 +19,15 @@
 //! over-credited in the ledger.
 
 use crate::auth::lifecycle::{
-    activate_auth_change, validate_catalog_invariants, AuthActivationRequest,
+    AuthActivationRequest, activate_auth_change, validate_catalog_invariants,
 };
 use crate::auth::live_provider_probes::{
     fetch_live_openai_compatible_models, run_live_openai_compatible_smoke,
     run_live_openai_compatible_stream_smoke, run_live_openai_compatible_tool_smoke,
 };
 use crate::live_tests::{
-    self, checkpoints, LiveVerificationAuth, LiveVerificationEvent, LiveVerificationResult,
-    LiveVerificationStage, LiveVerificationStageStatus,
+    self, LiveVerificationAuth, LiveVerificationEvent, LiveVerificationResult,
+    LiveVerificationStage, LiveVerificationStageStatus, checkpoints,
 };
 use crate::protocol::{AuthChanged, CatalogNamespace, RuntimeProviderKey};
 use crate::provider::ModelRoute;
@@ -538,8 +538,7 @@ fn run_wiring_checks(
         .map(|route| route.model.clone())
         .collect();
 
-    let catalog_report =
-        validate_catalog_invariants(&activation, Some(selected), &catalog_routes);
+    let catalog_report = validate_catalog_invariants(&activation, Some(selected), &catalog_routes);
 
     // Catalog hot reload.
     if catalog_report.ok() {
@@ -591,9 +590,12 @@ fn run_wiring_checks(
     let from_live_catalog = matching_routes
         .iter()
         .all(|route| route.detail.contains("live-catalog"));
-    let has_static_fallback = matching_routes
-        .iter()
-        .any(|route| route.detail.to_ascii_lowercase().contains("static fallback"));
+    let has_static_fallback = matching_routes.iter().any(|route| {
+        route
+            .detail
+            .to_ascii_lowercase()
+            .contains("static fallback")
+    });
     if matching_routes.is_empty() {
         checks.push(DoctorCheck::failed(
             checkpoints::PICKER_FALLBACK_LABELING,
@@ -813,9 +815,11 @@ fn record_event(
     }
 
     let auth = match api_key {
-        Some(key) if !key.trim().is_empty() => {
-            LiveVerificationAuth::from_secret(format!("{api_key_env} via {env_file}"), Some(api_key_env), key)
-        }
+        Some(key) if !key.trim().is_empty() => LiveVerificationAuth::from_secret(
+            format!("{api_key_env} via {env_file}"),
+            Some(api_key_env),
+            key,
+        ),
         _ => LiveVerificationAuth::non_secret("provider-doctor (offline)", Some(api_key_env)),
     };
 
@@ -898,9 +902,11 @@ mod tests {
         spend.accumulate(None, None);
         assert_eq!(spend.billable_calls, 1);
         assert!(!spend.has_token_data);
-        assert!(spend
-            .human_summary()
-            .contains("token usage not reported by provider"));
+        assert!(
+            spend
+                .human_summary()
+                .contains("token usage not reported by provider")
+        );
 
         // Anthropic-style input_tokens/output_tokens.
         spend.accumulate(
