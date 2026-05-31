@@ -81,6 +81,7 @@ thread_local! {
 #[cfg(feature = "dcp")]
 impl Agent {
     /// Set the current agent pointer (called by the server before tool execution)
+    #[allow(dead_code)]
     pub(crate) fn set_current_agent_ptr(&mut self) {
         CURRENT_AGENT.with(|cell| {
             cell.set(Some(NonNull::from(self)));
@@ -88,6 +89,7 @@ impl Agent {
     }
 
     /// Clear the current agent pointer (called when agent is dropped)
+    #[allow(dead_code)]
     pub(crate) fn clear_current_agent_ptr() {
         CURRENT_AGENT.with(|cell| {
             cell.set(None);
