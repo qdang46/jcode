@@ -239,10 +239,10 @@ fn parse_and_prepare_args() -> Result<Args> {
         crate::dcg_bridge::set_mode(mode.into_dcg_mode());
     } else if args.dangerously_skip_permissions {
         crate::dcg_bridge::set_mode(dcg_core::Mode::BypassPermissions);
-    } else if let Ok(env_mode) = std::env::var("JCODE_PERMISSION_MODE") {
-        if let Some(mode) = dcg_core::Mode::parse(env_mode.trim()) {
-            crate::dcg_bridge::set_mode(mode);
-        }
+    } else if let Ok(env_mode) = std::env::var("JCODE_PERMISSION_MODE")
+        && let Some(mode) = dcg_core::Mode::parse(env_mode.trim())
+    {
+        crate::dcg_bridge::set_mode(mode);
     }
 
     // JCODE_MODEL fallback: when --model is not passed on the CLI,
