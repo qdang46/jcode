@@ -163,8 +163,7 @@ impl YoloClassifier {
 
     /// Reset the circuit breaker and consecutive denial counter.
     pub fn reset_consecutive_denials(&self) {
-        self.consecutive_denials
-            .store(0, Ordering::SeqCst);
+        self.consecutive_denials.store(0, Ordering::SeqCst);
         self.circuit_broken.store(0, Ordering::SeqCst);
     }
 
@@ -183,8 +182,7 @@ impl YoloClassifier {
 
     /// Record a YOLO allow (decision to allow).
     fn record_allow(&self) {
-        self.consecutive_denials
-            .store(0, Ordering::SeqCst);
+        self.consecutive_denials.store(0, Ordering::SeqCst);
     }
 
     /// Evaluate an action using the 2-stage classifier.
@@ -237,19 +235,19 @@ impl YoloClassifier {
 
     /// Stage 1: Fast 64-token classification.
     fn stage1_classify(&self, action: &str) -> Result<Stage1Decision> {
-        let messages = vec![Message::user(&format!("Action: {}\n\n{}", action, STAGE1_PROMPT))];
+        let messages = vec![Message::user(&format!(
+            "Action: {}\n\n{}",
+            action, STAGE1_PROMPT
+        ))];
 
-        let system =
-            "You are a binary security classifier. Reply with ONLY <block>yes</block> or <block>no</block>.";
+        let system = "You are a binary security classifier. Reply with ONLY <block>yes</block> or <block>no</block>.";
 
         // Use block_in_place + block_on for the async call
         let rt = tokio::runtime::Handle::try_current();
         let stream = match rt {
-            Ok(handle) => {
-                tokio::task::block_in_place(|| {
-                    handle.block_on(self.provider.complete(&messages, &[], system, None))
-                })
-            }
+            Ok(handle) => tokio::task::block_in_place(|| {
+                handle.block_on(self.provider.complete(&messages, &[], system, None))
+            }),
             Err(_) => {
                 // No runtime — fail closed
                 return Err(anyhow::anyhow!("no tokio runtime available"));
@@ -267,7 +265,12 @@ impl YoloClassifier {
     }
 
     /// Stage 2: Thinking-enabled classification (4096 tokens).
-    fn stage2_classify(&self, action: &str, tool: &str, effects: &[String]) -> Result<Stage2Response> {
+    fn stage2_classify(
+        &self,
+        action: &str,
+        tool: &str,
+        effects: &[String],
+    ) -> Result<Stage2Response> {
         let messages = vec![Message::user(&stage2_user_prompt(action, tool, effects))];
 
         let system = STAGE2_SYSTEM;
@@ -275,11 +278,9 @@ impl YoloClassifier {
         // Use block_in_place + block_on for the async call
         let rt = tokio::runtime::Handle::try_current();
         let stream = match rt {
-            Ok(handle) => {
-                tokio::task::block_in_place(|| {
-                    handle.block_on(self.provider.complete(&messages, &[], system, None))
-                })
-            }
+            Ok(handle) => tokio::task::block_in_place(|| {
+                handle.block_on(self.provider.complete(&messages, &[], system, None))
+            }),
             Err(_) => {
                 return Err(anyhow::anyhow!("no tokio runtime available"));
             }
@@ -323,10 +324,7 @@ impl YoloClassifier {
             let json_str = &response[start..=end];
             let json: serde_json::Value = serde_json::from_str(json_str)?;
             Ok(Stage2Response {
-                risk_level: json["risk_level"]
-                    .as_str()
-                    .unwrap_or("high")
-                    .to_string(),
+                risk_level: json["risk_level"].as_str().unwrap_or("high").to_string(),
                 user_authorization: json["user_authorization"]
                     .as_str()
                     .unwrap_or("absent")

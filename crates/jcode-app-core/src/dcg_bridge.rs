@@ -277,10 +277,7 @@ fn action_to_tool_call(action_lower: &str) -> (ToolCall, Vec<Effect>) {
             // MCP tools carry Read + Write + Spawn effects since they can
             // read/write data and spawn background processes.
             // Path is unknown at classify time — use placeholder.
-            return (
-                ToolCall::read(placeholder),
-                vec![Read, Write, Spawn],
-            );
+            return (ToolCall::read(placeholder), vec![Read, Write, Spawn]);
         }
     }
 

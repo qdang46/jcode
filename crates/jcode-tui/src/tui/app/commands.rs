@@ -1846,7 +1846,10 @@ pub(super) fn handle_session_command(app: &mut App, trimmed: &str) -> bool {
         //
         //   /permission-mode           → show current mode
         //   /permission-mode <mode>    → set mode (default|acceptEdits|plan|auto|dontAsk|bypassPermissions)
-        let rest = trimmed.strip_prefix("/permission-mode").unwrap_or_default().trim();
+        let rest = trimmed
+            .strip_prefix("/permission-mode")
+            .unwrap_or_default()
+            .trim();
         if rest.is_empty() {
             let label = app.permission_mode_label();
             app.push_display_message(DisplayMessage::system(format!(
