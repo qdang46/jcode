@@ -845,8 +845,13 @@ fn download_asset_with_resume(
         }
 
         let before = bytes.len() as u64;
-        let read_result =
-            read_response_into(response, &mut bytes, &mut next_progress_at, total, on_progress);
+        let read_result = read_response_into(
+            response,
+            &mut bytes,
+            &mut next_progress_at,
+            total,
+            on_progress,
+        );
         let made_progress = bytes.len() as u64 > before;
 
         match read_result {
@@ -1347,8 +1352,8 @@ mod tests {
     fn test_download_asset_with_resume_recovers_from_dropped_connection() {
         use std::io::{BufRead, BufReader, Write};
         use std::net::TcpListener;
-        use std::sync::atomic::{AtomicUsize, Ordering};
         use std::sync::Arc;
+        use std::sync::atomic::{AtomicUsize, Ordering};
 
         let payload: Vec<u8> = (0..2000u32).map(|i| (i % 251) as u8).collect();
         let total = payload.len();
@@ -1379,9 +1384,8 @@ mod tests {
                             break;
                         }
                         let trimmed = line.trim_end();
-                        if let Some(rest) = trimmed
-                            .to_ascii_lowercase()
-                            .strip_prefix("range: bytes=")
+                        if let Some(rest) =
+                            trimmed.to_ascii_lowercase().strip_prefix("range: bytes=")
                         {
                             if let Some(start) = rest.split('-').next() {
                                 range_start = start.trim().parse().unwrap_or(0);
@@ -1448,8 +1452,8 @@ mod tests {
     fn test_download_asset_with_resume_tolerates_many_progressing_drops() {
         use std::io::{BufRead, BufReader, Write};
         use std::net::TcpListener;
-        use std::sync::atomic::{AtomicUsize, Ordering};
         use std::sync::Arc;
+        use std::sync::atomic::{AtomicUsize, Ordering};
 
         let payload: Vec<u8> = (0..3000u32).map(|i| (i % 251) as u8).collect();
         let total = payload.len();
@@ -1518,7 +1522,9 @@ mod tests {
             }
         });
 
-        let client = reqwest::blocking::Client::builder().build().expect("client");
+        let client = reqwest::blocking::Client::builder()
+            .build()
+            .expect("client");
         let url = format!("http://{}/asset", addr);
         let (bytes, _total) =
             download_asset_with_resume(&client, &url, Some(total as u64), &mut |_| {})
@@ -1543,8 +1549,8 @@ mod tests {
     fn test_download_asset_with_resume_unknown_total_and_monotonic_progress() {
         use std::io::{BufRead, BufReader, Write};
         use std::net::TcpListener;
-        use std::sync::atomic::{AtomicUsize, Ordering};
         use std::sync::Arc;
+        use std::sync::atomic::{AtomicUsize, Ordering};
 
         let payload: Vec<u8> = (0..5000u32).map(|i| (i % 251) as u8).collect();
         let total = payload.len();
@@ -1615,7 +1621,9 @@ mod tests {
             }
         });
 
-        let client = reqwest::blocking::Client::builder().build().expect("client");
+        let client = reqwest::blocking::Client::builder()
+            .build()
+            .expect("client");
         let url = format!("http://{}/asset", addr);
 
         let mut progress_points: Vec<u64> = Vec::new();
