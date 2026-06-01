@@ -43,6 +43,153 @@ pub struct ClaudeCodeSessionInfo {
     pub full_path: String,
 }
 
+/// A single foreign message in the shape the `session_search` tool expects.
+/// CASR's `CanonicalMessage` is the underlying source; this is a thin
+/// projection that flattens tool calls/results into the search text and
+/// exposes a string `role` so the existing search code can keep its
+/// `msg.role == "user"` / `== "assistant"` style comparisons.
+#[derive(Debug, Clone)]
+pub struct ExternalMessageRecord {
+    pub role: String,
+    pub text: String,
+    pub timestamp: Option<DateTime<Utc>>,
+    pub id: Option<String>,
+}
+
+impl ExternalMessageRecord {
+    /// Project a CASR `CanonicalMessage` into a search-tool-friendly shape.
+    /// `content` becomes `text`; tool calls and results are appended as
+    /// `<prefix>{json}` blocks so they remain searchable in their raw form.
+    pub fn from_canonical(msg: &casr::model::CanonicalMessage) -> Self {
+        let role = match msg.role {
+            casr::model::MessageRole::User => "user".to_string(),
+            casr::model::MessageRole::Assistant => "assistant".to_string(),
+            casr::model::MessageRole::Tool => "tool".to_string(),
+            casr::model::MessageRole::System => "system".to_string(),
+            casr::model::MessageRole::Other(ref s) => s.clone(),
+        };
+        let mut text = msg.content.clone();
+        if !msg.tool_calls.is_empty() {
+            for tc in &msg.tool_calls {
+                text.push_str(&format!(
+                    "\n[Tool: {}] {}",
+                    tc.name,
+                    tc.arguments.to_string()
+                ));
+            }
+        }
+        if !msg.tool_results.is_empty() {
+            for tr in &msg.tool_results {
+                let prefix = if tr.is_error {
+                    "[Tool Error]"
+                } else {
+                    "[Tool Output]"
+                };
+                text.push_str(&format!("\n{prefix} {}", tr.content));
+            }
+        }
+        let timestamp = msg
+            .timestamp
+            .and_then(DateTime::<Utc>::from_timestamp_millis);
+        Self {
+            role,
+            text,
+            timestamp,
+            id: None,
+        }
+    }
+}
+
+/// A foreign session in the shape the `session_search` tool expects —
+/// formerly `ExternalSessionRecord` from `jcode-import-core`. Built by
+/// `load_external_session` from a CASR `CanonicalSession` plus a `source`
+/// label and the on-disk path.
+#[derive(Debug, Clone)]
+pub struct ExternalSessionRecord {
+    pub source: &'static str,
+    pub session_id: String,
+    pub short_name: Option<String>,
+    pub title: Option<String>,
+    pub working_dir: Option<String>,
+    pub provider_key: Option<String>,
+    pub model: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    pub path: PathBuf,
+    pub messages: Vec<ExternalMessageRecord>,
+}
+
+/// Build an `ExternalSessionRecord` from a CASR `CanonicalSession` plus
+/// the source label and the on-disk path. `model` is taken from the
+/// canonical session's `model_name` when available.
+pub fn build_external_session_record(
+    source: &'static str,
+    provider_key: &'static str,
+    path: PathBuf,
+    canonical: &casr::model::CanonicalSession,
+) -> ExternalSessionRecord {
+    let short_id = &canonical.session_id[..canonical.session_id.len().min(8)];
+    let created_at = canonical
+        .started_at
+        .and_then(DateTime::<Utc>::from_timestamp_millis)
+        .unwrap_or_else(Utc::now);
+    let updated_at = canonical
+        .ended_at
+        .and_then(DateTime::<Utc>::from_timestamp_millis)
+        .unwrap_or(created_at);
+    let working_dir = canonical
+        .workspace
+        .as_ref()
+        .map(|p| p.display().to_string());
+    let title = canonical.title.clone();
+    let messages = canonical
+        .messages
+        .iter()
+        .map(ExternalMessageRecord::from_canonical)
+        .collect();
+
+    ExternalSessionRecord {
+        source,
+        session_id: canonical.session_id.clone(),
+        short_name: Some(format!("{source} {short_id}")),
+        title,
+        working_dir,
+        provider_key: Some(provider_key.to_string()),
+        model: canonical.model_name.clone(),
+        created_at,
+        updated_at,
+        path,
+        messages,
+    }
+}
+
+/// Read a foreign session file via the registered CASR provider and
+/// project it into an `ExternalSessionRecord`. Returns `Err` if the
+/// provider slug is unknown or the file is unreadable; the caller
+/// decides whether to surface a parse error or skip the file.
+pub fn load_external_session(
+    source: &'static str,
+    provider_key: &'static str,
+    path: &Path,
+) -> Result<ExternalSessionRecord> {
+    let registry = casr::discovery::ProviderRegistry::default_registry();
+    let provider = registry
+        .find_by_slug(provider_key)
+        .with_context(|| format!("{provider_key} provider not registered in CASR"))?;
+    let canonical = provider.read_session(path).with_context(|| {
+        format!(
+            "failed to read {provider_key} session at {}",
+            path.display()
+        )
+    })?;
+    Ok(build_external_session_record(
+        source,
+        provider_key,
+        path.to_path_buf(),
+        &canonical,
+    ))
+}
+
 /// Derive the jcode session id that an external session of the given
 /// (provider, id) pair would be imported under. Idempotent: same inputs
 /// always return the same id.
@@ -127,12 +274,15 @@ fn truncate_first_prompt(s: &str, max_chars: usize) -> String {
     out
 }
 
-/// Enumerate every Claude Code session reachable from the CASR registry.
-fn list_via_casr(scan_limit: Option<usize>) -> Result<Vec<ClaudeCodeSessionInfo>> {
+/// Enumerate every session for the given CASR provider slug.
+fn list_via_casr_for_slug(
+    slug: &str,
+    scan_limit: Option<usize>,
+) -> Result<Vec<ClaudeCodeSessionInfo>> {
     let registry = casr::discovery::ProviderRegistry::default_registry();
-    let claude_code = registry
-        .find_by_slug("claude-code")
-        .context("claude-code provider not registered in CASR (this is a build error)")?;
+    let provider = registry
+        .find_by_slug(slug)
+        .with_context(|| format!("{slug} provider not registered in CASR"))?;
 
     let mut all: Vec<ClaudeCodeSessionInfo> = Vec::new();
     let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
@@ -140,7 +290,7 @@ fn list_via_casr(scan_limit: Option<usize>) -> Result<Vec<ClaudeCodeSessionInfo>
     // Prefer the registry's `list_sessions()` to avoid undercounting when
     // multiple sessions live in a single file (Claude Code does NOT do this,
     // but the CASR contract is uniform across providers).
-    let candidates: Vec<(String, PathBuf)> = claude_code.list_sessions().unwrap_or_default();
+    let candidates: Vec<(String, PathBuf)> = provider.list_sessions().unwrap_or_default();
 
     for (id, path) in candidates {
         if seen.contains(&id) {
@@ -151,7 +301,7 @@ fn list_via_casr(scan_limit: Option<usize>) -> Result<Vec<ClaudeCodeSessionInfo>
         {
             break;
         }
-        let canonical = match claude_code.read_session(&path) {
+        let canonical = match provider.read_session(&path) {
             Ok(c) => c,
             Err(_) => continue, // skip unreadable / corrupt files
         };
@@ -164,6 +314,11 @@ fn list_via_casr(scan_limit: Option<usize>) -> Result<Vec<ClaudeCodeSessionInfo>
     Ok(all)
 }
 
+/// Backwards-compatible alias for `list_via_casr_for_slug("claude-code", …)`.
+fn list_via_casr(scan_limit: Option<usize>) -> Result<Vec<ClaudeCodeSessionInfo>> {
+    list_via_casr_for_slug("claude-code", scan_limit)
+}
+
 /// Enumerate all available Claude Code sessions. Equivalent to the legacy
 /// `list_claude_code_sessions` in `jcode-base/src/import.rs`.
 pub fn list_claude_code_sessions() -> Result<Vec<ClaudeCodeSessionInfo>> {
@@ -173,6 +328,33 @@ pub fn list_claude_code_sessions() -> Result<Vec<ClaudeCodeSessionInfo>> {
 /// Lazy / capped variant for picker UIs that want to bound the work.
 pub fn list_claude_code_sessions_lazy(scan_limit: usize) -> Result<Vec<ClaudeCodeSessionInfo>> {
     list_via_casr(Some(scan_limit))
+}
+
+/// Enumerate Codex sessions via CASR.
+pub fn list_codex_sessions() -> Result<Vec<ClaudeCodeSessionInfo>> {
+    list_via_casr_for_slug("codex", None)
+}
+
+pub fn list_codex_sessions_lazy(scan_limit: usize) -> Result<Vec<ClaudeCodeSessionInfo>> {
+    list_via_casr_for_slug("codex", Some(scan_limit))
+}
+
+/// Enumerate Pi sessions via CASR.
+pub fn list_pi_sessions() -> Result<Vec<ClaudeCodeSessionInfo>> {
+    list_via_casr_for_slug("pi-agent", None)
+}
+
+pub fn list_pi_sessions_lazy(scan_limit: usize) -> Result<Vec<ClaudeCodeSessionInfo>> {
+    list_via_casr_for_slug("pi-agent", Some(scan_limit))
+}
+
+/// Enumerate OpenCode sessions via CASR.
+pub fn list_opencode_sessions() -> Result<Vec<ClaudeCodeSessionInfo>> {
+    list_via_casr_for_slug("opencode", None)
+}
+
+pub fn list_opencode_sessions_lazy(scan_limit: usize) -> Result<Vec<ClaudeCodeSessionInfo>> {
+    list_via_casr_for_slug("opencode", Some(scan_limit))
 }
 
 /// Project-filtered variant (kept for API compatibility; CASR's discovery

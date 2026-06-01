@@ -4796,7 +4796,6 @@ dependencies = [
  "jcode-core",
  "jcode-embedding",
  "jcode-gateway-types",
- "jcode-import-core",
  "jcode-logging",
  "jcode-memory-types",
  "jcode-message-types",
@@ -4927,7 +4926,6 @@ dependencies = [
  "jcode-config-types",
  "jcode-core",
  "jcode-gateway-types",
- "jcode-import-core",
  "jcode-logging",
  "jcode-memory-types",
  "jcode-message-types",
@@ -5060,7 +5058,6 @@ dependencies = [
  "jcode-core",
  "jcode-embedding",
  "jcode-gateway-types",
- "jcode-import-core",
  "jcode-logging",
  "jcode-memory-types",
  "jcode-message-types",
@@ -5217,17 +5214,6 @@ name = "jcode-gateway-types"
 version = "0.1.0"
 dependencies = [
  "serde",
-]
-
-[[package]]
-name = "jcode-import-core"
-version = "0.1.0"
-dependencies = [
- "chrono",
- "hex",
- "serde",
- "serde_json",
- "sha2 0.10.9",
 ]
 
 [[package]]

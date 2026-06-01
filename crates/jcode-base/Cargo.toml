@@ -63,7 +63,6 @@ dcg-core = { git = "https://github.com/quangdang46/destructive_command_guard", b
 # Embeddings (local inference) - behind feature flag (163 crates, slow to compile)
 jcode-embedding = { path = "../jcode-embedding", optional = true }
 jcode-gateway-types = { path = "../jcode-gateway-types" }
-jcode-import-core = { path = "../jcode-import-core" }
 jcode-logging = { path = "../jcode-logging" }
 
 # CASR — Cross Agent Session Resumer. Provides the unified session conversion
