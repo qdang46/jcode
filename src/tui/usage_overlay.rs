@@ -289,20 +289,10 @@ impl UsageOverlay {
     }
 
     pub fn render(&self, frame: &mut Frame) {
-        let area = centered_rect(OVERLAY_PERCENT_X, OVERLAY_PERCENT_Y, frame.area());
+        let area = centered_rect(OVERLAY_PERCENT_X, OVERLAY_PERCENT_Y, frame.arena());
 
         let block = Block::default()
             .title(format!(" {} ", self.title))
-            .title_bottom(Line::from_spans(vec![
-                hotkey(" Up/Down "),
-                Span::styled(" navigate  ", Style::default().fg_compat(MUTED_DARK)),
-                hotkey(" type "),
-                Span::styled(" filter  ", Style::default().fg_compat(MUTED_DARK)),
-                hotkey(" /usage "),
-                Span::styled(" refresh  ", Style::default().fg_compat(MUTED_DARK)),
-                hotkey(" Esc "),
-                Span::styled(" clear / close ", Style::default().fg_compat(MUTED_DARK)),
-            ]))
             .borders(Borders::ALL)
             .border_style(Style::default().fg_compat(PANEL_BORDER));
         block.render(area, frame);

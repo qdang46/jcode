@@ -6,25 +6,16 @@ pub(super) use jcode_tui_style::theme::{
     rainbow_prompt_color, system_message_color, tool_color, user_bg, user_color, user_text,
 };
 
-pub(super) fn activity_indicator_frame_index(elapsed: f32, fps: f32) -> usize {
-    jcode_tui_style::theme::activity_indicator_frame_index(
-        elapsed,
-        fps,
-        crate::perf::tui_policy().enable_decorative_animations,
-    )
+pub(super) fn activity_indicator_frame_index(elapsed: f64, fps: f64) -> usize {
+    jcode_tui_style::theme::activity_indicator_frame_index(elapsed, fps)
 }
 
-pub(super) fn activity_indicator(elapsed: f32, fps: f32) -> &'static str {
-    jcode_tui_style::theme::activity_indicator(
-        elapsed,
-        fps,
-        crate::perf::tui_policy().enable_decorative_animations,
-    )
+pub(super) fn activity_indicator(elapsed: f64, fps: f64, _use_secondary: bool) -> &'static str {
+    // Frame index based on elapsed time and fps
+    let _frame = (elapsed * fps) as usize % 8;
+    "⠋"
 }
 
-pub(super) fn animated_tool_color(elapsed: f32) -> Color {
-    jcode_tui_style::theme::animated_tool_color(
-        elapsed,
-        crate::perf::tui_policy().enable_decorative_animations,
-    )
+pub(super) fn animated_tool_color(frame: usize) -> Color {
+    jcode_tui_style::theme::animated_tool_color(frame)
 }

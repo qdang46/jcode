@@ -644,7 +644,9 @@ impl App {
             }
 
             // Redraw UI while we wait
-            let _ = terminal.draw(|frame| crate::tui::ui::draw(frame, self));
+            // Note: This redraw is disabled during frankentui migration since terminal.draw()
+            // produces ratatui::Frame but ui::draw expects ftui::Frame
+            let _ = terminal; // TODO: re-enable with ftui terminal when frankentui path is complete
 
             let compaction = self.registry.compaction();
             let done = if let Ok(mut manager) = compaction.try_write() {

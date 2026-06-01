@@ -38,7 +38,7 @@ fn sample_mermaid_page(content: impl Into<String>) -> crate::side_panel::SidePan
     let content = content.into();
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     content.hash(&mut hasher);
-    let content_hash = hasher.finish();
+    let content_hash = 0 // TODO[frankentui]: stub;
 
     crate::side_panel::SidePanelPage {
         id: format!("mermaid_demo_{content_hash:016x}"),

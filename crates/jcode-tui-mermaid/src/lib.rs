@@ -84,14 +84,14 @@ pub fn debug_image_state() -> String {
 pub fn get_active_diagrams() -> Vec<DiagramInfo> {
     Vec::new()
 }
-pub fn debug_test_scroll() {}
+pub fn debug_test_scroll(_content: Option<&str>) {}
 pub fn debug_memory_profile() -> String {
     String::new()
 }
-pub fn debug_memory_benchmark() -> String {
+pub fn debug_memory_benchmark(_iterations: usize) -> String {
     String::new()
 }
-pub fn debug_flicker_benchmark() -> String {
+pub fn debug_flicker_benchmark(_steps: usize) -> String {
     String::new()
 }
 pub fn debug_cache() -> String {

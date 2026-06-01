@@ -93,14 +93,14 @@ impl AppWrapper {
     /// Extract RunResult from App and store it in the shared result location.
     /// Called during on_shutdown.
     fn capture_result(&self) {
-        if let Ok(app) = self.app.lock() {
+        if let Ok(mut app) = self.app.lock() {
             let result = RunResult {
-                reload_session: app.reload_requested.take(),
-                rebuild_session: app.rebuild_requested.take(),
-                update_session: app.update_requested.take(),
-                restart_session: app.restart_requested.take(),
-                exit_code: app.requested_exit_code.take(),
-                session_id: Some(app.session.id.clone()),
+                reload_session: app.reload_requested().take(),
+                rebuild_session: app.rebuild_requested().take(),
+                update_session: app.update_requested().take(),
+                restart_session: app.restart_requested().take(),
+                exit_code: app.requested_exit_code().take(),
+                session_id: Some(app.session_id()),
             };
             if let Ok(mut r) = self.result_ref.lock() {
                 *r = Some(result);

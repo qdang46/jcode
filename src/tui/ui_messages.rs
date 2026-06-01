@@ -2,6 +2,7 @@ use ftui_text::text::{Line, Span};
 use super::*;
 #[path = "ui_messages_cache.rs"]
 mod cache_support;
+use crate::tui::compat::StyleCompatExt;
 use crate::message::{
     ParsedBackgroundTaskProgressNotification, parse_background_task_notification_markdown,
     parse_background_task_progress_notification_markdown,
@@ -10,6 +11,7 @@ pub(super) use cache_support::get_cached_message_lines;
 use cache_support::{centered_wrap_width, left_pad_lines_for_centered_mode};
 use ftui_render::cell::PackedRgba;
 use ftui_style::Color;
+use crate::tui::compat::{line_from_spans, line_from_span};
 use std::borrow::Cow;
 use unicode_width::UnicodeWidthStr;
 
@@ -94,7 +96,7 @@ fn render_assistant_tool_call_lines(
     let prefix_width = prefix.width();
     let available_width = width.max(prefix_width.saturating_add(1));
 
-    let prefix_style = Style::default().fg(tool_color()).dim();
+    let prefix_style = Style::default().fg_compat(tool_color()).dim();
     let separator_style = Style::default().fg(dim_color()).dim();
     let name_style = Style::default().fg(accent_color()).dim();
 
@@ -194,7 +196,7 @@ pub(crate) fn render_system_message(
                 } else {
                     split_by_display_width(line, wrap_width)
                         .into_iter()
-                        .map(Line::from)
+                        .map(|s| line_from_span(Span::raw(s)))
                         .collect::<Vec<_>>()
                 }
             })
@@ -1628,7 +1630,7 @@ pub(crate) fn render_tool_message(
     ]);
 
     let rendered_tool_line = super::truncate_line_preserving_suffix_to_width(
-        &Line::from(tool_line),
+        &line_from_spans(tool_line),
         &token_suffix,
         row_width,
     );

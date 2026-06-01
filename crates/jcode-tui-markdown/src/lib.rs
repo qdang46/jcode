@@ -169,7 +169,7 @@ impl Default for IncrementalMarkdownRenderer {
 }
 
 impl IncrementalMarkdownRenderer {
-    pub fn new() -> Self {
+    pub fn new(_max_width: Option<usize>) -> Self {
         Self
     }
     pub fn update(&mut self, _text: &str) {}

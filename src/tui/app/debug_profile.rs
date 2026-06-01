@@ -174,8 +174,10 @@ impl App {
     }
 
     fn debug_app_owned_memory_profile(&self) -> serde_json::Value {
+        // TODO[frankentui]: jcode_tui_markdown IncrementalMarkdownRenderer has no debug_memory_profile() method
         let streaming_markdown_renderer =
-            self.streaming_md_renderer.borrow().debug_memory_profile();
+            // self.streaming_md_renderer.borrow().debug_memory_profile();
+            serde_json::json!({"present": false, "total_estimate_bytes": 0});
         let inline_view = self
             .inline_view_state
             .as_ref()

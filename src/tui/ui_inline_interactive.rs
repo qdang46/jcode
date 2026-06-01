@@ -1,9 +1,12 @@
-use ftui_text::text::{Line, Span};
+use ftui_text::text::{Line, Span, Text};
 use ftui_style::MonoColor;
 use crate::tui::compat::StyleCompatExt;
 use super::*;
-use ftui_widgets::block::Block;
-use ftui_widgets::borders::{BorderType, Borders};
+use ftui_widgets::{
+    block::Block,
+    borders::{BorderType, Borders},
+    Widget,
+};
 use unicode_width::UnicodeWidthStr;
 
 fn display_width(text: &str) -> usize {
@@ -398,7 +401,7 @@ pub(super) fn draw_inline_interactive(frame: &mut Frame, app: &dyn TuiState, are
         .border_type(BorderType::Rounded)
         .border_style(Style::default().fg(rgb(85, 85, 110)))
         .style(Style::default().bg(rgb(18, 18, 26)));
-    block.clone().render(render_area, &mut frame.buffer);
+    block.clone().render(render_area, frame);
 
     let inner = block.inner(render_area);
     if inner.height == 0 || inner.width == 0 {
@@ -542,14 +545,14 @@ pub(super) fn draw_inline_interactive(frame: &mut Frame, app: &dyn TuiState, are
             "   no matches",
             Style::default().fg(dim_color()).italic(),
         )]));
-        Paragraph::new(lines).render(inner, &mut frame.buffer);
+        Paragraph::new(Text::from_lines(lines)).render(inner, frame);
         return;
     }
 
     let list_header_lines = 1 + usize::from(selected_route_notice.is_some());
     let list_height = height.saturating_sub(list_header_lines);
     if list_height == 0 {
-        Paragraph::new(lines).render(inner, &mut frame.buffer);
+        Paragraph::new(Text::from_lines(lines)).render(inner, frame);
         return;
     }
 
@@ -801,7 +804,7 @@ pub(super) fn draw_inline_interactive(frame: &mut Frame, app: &dyn TuiState, are
         lines.push(Line::from_spans(spans));
     }
 
-    Paragraph::new(lines).render(inner, &mut frame.buffer);
+    Paragraph::new(Text::from_lines(lines)).render(inner, frame);
 }
 
 #[cfg(test)]

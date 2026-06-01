@@ -1,4 +1,5 @@
 use ftui_style::{Ansi16, Color, MonoColor, Style};
+use crate::tui::compat::StyleCompatExt;
 use ftui_text::text::{Line, Span, Text};
 use crate::auth::AuthState;
 use crate::provider_catalog::LoginProviderDescriptor;
@@ -6,8 +7,8 @@ use crossterm::event::{KeyCode, KeyModifiers, MouseButton, MouseEvent, MouseEven
 use ftui_render::cell::PackedRgba;
 use ftui_text::wrap::WrapMode;
 use ftui_widgets::Widget;
-use ftui_widgets::block::{Alignment, Block};
-use ftui_widgets::borders::{BorderType, Borders};
+use ftui_widgets::block::Block;
+use ftui_widgets::borders::Borders;
 use ftui_widgets::paragraph::Paragraph;
 
 const PANEL_BG: PackedRgba = PackedRgba::rgb(24, 28, 40);
@@ -299,22 +300,10 @@ impl LoginPicker {
         use ftui_core::geometry::Rect;
         use ftui_layout::{Constraint, Direction, Flex};
 
-        let area = centered_rect(OVERLAY_PERCENT_X, OVERLAY_PERCENT_Y, frame.area());
+        let area = centered_rect(OVERLAY_PERCENT_X, OVERLAY_PERCENT_Y, Rect::new(0, 0, frame.buffer.width(), frame.buffer.height()));
 
         let block = Block::default()
             .title(format!(" {} ", self.title))
-            .title_bottom(Line::from_spans(vec![
-                hotkey(" Enter "),
-                Span::styled(" login  ", Style::new().fg_compat(MUTED_DARK)),
-                hotkey(" Up/Down "),
-                Span::styled(" navigate  ", Style::new().fg_compat(MUTED_DARK)),
-                hotkey(" Click "),
-                Span::styled(" select  ", Style::new().fg_compat(MUTED_DARK)),
-                hotkey(" type "),
-                Span::styled(" filter  ", Style::new().fg_compat(MUTED_DARK)),
-                hotkey(" Esc "),
-                Span::styled(" clear / close ", Style::new().fg_compat(MUTED_DARK)),
-            ]))
             .borders(Borders::ALL)
             .border_style(Style::new().fg_compat(PANEL_BORDER));
         block.render(area, frame);
@@ -377,7 +366,7 @@ impl LoginPicker {
                         self.filter.clone()
                     },
                     if self.filter.is_empty() {
-                        Style::new().fg_compat(Color::Mono(MonoColor::Gray)).italic()
+                        Style::new().fg_compat(Color::Ansi16(Ansi16::BrightBlack)).italic()
                     } else {
                         Style::new().fg_compat(Color::Mono(MonoColor::White))
                     },
@@ -449,7 +438,7 @@ impl LoginPicker {
         if self.filtered.is_empty() {
             lines.push(Line::from_spans(vec![Span::styled(
                 "No matching providers.",
-                Style::new().fg_compat(Color::Mono(MonoColor::Gray)).italic(),
+                Style::new().fg_compat(Color::Ansi16(Ansi16::BrightBlack)).italic(),
             )]));
             lines.push(Line::from_spans(vec![Span::styled(
                 "Try `openai`, `oauth`, `configured`, or `setup`.",
@@ -479,7 +468,7 @@ impl LoginPicker {
                     ),
                     Span::styled(name, row_style.patch(provider_style(item.provider.id))),
                     Span::styled(" ".repeat(padding), row_style),
-                    Span::styled(item.status_icon(), row_style.fg(item.status_color()).bold()),
+                    Span::styled(item.status_icon(), row_style.fg_compat(item.status_color()).bold()),
                 ]));
             }
         }
@@ -557,7 +546,7 @@ impl LoginPicker {
             Line::from_spans(vec![Span::styled(
                 item.provider.auth_kind.label(),
                 Style::new()
-                    .fg(auth_kind_color(item.provider.auth_kind.label()))
+                    .fg_compat(auth_kind_color(item.provider.auth_kind.label()))
                     .bold(),
             )]),
             Line::from_spans(vec![]),
@@ -943,7 +932,7 @@ mod tests {
         let mut terminal = backend.assert();
         let mut frame = terminal
             .draw(|frame| {
-                let area = frame.area();
+                let area = Rect::new(0, 0, frame.buffer.width(), frame.buffer.height());
                 let fill = vec![
                     Line::from_spans(vec!["X".repeat(area.width as usize)]);
                     area.height as usize

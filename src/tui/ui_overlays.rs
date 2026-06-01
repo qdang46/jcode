@@ -72,10 +72,6 @@ pub(super) fn draw_changelog_overlay(frame: &mut ftui::Frame, area: Rect, scroll
             title,
             Style::default().fg(rgb(200, 200, 220)).bold(),
         ))
-        .title_bottom(Line::from_spans(vec![Span::styled(
-            " Esc to close · mouse wheel/j/k scroll · Space/PageUp page ",
-            Style::default().fg(dim_color()),
-        )]))
         .borders(Borders::ALL)
         .border_style(Style::default().fg(dim_color()));
 
@@ -492,10 +488,6 @@ pub(super) fn draw_help_overlay(
             title,
             Style::default().fg(rgb(200, 200, 220)).bold(),
         ))
-        .title_bottom(Line::from_spans(vec![Span::styled(
-            " Esc to close · mouse wheel/j/k scroll · Space/PageUp page · /help <cmd> for details ",
-            Style::default().fg(dim_color()),
-        )]))
         .borders(Borders::ALL)
         .border_style(Style::default().fg(dim_color()));
 
@@ -621,8 +613,8 @@ pub(super) fn debug_palette_json() -> Option<serde_json::Value> {
 
 fn color_to_rgb(color: Color) -> Option<[u8; 3]> {
     match color {
-        Color::Rgb(r, g, b) => Some([r, g, b]),
-        Color::Indexed(n) if n >= 16 => {
+        Color::Rgb(rgb) => Some([rgb.r, rgb.g, rgb.b]),
+        Color::Ansi256(n) if n >= 16 => {
             let (r, g, b) = crate::tui::color_support::indexed_to_rgb(n);
             Some([r, g, b])
         }

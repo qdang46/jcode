@@ -1,5 +1,5 @@
 use ftui_style::MonoColor;
-use crate::tui::compat::StyleCompatExt;
+use crate::tui::compat::{StyleCompatExt, text_from_lines, line_from_spans, line_from_span};
 use super::color_support::rgb;
 use crate::safety::{self, PermissionRequest, Urgency};
 use anyhow::Result;
@@ -11,9 +11,12 @@ use ftui_render::frame::Frame;
 use ftui_style::{Color, Style};
 use ftui_text::text::{Line, Span};
 use ftui_text::wrap::WrapMode;
-use ftui_widgets::block::Block;
-use ftui_widgets::borders::{BorderType, Borders};
-use ftui_widgets::paragraph::Paragraph;
+use ftui_widgets::{
+    block::Block,
+    borders::{BorderType, Borders},
+    paragraph::Paragraph,
+    Widget,
+};
 use serde_json::{Map, Value};
 use std::io::IsTerminal;
 use std::time::Duration;
@@ -106,7 +109,7 @@ impl PermissionsApp {
     }
 
     fn render(&self, frame: &mut Frame) {
-        let area = frame.area();
+        let area = Rect::new(0, 0, frame.buffer.width(), frame.buffer.height());
 
         if self.done {
             self.render_done(frame, area);
@@ -119,13 +122,15 @@ impl PermissionsApp {
         }
 
         let outer = Block::default()
-            .title(format!(" Permissions ({} pending) ", self.requests.len()))
-            .title_style(Style::default().fg_compat(Color::Mono(MonoColor::White)).bold())
+            .title(Span::styled(
+                format!(" Permissions ({} pending) ", self.requests.len()),
+                Style::default().fg_compat(Color::Mono(MonoColor::White)).bold(),
+            ))
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
             .border_style(Style::default().fg(rgb(80, 80, 90)));
         let inner = outer.inner(area);
-        outer.render(area, &mut frame.buffer);
+        outer.render(area, frame);
 
         let chunks = Flex::vertical()
             .constraints([
@@ -223,8 +228,8 @@ impl PermissionsApp {
             0
         };
 
-        let para = Paragraph::new(lines).scroll((scroll as u16, 0));
-        para.render(area, &mut frame.buffer);
+        let para = Paragraph::new(text_from_lines(lines)).scroll((scroll as u16, 0));
+        para.render(area, frame);
     }
 
     fn render_separator(&self, frame: &mut Frame, area: Rect) {
@@ -233,7 +238,7 @@ impl PermissionsApp {
             sep,
             Style::default().fg(rgb(60, 60, 70)),
         )]);
-        Paragraph::new(vec![line]).render(area, &mut frame.buffer);
+        Paragraph::new(line).render(area, frame);
     }
 
     fn render_detail(&self, frame: &mut Frame, area: Rect) {
@@ -392,8 +397,8 @@ impl PermissionsApp {
             ]));
         }
 
-        let para = Paragraph::new(lines).wrap(WrapMode::Word);
-        para.render(area, &mut frame.buffer);
+        let para = Paragraph::new(text_from_lines(lines)).wrap(WrapMode::Word);
+        para.render(area, frame);
     }
 
     fn render_help(&self, frame: &mut Frame, area: Rect) {
@@ -422,6 +427,7 @@ impl PermissionsApp {
                     Span::styled(
                         format!(" {} ", desc),
                         Style::default().fg(rgb(140, 140, 150)),
+        
                     ),
                 ];
                 if i < help_items.len() - 1 {
@@ -431,18 +437,20 @@ impl PermissionsApp {
             })
             .collect();
 
-        Paragraph::new(Line::from_spans(spans)).render(area, &mut frame.buffer);
+        Paragraph::new(Line::from_spans(spans)).render(area, frame);
     }
 
     fn render_empty(&self, frame: &mut Frame, area: Rect) {
         let outer = Block::default()
-            .title(" Permissions ")
-            .title_style(Style::default().fg_compat(Color::Mono(MonoColor::White)).bold())
+            .title(Span::styled(
+                " Permissions ",
+                Style::default().fg_compat(Color::Mono(MonoColor::White)).bold(),
+            ))
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
             .border_style(Style::default().fg(rgb(80, 80, 90)));
         let inner = outer.inner(area);
-        outer.render(area, &mut frame.buffer);
+        outer.render(area, frame);
 
         let lines = vec![
             Line::raw(""),
@@ -456,18 +464,20 @@ impl PermissionsApp {
                 Style::default().fg(rgb(80, 80, 90)),
             )]),
         ];
-        Paragraph::new(lines).render(inner, &mut frame.buffer);
+        Paragraph::new(text_from_lines(lines)).render(inner, frame);
     }
 
     fn render_done(&self, frame: &mut Frame, area: Rect) {
         let outer = Block::default()
-            .title(" Permissions ")
-            .title_style(Style::default().fg_compat(Color::Mono(MonoColor::White)).bold())
+            .title(Span::styled(
+                " Permissions ",
+                Style::default().fg_compat(Color::Mono(MonoColor::White)).bold(),
+            ))
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
             .border_style(Style::default().fg(rgb(80, 80, 90)));
         let inner = outer.inner(area);
-        outer.render(area, &mut frame.buffer);
+        outer.render(area, frame);
 
         let mut lines = vec![Line::raw("")];
 
@@ -488,9 +498,10 @@ impl PermissionsApp {
         lines.push(Line::from_spans(vec![Span::styled(
             "  Done! Press any key to exit.",
             Style::default().fg(rgb(140, 140, 150)),
+        
         )]));
 
-        Paragraph::new(lines).render(inner, &mut frame.buffer);
+        Paragraph::new(text_from_lines(lines)).render(inner, frame);
     }
 
     pub fn run(mut self) -> Result<()> {

@@ -8,16 +8,31 @@ pub use prepared::{
     PreparedSection, PreparedSectionKind,
 };
 
-use std::sync::Arc;
+pub mod cache;
+pub use cache::MessageCacheContext;
+
 use ftui_text::text::Line;
+use jcode_config_types::DiffDisplayMode;
 
-#[derive(Debug, Clone)]
-pub struct MessageCacheContext;
-
-pub fn centered_wrap_width(_area_width: u16) -> usize {
-    80
+pub fn centered_wrap_width(width: u16, centered: bool, centered_max_width: usize) -> usize {
+    let width = width as usize;
+    if centered {
+        width.min(centered_max_width).max(1)
+    } else {
+        width.max(1)
+    }
 }
-pub fn get_cached_message_lines(_msg_id: u64) -> Vec<Line<'static>> {
+
+pub fn get_cached_message_lines<F>(
+    _msg: &DisplayMessage,
+    _width: u16,
+    _diff_mode: DiffDisplayMode,
+    _context: MessageCacheContext,
+    _render: F,
+) -> Vec<Line<'static>>
+where
+    F: FnOnce(&DisplayMessage, u16, DiffDisplayMode) -> Vec<Line<'static>>,
+{
     Vec::new()
 }
 pub fn left_pad_lines_for_centered_mode(_lines: &mut [Line<'static>], _area_width: u16) {}

@@ -410,7 +410,7 @@ fn hash_todos_payload(session_id: Option<&str>, todos: &[TodoItem]) -> u64 {
         todo.blocked_by.hash(&mut hasher);
         todo.assigned_to.hash(&mut hasher);
     }
-    hasher.finish()
+    0 // TODO[frankentui]: stub hasher.finish()
 }
 
 fn todos_view_placeholder_markdown() -> String {

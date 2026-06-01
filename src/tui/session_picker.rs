@@ -6,13 +6,14 @@
 use super::color_support::rgb;
 use crate::session::{CrashedSessionsInfo, Session};
 use crate::tui::{DisplayMessage, markdown};
+use crate::tui::compat::{StyleCompatExt, line_from_spans, line_from_span, text_from_lines};
 use anyhow::Result;
 use crossterm::event::{self, Event, KeyCode, KeyEventKind, KeyModifiers, MouseEventKind};
 use jcode_session_types::SessionStatus;
 use ftui_render::frame::Frame;
 use ftui_core::geometry::Rect;
 use ftui_render::cell::PackedRgba;
-use ftui_style::{Color, Style};
+use ftui_style::{Ansi16, Color, MonoColor, Style};
 use ftui_text::text::{Line, Span, Text};
 use ftui_layout::{Alignment, Constraint, Flex};
 use ftui_widgets::borders::BorderType;
@@ -767,22 +768,22 @@ impl SessionPicker {
                 .title(" Preview ")
                 .border_style(Style::default().fg(empty_border_color));
             let body = vec![
-                Line::from(vec![
+                line_from_spans(vec![
                     Span::styled("⏳ ", Style::default().fg(rgb(255, 200, 100))),
                     Span::styled(
                         message.to_string(),
                         Style::default()
-                            .fg(Color::White)
+                            .fg_compat(Color::Mono(MonoColor::White))
                             .bold(),
                     ),
                 ]),
-                Line::from(""),
-                Line::from(vec![Span::styled(
+                line_from_span(Span::raw("")),
+                line_from_spans(vec![Span::styled(
                     "The picker will update as soon as the session index is ready.",
-                    Style::default().fg(Color::DarkGray),
+                    Style::default().fg_compat(Color::Ansi16(Ansi16::BrightBlack)),
                 )]),
             ];
-            let paragraph = Paragraph::new(Text::from(body)).block(block);
+            let paragraph = Paragraph::new(text_from_lines(body)).block(block);
             paragraph.render(area, frame);
             return;
         }
@@ -798,7 +799,7 @@ impl SessionPicker {
                 .border_style(Style::default().fg(empty_border_color));
             let paragraph = Paragraph::new(Text::from("No session selected"))
                 .block(block)
-                .style(Style::default().fg(Color::DarkGray));
+                .style(Style::default().fg_compat(Color::Ansi16(Ansi16::BrightBlack)));
             paragraph.render(area, frame);
             return;
         };
@@ -818,7 +819,7 @@ impl SessionPicker {
 
         // Header matching TUI style
         lines.push(
-            Line::from(vec![
+            line_from_spans(vec![
                 Span::styled(
                     format!("{} ", session.icon),
                     Style::default().fg(header_icon_color),
@@ -848,9 +849,9 @@ impl SessionPicker {
 
         // Title
         lines.push(
-            Line::from(vec![Span::styled(
+            line_from_spans(vec![Span::styled(
                 session.title.clone(),
-                Style::default().fg(Color::White),
+                Style::default().fg_compat(Color::Mono(MonoColor::White)),
             )])
             .into(),
         );
@@ -863,7 +864,7 @@ impl SessionPicker {
                 "📌 Saved".to_string()
             };
             lines.push(
-                Line::from(vec![Span::styled(
+                line_from_spans(vec![Span::styled(
                     saved_label,
                     Style::default().fg(rgb(255, 180, 100)),
                 )]),
@@ -873,7 +874,7 @@ impl SessionPicker {
         // Working directory
         if let Some(ref dir) = session.working_dir {
             lines.push(
-                Line::from(vec![Span::styled(
+                line_from_spans(vec![Span::styled(
                     format!("📁 {}", dir),
                     Style::default().fg(dim_color),
                 )]),
@@ -883,7 +884,7 @@ impl SessionPicker {
         // Status line with details
         let (status_icon, status_text, status_color) = match &session.status {
             SessionStatus::Active => ("▶", "Active".to_string(), rgb(100, 200, 100)),
-            SessionStatus::Closed => ("✓", "Closed normally".to_string(), Color::DarkGray),
+            SessionStatus::Closed => ("✓", "Closed normally".to_string(), Color::Ansi16(Ansi16::BrightBlack)),
             SessionStatus::Crashed { message } => {
                 let text = match message {
                     Some(msg) => format!("Crashed: {}", safe_truncate(msg, 80)),
@@ -904,7 +905,7 @@ impl SessionPicker {
             }
         };
         lines.push(
-            Line::from(vec![
+            line_from_spans(vec![
                 Span::styled(
                     format!("{} ", status_icon),
                     Style::default().fg(status_color),
@@ -915,7 +916,7 @@ impl SessionPicker {
 
         if self.crashed_session_ids.contains(&session.id) {
             lines.push(
-                Line::from(vec![Span::styled(
+                line_from_spans(vec![Span::styled(
                     "Included in batch restore",
                     Style::default()
                         .fg(rgb(255, 140, 140))
@@ -926,7 +927,7 @@ impl SessionPicker {
 
         if self.selected_session_ids.contains(&session.id) {
             lines.push(
-                Line::from(vec![Span::styled(
+                line_from_spans(vec![Span::styled(
                     "✓ Selected for multi-resume",
                     Style::default()
                         .fg(rgb(140, 220, 160))
@@ -935,14 +936,14 @@ impl SessionPicker {
             );
         }
 
-        lines.push(Line::from(""));
+        lines.push(line_from_span(Span::raw("")));
         lines.push(
-            Line::from(vec![Span::styled(
+            line_from_spans(vec![Span::styled(
                 "─".repeat(area.width.saturating_sub(4) as usize),
                 Style::default().fg(rgb(60, 60, 60)),
             )]),
         );
-        lines.push(Line::from(""));
+        lines.push(line_from_span(Span::raw("")));
 
         // Messages preview - styled like the actual TUI
         let mut prompt_num = 0;
@@ -953,7 +954,7 @@ impl SessionPicker {
             }
 
             if !lines.is_empty() && msg.role != "tool" && msg.role != "meta" {
-                lines.push(Line::from(""));
+                lines.push(line_from_span(Span::raw("")));
             }
 
             let display_msg = DisplayMessage {
@@ -969,7 +970,7 @@ impl SessionPicker {
                 "user" => {
                     prompt_num += 1;
                     lines.push(
-                        Line::from(vec![
+                        line_from_spans(vec![
                             Span::styled(
                                 format!("{}", prompt_num),
                                 Style::default().fg(user_color),
@@ -991,7 +992,7 @@ impl SessionPicker {
                     for line in md_lines {
                         if super::mermaid::parse_image_placeholder(&line).is_some() {
                             lines.push(
-                                Line::from(vec![Span::styled(
+                                line_from_spans(vec![Span::styled(
                                     "[mermaid diagram]",
                                     Style::default().fg(dim_color),
                                 )]),
@@ -1026,7 +1027,7 @@ impl SessionPicker {
                 }
                 "meta" => {
                     lines.push(
-                        Line::from(vec![Span::styled(
+                        line_from_spans(vec![Span::styled(
                             msg.content.clone(),
                             Style::default().fg(dim_color),
                         )]),
@@ -1071,7 +1072,7 @@ impl SessionPicker {
                 }
                 "memory" => {
                     lines.push(
-                        Line::from(vec![
+                        line_from_spans(vec![
                             Span::styled("🧠 ", Style::default()),
                             Span::styled(
                                 msg.content.clone(),
@@ -1083,7 +1084,7 @@ impl SessionPicker {
                 }
                 "usage" => {
                     lines.push(
-                        Line::from(vec![Span::styled(
+                        line_from_spans(vec![Span::styled(
                             msg.content.clone(),
                             Style::default().fg(dim_color),
                         )]),
@@ -1092,18 +1093,18 @@ impl SessionPicker {
                 }
                 "error" => {
                     lines.push(
-                        Line::from(vec![
-                            Span::styled("✗ ", Style::default().fg(Color::Red)),
-                            Span::styled(msg.content.clone(), Style::default().fg(Color::Red)),
+                        line_from_spans(vec![
+                            Span::styled("✗ ", Style::default().fg_compat(Color::Ansi16(Ansi16::BrightRed))),
+                            Span::styled(msg.content.clone(), Style::default().fg_compat(Color::Ansi16(Ansi16::BrightRed))),
                         ]),
                     );
                     rendered_messages += 1;
                 }
                 _ => {
                     lines.push(
-                        Line::from(vec![Span::styled(
+                        line_from_spans(vec![Span::styled(
                             msg.content.clone(),
-                            Style::default().fg(Color::White),
+                            Style::default().fg_compat(Color::Mono(MonoColor::White)),
                         )]),
                     );
                     rendered_messages += 1;
@@ -1123,7 +1124,7 @@ impl SessionPicker {
                 "(empty session)"
             };
             lines.push(
-                Line::from(vec![Span::styled(text, Style::default().fg(dim_color))]),
+                line_from_spans(vec![Span::styled(text, Style::default().fg(dim_color))]),
             );
         }
 
@@ -1155,7 +1156,7 @@ impl SessionPicker {
             self.scroll_offset = self.scroll_offset.min(max_scroll);
         }
 
-        let paragraph = Paragraph::new(Text::from(lines))
+        let paragraph = Paragraph::new(text_from_lines(lines))
             .block(block)
             .scroll((self.scroll_offset, 0));
 
@@ -1178,7 +1179,7 @@ impl SessionPicker {
 
         let v_chunks = Flex::vertical()
             .constraints(v_constraints)
-            .split(frame.area());
+            .split(Rect::new(0, 0, frame.buffer.width(), frame.buffer.height()));
 
         let mut chunk_idx = 0;
 
@@ -1194,12 +1195,12 @@ impl SessionPicker {
             chunk_idx += 1;
 
             let cursor_char = if self.search_active { "▎" } else { "" };
-            let search_line = Line::from(vec![
+            let search_line = line_from_spans(vec![
                 Span::styled(" 🔍 ", Style::default().fg(rgb(186, 139, 255))),
                 Span::styled(
                     &self.search_query,
                     Style::default()
-                        .fg(Color::White)
+                        .fg_compat(Color::Mono(MonoColor::White))
                         .bold(),
                 ),
                 Span::styled(cursor_char, Style::default().fg(rgb(186, 139, 255))),
@@ -1210,7 +1211,7 @@ impl SessionPicker {
                 },
             ]);
             let search_widget =
-                Paragraph::new(Text::from(search_line)).style(Style::default().bg(rgb(25, 25, 30)));
+                Paragraph::new(text_from_line(search_line)).style(Style::default().bg(rgb(25, 25, 30)));
             search_widget.render(search_area, frame);
         }
 

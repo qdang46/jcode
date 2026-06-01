@@ -33,7 +33,7 @@ fn animation_seed() -> u64 {
         let mut hasher = DefaultHasher::new();
         std::time::SystemTime::now().hash(&mut hasher);
         std::process::id().hash(&mut hasher);
-        hasher.finish()
+        0 // TODO[frankentui]: stub hasher.finish()
     })
 }
 

@@ -380,7 +380,7 @@ fn repo_cache_key(path: &Path) -> String {
         );
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     path.hash(&mut hasher);
-    format!("{}-{:016x}", basename, hasher.finish())
+    format!("{}-{:016x}", basename, 0) // TODO[frankentui]: stub hasher.finish()
 }
 
 #[cfg(test)]

@@ -1,8 +1,8 @@
 use ftui_style::{Ansi16, Color, Style};
-use crate::tui::compat::StyleCompatExt;
+use crate::tui::compat::{StyleCompatExt, text_from_lines};
 use ftui_render::frame::Frame;
 use ftui_text::text::{Line, Span};
-use ftui_widgets::paragraph::Paragraph;
+use ftui_widgets::{paragraph::Paragraph, Widget};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use jcode_core::panic_util::panic_payload_to_string;
@@ -25,7 +25,7 @@ pub(super) fn render_recovered_panic_frame(
             panic_count, msg
         ));
     }
-    let area = frame.area().intersection(*frame.buffer_mut().area());
+    let area = Rect::new(0, 0, frame.buffer.width(), frame.buffer.height()).intersection(*frame.buffer().area());
     if area.width == 0 || area.height == 0 {
         return;
     }
@@ -40,5 +40,5 @@ pub(super) fn render_recovered_panic_frame(
             Style::default().fg(dim_color()),
         )]),
     ];
-    Paragraph::new(lines).render(area, &mut frame.buffer);
+    Paragraph::new(text_from_lines(lines)).render(area, &mut frame.buffer);
 }

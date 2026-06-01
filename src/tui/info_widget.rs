@@ -41,7 +41,8 @@ use crate::todo::TodoItem;
 use memory_render::{render_memory_compact, render_memory_expanded, render_memory_widget};
 use ftui_core::geometry::Rect;
 use ftui_style::{Color, Style};
-use ftui_text::text::{Line, Span};
+use crate::tui::compat::{line_from_spans, line_from_span, text_from_lines};
+use ftui_text::text::{Line, Span, Text};
 use ftui_layout::Constraint;
 use ftui_widgets::{
     block::Block,
@@ -1104,7 +1105,7 @@ fn render_single_widget(frame: &mut Frame, placement: &WidgetPlacement, data: &I
 
     // Diagrams need special handling - render image instead of text
     if placement.kind == WidgetKind::Diagrams {
-        block.clone().render(rect, &mut frame.buffer);
+        block.clone().render(rect, frame);
         render_diagrams_widget(frame, inner, data);
         return;
     }
@@ -1117,7 +1118,7 @@ fn render_single_widget(frame: &mut Frame, placement: &WidgetPlacement, data: &I
         if layout.pages.is_empty() || layout.max_page_height == 0 {
             return;
         }
-        block.clone().render(rect, &mut frame.buffer);
+        block.clone().render(rect, frame);
         render_overview_widget(frame, inner, data);
         return;
     }
@@ -1125,7 +1126,7 @@ fn render_single_widget(frame: &mut Frame, placement: &WidgetPlacement, data: &I
         if data.workspace_rows.is_empty() || inner.width == 0 || inner.height == 0 {
             return;
         }
-        block.clone().render(rect, &mut frame.buffer);
+        block.clone().render(rect, frame);
         super::workspace_map_widget::render_workspace_map(
             &mut frame.buffer,
             inner,
@@ -1138,9 +1139,9 @@ fn render_single_widget(frame: &mut Frame, placement: &WidgetPlacement, data: &I
     if lines.is_empty() {
         return;
     }
-    block.clone().render(rect, &mut frame.buffer);
-    let para = Paragraph::new(lines);
-    para.render(inner, &mut frame.buffer);
+    block.clone().render(rect, frame);
+    let para = Paragraph::new(Text::from_lines(lines));
+    para.render(inner, frame);
 }
 
 /// Render mermaid diagrams widget (renders images, not text)
@@ -1214,12 +1215,12 @@ fn render_overview_widget(frame: &mut Frame, inner: Rect, data: &InfoWidgetData)
             }
         }
         if !dots.is_empty() {
-            lines.push(Line::from(dots));
+            lines.push(line_from_spans(dots));
         }
     }
 
     lines.truncate(inner.height as usize);
-    frame.render_widget(Paragraph::new(lines), inner);
+    Paragraph::new(Text::from_lines(lines)).render(inner, frame);
 }
 #[cfg(test)]
 #[derive(Debug, Clone)]
@@ -1427,7 +1428,7 @@ fn render_compaction_widget(data: &InfoWidgetData, inner: Rect) -> Vec<Line<'sta
         info.compacted_messages, info.active_messages, summary_tokens
     );
     vec![
-        Line::from(vec![
+        line_from_spans(vec![
             Span::styled("Compaction ", Style::new().fg(label_color)),
             Span::styled(status, Style::new().fg(title_color).bold()),
             Span::styled(
@@ -1435,7 +1436,7 @@ fn render_compaction_widget(data: &InfoWidgetData, inner: Rect) -> Vec<Line<'sta
                 Style::new().fg(label_color),
             ),
         ]),
-        Line::from(Span::styled(
+        line_from_span(Span::styled(
             truncate_smart(&detail, inner.width as usize),
             Style::new().fg(rgb(180, 180, 190)),
         )),
@@ -1448,13 +1449,13 @@ fn render_kv_cache_widget(data: &InfoWidgetData, _inner: Rect) -> Vec<Line<'stat
     };
     let mut lines = vec![render_kv_cache_summary_line(cache)];
 
-    lines.push(Line::from(vec![Span::styled(
+    lines.push(line_from_spans(vec![Span::styled(
         "miss attribution",
         Style::new().fg(rgb(140, 140, 150)).bold(),
     )]));
 
     if cache.miss_attributions.is_empty() {
-        lines.push(Line::from(vec![Span::styled(
+        lines.push(line_from_spans(vec![Span::styled(
             "none",
             Style::new().fg(rgb(110, 210, 140)),
         )]));
@@ -1466,13 +1467,13 @@ fn render_kv_cache_widget(data: &InfoWidgetData, _inner: Rect) -> Vec<Line<'stat
         .iter()
         .map(|sample| sample.missed_tokens)
         .sum();
-    lines.push(Line::from(vec![Span::styled(
+    lines.push(line_from_spans(vec![Span::styled(
         format!("{} missed total", compact_token_count(total_missed)),
         Style::new().fg(rgb(180, 180, 190)),
     )]));
 
     for sample in cache.miss_attributions.iter().take(5) {
-        lines.push(Line::from(vec![
+        lines.push(line_from_spans(vec![
             Span::styled(
                 format_cache_turn_label(sample.turn_number, sample.call_index),
                 Style::new().fg(rgb(140, 180, 255)).bold(),
@@ -1489,7 +1490,7 @@ fn render_kv_cache_widget(data: &InfoWidgetData, _inner: Rect) -> Vec<Line<'stat
     }
 
     if cache.miss_attributions.len() > 5 {
-        lines.push(Line::from(vec![Span::styled(
+        lines.push(line_from_spans(vec![Span::styled(
             format!("… {} more", cache.miss_attributions.len() - 5),
             Style::new().fg(rgb(100, 100, 110)),
         )]));
@@ -1656,7 +1657,7 @@ fn render_ambient_widget(data: &InfoWidgetData, inner: Rect) -> Vec<Line<'static
         AmbientStatus::Disabled => ("○", "Not running".to_string(), dim),
     };
 
-    lines.push(Line::from(vec![
+    lines.push(line_from_spans(vec![
         Span::styled(format!("{} ", icon), Style::new().fg(status_color)),
         Span::styled(
             truncate_smart(&status_text, inner.width.saturating_sub(3) as usize),
@@ -1734,7 +1735,7 @@ fn render_ambient_widget(data: &InfoWidgetData, inner: Rect) -> Vec<Line<'static
         } else {
             "Next run"
         };
-        lines.push(Line::from(vec![
+        lines.push(line_from_spans(vec![
             Span::styled("  ", Style::new()),
             Span::styled(
                 format!("{} {}", prefix, next),
@@ -1758,7 +1759,7 @@ fn render_ambient_widget(data: &InfoWidgetData, inner: Rect) -> Vec<Line<'static
             rgb(100, 200, 100)
         };
 
-        lines.push(Line::from(vec![
+        lines.push(line_from_spans(vec![
             Span::styled("  ", Style::new()),
             Span::styled("█".repeat(filled), Style::new().fg(bar_color)),
             Span::styled("░".repeat(empty), Style::new().fg(rgb(50, 50, 60))),

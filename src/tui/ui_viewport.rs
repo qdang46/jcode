@@ -686,7 +686,7 @@ pub(super) fn draw_messages(
                         let rows = crate::tui::mermaid::render_image_widget(
                             hash,
                             image_area,
-                            frame.buffer_mut(),
+                            &mut frame.buffer,
                             centered,
                             false,
                         );
@@ -716,7 +716,7 @@ pub(super) fn draw_messages(
                         crate::tui::mermaid::render_image_widget(
                             hash,
                             image_area,
-                            frame.buffer_mut(),
+                            &mut frame.buffer,
                             centered,
                             true,
                         );

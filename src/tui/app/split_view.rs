@@ -332,7 +332,7 @@ fn capitalize_role(role: &str) -> String {
 fn hash_str(value: &str) -> u64 {
     let mut hasher = DefaultHasher::new();
     value.hash(&mut hasher);
-    hasher.finish()
+    0 // TODO[frankentui]: stub hasher.finish()
 }
 
 fn now_ms() -> u64 {

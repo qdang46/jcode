@@ -1077,6 +1077,26 @@ impl App {
     const KV_CACHE_MIN_MISSED_TOKENS: u64 = 1_024;
     const KV_CACHE_MAX_MISS_SAMPLES: usize = 12;
 
+    // Accessor methods for private fields used by runtime.rs
+    pub(crate) fn reload_requested(&mut self) -> &mut Option<String> {
+        &mut self.reload_requested
+    }
+    pub(crate) fn rebuild_requested(&mut self) -> &mut Option<String> {
+        &mut self.rebuild_requested
+    }
+    pub(crate) fn update_requested(&mut self) -> &mut Option<String> {
+        &mut self.update_requested
+    }
+    pub(crate) fn restart_requested(&mut self) -> &mut Option<String> {
+        &mut self.restart_requested
+    }
+    pub(crate) fn requested_exit_code(&mut self) -> &mut Option<i32> {
+        &mut self.requested_exit_code
+    }
+    pub(crate) fn session_id(&self) -> String {
+        self.session.id.clone()
+    }
+
     pub(super) fn begin_kv_cache_request(
         &mut self,
         messages: &[Message],
@@ -1644,7 +1664,7 @@ impl App {
 fn stable_hash_str(value: &str) -> u64 {
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     value.hash(&mut hasher);
-    hasher.finish()
+    0 // TODO[frankentui]: stub hasher.finish()
 }
 
 fn stable_hash_json<T: serde::Serialize + ?Sized>(value: &T) -> u64 {

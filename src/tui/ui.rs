@@ -50,10 +50,9 @@ use crate::message::ToolCall;
 use ftui_core::geometry::Rect;
 use ftui_layout::{Constraint, Flex};
 use ftui_render::frame::Frame;
-use ftui_style::{Color, Style};
-use ftui_text::text::{Line, Span};
-use ftui_widgets::block::Alignment;
-use ftui_widgets::paragraph::Paragraph;
+use ftui_style::{Ansi16, Color, Style};
+use crate::tui::compat::{text_from_lines, line_from_spans, line_from_span};
+use ftui_widgets::{block::Alignment, paragraph::Paragraph, Widget};
 use serde::Serialize;
 #[cfg(test)]
 use std::cell::{Cell, RefCell};
@@ -1676,7 +1675,7 @@ pub fn draw(frame: &mut Frame, app: &dyn TuiState) {
 }
 
 fn draw_inner(frame: &mut Frame, app: &dyn TuiState) {
-    let area = frame.area().intersection(*frame.buffer_mut().area());
+    let area = Rect::new(0, 0, frame.buffer.width(), frame.buffer.height()).intersection(*frame.buffer().area());
     if area.width == 0 || area.height == 0 {
         return;
     }
@@ -1691,7 +1690,7 @@ fn draw_inner(frame: &mut Frame, app: &dyn TuiState) {
     // This is critical on macOS terminals where ratatui's diff-based updates
     // can leave outdated content when layout dimensions change between frames
     // (e.g., diagram pane toggling, streaming text clearing, tool calls finishing).
-    // Uses Color::Reset (terminal default bg) so text selection highlighting works
+    // Uses Color::Ansi16(BrightBlack) (terminal default) so text selection highlighting works
     // natively in all terminal emulators.
     clear_area(frame, area);
 
@@ -2432,7 +2431,7 @@ pub(crate) fn render_native_scrollbar(
             };
             (glyph, thumb_color)
         } else {
-            (" ", Color::Reset)
+            (" ", Color::Ansi16(Ansi16::BrightBlack))
         };
         lines.push(Line::from_spans(vec![Span::styled(
             glyph,
@@ -2440,7 +2439,7 @@ pub(crate) fn render_native_scrollbar(
         )]));
     }
 
-    Paragraph::new(lines).render(area, &mut frame.buffer);
+    Paragraph::new(text_from_lines(lines)).render(area, &mut frame.buffer);
 }
 
 #[cfg(test)]

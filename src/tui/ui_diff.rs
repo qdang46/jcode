@@ -317,14 +317,14 @@ fn trim_diff_content(content: &str) -> String {
 pub(super) fn tint_span_with_diff_color(span: Span<'static>, diff_color: Color) -> Span<'static> {
     let (dr, dg, db) = match diff_color {
         Color::Rgb(rgb) => (rgb.r, rgb.g, rgb.b),
-        Color::Indexed(n) => super::color_support::indexed_to_rgb(n),
+        Color::Ansi256(n) => super::color_support::indexed_to_rgb(n),
         _ => return span,
     };
 
     let fg = span.style.fg.unwrap_or(Color::Mono(MonoColor::White));
     let (sr, sg, sb) = match fg {
         Color::Rgb(rgb) => (rgb.r, rgb.g, rgb.b),
-        Color::Indexed(n) => super::color_support::indexed_to_rgb(n),
+        Color::Ansi256(n) => super::color_support::indexed_to_rgb(n),
         Color::Mono(MonoColor::White) => (255, 255, 255),
         Color::Mono(MonoColor::Black) => (0, 0, 0),
         _ => return span,

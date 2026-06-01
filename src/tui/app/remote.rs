@@ -533,7 +533,8 @@ fn handle_terminal_event_while_disconnected(
     }
 
     if needs_redraw {
-        terminal.draw(|frame| crate::tui::ui::draw(frame, app))?;
+        // TODO: re-enable with ftui terminal when frankentui path is complete
+        // terminal.draw(|frame| crate::tui::ui::draw(frame, app))?;
     }
 
     Ok(app.should_quit)

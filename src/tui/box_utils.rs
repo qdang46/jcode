@@ -2,7 +2,13 @@
 use ftui_text::text::Line;
 use ftui_style::Style;
 
-pub fn render_rounded_box() {}
+/// Render a rounded box with title, content, width, and border style.
+/// Returns a vector of lines representing the boxed content.
+pub fn render_rounded_box(title: &str, content: Vec<Line<'_>>, width: usize, border_style: Style) -> Vec<Line<'static>> {
+    // Stub implementation - returns empty lines for compilation
+    let mut lines = Vec::new();
+    lines
+}
 pub fn line_plain_text(line: &Line) -> String {
     line.to_string()
 }

@@ -3077,7 +3077,8 @@ impl App {
         self.streaming_text.clear();
         self.stream_message_ended = false;
         self.refresh_split_view_if_needed();
-        self.streaming_md_renderer.borrow_mut().reset();
+        // TODO[frankentui]: jcode_tui_markdown IncrementalMarkdownRenderer has no reset() method
+        // self.streaming_md_renderer.borrow_mut().reset();
         crate::tui::mermaid::clear_streaming_preview_diagram();
     }
 
@@ -3085,7 +3086,8 @@ impl App {
         let content = std::mem::take(&mut self.streaming_text);
         self.stream_message_ended = false;
         self.refresh_split_view_if_needed();
-        self.streaming_md_renderer.borrow_mut().reset();
+        // TODO[frankentui]: jcode_tui_markdown IncrementalMarkdownRenderer has no reset() method
+        // self.streaming_md_renderer.borrow_mut().reset();
         crate::tui::mermaid::clear_streaming_preview_diagram();
         content
     }

@@ -1,10 +1,13 @@
 use ftui_text::text::{Line, Span};
 use ftui_style::MonoColor;
-use crate::tui::compat::StyleCompatExt;
+use crate::tui::compat::{StyleCompatExt, text_from_lines};
 use super::*;
-use ftui_widgets::block::Block;
-use ftui_widgets::borders::{BorderType, Borders};
-use ftui_widgets::paragraph::Paragraph;
+use ftui_widgets::{
+    block::Block,
+    borders::{BorderType, Borders},
+    paragraph::Paragraph,
+    Widget,
+};
 use unicode_width::UnicodeWidthStr;
 
 fn inline_view_display_width(text: &str) -> usize {
@@ -75,7 +78,7 @@ fn draw_inline_view(
         .border_type(BorderType::Rounded)
         .border_style(Style::default().fg(rgb(85, 85, 110)))
         .style(Style::default().bg(rgb(18, 18, 26)));
-    block.clone().render(render_area, &mut frame.buffer);
+    block.clone().render(render_area, frame);
 
     let inner = block.inner(render_area);
     if inner.height == 0 || inner.width == 0 {
@@ -94,5 +97,5 @@ fn draw_inline_view(
         ));
     }
 
-    Paragraph::new(lines).render(inner, &mut frame.buffer);
+    Paragraph::new(text_from_lines(lines)).render(inner, frame);
 }

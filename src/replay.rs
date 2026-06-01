@@ -739,7 +739,7 @@ pub fn compose_swarm_buffers(
     let mut output = Vec::new();
     let mut t = 0.0;
     while t <= end_time + frame_step {
-        let mut canvas = Buffer::empty(Rect::new(0, 0, width, height));
+        let mut canvas = Buffer::new(width, height);
         for (idx, pane) in pane_frames.iter().enumerate() {
             let idx = idx as u16;
             let col = idx % cols;
@@ -795,7 +795,7 @@ fn blit_buffer(
         for sx in 0..area.width.min(src.area.width) {
             let dx = area.x + sx;
             let dy = area.y + sy;
-            if let (Some(src_cell), Some(dst_cell)) = (src.cell((sx, sy)), dst.cell_mut((dx, dy))) {
+            if let (Some(src_cell), Some(dst_cell)) = (src.get(sx, sy), dst.get_mut(dx, dy)) {
                 *dst_cell = src_cell.clone();
             }
         }

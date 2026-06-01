@@ -70,10 +70,7 @@ fn highlight_line_selection(
 
     flush(&mut rebuilt, &mut current_text, &mut current_style);
 
-    Line {
-        spans: rebuilt,
-        style: line.style,
-    }
+    Line::from_spans(rebuilt)
 }
 
 pub(super) fn apply_side_selection_highlight(

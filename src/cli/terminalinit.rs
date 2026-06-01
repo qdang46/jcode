@@ -20,6 +20,7 @@
 
 use crate::tui;
 use anyhow::Result;
+use std::io::IsTerminal;
 
 /// TUI Runtime State tracking
 ///
@@ -103,8 +104,10 @@ pub fn cleanup_tui_runtime(state: &TuiRuntimeState, restore_terminal: bool) {
         }
 
         // Some terminals may need additional defensive resets
-        let _ = std::io::stdout().write_all(defensive_terminal_reset_bytes());
-        let _ = std::io::stdout().flush();
+        use std::io::Write;
+        let mut stdout = std::io::stdout();
+        let _ = stdout.write_all(defensive_terminal_reset_bytes());
+        let _ = stdout.flush();
     }
 }
 

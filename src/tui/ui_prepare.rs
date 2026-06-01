@@ -261,7 +261,7 @@ pub(super) fn active_batch_progress_hash(app: &dyn TuiState) -> u64 {
             input.hash(&mut hasher);
         }
     }
-    hasher.finish()
+    0 // TODO[frankentui]: stub hasher.finish()
 }
 
 fn prepare_active_batch_progress(

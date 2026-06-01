@@ -412,22 +412,10 @@ impl AccountPicker {
     }
 
     pub fn render(&mut self, frame: &mut Frame) {
-        let area = centered_rect(OVERLAY_PERCENT_X, OVERLAY_PERCENT_Y, frame.area());
+        let area = centered_rect(OVERLAY_PERCENT_X, OVERLAY_PERCENT_Y, Rect::new(0, 0, frame.buffer.width(), frame.buffer.height()));
 
         let block = Block::new()
             .title(format!(" {} ", self.title))
-            .title_bottom(Line::from_spans(vec![
-                hotkey(" Enter "),
-                Span::styled(" run  ", Style::new().fg_compat(MUTED_DARK)),
-                hotkey(" Up/Down "),
-                Span::styled(" navigate  ", Style::new().fg_compat(MUTED_DARK)),
-                hotkey(" Click "),
-                Span::styled(" select  ", Style::new().fg_compat(MUTED_DARK)),
-                hotkey(" type "),
-                Span::styled(" filter  ", Style::new().fg_compat(MUTED_DARK)),
-                hotkey(" Esc "),
-                Span::styled(" clear / close ", Style::new().fg_compat(MUTED_DARK)),
-            ]))
             .borders(Borders::ALL)
             .border_style(Style::new().fg_compat(PANEL_BORDER));
         block.render(area, frame);

@@ -1,8 +1,8 @@
 use super::*;
 use ftui_render::frame::Frame;
 use ftui_style::{Color, Style};
-use ftui_text::text::{Line, Span};
-use ftui_widgets::paragraph::Paragraph;
+use ftui_text::text::{Line, Span, Text};
+use ftui_widgets::{paragraph::Paragraph, Widget};
 use jcode_tui_style::theme::blend_color;
 use jcode_tui_style::theme::accent_color;
 
@@ -70,10 +70,7 @@ fn highlight_line_selection(
 
     flush(&mut rebuilt, &mut current_text, &mut current_style);
 
-    Line {
-        spans: rebuilt,
-        style: line.style,
-    }
+    Line::from_spans(rebuilt)
 }
 
 fn apply_side_selection_highlight(
@@ -508,7 +505,7 @@ pub(super) fn draw_file_diff_view(
     pane_scroll: usize,
     focused: bool,
 ) {
-    use ftui_widgets::paragraph::Paragraph;
+    use ftui_widgets::{paragraph::Paragraph, Widget};
 
     if area.width < 10 || area.height < 3 {
         return;
@@ -543,7 +540,7 @@ pub(super) fn draw_file_diff_view(
             "No edits visible",
             Style::default().fg(dim_color()),
         )]));
-        msg.render(frame, inner);
+        msg.render(inner, frame);
         return;
     };
 
@@ -679,6 +676,6 @@ pub(super) fn draw_file_diff_view(
     );
     apply_side_selection_highlight(app, &mut visible_lines, effective_scroll);
 
-    let paragraph = Paragraph::new(visible_lines);
-    paragraph.render(frame, inner);
+    let paragraph = Paragraph::new(Text::from_lines(visible_lines));
+    paragraph.render(inner, frame);
 }

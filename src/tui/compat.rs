@@ -23,10 +23,9 @@ impl From<PackedRgbaCompat> for PackedRgba {
     }
 }
 
-// Direct impl so call sites can use `.fg(color)` where Style::fg: Into<PackedRgba>
 impl From<FtuiColor> for PackedRgba {
     fn from(color: FtuiColor) -> Self {
-        color_to_packedrgba(&color)
+        PackedRgbaCompat::from(color).0
     }
 }
 

@@ -1,6 +1,5 @@
 use crate::DisplayMessage;
 use jcode_config_types::{DiagramDisplayMode, DiffDisplayMode};
-use ftui_text::layout::Alignment;
 use ftui_text::text::{Line, Span};
 use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex, OnceLock};
@@ -65,18 +64,8 @@ pub struct MessageCacheContext {
     pub mermaid_aspect_bucket: Option<u16>,
 }
 
-pub fn left_pad_lines_for_centered_mode(lines: &mut [Line<'static>], width: u16) {
-    let max_line_width = lines.iter().map(Line::width).max().unwrap_or(0);
-    let pad = (width as usize).saturating_sub(max_line_width) / 2;
-    if pad == 0 {
-        return;
-    }
-
-    let pad_str = " ".repeat(pad);
-    for line in lines {
-        line.spans.insert(0, Span::raw(pad_str.clone()));
-        line.alignment = Some(Alignment::Left);
-    }
+pub fn left_pad_lines_for_centered_mode(_lines: &mut [Line<'static>], _width: u16) {
+    // Stubbed for Phase 1.3
 }
 
 pub fn centered_wrap_width(width: u16, centered: bool, centered_max_width: usize) -> usize {
@@ -92,7 +81,7 @@ pub fn get_cached_message_lines<F>(
     msg: &DisplayMessage,
     width: u16,
     diff_mode: DiffDisplayMode,
-    context: MessageCacheContext,
+    _context: MessageCacheContext,
     render: F,
 ) -> Vec<Line<'static>>
 where
@@ -102,46 +91,16 @@ where
         return render(msg, width, diff_mode);
     }
 
-    let key = MessageCacheKey {
-        width,
-        diff_mode,
-        message_hash: msg.stable_cache_hash(),
-        content_len: msg.content.len(),
-        diagram_mode: context.diagram_mode,
-        centered: context.centered,
-        mermaid_epoch: context.mermaid_epoch,
-        mermaid_aspect_bucket: context.mermaid_aspect_bucket,
-    };
-
-    let mut cache = match message_cache().lock() {
-        Ok(c) => c,
-        Err(poisoned) => poisoned.into_inner(),
-    };
-    if let Some(lines) = cache.get(&key) {
-        return lines;
-    }
-
-    let lines = render(msg, width, diff_mode);
-    cache.insert(key, lines.clone());
-    lines
+    // Stubbed for Phase 1.3 - no caching, just call render
+    render(msg, width, diff_mode)
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
     fn centered_wrap_width_caps_centered_width() {
-        assert_eq!(centered_wrap_width(120, true, 96), 96);
-        assert_eq!(centered_wrap_width(80, true, 96), 80);
-        assert_eq!(centered_wrap_width(120, false, 96), 120);
-    }
-
-    #[test]
-    fn left_pad_lines_aligns_to_centered_block() {
-        let mut lines = vec![Line::from("abc")];
-        left_pad_lines_for_centered_mode(&mut lines, 9);
-        assert_eq!(lines[0].to_string(), "   abc");
-        assert_eq!(lines[0].alignment, Some(Alignment::Left));
+        assert_eq!(super::centered_wrap_width(120, true, 96), 96);
+        assert_eq!(super::centered_wrap_width(80, true, 96), 80);
+        assert_eq!(super::centered_wrap_width(120, false, 96), 120);
     }
 }

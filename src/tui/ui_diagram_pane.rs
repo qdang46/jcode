@@ -889,7 +889,7 @@ use ftui_widgets::borders::{BorderType, Borders};
             .title(Line::from_spans(title_parts));
 
         let inner = block.inner(area);
-        block.render(frame, area);
+        block.render(area, frame);
         inner
     };
 
@@ -921,7 +921,7 @@ use ftui_widgets::borders::{BorderType, Borders};
                 let placeholder =
                     super::super::mermaid::diagram_placeholder_lines(diagram.width, diagram.height);
                 let paragraph = Paragraph::new(placeholder).wrap(WrapMode::Word);
-                paragraph.render(frame, inner);
+                paragraph.render(inner, frame);
                 rendered = inner.height;
             } else if super::super::mermaid::protocol_type().is_some() {
                 if focused && !fit_mode {
@@ -975,7 +975,7 @@ use ftui_widgets::borders::{BorderType, Borders};
             let placeholder =
                 super::super::mermaid::diagram_placeholder_lines(diagram.width, diagram.height);
             let paragraph = Paragraph::new(placeholder).wrap(WrapMode::Word);
-            paragraph.render(frame, inner);
+            paragraph.render(inner, frame);
         }
     } else {
         clear_pinned_diagram_debug_snapshot();

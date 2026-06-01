@@ -1,5 +1,5 @@
 use ftui_style::MonoColor;
-use crate::tui::compat::StyleCompatExt;
+use crate::tui::compat::{StyleCompatExt, text_from_lines};
 use super::*;
 use ftui_text::wrap::WrapMode;
 use ftui_widgets::borders::BorderType;
@@ -243,7 +243,7 @@ impl SessionPicker {
         let batch_row_bg: Color = rgb(36, 18, 18);
         let in_batch_restore = self.crashed_session_ids.contains(&session.id);
         let rows = self.render_session_item_lines(session, is_selected);
-        let mut item = ListItem::new(rows);
+        let mut item = ListItem::new(text_from_lines(rows));
         if in_batch_restore && !is_selected {
             item = item.style(Style::default().bg(batch_row_bg));
         }
@@ -296,7 +296,7 @@ impl SessionPicker {
                                     Style::default().fg(dim),
                                 ),
                             ]);
-                            ListItem::new(vec![line1])
+                            ListItem::new(text_from_lines(vec![line1]))
                         }
                         PickerItem::OrphanHeader { session_count } => {
                             let line1 = Line::from_spans(vec![
@@ -307,7 +307,7 @@ impl SessionPicker {
                                     Style::default().fg(dim),
                                 ),
                             ]);
-                            ListItem::new(vec![line1])
+                            ListItem::new(text_from_lines(vec![line1]))
                         }
                         PickerItem::SavedHeader { session_count } => {
                             let saved_color: Color = rgb(255, 180, 100);
@@ -319,7 +319,7 @@ impl SessionPicker {
                                     Style::default().fg(dim),
                                 ),
                             ]);
-                            ListItem::new(vec![line1])
+                            ListItem::new(text_from_lines(vec![line1]))
                         }
                         PickerItem::Session => self
                             .item_to_session
@@ -415,10 +415,6 @@ impl SessionPicker {
                     .borders(Borders::ALL)
                     .border_type(BorderType::Rounded)
                     .title(Line::from_spans(title_parts))
-                    .title_bottom(Line::from_spans(vec![Span::styled(
-                        help,
-                        Style::default().fg(rgb(80, 80, 80)),
-                    )]))
                     .border_style(Style::default().fg(border_color)),
             )
             .highlight_style(Style::default().bg(rgb(40, 44, 52)).bold());
@@ -453,7 +449,7 @@ impl SessionPicker {
             )]),
         ];
 
-        let block = Paragraph::new(body)
+        let block = Paragraph::new(text_from_lines(body))
             .block(
                 Block::default()
                     .title(title)

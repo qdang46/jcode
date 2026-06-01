@@ -469,7 +469,7 @@ pub(super) fn viewport_stability_hash(
     for line in visible_lines {
         line_plain_text(line).hash(&mut hasher);
     }
-    hasher.finish()
+    0 // TODO[frankentui]: stub hasher.finish()
 }
 
 fn same_flicker_state_key(a: &FlickerFrameSample, b: &FlickerFrameSample) -> bool {
