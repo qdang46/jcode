@@ -179,7 +179,7 @@ fn test_slow_frame_history_retains_recent_samples() {
     assert_eq!(payload["samples"][0]["perf"]["body_misses"], 1);
 }
 
-fn buffer_to_text(terminal: &ratatui::Terminal<ratatui::backend::TestBackend>) -> String {
+fn buffer_to_text(terminal: &ftui_render::buffer::Buffer) -> String {
     let buf = terminal.backend().buffer();
     let width = buf.area.width as usize;
     let height = buf.area.height as usize;
@@ -217,8 +217,8 @@ fn test_changelog_overlay_repeated_renders_are_stable() {
     ];
 
     for (width, height) in sizes {
-        let backend = ratatui::backend::TestBackend::new(width, height);
-        let mut terminal = ratatui::Terminal::new(backend).expect("failed to create test terminal");
+        let backend = ftui_render::buffer::Buffer::new(width, height);
+        let mut terminal = ftui_render::buffer::Buffer::new(backend).expect("failed to create test terminal");
         let mut frames = Vec::new();
         clear_flicker_frame_history_for_tests();
         for _ in 0..3 {
@@ -261,9 +261,9 @@ fn test_updates_header_repeated_renders_stay_stable_near_scrollbar_threshold() {
     let mut unstable = Vec::new();
     for width in 22_u16..=28 {
         for height in 10_u16..=18 {
-            let backend = ratatui::backend::TestBackend::new(width, height);
+            let backend = ftui_render::buffer::Buffer::new(width, height);
             let mut terminal =
-                ratatui::Terminal::new(backend).expect("failed to create test terminal");
+                ftui_render::buffer::Buffer::new(backend).expect("failed to create test terminal");
             let mut frames = Vec::new();
             clear_flicker_frame_history_for_tests();
             for _ in 0..4 {

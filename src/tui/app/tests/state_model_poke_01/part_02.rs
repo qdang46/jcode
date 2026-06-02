@@ -68,8 +68,7 @@ fn test_mouse_scroll_over_tool_side_panel_updates_visible_render() {
         }],
     };
 
-    let backend = ratatui::backend::TestBackend::new(80, 12);
-    let mut terminal = ratatui::Terminal::new(backend).expect("failed to create test terminal");
+    let mut terminal: ftui_render::buffer::Buffer = ftui_render::buffer::Buffer::new(80, 12);
 
     let before = render_and_snap(&app, &mut terminal);
     assert!(crate::tui::ui::pinned_pane_total_lines() > 3);
@@ -148,8 +147,7 @@ fn test_side_panel_uses_left_splitter_instead_of_rounded_box() {
         }],
     };
 
-    let backend = ratatui::backend::TestBackend::new(80, 12);
-    let mut terminal = ratatui::Terminal::new(backend).expect("failed to create test terminal");
+    let mut terminal: ftui_render::buffer::Buffer = ftui_render::buffer::Buffer::new(80, 12);
     let text = render_and_snap(&app, &mut terminal);
 
     let diff_area = crate::tui::ui::last_layout_snapshot()
@@ -186,8 +184,7 @@ fn test_pinned_content_uses_left_splitter_instead_of_rounded_box() {
     }];
     app.bump_display_messages_version();
 
-    let backend = ratatui::backend::TestBackend::new(80, 12);
-    let mut terminal = ratatui::Terminal::new(backend).expect("failed to create test terminal");
+    let mut terminal: ftui_render::buffer::Buffer = ftui_render::buffer::Buffer::new(80, 12);
     let text = render_and_snap(&app, &mut terminal);
 
     let diff_area = crate::tui::ui::last_layout_snapshot()
@@ -227,8 +224,7 @@ fn test_file_diff_uses_left_splitter_instead_of_rounded_box() {
     }];
     app.bump_display_messages_version();
 
-    let backend = ratatui::backend::TestBackend::new(100, 18);
-    let mut terminal = ratatui::Terminal::new(backend).expect("failed to create test terminal");
+    let mut terminal: ftui_render::buffer::Buffer = ftui_render::buffer::Buffer::new(100, 18);
     let text = render_and_snap(&app, &mut terminal);
 
     let diff_area = crate::tui::ui::last_layout_snapshot()

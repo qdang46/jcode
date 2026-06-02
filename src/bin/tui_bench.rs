@@ -8,8 +8,8 @@ use jcode::side_panel::{
     SidePanelPage, SidePanelPageFormat, SidePanelPageSource, SidePanelSnapshot,
 };
 use jcode::tui::{DisplayMessage, ProcessingStatus, TuiState, info_widget::InfoWidgetData};
-use ratatui::Terminal;
-use ratatui::backend::TestBackend;
+// ratatui removed: Terminal not used; ftui Buffer is the new test back-end
+use ftui_render::buffer::Buffer;
 use serde::Serialize;
 use serde_json::json;
 use std::fs;
@@ -1281,8 +1281,8 @@ fn main() -> Result<()> {
         }
     }
 
-    let backend = TestBackend::new(args.width, args.height);
-    let mut terminal = Terminal::new(backend)?;
+    let _backend_placeholder: ftui_render::buffer::Buffer = ftui_render::buffer::Buffer::new(args.width, args.height);
+    let mut terminal: ftui_render::buffer::Buffer = ftui_render::buffer::Buffer::new(args.width, args.height);
 
     let start = Instant::now();
     let mut frame_times_ms: Vec<f64> = Vec::with_capacity(args.frames);

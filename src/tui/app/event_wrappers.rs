@@ -1,5 +1,5 @@
 use super::*;
-use ratatui::DefaultTerminal;
+use ftui::TerminalSession as DefaultTerminal;
 use crate::tui::backend;
 
 impl App {

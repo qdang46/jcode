@@ -9,8 +9,9 @@ fn test_side_diagram_uses_left_splitter_instead_of_rounded_box() {
     crate::tui::mermaid::clear_active_diagrams();
     crate::tui::mermaid::register_active_diagram(0x444, 900, 450, Some("side".to_string()));
 
-    let backend = ratatui::backend::TestBackend::new(120, 40);
-    let mut terminal = ratatui::Terminal::new(backend).expect("failed to create terminal");
+    // ratatui removed: use ftui buffer placeholder
+    let _test_backend_size = (120, 40);
+    let mut _terminal_unused: ftui_render::buffer::Buffer = ftui_render::buffer::Buffer::new(120, 40);;
     let text = render_and_snap(&app, &mut terminal);
 
     let diagram_area = crate::tui::ui::last_layout_snapshot()
@@ -605,17 +606,25 @@ fn test_command_suggestion_navigation_moves_through_all_rows_and_allows_shift_ar
 }
 
 fn command_cell_fg(
-    terminal: &ratatui::Terminal<ratatui::backend::TestBackend>,
+    buf: &ftui_render::buffer::Buffer,
     command: &str,
-) -> Option<ratatui::style::Color> {
-    let buf = terminal.backend().buffer();
-    for y in 0..buf.area.height {
+) -> Option<ftui_render::cell::PackedRgba> {
+    for y in 0..buf.height() {
         let mut line = String::new();
-        for x in 0..buf.area.width {
-            line.push_str(buf[(x, y)].symbol());
+        for x in 0..buf.width() {
+            if let Some(cell) = buf.get(x, y) {
+                if let Some(ch) = cell.content.as_char() {
+                    line.push(ch);
+                } else if cell.content.width() > 0 {
+                    let bytes = cell.content.as_bytes();
+                    line.push_str(&String::from_utf8_lossy(bytes));
+                }
+            }
         }
         if let Some(x) = line.find(command) {
-            return Some(buf[(x as u16, y)].fg);
+            if let Some(cell) = buf.get(x as u16, y) {
+                return Some(cell.fg);
+            }
         }
     }
     None
@@ -632,15 +641,14 @@ fn test_command_suggestion_render_highlights_selected_row_by_color() {
     let first = suggestions[0].0.clone();
     let second = suggestions[1].0.clone();
 
-    let mut terminal = ratatui::Terminal::new(ratatui::backend::TestBackend::new(100, 20))
-        .expect("failed to create test terminal");
-    render_and_snap(&app, &mut terminal);
+    let mut _terminal_buf = ftui_render::buffer::Buffer::new(100, 20);
+    render_and_snap(&app, &mut _terminal_buf);
     assert_eq!(
-        command_cell_fg(&terminal, &first),
+        command_cell_fg(&_terminal_buf, &first),
         Some(crate::tui::color_support::rgb(255, 213, 128))
     );
     assert_eq!(
-        command_cell_fg(&terminal, &second),
+        command_cell_fg(&_terminal_buf, &second),
         Some(crate::tui::color_support::rgb(128, 203, 196))
     );
 
@@ -648,11 +656,11 @@ fn test_command_suggestion_render_highlights_selected_row_by_color() {
         .unwrap();
     render_and_snap(&app, &mut terminal);
     assert_eq!(
-        command_cell_fg(&terminal, &first),
+        command_cell_fg(&_terminal_buf, &first),
         Some(crate::tui::color_support::rgb(128, 203, 196))
     );
     assert_eq!(
-        command_cell_fg(&terminal, &second),
+        command_cell_fg(&_terminal_buf, &second),
         Some(crate::tui::color_support::rgb(255, 213, 128))
     );
 }
@@ -667,11 +675,10 @@ fn test_single_command_suggestion_uses_selected_color_only() {
     assert_eq!(suggestions.len(), 1);
     let command = suggestions[0].0.clone();
 
-    let mut terminal = ratatui::Terminal::new(ratatui::backend::TestBackend::new(100, 20))
-        .expect("failed to create test terminal");
-    render_and_snap(&app, &mut terminal);
+    let mut _terminal_buf = ftui_render::buffer::Buffer::new(100, 20);
+    render_and_snap(&app, &mut _terminal_buf);
     assert_eq!(
-        command_cell_fg(&terminal, &command),
+        command_cell_fg(&_terminal_buf, &command),
         Some(crate::tui::color_support::rgb(255, 213, 128))
     );
 }
@@ -693,9 +700,8 @@ fn test_command_suggestion_render_window_scrolls_with_selection() {
             .unwrap();
     }
 
-    let mut terminal = ratatui::Terminal::new(ratatui::backend::TestBackend::new(100, 24))
-        .expect("failed to create test terminal");
-    let rendered = render_and_snap(&app, &mut terminal);
+    let mut _terminal_buf = ftui_render::buffer::Buffer::new(100, 24);
+    let rendered = render_and_snap(&app, &mut _terminal_buf);
     assert!(
         !rendered.contains(&first),
         "the first suggestion should scroll out of the visible window:\n{rendered}"
@@ -709,7 +715,7 @@ fn test_command_suggestion_render_window_scrolls_with_selection() {
         "the scrolled window should indicate suggestions above:\n{rendered}"
     );
     assert_eq!(
-        command_cell_fg(&terminal, &selected_after_scroll),
+        command_cell_fg(&_terminal_buf, &selected_after_scroll),
         Some(crate::tui::color_support::rgb(255, 213, 128))
     );
 }

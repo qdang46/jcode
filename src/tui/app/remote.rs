@@ -11,7 +11,11 @@ use crate::protocol::{ServerEvent, TranscriptMode};
 use crate::tui::backend::{RemoteConnection, RemoteDisconnectReason, RemoteEventState, RemoteRead};
 use anyhow::Result;
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseEvent};
-use ratatui::{DefaultTerminal, Terminal, backend::Backend};
+// ratatui removed: types replaced with ftui placeholders
+// - DefaultTerminal -> ftui TerminalSession
+// - Terminal<B> -> ftui Program
+// - Backend -> ftui_backend::Backend
+use ftui::TerminalSession as DefaultTerminal;
 use std::time::{Duration, Instant};
 
 mod input_dispatch;
@@ -540,9 +544,9 @@ fn handle_terminal_event_while_disconnected(
     Ok(app.should_quit)
 }
 
-pub(super) async fn handle_remote_event<B: Backend>(
+pub(super) async fn handle_remote_event(
     app: &mut App,
-    _terminal: &mut Terminal<B>,
+    _terminal: &mut DefaultTerminal,
     remote: &mut RemoteConnection,
     state: &mut RemoteRunState,
     event: RemoteRead,

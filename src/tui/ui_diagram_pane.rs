@@ -5,7 +5,6 @@ use crate::tui::compat::text_from_lines;
 use ftui_core::geometry::Rect;
 use ftui_render::frame::Frame;
 use ftui_style::Style;
-use ratatui::style::Modifier;
 use ftui_text::text::Line;
 use ftui_widgets::borders::BorderType;
 use ftui_widgets::paragraph::Paragraph;

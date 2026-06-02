@@ -311,8 +311,7 @@ fn test_handle_post_connect_marker_without_reload_context_does_not_queue_selfdev
     let mut app = create_test_app();
     let rt = tokio::runtime::Runtime::new().unwrap();
     let _enter = rt.enter();
-    let backend = ratatui::backend::TestBackend::new(80, 24);
-    let mut terminal = ratatui::Terminal::new(backend).expect("failed to create terminal");
+    let mut terminal: ftui_render::buffer::Buffer = ftui_render::buffer::Buffer::new(80, 24);
     let mut remote = crate::tui::backend::RemoteConnection::dummy();
     remote.mark_history_loaded();
 
@@ -381,8 +380,7 @@ fn test_handle_post_connect_defers_reload_followup_to_server_history_payload() {
     let mut app = create_test_app();
     let rt = tokio::runtime::Runtime::new().unwrap();
     let _enter = rt.enter();
-    let backend = ratatui::backend::TestBackend::new(80, 24);
-    let mut terminal = ratatui::Terminal::new(backend).expect("failed to create terminal");
+    let mut terminal: ftui_render::buffer::Buffer = ftui_render::buffer::Buffer::new(80, 24);
     let mut remote = crate::tui::backend::RemoteConnection::dummy();
 
     let mut state = super::remote::RemoteRunState {
@@ -440,8 +438,7 @@ fn test_handle_post_connect_clears_deferred_dispatch_before_reload_followup() {
     app.pending_queued_dispatch = true;
     let rt = tokio::runtime::Runtime::new().unwrap();
     let _enter = rt.enter();
-    let backend = ratatui::backend::TestBackend::new(80, 24);
-    let mut terminal = ratatui::Terminal::new(backend).expect("failed to create terminal");
+    let mut terminal: ftui_render::buffer::Buffer = ftui_render::buffer::Buffer::new(80, 24);
     let mut remote = crate::tui::backend::RemoteConnection::dummy();
     remote.mark_history_loaded();
 
@@ -494,8 +491,7 @@ fn test_handle_post_connect_requests_client_reload_after_server_reload_even_with
     app.client_binary_mtime = Some(SystemTime::now() + Duration::from_secs(3600));
     let rt = tokio::runtime::Runtime::new().unwrap();
     let _enter = rt.enter();
-    let backend = ratatui::backend::TestBackend::new(80, 24);
-    let mut terminal = ratatui::Terminal::new(backend).expect("failed to create terminal");
+    let mut terminal: ftui_render::buffer::Buffer = ftui_render::buffer::Buffer::new(80, 24);
     let mut remote = crate::tui::backend::RemoteConnection::dummy();
     remote.mark_history_loaded();
     app.remote_session_id = Some("session_reload_after_reconnect".to_string());

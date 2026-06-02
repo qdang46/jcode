@@ -706,7 +706,7 @@ pub struct PaneReplayInput {
 pub struct SwarmPaneFrames {
     pub session_id: String,
     pub title: String,
-    pub frames: Vec<(f64, ratatui::buffer::Buffer)>,
+    pub frames: Vec<(f64, ftui_render::buffer::Buffer)>,
 }
 
 pub fn compose_swarm_buffers(
@@ -715,7 +715,7 @@ pub fn compose_swarm_buffers(
     height: u16,
     fps: u32,
     cols: u16,
-) -> Vec<(f64, ratatui::buffer::Buffer)> {
+) -> Vec<(f64, ftui_render::buffer::Buffer)> {
     if pane_frames.is_empty() {
         return Vec::new();
     }
@@ -736,16 +736,14 @@ pub fn compose_swarm_buffers(
     let mut output = Vec::new();
     let mut t = 0.0;
     while t <= end_time + frame_step {
-        let backend = ratatui::backend::TestBackend::new(width, height);
-        let mut terminal = ratatui::Terminal::new(backend).expect("terminal");
-        let mut canvas = terminal.backend().buffer().clone();
+        let mut canvas = ftui_render::buffer::Buffer::new(width, height);
         for (idx, pane) in pane_frames.iter().enumerate() {
             let idx = idx as u16;
             let col = idx % cols;
             let row = idx / cols;
             let x = col * pane_width;
             let y = row * pane_height;
-            let area = ratatui::layout::Rect::new(
+            let area = ftui_core::geometry::Rect::new(
                 x,
                 y,
                 if col == cols - 1 {
@@ -771,9 +769,9 @@ pub fn compose_swarm_buffers(
 }
 
 fn buffer_at_time(
-    frames: &[(f64, ratatui::buffer::Buffer)],
+    frames: &[(f64, ftui_render::buffer::Buffer)],
     t: f64,
-) -> Option<&ratatui::buffer::Buffer> {
+) -> Option<&ftui_render::buffer::Buffer> {
     let mut current = None;
     for (frame_t, buf) in frames {
         if *frame_t <= t {
@@ -786,21 +784,30 @@ fn buffer_at_time(
 }
 
 fn blit_buffer(
-    dst: &mut ratatui::buffer::Buffer,
-    area: ratatui::layout::Rect,
-    src: &ratatui::buffer::Buffer,
+    dst: &mut ftui_render::buffer::Buffer,
+    area: ftui_core::geometry::Rect,
+    src: &ftui_render::buffer::Buffer,
 ) {
-    for sy in 0..area.height.min(src.area.height) {
-        for sx in 0..area.width.min(src.area.width) {
+    for sy in 0..area.height.min(src.height()) {
+        for sx in 0..area.width.min(src.width()) {
             let dx = area.x + sx;
             let dy = area.y + sy;
-            if dx < dst.area.width && dy < dst.area.height {
-                let src_cell = &src[(sx, sy)];
-                let dst_cell = &mut dst[(dx, dy)];
-                *dst_cell = src_cell.clone();
+            if dx < dst.width() && dy < dst.height() {
+                if let Some(src_cell) = src.get(sx, sy) {
+                    copy_cell_into(dst, dx, dy, src_cell);
+                }
             }
         }
     }
+}
+
+fn copy_cell_into(
+    dst: &mut ftui_render::buffer::Buffer,
+    x: u16,
+    y: u16,
+    src_cell: &ftui_render::cell::Cell,
+) {
+    dst.set(x, y, *src_cell);
 }
 
 fn extract_text(blocks: &[ContentBlock]) -> String {

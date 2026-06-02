@@ -158,7 +158,7 @@ fn write_crash_resume_hint(mut writer: impl Write) -> io::Result<()> {
     Ok(())
 }
 
-fn init_tui_terminal() -> Result<ratatui::DefaultTerminal> {
+fn init_tui_terminal() -> Result<ftui::TerminalSession> {
     if !io::stdin().is_terminal() || !io::stdout().is_terminal() {
         anyhow::bail!("jcode TUI requires an interactive terminal (stdin/stdout must be a TTY)");
     }
@@ -166,16 +166,22 @@ fn init_tui_terminal() -> Result<ratatui::DefaultTerminal> {
     if is_resuming {
         init_tui_terminal_resume()
     } else {
-        std::panic::catch_unwind(std::panic::AssertUnwindSafe(ratatui::init)).map_err(|payload| {
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            ftui::TerminalSession::new(ftui::SessionOptions::default())
+        }))
+        .map_err(|payload| {
             anyhow::anyhow!(
                 "failed to initialize terminal: {}",
                 panic_payload_to_string(payload.as_ref())
             )
         })
+        .and_then(|inner| {
+            inner.map_err(|e| anyhow::anyhow!("failed to initialize terminal: {}", e))
+        })
     }
 }
 
-pub fn init_tui_runtime() -> Result<(ratatui::DefaultTerminal, TuiRuntimeState)> {
+pub fn init_tui_runtime() -> Result<(ftui::TerminalSession, TuiRuntimeState)> {
     let terminal = init_tui_terminal()?;
     crate::tui::mermaid::install_jcode_mermaid_hooks();
     crate::tui::markdown::install_jcode_markdown_hooks();
@@ -220,7 +226,7 @@ pub fn cleanup_tui_runtime(state: &TuiRuntimeState, restore_terminal: bool) {
         if state.keyboard_enhanced {
             tui::disable_keyboard_enhancement();
         }
-        ratatui::restore();
+        // TerminalSession's Drop impl restores the terminal automatically.
 
         // Issue #158: defensive belt-and-suspenders reset for terminals
         // that may still hold state ratatui::restore() doesn't clear (see
@@ -264,20 +270,17 @@ fn write_session_resume_hint(mut writer: impl Write, session_id: &str) -> io::Re
     Ok(())
 }
 
-fn init_tui_terminal_resume() -> Result<ratatui::DefaultTerminal> {
-    use ratatui::{Terminal, backend::CrosstermBackend};
+fn init_tui_terminal_resume() -> Result<ftui::TerminalSession> {
+    use ftui::{SessionOptions, TerminalSession};
 
     crossterm::terminal::enable_raw_mode()
         .map_err(|e| anyhow::anyhow!("failed to enable raw mode on resume: {}", e))?;
 
-    let backend = CrosstermBackend::new(io::stdout());
-    let mut terminal = Terminal::new(backend)
+    let mut terminal = TerminalSession::new(SessionOptions::default())
         .map_err(|e| anyhow::anyhow!("failed to create terminal on resume: {}", e))?;
 
-    terminal
-        .clear()
-        .map_err(|e| anyhow::anyhow!("failed to clear terminal on resume: {}", e))?;
-
+    // TerminalSession::clear would be added when frankentui exposes it;
+    // the existing runtime draws the first frame, which clears naturally.
     Ok(terminal)
 }
 

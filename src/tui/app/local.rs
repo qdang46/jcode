@@ -12,7 +12,7 @@ use anyhow::Result;
 use crossterm::event::{Event, EventStream, KeyEventKind};
 
 use std::time::{Duration, Instant};
-use ratatui::DefaultTerminal;
+use ftui::TerminalSession as DefaultTerminal;
 use tokio::sync::broadcast::Receiver;
 use tokio::sync::broadcast::error::RecvError;
 

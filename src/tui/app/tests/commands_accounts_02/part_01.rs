@@ -3,8 +3,7 @@ fn test_usage_card_renders_when_loading() {
     let mut app = create_test_app();
     app.open_usage_inline_loading();
 
-    let backend = ratatui::backend::TestBackend::new(120, 40);
-    let mut terminal = ratatui::Terminal::new(backend).expect("failed to create test terminal");
+    let mut terminal: ftui_render::buffer::Buffer = ftui_render::buffer::Buffer::new(120, 40);
     terminal
         .draw(|frame| crate::tui::ui::draw(frame, &app))
         .expect("usage card draw should succeed");

@@ -501,7 +501,7 @@ impl PermissionsApp {
             anyhow::bail!("permissions viewer requires an interactive terminal");
         }
 
-        let mut terminal = std::panic::catch_unwind(std::panic::AssertUnwindSafe(ratatui::init))
+        let mut terminal = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| ftui::TerminalSession::new(ftui::SessionOptions::default())))
             .map_err(|payload| {
                 let msg = if let Some(s) = payload.downcast_ref::<&str>() {
                     (*s).to_string()
@@ -511,12 +511,13 @@ impl PermissionsApp {
                     "unknown panic".to_string()
                 };
                 anyhow::anyhow!("failed to initialize terminal: {}", msg)
-            })?;
+            })?
+            .map_err(|e| anyhow::anyhow!("failed to initialize terminal: {}", e))?;
 
         let result = loop {
-            terminal.draw(|frame| {
-                let _ = frame;
-            })?;
+            // TODO: re-enable full draw path with ftui Presenter once the
+            // ratatui → frankentui virtual buffer is ported.
+            // terminal.draw(|frame| { let _ = frame; })?;
 
             if event::poll(Duration::from_millis(100))?
                 && let Event::Key(key) = event::read()?
@@ -575,7 +576,7 @@ impl PermissionsApp {
             }
         };
 
-        ratatui::restore();
+        // TerminalSession's Drop impl restores the terminal automatically.
         result
     }
 }

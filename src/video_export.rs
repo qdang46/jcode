@@ -1,13 +1,20 @@
 use anyhow::{Context, Result};
 use base64::Engine;
-use ratatui::buffer::Buffer;
-use ratatui::style::Color;
+use ftui_render::buffer::Buffer;
+use ftui_render::cell::{Cell, PackedRgba, StyleFlags};
 use unicode_width::UnicodeWidthStr;
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use crate::replay::TimelineEvent;
+
+/// Read a cell at the given (x, y) coordinate, returning a default
+/// (empty) cell when out of bounds.
+fn read_cell(buf: &Buffer, x: u16, y: u16) -> Cell {
+    buf.get(x, y).cloned().unwrap_or_default()
+}
+
 
 fn find_command(name: &str) -> Option<PathBuf> {
     #[cfg(windows)]
@@ -397,65 +404,45 @@ async fn render_svg_pipeline(
 fn hash_buffer(buf: &Buffer) -> u64 {
     use std::hash::{Hash, Hasher};
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    buf.area.hash(&mut hasher);
-    for y in 0..buf.area.height {
-        for x in 0..buf.area.width {
-            let cell = &buf[(x, y)];
-            cell.symbol().hash(&mut hasher);
-            std::mem::discriminant(&cell.fg).hash(&mut hasher);
-            match cell.fg {
-                Color::Rgb(r, g, b) => {
-                    r.hash(&mut hasher);
-                    g.hash(&mut hasher);
-                    b.hash(&mut hasher);
-                }
-                Color::Indexed(i) => i.hash(&mut hasher),
-                _ => {}
+    buf.width().hash(&mut hasher);
+    buf.height().hash(&mut hasher);
+    for y in 0..buf.height() {
+        for x in 0..buf.width() {
+            if let Some(cell) = buf.get(x, y) {
+                cell_symbol(*cell).hash(&mut hasher);
+                (cell.fg.r(), cell.fg.g(), cell.fg.b(), cell.fg.a()).hash(&mut hasher);
+                (cell.bg.r(), cell.bg.g(), cell.bg.b(), cell.bg.a()).hash(&mut hasher);
+                cell.attrs.flags().bits().hash(&mut hasher);
             }
-            std::mem::discriminant(&cell.bg).hash(&mut hasher);
-            match cell.bg {
-                Color::Rgb(r, g, b) => {
-                    r.hash(&mut hasher);
-                    g.hash(&mut hasher);
-                    b.hash(&mut hasher);
-                }
-                Color::Indexed(i) => i.hash(&mut hasher),
-                _ => {}
-            }
-            cell.modifier.bits().hash(&mut hasher);
         }
     }
     hasher.finish()
 }
 
-fn color_to_hex(color: Color) -> String {
-    match color {
-        Color::Reset => "#d4d4d4".into(),
-        Color::Black => "#000000".into(),
-        Color::Red => "#cd3131".into(),
-        Color::Green => "#0dbc79".into(),
-        Color::Yellow => "#e5e510".into(),
-        Color::Blue => "#2472c8".into(),
-        Color::Magenta => "#bc3fbc".into(),
-        Color::Cyan => "#11a8cd".into(),
-        Color::Gray => "#808080".into(),
-        Color::DarkGray => "#666666".into(),
-        Color::LightRed => "#f14c4c".into(),
-        Color::LightGreen => "#23d18b".into(),
-        Color::LightYellow => "#f5f543".into(),
-        Color::LightBlue => "#3b8eea".into(),
-        Color::LightMagenta => "#d670d6".into(),
-        Color::LightCyan => "#29b8db".into(),
-        Color::White => "#e5e5e5".into(),
-        Color::Rgb(r, g, b) => format!("#{:02x}{:02x}{:02x}", r, g, b),
-        Color::Indexed(i) => indexed_color_to_hex(i),
+fn color_to_hex(rgba: PackedRgba) -> String {
+    if rgba.a() < 128 {
+        return "#d4d4d4".into();
     }
+    let (r, g, b) = (rgba.r(), rgba.g(), rgba.b());
+    format!("#{:02x}{:02x}{:02x}", r, g, b)
 }
 
-fn color_to_bg_hex(color: Color) -> String {
-    match color {
-        Color::Reset => "#000000".into(),
-        _ => color_to_hex(color),
+fn color_to_bg_hex(rgba: PackedRgba) -> String {
+    if rgba.a() < 128 {
+        return "#000000".into();
+    }
+    let (r, g, b) = (rgba.r(), rgba.g(), rgba.b());
+    format!("#{:02x}{:02x}{:02x}", r, g, b)
+}
+
+fn cell_symbol(cell: Cell) -> String {
+    if let Some(ch) = cell.content.as_char() {
+        ch.to_string()
+    } else if cell.content.is_empty() {
+        " ".to_string()
+    } else {
+        // Grapheme or continuation - not a single codepoint, fall back to placeholder.
+        " ".to_string()
     }
 }
 
@@ -514,8 +501,8 @@ struct MermaidRegion {
 /// Detects both inline markers (\x00MERMAID_IMAGE:hash\x00) and
 /// video export markers (JMERMAID:hash:END).
 fn find_mermaid_regions(buf: &Buffer) -> Vec<MermaidRegion> {
-    let width = buf.area.width;
-    let height = buf.area.height;
+    let width = buf.width();
+    let height = buf.height();
     let mut regions = Vec::new();
 
     for y in 0..height {
@@ -523,11 +510,11 @@ fn find_mermaid_regions(buf: &Buffer) -> Vec<MermaidRegion> {
         let mut row_text = String::new();
         let mut byte_to_col: Vec<u16> = Vec::new();
         for x in 0..width {
-            let sym = buf[(x, y)].symbol();
+            let sym = cell_symbol(read_cell(buf, x, y));
             for _ in 0..sym.len() {
                 byte_to_col.push(x);
             }
-            row_text.push_str(sym);
+            row_text.push_str(&sym);
         }
 
         // Try both marker formats
@@ -563,7 +550,7 @@ fn find_mermaid_regions(buf: &Buffer) -> Vec<MermaidRegion> {
                 // Scan backwards to find the inner boundary (skip border chars)
                 while rx > marker_x + 1 {
                     rx -= 1;
-                    let s = buf[(rx, y)].symbol();
+                    let s = cell_symbol(read_cell(buf, rx, y));
                     if s != " " && !s.is_empty() && !s.starts_with("JMERMAID") {
                         // This is likely a border char - the inner region is to the left of it
                         break;
@@ -577,7 +564,7 @@ fn find_mermaid_regions(buf: &Buffer) -> Vec<MermaidRegion> {
             for y2 in (y + 1)..height {
                 let mut empty = true;
                 for x in marker_x..region_right {
-                    let s = buf[(x, y2)].symbol();
+                    let s = cell_symbol(read_cell(buf, x, y2));
                     if s != " " && !s.is_empty() {
                         empty = false;
                         break;
@@ -614,8 +601,8 @@ fn buffer_to_svg(
     cell_w: u32,
     cell_h: u32,
 ) -> String {
-    let width = buf.area.width;
-    let height = buf.area.height;
+    let width = buf.width();
+    let height = buf.height();
     let img_w = cell_w * width as u32;
     let img_h = cell_h * height as u32;
 
@@ -681,14 +668,14 @@ text.emoji {{ font-family: "Noto Color Emoji", "Symbols Nerd Font", "{}", sans-s
                 x += 1;
                 continue;
             }
-            let cell = &buf[(x, y)];
+            let cell = read_cell(buf, x, y);
             let bg = color_to_bg_hex(cell.bg);
             if bg == "#000000" {
                 x += 1;
                 continue;
             }
             let start_x = x;
-            while x < width && !should_skip_cell(x) && color_to_bg_hex(buf[(x, y)].bg) == bg {
+            while x < width && !should_skip_cell(x) && color_to_bg_hex(read_cell(buf, x, y).bg) == bg {
                 x += 1;
             }
             svg.push_str(&format!(
@@ -708,8 +695,8 @@ text.emoji {{ font-family: "Noto Color Emoji", "Symbols Nerd Font", "{}", sans-s
                 x += 1;
                 continue;
             }
-            let cell = &buf[(x, y)];
-            let sym = cell.symbol();
+            let cell = read_cell(buf, x, y);
+            let sym = cell_symbol(cell);
             if sym == " " || sym.is_empty() {
                 x += 1;
                 continue;
@@ -719,12 +706,12 @@ text.emoji {{ font-family: "Noto Color Emoji", "Symbols Nerd Font", "{}", sans-s
                 continue;
             }
 
-            if needs_special_cell_render(sym) {
+            if needs_special_cell_render(&sym) {
                 let fg = color_to_hex(cell.fg);
-                let bold = cell.modifier.contains(ratatui::style::Modifier::BOLD);
+                let bold = cell.attrs.flags().contains(StyleFlags::BOLD);
                 let text_y = y as u32 * cell_h + (cell_h as f64 * 0.15) as u32;
                 svg.push_str(&render_special_text_cell(
-                    sym,
+                    &sym,
                     x as u32 * cell_w,
                     text_y,
                     cell_w,
@@ -744,8 +731,8 @@ text.emoji {{ font-family: "Noto Color Emoji", "Symbols Nerd Font", "{}", sans-s
                     let start_x = x;
                     let thick = first_char == '━';
                     while x < width && !should_skip_cell(x) {
-                        let c = buf[(x, y)].symbol().chars().next().unwrap_or(' ');
-                        if c != first_char || color_to_hex(buf[(x, y)].fg) != fg {
+                        let c = cell_symbol(read_cell(buf, x, y)).chars().next().unwrap_or(' ');
+                        if c != first_char || color_to_hex(read_cell(buf, x, y).fg) != fg {
                             break;
                         }
                         x += 1;
@@ -779,14 +766,14 @@ text.emoji {{ font-family: "Noto Color Emoji", "Symbols Nerd Font", "{}", sans-s
             }
 
             let fg = color_to_hex(cell.fg);
-            let bold = cell.modifier.contains(ratatui::style::Modifier::BOLD);
+            let bold = cell.attrs.flags().contains(StyleFlags::BOLD);
 
             // Batch consecutive non-box-drawing chars with same style
             let start_x = x;
             let mut text_run = String::new();
             while x < width && !should_skip_cell(x) {
-                let c = &buf[(x, y)];
-                let s = c.symbol();
+                let c = read_cell(buf, x, y);
+                let s = cell_symbol(c);
                 if s.is_empty() || s.contains('\x00') {
                     x += 1;
                     continue;
@@ -797,11 +784,11 @@ text.emoji {{ font-family: "Noto Color Emoji", "Symbols Nerd Font", "{}", sans-s
                     break;
                 }
                 if color_to_hex(c.fg) != fg
-                    || c.modifier.contains(ratatui::style::Modifier::BOLD) != bold
+                    || c.attrs.flags().contains(StyleFlags::BOLD) != bold
                 {
                     break;
                 }
-                text_run.push_str(s);
+                text_run.push_str(&s);
                 x += 1;
             }
 

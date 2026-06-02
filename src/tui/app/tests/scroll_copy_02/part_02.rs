@@ -103,7 +103,7 @@ fn test_expand_badge_shortcut_does_not_collapse_full_inline_diff() {
 
 fn make_edit_badge_test_app(
     old_line_count: usize,
-) -> (App, ratatui::Terminal<ratatui::backend::TestBackend>) {
+) -> (App, ftui_render::buffer::Buffer) {
     let mut app = create_test_app();
     let old_string = (0..old_line_count)
         .map(|idx| format!("old line {idx}\n"))
@@ -135,8 +135,7 @@ fn make_edit_badge_test_app(
     app.status = ProcessingStatus::Idle;
     app.session.short_name = Some("test".to_string());
 
-    let backend = ratatui::backend::TestBackend::new(120, 40);
-    let terminal = ratatui::Terminal::new(backend).expect("failed to create test terminal");
+    let mut terminal: ftui_render::buffer::Buffer = ftui_render::buffer::Buffer::new(120, 40);
     (app, terminal)
 }
 
@@ -410,8 +409,7 @@ fn test_mouse_click_in_input_moves_cursor_to_clicked_position() {
     app.set_centered(false);
     app.session.short_name = Some("test".to_string());
 
-    let backend = ratatui::backend::TestBackend::new(60, 16);
-    let mut terminal = ratatui::Terminal::new(backend).expect("failed to create test terminal");
+    let mut terminal: ftui_render::buffer::Buffer = ftui_render::buffer::Buffer::new(60, 16);
     render_and_snap(&app, &mut terminal);
 
     let layout = crate::tui::ui::last_layout_snapshot().expect("layout snapshot");
@@ -449,8 +447,7 @@ fn test_mouse_click_in_main_chat_switches_focus_from_side_panel() {
         }],
     };
 
-    let backend = ratatui::backend::TestBackend::new(80, 16);
-    let mut terminal = ratatui::Terminal::new(backend).expect("failed to create test terminal");
+    let mut terminal: ftui_render::buffer::Buffer = ftui_render::buffer::Buffer::new(80, 16);
     render_and_snap(&app, &mut terminal);
 
     let layout = crate::tui::ui::last_layout_snapshot().expect("layout snapshot");
@@ -494,8 +491,7 @@ fn test_mouse_click_in_input_switches_focus_from_side_panel() {
     app.set_centered(false);
     app.session.short_name = Some("test".to_string());
 
-    let backend = ratatui::backend::TestBackend::new(60, 16);
-    let mut terminal = ratatui::Terminal::new(backend).expect("failed to create test terminal");
+    let mut terminal: ftui_render::buffer::Buffer = ftui_render::buffer::Buffer::new(60, 16);
     render_and_snap(&app, &mut terminal);
 
     let layout = crate::tui::ui::last_layout_snapshot().expect("layout snapshot");
@@ -528,8 +524,7 @@ fn test_mouse_click_in_wrapped_input_moves_cursor_to_second_visual_line() {
     app.set_centered(false);
     app.session.short_name = Some("test".to_string());
 
-    let backend = ratatui::backend::TestBackend::new(11, 16);
-    let mut terminal = ratatui::Terminal::new(backend).expect("failed to create test terminal");
+    let mut terminal: ftui_render::buffer::Buffer = ftui_render::buffer::Buffer::new(11, 16);
     render_and_snap(&app, &mut terminal);
 
     let layout = crate::tui::ui::last_layout_snapshot().expect("layout snapshot");

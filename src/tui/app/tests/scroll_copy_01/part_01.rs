@@ -2,16 +2,20 @@
 // ====================================================================
 
 /// Extract plain text from a TestBackend buffer after rendering.
-fn buffer_to_text(terminal: &ratatui::Terminal<ratatui::backend::TestBackend>) -> String {
-    let buf = terminal.backend().buffer();
-    let width = buf.area.width as usize;
-    let height = buf.area.height as usize;
+fn buffer_to_text(buf: &ftui_render::buffer::Buffer) -> String {
+    let width = buf.width() as usize;
+    let height = buf.height() as usize;
     let mut lines = Vec::with_capacity(height);
     for y in 0..height {
         let mut line = String::with_capacity(width);
         for x in 0..width {
-            let cell = &buf[(x as u16, y as u16)];
-            line.push_str(cell.symbol());
+            if let Some(cell) = buf.get(x as u16, y as u16) {
+                if let Some(ch) = cell.content.as_char() {
+                    line.push(ch);
+                } else if cell.content.width() > 0 {
+                    line.push_str(&String::from_utf8_lossy(cell.content.as_bytes()));
+                }
+            }
         }
         lines.push(line.trim_end().to_string());
     }
@@ -28,7 +32,7 @@ fn create_scroll_test_app(
     height: u16,
     diagrams: usize,
     padding: usize,
-) -> (App, ratatui::Terminal<ratatui::backend::TestBackend>) {
+) -> (App, ftui_render::buffer::Buffer) {
     crate::tui::mermaid::clear_active_diagrams();
     crate::tui::mermaid::clear_streaming_preview_diagram();
 
@@ -61,12 +65,11 @@ fn create_scroll_test_app(
     // Set deterministic session name for snapshot stability
     app.session.short_name = Some("test".to_string());
 
-    let backend = ratatui::backend::TestBackend::new(width, height);
-    let terminal = ratatui::Terminal::new(backend).expect("failed to create test terminal");
+    let terminal: ftui_render::buffer::Buffer = ftui_render::buffer::Buffer::new(width, height);
     (app, terminal)
 }
 
-fn create_copy_test_app() -> (App, ratatui::Terminal<ratatui::backend::TestBackend>) {
+fn create_copy_test_app() -> (App, ftui_render::buffer::Buffer) {
     let mut app = create_test_app();
     app.display_messages = vec![
         DisplayMessage {
@@ -94,12 +97,11 @@ fn create_copy_test_app() -> (App, ratatui::Terminal<ratatui::backend::TestBacke
     app.status = ProcessingStatus::Idle;
     app.session.short_name = Some("test".to_string());
 
-    let backend = ratatui::backend::TestBackend::new(100, 30);
-    let terminal = ratatui::Terminal::new(backend).expect("failed to create test terminal");
+    let mut terminal: ftui_render::buffer::Buffer = ftui_render::buffer::Buffer::new(100, 30);
     (app, terminal)
 }
 
-fn create_error_copy_test_app() -> (App, ratatui::Terminal<ratatui::backend::TestBackend>) {
+fn create_error_copy_test_app() -> (App, ftui_render::buffer::Buffer) {
     let mut app = create_test_app();
     app.display_messages = vec![
         DisplayMessage::user("Show me the last error"),
@@ -113,12 +115,11 @@ fn create_error_copy_test_app() -> (App, ratatui::Terminal<ratatui::backend::Tes
     app.status = ProcessingStatus::Idle;
     app.session.short_name = Some("test".to_string());
 
-    let backend = ratatui::backend::TestBackend::new(100, 30);
-    let terminal = ratatui::Terminal::new(backend).expect("failed to create test terminal");
+    let mut terminal: ftui_render::buffer::Buffer = ftui_render::buffer::Buffer::new(100, 30);
     (app, terminal)
 }
 
-fn create_tool_error_copy_test_app() -> (App, ratatui::Terminal<ratatui::backend::TestBackend>) {
+fn create_tool_error_copy_test_app() -> (App, ftui_render::buffer::Buffer) {
     let mut app = create_test_app();
     app.display_messages = vec![
         DisplayMessage::user("Run the command"),
@@ -140,13 +141,12 @@ fn create_tool_error_copy_test_app() -> (App, ratatui::Terminal<ratatui::backend
     app.status = ProcessingStatus::Idle;
     app.session.short_name = Some("test".to_string());
 
-    let backend = ratatui::backend::TestBackend::new(100, 30);
-    let terminal = ratatui::Terminal::new(backend).expect("failed to create test terminal");
+    let mut terminal: ftui_render::buffer::Buffer = ftui_render::buffer::Buffer::new(100, 30);
     (app, terminal)
 }
 
 fn create_tool_failed_output_copy_test_app()
--> (App, ratatui::Terminal<ratatui::backend::TestBackend>) {
+-> (App, ftui_render::buffer::Buffer) {
     let mut app = create_test_app();
     app.display_messages = vec![
         DisplayMessage::user("Run the command"),
@@ -168,8 +168,7 @@ fn create_tool_failed_output_copy_test_app()
     app.status = ProcessingStatus::Idle;
     app.session.short_name = Some("test".to_string());
 
-    let backend = ratatui::backend::TestBackend::new(100, 30);
-    let terminal = ratatui::Terminal::new(backend).expect("failed to create test terminal");
+    let mut terminal: ftui_render::buffer::Buffer = ftui_render::buffer::Buffer::new(100, 30);
     (app, terminal)
 }
 
@@ -227,7 +226,7 @@ fn scroll_render_test_lock() -> std::sync::MutexGuard<'static, ()> {
 /// Render app to TestBackend and return the buffer text.
 fn render_and_snap(
     app: &App,
-    terminal: &mut ratatui::Terminal<ratatui::backend::TestBackend>,
+    buffer: &mut ftui_render::buffer::Buffer,
 ) -> String {
     terminal
         .draw(|f| crate::tui::ui::draw(f, app))
@@ -245,8 +244,7 @@ fn test_armed_new_session_mode_shows_input_hint_and_indicator() {
     app.handle_key(KeyCode::Char(' '), KeyModifiers::SUPER)
         .expect("Super+Space should arm new-session mode");
 
-    let backend = ratatui::backend::TestBackend::new(60, 8);
-    let mut terminal = ratatui::Terminal::new(backend).expect("failed to create test terminal");
+    let mut terminal: ftui_render::buffer::Buffer = ftui_render::buffer::Buffer::new(60, 8);
     let rendered = render_and_snap(&app, &mut terminal);
 
     assert!(
@@ -280,8 +278,7 @@ fn test_chat_native_scrollbar_hidden_when_content_fits() {
     app.is_processing = false;
     app.status = ProcessingStatus::Idle;
 
-    let backend = ratatui::backend::TestBackend::new(60, 24);
-    let mut terminal = ratatui::Terminal::new(backend).expect("failed to create test terminal");
+    let mut terminal: ftui_render::buffer::Buffer = ftui_render::buffer::Buffer::new(60, 24);
     let text = render_and_snap(&app, &mut terminal);
 
     assert_eq!(crate::tui::ui::last_max_scroll(), 0);
@@ -334,8 +331,7 @@ fn test_chat_native_scrollbar_hides_scroll_counters() {
 #[test]
 fn test_streaming_repaint_does_not_leave_bracket_artifact() {
     let mut app = create_test_app();
-    let backend = ratatui::backend::TestBackend::new(90, 20);
-    let mut terminal = ratatui::Terminal::new(backend).expect("failed to create test terminal");
+    let mut terminal: ftui_render::buffer::Buffer = ftui_render::buffer::Buffer::new(90, 20);
 
     app.is_processing = true;
     app.status = ProcessingStatus::Streaming;
@@ -436,8 +432,7 @@ fn test_queued_file_activity_repaint_does_not_leave_trailing_digit_artifact() {
     let _lock = scroll_render_test_lock();
 
     let mut app = create_test_app();
-    let backend = ratatui::backend::TestBackend::new(140, 20);
-    let mut terminal = ratatui::Terminal::new(backend).expect("failed to create test terminal");
+    let mut terminal: ftui_render::buffer::Buffer = ftui_render::buffer::Buffer::new(140, 20);
 
     app.is_processing = true;
     app.status = ProcessingStatus::Streaming;
@@ -480,8 +475,7 @@ fn test_notification_file_activity_repaint_does_not_leave_trailing_digit_artifac
     let _lock = scroll_render_test_lock();
 
     let mut app = create_test_app();
-    let backend = ratatui::backend::TestBackend::new(140, 20);
-    let mut terminal = ratatui::Terminal::new(backend).expect("failed to create test terminal");
+    let mut terminal: ftui_render::buffer::Buffer = ftui_render::buffer::Buffer::new(140, 20);
 
     app.status_notice = Some((
         "File activity · /home/jeremy/jcode/src/lib.rs · read lines 1-9999".to_string(),
@@ -514,8 +508,7 @@ fn test_file_activity_scroll_reproduces_trailing_ghost_after_native_scroll_like_
     let _lock = scroll_render_test_lock();
 
     let mut app = create_test_app();
-    let backend = ratatui::backend::TestBackend::new(120, 12);
-    let mut terminal = ratatui::Terminal::new(backend).expect("failed to create test terminal");
+    let mut terminal: ftui_render::buffer::Buffer = ftui_render::buffer::Buffer::new(120, 12);
 
     let mut lines = vec![
         "⚠️ File activity: /home/jeremy/jcode/src/lib.rs — amber previously read this file: read lines 1-9"
@@ -545,7 +538,7 @@ fn test_file_activity_scroll_reproduces_trailing_ghost_after_native_scroll_like_
         .expect("expected file activity suffix")
         + "read lines 1-9".len();
 
-    let ghost = ratatui::buffer::Buffer::with_lines(["ZZZZ"]);
+    let ghost = ftui_render::buffer::Buffer::with_lines(["ZZZZ"]);  // ftui equivalent stub
     let updates = ghost
         .content()
         .iter()

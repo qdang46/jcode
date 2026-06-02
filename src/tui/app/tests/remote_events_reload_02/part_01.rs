@@ -273,8 +273,9 @@ fn test_handle_remote_event_redraws_observe_tool_exec_immediately() {
     let mut app = create_test_app();
     let rt = tokio::runtime::Runtime::new().unwrap();
     let _guard = rt.enter();
-    let backend = ratatui::backend::TestBackend::new(90, 20);
-    let mut terminal = ratatui::Terminal::new(backend).expect("failed to create test terminal");
+    // ratatui removed: use ftui buffer placeholder
+    let _test_backend_size = (90, 20);
+    let mut _terminal_unused: ftui_render::buffer::Buffer = ftui_render::buffer::Buffer::new(90, 20);;
     let mut remote = crate::tui::backend::RemoteConnection::dummy();
     let mut state = super::remote::RemoteRunState::default();
 
@@ -361,8 +362,9 @@ fn test_remote_protocol_error_stops_instead_of_reconnecting() {
     let mut app = create_test_app();
     let rt = tokio::runtime::Runtime::new().unwrap();
     let _guard = rt.enter();
-    let backend = ratatui::backend::TestBackend::new(90, 20);
-    let mut terminal = ratatui::Terminal::new(backend).expect("failed to create test terminal");
+    // ratatui removed: use ftui buffer placeholder
+    let _test_backend_size = (90, 20);
+    let mut _terminal_unused: ftui_render::buffer::Buffer = ftui_render::buffer::Buffer::new(90, 20);;
     let mut remote = crate::tui::backend::RemoteConnection::dummy();
     let mut state = super::remote::RemoteRunState::default();
 
@@ -400,8 +402,9 @@ fn test_handle_remote_event_redraws_observe_tool_done_immediately() {
     let mut app = create_test_app();
     let rt = tokio::runtime::Runtime::new().unwrap();
     let _guard = rt.enter();
-    let backend = ratatui::backend::TestBackend::new(90, 20);
-    let mut terminal = ratatui::Terminal::new(backend).expect("failed to create test terminal");
+    // ratatui removed: use ftui buffer placeholder
+    let _test_backend_size = (90, 20);
+    let mut _terminal_unused: ftui_render::buffer::Buffer = ftui_render::buffer::Buffer::new(90, 20);;
     let mut remote = crate::tui::backend::RemoteConnection::dummy();
     let mut state = super::remote::RemoteRunState::default();
 
@@ -523,8 +526,9 @@ fn test_observe_repaint_does_not_leave_severity_badge_artifact() {
     app.input = "/observe on".to_string();
     app.submit_input();
 
-    let backend = ratatui::backend::TestBackend::new(90, 20);
-    let mut terminal = ratatui::Terminal::new(backend).expect("failed to create test terminal");
+    // ratatui removed: use ftui buffer placeholder
+    let _test_backend_size = (90, 20);
+    let mut _terminal_unused: ftui_render::buffer::Buffer = ftui_render::buffer::Buffer::new(90, 20);;
 
     let tool_call = crate::message::ToolCall {
         id: "tool_big".to_string(),
@@ -746,8 +750,9 @@ fn test_handle_server_event_notification_background_task_scope_uses_card_renderi
         .expect("missing background task notification message");
     assert_eq!(last.role, "background_task");
 
-    let backend = ratatui::backend::TestBackend::new(42, 12);
-    let mut terminal = ratatui::Terminal::new(backend).expect("failed to create test terminal");
+    // ratatui removed: use ftui buffer placeholder
+    let _test_backend_size = (42, 12);
+    let mut _terminal_unused: ftui_render::buffer::Buffer = ftui_render::buffer::Buffer::new(42, 12);;
     let text = render_and_snap(&app, &mut terminal);
 
     assert!(
@@ -772,8 +777,9 @@ fn test_background_task_markdown_renders_card_even_if_role_was_lost() {
         "**Background task** `594967sj63` · `Run jcode library tests afte` (`bash`) · ✗ failed · 1.0s · exit 124\n\n```text\n\n--- Command timed out after 1000ms ---\n```\n\n_Full output:_ `bg action=\"output\" task_id=\"594967sj63\"`",
     ));
 
-    let backend = ratatui::backend::TestBackend::new(80, 16);
-    let mut terminal = ratatui::Terminal::new(backend).expect("failed to create test terminal");
+    // ratatui removed: use ftui buffer placeholder
+    let _test_backend_size = (80, 16);
+    let mut _terminal_unused: ftui_render::buffer::Buffer = ftui_render::buffer::Buffer::new(80, 16);;
     let text = render_and_snap(&app, &mut terminal);
 
     assert!(

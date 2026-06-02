@@ -8,7 +8,8 @@ use crate::tui::backend::{RemoteConnection, RemoteDisconnectReason};
 use anyhow::Result;
 use crossterm::event::EventStream;
 use futures::StreamExt;
-use ratatui::DefaultTerminal;
+// ratatui removed
+use ftui::TerminalSession as DefaultTerminal;
 
 use std::time::{Duration, Instant};
 use tokio::time::MissedTickBehavior;
@@ -586,9 +587,9 @@ pub(in crate::tui::app) async fn connect_with_retry(
     }
 }
 
-pub(in crate::tui::app) async fn handle_post_connect<B: ratatui::backend::Backend>(
+pub(in crate::tui::app) async fn handle_post_connect(
     app: &mut App,
-    terminal: &mut ratatui::Terminal<B>,
+    terminal: &mut ftui::TerminalSession,
     remote: &mut RemoteConnection,
     state: &mut RemoteRunState,
     session_to_resume: Option<&str>,

@@ -1,11 +1,16 @@
-use ratatui::DefaultTerminal;
 use super::*;
 use crate::tui::TuiState;
 use crossterm::cursor::{RestorePosition, SavePosition};
-use ratatui::buffer::Buffer;
-use ratatui::layout::Rect;
-use ratatui::style::Style;
+use ftui::TerminalSession as DefaultTerminal;
+use ftui_render::buffer::Buffer;
+use ftui_core::geometry::Rect;
+use ftui_style::Style;
 use std::io::Write;
+
+/// Type alias for the terminal type used in the migrated TUI runtime.
+/// frankentui exposes `TerminalSession` for production and `Buffer` for
+/// headless/tests; the legacy `DefaultTerminal = Terminal<CrosstermBackend>`
+/// alias from ratatui maps directly to `ftui::TerminalSession`.
 
 const STATUS_SPINNER_FPS: f32 = 12.5;
 pub(super) const STATUS_SPINNER_ONLY_INTERVAL: Duration = Duration::from_millis(80);
@@ -105,10 +110,9 @@ impl StatusSpinnerRenderer {
     pub(super) fn draw_full(
         &mut self,
         app: &mut App,
-        terminal: &mut DefaultTerminal,
+        _terminal: &mut DefaultTerminal,
     ) -> Result<()> {
         if app.force_full_redraw {
-            terminal.clear()?;
             app.force_full_redraw = false;
             self.invalidate();
         }
@@ -121,60 +125,38 @@ impl StatusSpinnerRenderer {
     pub(super) fn draw_status_spinner_only(
         &mut self,
         app: &App,
-        terminal: &mut DefaultTerminal,
+        _terminal: &mut DefaultTerminal,
     ) -> Result<bool> {
-        let Some(symbol) = status_spinner_only_symbol(app) else {
+        // TODO: re-enable with ftui Presenter/TerminalSession when the
+        // ratatui-equivalent virtual buffer + cursor save/restore dance is
+        // ported. For now just invalidate the cached frame so the next
+        // full redraw refreshes the status spinner.
+        let Some(_) = status_spinner_only_symbol(app) else {
             return Ok(false);
         };
-        let Some(area) = crate::tui::ui::last_status_area() else {
+        let Some(_) = crate::tui::ui::last_status_area() else {
             return Ok(false);
         };
-        let ratatui_area = ratatui::layout::Rect {
-            x: area.x,
-            y: area.y,
-            width: area.width,
-            height: area.height,
-        };
-        let Some(previous_frame) = self.last_frame.as_ref() else {
-            return Ok(false);
-        };
-        if !render_status_spinner_into_buffer(previous_frame, ratatui_area, symbol) {
-            return Ok(false);
-        }
-
-        let next_frame = {
-            let current_buffer = terminal.current_buffer_mut();
-            current_buffer.clone_from(previous_frame);
-            render_status_spinner_into_buffer_mut(current_buffer, ratatui_area, symbol);
-            current_buffer.clone()
-        };
-
-        // Keep ratatui's virtual buffers authoritative while preserving the user's cursor position.
-        // The only terminal mutation outside ratatui here is cursor save/restore; cell contents still
-        // go through Terminal::flush so the next full-frame diff remains synchronized.
-        crossterm::queue!(terminal.backend_mut(), SavePosition)?;
-        terminal.flush()?;
-        crossterm::queue!(terminal.backend_mut(), RestorePosition)?;
-        terminal.swap_buffers();
-        terminal.backend_mut().flush()?;
-        self.last_frame = Some(next_frame);
-        Ok(true)
+        self.invalidate();
+        Ok(false)
     }
 }
 
 fn render_status_spinner_into_buffer(buffer: &Buffer, area: Rect, symbol: &str) -> bool {
     area.width > 0
         && area.height > 0
-        && area.x < buffer.area.width
-        && area.y < buffer.area.height
+        && area.x < buffer.width()
+        && area.y < buffer.height()
         && !symbol.is_empty()
 }
 
 fn render_status_spinner_into_buffer_mut(buffer: &mut Buffer, area: Rect, symbol: &str) {
     for (i, c) in symbol.chars().enumerate() {
         let x = area.x + i as u16;
-        if x < buffer.area.width && area.y < buffer.area.height {
-            buffer[(x, area.y)].set_char(c);
+        if x < buffer.width() && area.y < buffer.height() {
+            if let Some(cell) = buffer.get_mut(x, area.y) {
+                cell.content = ftui_render::cell::CellContent::from_char(c);
+            }
         }
     }
 }
@@ -476,22 +458,18 @@ impl App {
         width: u16,
         height: u16,
         fps: u32,
-    ) -> Result<Vec<(f64, ratatui::buffer::Buffer)>> {
+    ) -> Result<Vec<(f64, ftui_render::buffer::Buffer)>> {
         use crate::replay::ReplayEvent;
-        #[allow(unused_imports)]
-        use ratatui::backend::TestBackend;
 
         let replay_events = crate::replay::timeline_to_replay_events(timeline);
         if replay_events.is_empty() {
             anyhow::bail!("No replay events to export");
         }
 
-        let backend = TestBackend::new(width, height);
-        let mut terminal = ratatui::Terminal::new(backend)?;
         let mut remote = crate::tui::backend::ReplayRemoteState::default();
 
         let frame_duration_ms: f64 = 1000.0 / fps as f64;
-        let mut frames: Vec<(f64, ratatui::buffer::Buffer)> = Vec::new();
+        let mut frames: Vec<(f64, ftui_render::buffer::Buffer)> = Vec::new();
         let mut sim_time_ms: f64 = 0.0;
         let mut next_frame_at: f64 = 0.0;
 
@@ -509,9 +487,10 @@ impl App {
         let mut event_cursor: usize = 0;
         let mut replay_turn_id: u64 = 0;
 
-        // TODO: re-enable with ftui terminal when frankentui path is complete
-        // terminal.draw(|f| crate::tui::render_frame(f, &self))?;
-        frames.push((0.0, terminal.backend().buffer().clone()));
+        // frankentui rendering: emit an empty buffer placeholder. The real
+        // TUI runtime produces ftui frames via `Model::view`; the headless
+        // replay path is a stub for now.
+        frames.push((0.0, ftui_render::buffer::Buffer::new(width, height)));
 
         let progress_interval = (total_duration_ms / 20.0).max(1000.0);
         let mut next_progress = progress_interval;
@@ -533,9 +512,9 @@ impl App {
 
             if sim_time_ms >= next_frame_at {
                 replay::update_replay_elapsed_override(&mut self, sim_time_ms);
-                // TODO: re-enable with ftui terminal when frankentui path is complete
-                // terminal.draw(|f| crate::tui::render_frame(f, &self))?;
-                frames.push((sim_time_ms / 1000.0, terminal.backend().buffer().clone()));
+                // frankentui: push a fresh placeholder buffer; rendering is
+                // produced by the ftui runtime when the path is wired up.
+                frames.push((sim_time_ms / 1000.0, ftui_render::buffer::Buffer::new(width, height)));
                 next_frame_at = sim_time_ms + frame_duration_ms;
             }
 

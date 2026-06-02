@@ -1,7 +1,7 @@
 #[test]
 fn precise_viewport_accepts_high_auto_zoom_without_panicking() {
-    let area = ratatui::prelude::Rect::new(0, 0, 40, 20);
-    let mut buf = ratatui::buffer::Buffer::empty(area);
+    let area = ftui_core::geometry::Rect::new(0, 0, 40, 20);
+    let mut buf = ftui_render::buffer::Buffer::new(area);
 
     // No picker/cache is installed in this unit test, so rendering returns 0.
     // The important regression coverage is that the high-zoom precise API is

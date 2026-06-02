@@ -1,6 +1,6 @@
 #![cfg_attr(test, allow(clippy::items_after_test_module))]
 
-use ratatui::DefaultTerminal;
+use ftui::TerminalSession as DefaultTerminal;
 use super::{
     App, ContentBlock, DisplayMessage, Message, ProcessingStatus, Role, SendAction, SkillRegistry,
     commands, ctrl_bracket_fallback_to_esc, is_context_limit_error, remote,

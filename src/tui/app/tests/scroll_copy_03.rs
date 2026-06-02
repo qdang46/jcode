@@ -135,8 +135,7 @@ fn test_prompt_preview_reserves_rows_without_overwriting_visible_history() {
     app.status = ProcessingStatus::Idle;
     app.session.short_name = Some("test".to_string());
 
-    let backend = ratatui::backend::TestBackend::new(40, 8);
-    let mut terminal = ratatui::Terminal::new(backend).expect("failed to create test terminal");
+    let mut terminal: ftui_render::buffer::Buffer = ftui_render::buffer::Buffer::new(40, 8);
 
     let text = render_and_snap(&app, &mut terminal);
 
@@ -262,7 +261,7 @@ fn test_full_redraw_clears_out_of_band_backend_artifacts_after_native_scroll_lik
     let clean = render_and_snap(&app, &mut terminal);
 
     let width = terminal.backend().buffer().area.width;
-    let ghost = ratatui::buffer::Buffer::with_lines([
+    let ghost = ftui_render::buffer::Buffer::new([
         "ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ",
     ]);
     let updates = ghost

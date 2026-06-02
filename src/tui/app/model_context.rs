@@ -1,5 +1,5 @@
 use super::*;
-use ratatui::DefaultTerminal;
+use ftui::TerminalSession as DefaultTerminal;
 
 impl App {
     fn format_failover_count(value: usize) -> String {

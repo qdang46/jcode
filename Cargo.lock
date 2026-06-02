@@ -2419,6 +2419,7 @@ dependencies = [
  "ahash",
  "arc-swap",
  "bitflags 2.11.1",
+ "crossterm 0.29.0",
  "getrandom 0.3.4",
  "libc",
  "signal-hook 0.4.4",

@@ -655,8 +655,7 @@ fn test_pinned_side_diagram_layout_allocates_right_pane() {
     crate::tui::mermaid::register_active_diagram(0x111, 900, 450, Some("side".to_string()));
 
     crate::tui::visual_debug::enable();
-    let backend = ratatui::backend::TestBackend::new(120, 40);
-    let mut terminal = ratatui::Terminal::new(backend).expect("failed to create terminal");
+    let mut terminal: ftui_render::buffer::Buffer = ftui_render::buffer::Buffer::new(120, 40);
     terminal
         .draw(|f| crate::tui::ui::draw(f, &app))
         .expect("draw failed");
@@ -701,8 +700,7 @@ fn test_pinned_top_diagram_layout_allocates_top_pane() {
     crate::tui::mermaid::register_active_diagram(0x222, 500, 900, Some("top".to_string()));
 
     crate::tui::visual_debug::enable();
-    let backend = ratatui::backend::TestBackend::new(120, 40);
-    let mut terminal = ratatui::Terminal::new(backend).expect("failed to create terminal");
+    let mut terminal: ftui_render::buffer::Buffer = ftui_render::buffer::Buffer::new(120, 40);
     terminal
         .draw(|f| crate::tui::ui::draw(f, &app))
         .expect("draw failed");
@@ -742,8 +740,7 @@ fn test_pinned_diagram_not_shown_when_terminal_too_narrow() {
     crate::tui::mermaid::register_active_diagram(0x333, 900, 450, None);
 
     crate::tui::visual_debug::enable();
-    let backend = ratatui::backend::TestBackend::new(30, 20);
-    let mut terminal = ratatui::Terminal::new(backend).expect("failed to create terminal");
+    let mut terminal: ftui_render::buffer::Buffer = ftui_render::buffer::Buffer::new(30, 20);
     terminal
         .draw(|f| crate::tui::ui::draw(f, &app))
         .expect("draw failed");
@@ -784,8 +781,7 @@ fn test_workspace_info_widget_appears_in_visual_debug_frame_when_enabled() {
     );
 
     crate::tui::visual_debug::enable();
-    let backend = ratatui::backend::TestBackend::new(120, 40);
-    let mut terminal = ratatui::Terminal::new(backend).expect("failed to create terminal");
+    let mut terminal: ftui_render::buffer::Buffer = ftui_render::buffer::Buffer::new(120, 40);
     terminal
         .draw(|f| crate::tui::ui::draw(f, &app))
         .expect("draw failed");

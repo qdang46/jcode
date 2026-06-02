@@ -104,8 +104,7 @@ fn benchmark_real_resume_first_render_reports_timings() {
 
     let loading_render_start = std::time::Instant::now();
     let mut loading_picker = SessionPicker::loading();
-    let backend = ratatui::backend::TestBackend::new(120, 40);
-    let mut terminal = ratatui::Terminal::new(backend).expect("test terminal");
+    let mut terminal: ftui_render::buffer::Buffer = ftui_render::buffer::Buffer::new(120, 40);
     terminal
         .draw(|frame| loading_picker.render(frame))
         .expect("render loading picker");
@@ -187,8 +186,7 @@ fn benchmark_real_resume_cached_first_render_reports_timings() {
     let construct_elapsed = construct_start.elapsed();
 
     let render_start = std::time::Instant::now();
-    let backend = ratatui::backend::TestBackend::new(120, 40);
-    let mut terminal = ratatui::Terminal::new(backend).expect("test terminal");
+    let mut terminal: ftui_render::buffer::Buffer = ftui_render::buffer::Buffer::new(120, 40);
     terminal
         .draw(|frame| picker.render(frame))
         .expect("render cached picker");

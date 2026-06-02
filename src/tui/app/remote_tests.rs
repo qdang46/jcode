@@ -199,8 +199,7 @@ fn handle_post_connect_dispatches_reload_followup_even_if_history_snapshot_looks
     });
 
     let _enter = rt.enter();
-    let backend = ratatui::backend::TestBackend::new(80, 24);
-    let mut terminal = ratatui::Terminal::new(backend).expect("failed to create terminal");
+    let mut terminal: ftui_render::buffer::Buffer = ftui_render::buffer::Buffer::new(80, 24);
     let mut remote = crate::tui::backend::RemoteConnection::dummy();
     remote.mark_history_loaded();
     let mut state = super::RemoteRunState {

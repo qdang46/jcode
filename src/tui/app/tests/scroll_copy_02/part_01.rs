@@ -209,8 +209,7 @@ fn test_copy_selection_reconstructs_wrapped_chat_lines_without_hard_wraps() {
     }];
     app.bump_display_messages_version();
 
-    let backend = ratatui::backend::TestBackend::new(36, 20);
-    let mut terminal = ratatui::Terminal::new(backend).expect("failed to create test terminal");
+    let mut terminal: ftui_render::buffer::Buffer = ftui_render::buffer::Buffer::new(36, 20);
 
     render_and_snap(&app, &mut terminal);
     let (visible_start, visible_end) =
@@ -282,8 +281,7 @@ fn test_copy_selection_centered_list_keeps_logical_list_text() {
     }];
     app.bump_display_messages_version();
 
-    let backend = ratatui::backend::TestBackend::new(28, 20);
-    let mut terminal = ratatui::Terminal::new(backend).expect("failed to create test terminal");
+    let mut terminal: ftui_render::buffer::Buffer = ftui_render::buffer::Buffer::new(28, 20);
 
     render_and_snap(&app, &mut terminal);
     let (visible_start, visible_end) =
@@ -580,8 +578,7 @@ fn test_side_panel_mouse_drag_extracts_expected_text() {
         }],
     };
 
-    let backend = ratatui::backend::TestBackend::new(100, 20);
-    let mut terminal = ratatui::Terminal::new(backend).expect("failed to create terminal");
+    let mut terminal: ftui_render::buffer::Buffer = ftui_render::buffer::Buffer::new(100, 20);
     render_and_snap(&app, &mut terminal);
 
     let layout = crate::tui::ui::last_layout_snapshot().expect("layout snapshot");
@@ -712,8 +709,7 @@ fn test_ctrl_a_copies_chat_viewport_with_context_when_input_empty() {
     app.scroll_offset = 12;
     app.auto_scroll_paused = true;
 
-    let backend = ratatui::backend::TestBackend::new(40, 8);
-    let mut terminal = ratatui::Terminal::new(backend).expect("failed to create test terminal");
+    let mut terminal: ftui_render::buffer::Buffer = ftui_render::buffer::Buffer::new(40, 8);
     render_and_snap(&app, &mut terminal);
 
     let (visible_start, visible_end) =
@@ -779,8 +775,7 @@ fn test_alt_a_copies_chat_viewport_with_context_when_input_empty() {
     app.scroll_offset = 4;
     app.auto_scroll_paused = true;
 
-    let backend = ratatui::backend::TestBackend::new(40, 8);
-    let mut terminal = ratatui::Terminal::new(backend).expect("failed to create test terminal");
+    let mut terminal: ftui_render::buffer::Buffer = ftui_render::buffer::Buffer::new(40, 8);
     render_and_snap(&app, &mut terminal);
 
     let handled = super::input::handle_alt_key(&mut app, KeyCode::Char('a'));
