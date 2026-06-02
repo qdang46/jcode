@@ -1,4 +1,5 @@
 use crate::message::ToolCall;
+use crate::tui::compat::{line_from_spans, text_from_lines};
 
 use super::{dim_color, rgb, tool_color, truncate_line_preserving_suffix_to_width};
 use ratatui::prelude::*;
@@ -1411,7 +1412,7 @@ pub(super) fn render_batch_subcall_line(
         ));
     }
     let token_suffix = token_badge.map(|(label, color)| {
-        Line::from(vec![
+        line_from_spans(vec![
             Span::styled(" · ", Style::default().fg(dim_color())),
             Span::styled(label, Style::default().fg(color)),
         ])

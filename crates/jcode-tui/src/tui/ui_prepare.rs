@@ -1,4 +1,5 @@
 use super::*;
+use crate::tui::compat::{line_from_spans, text_from_lines};
 use crate::tui::ui::{self, WrappedLineMap};
 
 /// Auxiliary render data for an assistant message that is otherwise recomputed
@@ -790,7 +791,7 @@ pub(super) fn prepare_body_incremental(
                     displayed_prompt_num.to_string().as_str(),
                 ) + unicode_width::UnicodeWidthStr::width("› ");
                 new_lines.push(
-                    Line::from(vec![
+                    line_from_spans(vec![
                         Span::styled(
                             format!("{}", displayed_prompt_num),
                             Style::default().fg(num_color),
@@ -835,7 +836,7 @@ pub(super) fn prepare_body_incremental(
                     unicode_width::UnicodeWidthStr::width("  ")
                 };
                 new_lines.push(
-                    Line::from(vec![
+                    line_from_spans(vec![
                         Span::raw(if centered { "" } else { "  " }),
                         Span::styled(msg.content.clone(), Style::default().fg(dim_color())),
                     ])
@@ -1027,7 +1028,7 @@ pub(super) fn prepare_body_incremental(
                 let prefix_width =
                     unicode_width::UnicodeWidthStr::width(if centered { "✗ " } else { "  ✗ " });
                 new_lines.push(
-                    Line::from(vec![
+                    line_from_spans(vec![
                         Span::styled(
                             if centered { "✗ " } else { "  ✗ " },
                             Style::default().fg(Color::Red),
@@ -1301,7 +1302,7 @@ pub(super) fn prepare_body(
                     unicode_width::UnicodeWidthStr::width("  ")
                 };
                 lines.push(
-                    Line::from(vec![
+                    line_from_spans(vec![
                         Span::raw(if centered { "" } else { "  " }),
                         Span::styled(msg.content.clone(), Style::default().fg(dim_color())),
                     ])
@@ -1497,7 +1498,7 @@ pub(super) fn prepare_body(
                 let prefix_width =
                     unicode_width::UnicodeWidthStr::width(if centered { "✗ " } else { "  ✗ " });
                 lines.push(
-                    Line::from(vec![
+                    line_from_spans(vec![
                         Span::styled(
                             if centered { "✗ " } else { "  ✗ " },
                             Style::default().fg(Color::Red),

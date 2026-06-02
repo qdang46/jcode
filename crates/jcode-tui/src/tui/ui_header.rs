@@ -6,6 +6,7 @@ use super::{
 };
 use crate::auth::{AuthState, AuthStatus};
 use crate::tui::color_support::rgb;
+use crate::tui::compat::{line_from_spans, text_from_lines};
 use crate::tui::connection_type_icon;
 use ratatui::prelude::*;
 #[cfg(test)]

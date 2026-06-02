@@ -489,6 +489,11 @@ pub(crate) enum Command {
         /// output. High-precision regex set documented in `src/export.rs`.
         #[arg(long)]
         redact: bool,
+
+        /// Export to another provider's native session format via casr
+        /// (e.g. `cc`, `cod`, `gmi`). Overrides `--format`/`--output` when set.
+        #[arg(long)]
+        to: Option<String>,
     },
 
     /// Ambient mode management

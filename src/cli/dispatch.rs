@@ -297,13 +297,18 @@ pub(crate) async fn run_main(mut args: Args) -> Result<()> {
             output,
             format,
             redact,
+            to,
         }) => {
-            let fmt = match format {
-                ExportFormatArg::Markdown => crate::export::ExportFormat::Markdown,
-                ExportFormatArg::Json => crate::export::ExportFormat::Json,
-                ExportFormatArg::Html => crate::export::ExportFormat::Html,
-            };
-            crate::export::run(&session, output, fmt, redact)?;
+            if let Some(alias) = to {
+                casr_export_to_provider(&alias, &session)?;
+            } else {
+                let fmt = match format {
+                    ExportFormatArg::Markdown => crate::export::ExportFormat::Markdown,
+                    ExportFormatArg::Json => crate::export::ExportFormat::Json,
+                    ExportFormatArg::Html => crate::export::ExportFormat::Html,
+                };
+                crate::export::run(&session, output, fmt, redact)?;
+            }
         }
         Some(Command::Ambient(subcmd)) => {
             commands::run_ambient_command(map_ambient_subcommand(subcmd)).await?;
@@ -522,11 +527,63 @@ fn resolve_resume_arg(args: &mut Args) -> Result<()> {
 fn resolve_resume_id(resume_id: &str) -> Result<String> {
     match session::find_session_by_name_or_id(resume_id) {
         Ok(full_id) => Ok(full_id),
-        Err(native_err) => match crate::import::import_external_resume_id(resume_id)? {
-            Some(imported_id) => Ok(imported_id),
-            None => Err(native_err),
-        },
+        Err(native_err) => {
+            // Unified cross-provider import via casr (any provider -> jcode).
+            // The legacy in-house importer (jcode-import-core / crate::import)
+            // has been removed entirely; casr's discovery registry is the
+            // single source of truth for "is this id from a known foreign
+            // provider, and if so, import it".
+            if let Some(imported_id) = casr_import_to_jcode(resume_id) {
+                return Ok(imported_id);
+            }
+            Err(native_err)
+        }
     }
+}
+
+/// Convert a session owned by any casr-supported provider into a native jcode
+/// session on disk, returning the new jcode session id. Returns `None` when
+/// casr cannot resolve/convert the id, so the caller can fall back.
+fn casr_import_to_jcode(resume_id: &str) -> Option<String> {
+    let pipeline = casr::pipeline::ConversionPipeline {
+        registry: casr::discovery::ProviderRegistry::default_registry(),
+    };
+    let result = pipeline
+        .convert(
+            "jcode",
+            resume_id,
+            casr::pipeline::ConvertOptions::default(),
+        )
+        .ok()?;
+    result.written.map(|w| w.session_id)
+}
+
+/// Export a native jcode session into another provider's format via casr and
+/// print the written paths + the target resume command.
+fn casr_export_to_provider(alias: &str, session_ref: &str) -> Result<()> {
+    let session_id = session::find_session_by_name_or_id(session_ref)?;
+    let pipeline = casr::pipeline::ConversionPipeline {
+        registry: casr::discovery::ProviderRegistry::default_registry(),
+    };
+    let opts = casr::pipeline::ConvertOptions {
+        source_hint: Some("jc".to_string()),
+        ..Default::default()
+    };
+    let result = pipeline.convert(alias, &session_id, opts)?;
+    match result.written {
+        Some(written) => {
+            println!(
+                "Exported jcode session {session_id} -> {}",
+                result.target_provider
+            );
+            for path in &written.paths {
+                println!("  wrote: {}", path.display());
+            }
+            println!("  resume: {}", written.resume_command);
+        }
+        None => println!("No output written for export to '{alias}'."),
+    }
+    Ok(())
 }
 
 fn map_memory_subcommand(subcmd: MemoryCommand) -> commands::MemorySubcommand {

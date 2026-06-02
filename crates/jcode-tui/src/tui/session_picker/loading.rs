@@ -1579,7 +1579,7 @@ pub fn load_sessions() -> Result<Vec<SessionInfo>> {
 }
 
 fn load_external_claude_code_sessions(scan_limit: usize) -> Vec<SessionInfo> {
-    let Ok(sessions) = crate::import::list_claude_code_sessions_lazy(scan_limit) else {
+    let Ok(sessions) = crate::casr_adapter::list_claude_code_sessions_lazy(scan_limit) else {
         return Vec::new();
     };
 
@@ -1691,7 +1691,7 @@ pub(super) fn load_claude_code_preview_from_path(path: &Path) -> Option<Vec<Prev
 }
 
 pub(super) fn load_claude_code_preview(session_id: &str) -> Option<Vec<PreviewMessage>> {
-    let session = crate::import::list_claude_code_sessions()
+    let session = crate::casr_adapter::list_claude_code_sessions()
         .ok()?
         .into_iter()
         .find(|session| session.session_id == session_id)?;
