@@ -145,12 +145,12 @@ pub(super) fn action_kind_label(command: &AccountPickerCommand) -> &'static str 
 
 pub(super) fn action_kind_badge(command: &AccountPickerCommand) -> (&'static str, Color) {
     match action_kind_label(command) {
-        "overview" => ("overview", PackedRgba::rgb(129, 184, 255)),
-        "login" => ("login", PackedRgba::rgb(111, 214, 181)),
-        "setting" => ("setting", PackedRgba::rgb(229, 187, 111)),
-        "danger" => ("remove", PackedRgba::rgb(255, 140, 140)),
-        "account" => ("account", PackedRgba::rgb(182, 154, 255)),
-        _ => ("action", PackedRgba::rgb(180, 190, 220)),
+        "overview" => ("overview", Color::rgb(129, 184, 255)),
+        "login" => ("login", Color::rgb(111, 214, 181)),
+        "setting" => ("setting", Color::rgb(229, 187, 111)),
+        "danger" => ("remove", Color::rgb(255, 140, 140)),
+        "account" => ("account", Color::rgb(182, 154, 255)),
+        _ => ("action", Color::rgb(180, 190, 220)),
     }
 }
 
@@ -285,16 +285,16 @@ pub(super) fn truncate_with_ellipsis(input: &str, width: usize) -> String {
 pub(super) fn centered_rect(percent_x: u16, percent_y: u16, area: Rect) -> Rect {
     let popup = Flex::vertical()
         .constraints([
-            Constraint::Percentage((100 - percent_y) / 2),
-            Constraint::Percentage(percent_y),
-            Constraint::Percentage((100 - percent_y) / 2),
+            Constraint::Percentage((100 - percent_y) as f32 / 2.0),
+            Constraint::Percentage(percent_y as f32),
+            Constraint::Percentage((100 - percent_y) as f32 / 2.0),
         ])
         .split(area);
     Flex::horizontal()
         .constraints([
-            Constraint::Percentage((100 - percent_x) / 2),
-            Constraint::Percentage(percent_x),
-            Constraint::Percentage((100 - percent_x) / 2),
+            Constraint::Percentage((100 - percent_x) as f32 / 2.0),
+            Constraint::Percentage(percent_x as f32),
+            Constraint::Percentage((100 - percent_x) as f32 / 2.0),
         ])
         .split(popup[1])[1]
 }

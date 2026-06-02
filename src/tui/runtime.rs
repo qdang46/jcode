@@ -84,8 +84,8 @@ impl AppWrapper {
             self.display.auto_scroll_paused = app.auto_scroll_paused();
             self.display.is_processing = app.is_processing();
             self.display.streaming_text = app.streaming_text().to_string();
-            self.display.status = app.status();
-            self.display.provider_name = Some(app.provider_name());
+            self.display.status = app.status().clone();
+            self.display.provider_name = Some(app.provider_name().to_string());
             self.display.provider_model = Some(app.provider_model());
         }
     }
@@ -100,7 +100,7 @@ impl AppWrapper {
                 update_session: app.update_requested().take(),
                 restart_session: app.restart_requested().take(),
                 exit_code: app.requested_exit_code().take(),
-                session_id: Some(app.session_id()),
+                session_id: Some(app.session_id().to_string()),
             };
             if let Ok(mut r) = self.result_ref.lock() {
                 *r = Some(result);

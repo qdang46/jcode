@@ -1,6 +1,7 @@
 use super::{accent_color, clear_area, dim_color, tool_color};
 use ftui_text::text::Span;
 use crate::tui::info_widget;
+use crate::tui::compat::text_from_lines;
 use ftui_core::geometry::Rect;
 use ftui_render::frame::Frame;
 use ftui_style::Style;
@@ -882,11 +883,12 @@ use ftui_widgets::borders::{BorderType, Borders};
         };
         content_area
     } else {
+        let title_text: String = title_parts.iter().map(|s| s.content.as_ref()).collect();
         let block = Block::default()
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
             .border_style(border_style)
-            .title(Line::from_spans(title_parts));
+            .title(title_text.as_str());
 
         let inner = block.inner(area);
         block.render(area, frame);
@@ -920,7 +922,7 @@ use ftui_widgets::borders::{BorderType, Borders};
                 clear_area(frame, inner);
                 let placeholder =
                     super::super::mermaid::diagram_placeholder_lines(diagram.width, diagram.height);
-                let paragraph = Paragraph::new(placeholder).wrap(WrapMode::Word);
+                let paragraph = Paragraph::new(text_from_lines(placeholder)).wrap(WrapMode::Word);
                 paragraph.render(inner, frame);
                 rendered = inner.height;
             } else if super::super::mermaid::protocol_type().is_some() {
@@ -931,7 +933,7 @@ use ftui_widgets::borders::{BorderType, Borders};
                         &mut frame.buffer,
                         scroll_x,
                         scroll_y,
-                        zoom_percent,
+                        zoom_percent.into(),
                         false,
                     );
                 } else {
@@ -974,7 +976,7 @@ use ftui_widgets::borders::{BorderType, Borders};
             clear_area(frame, inner);
             let placeholder =
                 super::super::mermaid::diagram_placeholder_lines(diagram.width, diagram.height);
-            let paragraph = Paragraph::new(placeholder).wrap(WrapMode::Word);
+            let paragraph = Paragraph::new(text_from_lines(placeholder)).wrap(WrapMode::Word);
             paragraph.render(inner, frame);
         }
     } else {

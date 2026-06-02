@@ -1,3 +1,4 @@
+use ftui_render::cell::PackedRgba;
 use ftui_style::MonoColor;
 use super::*;
 use crate::tui::TuiState;
@@ -5,6 +6,10 @@ use ftui_style::{Color, Style};
 use ftui_text::text::{Line, Span};
 use jcode_tui_style::theme::blend_color;
 use jcode_tui_style::theme::accent_color;
+
+fn packed_rgba_to_color(p: PackedRgba) -> Color {
+    Color::rgb(p.r(), p.g(), p.b())
+}
 
 fn selection_bg_for(base_bg: Option<Color>) -> Color {
     let fallback = Color::rgb(32, 38, 48);
@@ -48,15 +53,17 @@ fn highlight_line_selection(
                 col < end_col && col.saturating_add(width) > start_col
             };
 
-            let mut style = span.style;
+            let mut style: Style = span.style.unwrap_or_default();
             if selected {
-                style = style.bg(selection_bg_for(style.bg));
-                if let Some(fg) = selection_fg_for(style.fg) {
+                let base_bg = style.bg.map(packed_rgba_to_color);
+                let base_fg = style.fg.map(packed_rgba_to_color);
+                style = style.bg(selection_bg_for(base_bg));
+                if let Some(fg) = selection_fg_for(base_fg) {
                     style = style.fg(fg);
                 }
             }
 
-            if current_style == Some(style) {
+            if current_style.as_ref() == Some(&style) {
                 current_text.push(ch);
             } else {
                 flush(&mut rebuilt, &mut current_text, &mut current_style);

@@ -6,28 +6,9 @@ use ftui_text::text::Line as FtuiLine;
 use ftui_text::text::Span as FtuiSpan;
 use ftui_text::text::Text as FtuiText;
 
-/// Newtype wrapper around PackedRgba that we own, so we can implement
-/// From<FtuiColor> for it. This lets us satisfy Style::fg's Into<PackedRgba> bound.
-#[derive(Clone, Copy, Debug)]
-pub struct PackedRgbaCompat(pub PackedRgba);
-
-impl From<FtuiColor> for PackedRgbaCompat {
-    fn from(color: FtuiColor) -> Self {
-        PackedRgbaCompat(color_to_packedrgba(&color))
-    }
-}
-
-impl From<PackedRgbaCompat> for PackedRgba {
-    fn from(c: PackedRgbaCompat) -> Self {
-        c.0
-    }
-}
-
-impl From<FtuiColor> for PackedRgba {
-    fn from(color: FtuiColor) -> Self {
-        PackedRgbaCompat::from(color).0
-    }
-}
+/// `From<FtuiColor> for PackedRgba` is now provided by the `ftui-style` crate
+/// itself (see `ftui_style::color`), where `Color` is local — so the orphan
+/// rule is satisfied and we no longer need a wrapper here.
 
 pub trait StyleCompatExt {
     fn fg_compat(self, color: FtuiColor) -> Self;

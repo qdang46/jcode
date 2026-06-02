@@ -29,13 +29,22 @@ pub(super) fn side_panel_border_style(focused: bool) -> Style {
 
 pub(super) fn pinned_diagram_preferred_aspect_ratio(
     page: Rect,
-    content_inner: Rect,
     pane_position: crate::config::DiagramPanePosition,
 ) -> Option<f32> {
-    crate::tui::ui::diagram_pane::pinned_diagram_preferred_aspect_ratio(
-        page,
+    crate::tui::ui::diagram_pane::pinned_diagram_preferred_aspect_ratio(page, pane_position)
+}
+
+pub(super) fn side_panel_mermaid_preferred_aspect_ratio(
+    _page: &crate::side_panel::SidePanelPage,
+    content_inner: Rect,
+    has_protocol: bool,
+) -> Option<f32> {
+    if !has_protocol {
+        return None;
+    }
+    pinned_diagram_preferred_aspect_ratio(
         content_inner,
-        pane_position,
+        crate::config::DiagramPanePosition::default(),
     )
 }
 

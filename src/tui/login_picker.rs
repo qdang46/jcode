@@ -298,14 +298,15 @@ impl LoginPicker {
 
     pub fn render(&mut self, frame: &mut ftui::Frame) {
         use ftui_core::geometry::Rect;
-        use ftui_layout::{Constraint, Direction, Flex};
+        use ftui_layout::{Constraint, Flex};
 
         let area = centered_rect(OVERLAY_PERCENT_X, OVERLAY_PERCENT_Y, Rect::new(0, 0, frame.buffer.width(), frame.buffer.height()));
 
+        let title = format!(" {} ", self.title);
         let block = Block::default()
-            .title(format!(" {} ", self.title))
+            .title(title.as_str())
             .borders(Borders::ALL)
-            .border_style(Style::new().fg_compat(PANEL_BORDER));
+            .border_style(Style::new().fg(PANEL_BORDER));
         block.render(area, frame);
 
         let inner = Rect {
@@ -325,40 +326,34 @@ impl LoginPicker {
         self.render_header(frame, rows[0]);
 
         let body = Flex::horizontal()
-            .constraints([Constraint::Percentage(37), Constraint::Percentage(63)])
+            .constraints([Constraint::Percentage(37.0), Constraint::Percentage(63.0)])
             .split(rows[1]);
 
         self.render_provider_list(frame, body[0]);
         self.render_detail_pane(frame, body[1]);
 
         let footer = Paragraph::new(Text::from_line(Line::from_spans(vec![
-            Span::styled("Tip ", Style::new().fg_compat(MUTED_DARK)),
+            Span::styled("Tip ", Style::new().fg(MUTED_DARK)),
             Span::styled(
                 "Move or click through providers on the left; the focused provider expands on the right with setup and account details.",
-                Style::new().fg_compat(MUTED),
+                Style::new().fg(MUTED),
             ),
         ])));
         footer.render(rows[2], frame);
     }
 
     fn render_header(&self, frame: &mut ftui::Frame, area: ftui_core::geometry::Rect) {
-        use ftui_core::geometry::Rect;
-        use ftui_layout::{Constraint, Direction, Flex};
-
         let block = Block::default()
-            .title(Span::styled(
-                " Login overview ",
-                Style::new().fg_compat(Color::Mono(MonoColor::White)).bold(),
-            ))
+            .title(" Login overview ")
             .borders(Borders::ALL)
             .style(Style::new().bg(PANEL_BG))
-            .border_style(Style::new().fg_compat(SECTION_BORDER));
+            .border_style(Style::new().fg(SECTION_BORDER));
         let inner = block.inner(area);
         block.render(area, frame);
 
         let lines = vec![
             Line::from_spans(vec![
-                Span::styled("Filter ", Style::new().fg_compat(MUTED_DARK)),
+                Span::styled("Filter ", Style::new().fg(MUTED_DARK)),
                 Span::styled(
                     if self.filter.is_empty() {
                         "type provider, status, or auth method".to_string()
@@ -373,7 +368,7 @@ impl LoginPicker {
                 ),
                 Span::styled(
                     format!("  ·  {} results", self.filtered.len()),
-                    Style::new().fg_compat(MUTED_DARK),
+                    Style::new().fg(MUTED_DARK),
                 ),
             ]),
             Line::from_spans(vec![
@@ -409,9 +404,6 @@ impl LoginPicker {
     }
 
     fn render_provider_list(&mut self, frame: &mut ftui::Frame, area: ftui_core::geometry::Rect) {
-        use ftui_core::geometry::Rect;
-        use ftui_layout::{Constraint, Direction, Flex};
-
         let title = if self.filtered.is_empty() {
             " Providers ".to_string()
         } else {
@@ -422,10 +414,10 @@ impl LoginPicker {
             )
         };
         let block = Block::default()
-            .title(Span::styled(title, Style::new().fg_compat(Color::Mono(MonoColor::White)).bold()))
+            .title(title.as_str())
             .borders(Borders::ALL)
             .style(Style::new().bg(PANEL_BG))
-            .border_style(Style::new().fg_compat(PANEL_BORDER_ACTIVE));
+            .border_style(Style::new().fg(PANEL_BORDER_ACTIVE));
         let inner = block.inner(area);
         block.render(area, frame);
         self.last_provider_list_area = Some(inner);
@@ -442,7 +434,7 @@ impl LoginPicker {
             )]));
             lines.push(Line::from_spans(vec![Span::styled(
                 "Try `openai`, `oauth`, `configured`, or `setup`.",
-                Style::new().fg_compat(MUTED),
+                Style::new().fg(MUTED),
             )]));
         } else {
             for visible_idx in start..end {
@@ -466,9 +458,9 @@ impl LoginPicker {
                         if selected { "› " } else { "  " },
                         row_style.fg_compat(Color::Mono(MonoColor::White)),
                     ),
-                    Span::styled(name, row_style.patch(provider_style(item.provider.id))),
+                    Span::styled(name, row_style.patch(&provider_style(item.provider.id))),
                     Span::styled(" ".repeat(padding), row_style),
-                    Span::styled(item.status_icon(), row_style.fg_compat(item.status_color()).bold()),
+                    Span::styled(item.status_icon(), row_style.fg(item.status_color()).bold()),
                 ]));
             }
         }
@@ -479,18 +471,15 @@ impl LoginPicker {
     }
 
     fn render_detail_pane(&self, frame: &mut ftui::Frame, area: ftui_core::geometry::Rect) {
-        use ftui_core::geometry::Rect;
-        use ftui_layout::{Constraint, Direction, Flex};
-
         let title = self
             .selected_item()
             .map(|item| format!(" {} ", item.provider.display_name))
             .unwrap_or_else(|| " Details ".to_string());
         let block = Block::default()
-            .title(Span::styled(title, Style::new().fg_compat(Color::Mono(MonoColor::White)).bold()))
+            .title(title.as_str())
             .borders(Borders::ALL)
             .style(Style::new().bg(PANEL_BG))
-            .border_style(Style::new().fg_compat(SECTION_BORDER));
+            .border_style(Style::new().fg(SECTION_BORDER));
         let inner = block.inner(area);
         block.render(area, frame);
 
@@ -518,7 +507,7 @@ impl LoginPicker {
                 ),
             ]),
             Line::from_spans(vec![
-                Span::styled("Provider ", Style::new().fg_compat(MUTED_DARK)),
+                Span::styled("Provider ", Style::new().fg(MUTED_DARK)),
                 Span::styled(
                     item.provider.display_name.to_string(),
                     provider_style(item.provider.id),
@@ -533,7 +522,7 @@ impl LoginPicker {
                 },
             ]),
             Line::from_spans(vec![
-                Span::styled("Login command ", Style::new().fg_compat(MUTED_DARK)),
+                Span::styled("Login command ", Style::new().fg(MUTED_DARK)),
                 Span::styled(
                     format!("/login {}", item.provider.id),
                     Style::new().fg_compat(Color::Mono(MonoColor::White)),
@@ -541,27 +530,27 @@ impl LoginPicker {
             ]),
             Line::from_spans(vec![Span::styled(
                 "Authentication",
-                Style::new().fg_compat(MUTED_DARK).bold(),
+                Style::new().fg(MUTED_DARK).bold(),
             )]),
             Line::from_spans(vec![Span::styled(
                 item.provider.auth_kind.label(),
                 Style::new()
-                    .fg_compat(auth_kind_color(item.provider.auth_kind.label()))
+                    .fg(auth_kind_color(item.provider.auth_kind.label()))
                     .bold(),
             )]),
             Line::from_spans(vec![]),
             Line::from_spans(vec![Span::styled(
                 "Detected setup",
-                Style::new().fg_compat(MUTED_DARK).bold(),
+                Style::new().fg(MUTED_DARK).bold(),
             )]),
             Line::from_spans(vec![Span::styled(
                 item.method_detail.clone(),
-                Style::new().fg_compat(MUTED),
+                Style::new().fg(MUTED),
             )]),
             Line::from_spans(vec![]),
             Line::from_spans(vec![Span::styled(
                 "What you need",
-                Style::new().fg_compat(MUTED_DARK).bold(),
+                Style::new().fg(MUTED_DARK).bold(),
             )]),
             Line::from_spans(vec![Span::styled(
                 item.provider.menu_detail.to_string(),
@@ -569,18 +558,18 @@ impl LoginPicker {
             )]),
             Line::from_spans(vec![]),
             Line::from_spans(vec![
-                Span::styled("Aliases ", Style::new().fg_compat(MUTED_DARK)),
-                Span::styled(aliases, Style::new().fg_compat(MUTED)),
+                Span::styled("Aliases ", Style::new().fg(MUTED_DARK)),
+                Span::styled(aliases, Style::new().fg(MUTED)),
             ]),
             Line::from_spans(vec![
-                Span::styled("Numbered accounts ", Style::new().fg_compat(MUTED_DARK)),
+                Span::styled("Numbered accounts ", Style::new().fg(MUTED_DARK)),
                 Span::styled(
                     if provider_supports_named_accounts(item.provider) {
                         "supported"
                     } else {
                         "not used for this provider"
                     },
-                    Style::new().fg_compat(MUTED),
+                    Style::new().fg(MUTED),
                 ),
             ]),
         ];
@@ -676,11 +665,11 @@ fn account_detail_lines(provider: LoginProviderDescriptor) -> Vec<Line<'static>>
         _ => vec![
             Line::from_spans(vec![Span::styled(
                 "Accounts",
-                Style::new().fg_compat(MUTED_DARK).bold(),
+                Style::new().fg(MUTED_DARK).bold(),
             )]),
             Line::from_spans(vec![Span::styled(
                 "This provider is usually configured as a single credential or env-based login.",
-                Style::new().fg_compat(MUTED),
+                Style::new().fg(MUTED),
             )]),
         ],
     }
@@ -693,16 +682,16 @@ fn claude_account_lines() -> Vec<Line<'static>> {
 
     let mut lines = vec![Line::from_spans(vec![Span::styled(
         "Accounts",
-        Style::new().fg_compat(MUTED_DARK).bold(),
+        Style::new().fg(MUTED_DARK).bold(),
     )])];
 
     if accounts.is_empty() {
         lines.push(Line::from_spans(vec![Span::styled(
             "No saved Claude accounts yet.",
-            Style::new().fg_compat(MUTED),
+            Style::new().fg(MUTED),
         )]));
         lines.push(Line::from_spans(vec![
-            Span::styled("Add more later with ", Style::new().fg_compat(MUTED_DARK)),
+            Span::styled("Add more later with ", Style::new().fg(MUTED_DARK)),
             Span::styled("/account claude add", Style::new().fg_compat(Color::Mono(MonoColor::White))),
         ]));
         return lines;
@@ -711,7 +700,7 @@ fn claude_account_lines() -> Vec<Line<'static>> {
     let active = active_label.unwrap_or_else(crate::auth::claude::primary_account_label);
     lines.push(Line::from_spans(vec![Span::styled(
         format!("{} saved · active: {}", accounts.len(), active),
-        Style::new().fg_compat(MUTED),
+        Style::new().fg(MUTED),
     )]));
 
     for account in accounts.iter().take(6) {
@@ -733,7 +722,7 @@ fn claude_account_lines() -> Vec<Line<'static>> {
         lines.push(Line::from_spans(vec![
             Span::styled(
                 if is_active { "● " } else { "○ " },
-                Style::new().fg_compat(if is_active {
+                Style::new().fg(if is_active {
                     PackedRgba::rgb(111, 214, 181)
                 } else {
                     MUTED
@@ -742,7 +731,7 @@ fn claude_account_lines() -> Vec<Line<'static>> {
             Span::styled(account.label.clone(), Style::new().fg_compat(Color::Mono(MonoColor::White))),
             Span::styled(
                 format!(" · {} · {} · {}", email, account_status, plan),
-                Style::new().fg_compat(MUTED),
+                Style::new().fg(MUTED),
             ),
         ]));
     }
@@ -750,12 +739,12 @@ fn claude_account_lines() -> Vec<Line<'static>> {
     if accounts.len() > 6 {
         lines.push(Line::from_spans(vec![Span::styled(
             format!("+{} more accounts", accounts.len() - 6),
-            Style::new().fg_compat(MUTED_DARK),
+            Style::new().fg(MUTED_DARK),
         )]));
     }
 
     lines.push(Line::from_spans(vec![
-        Span::styled("Manage with ", Style::new().fg_compat(MUTED_DARK)),
+        Span::styled("Manage with ", Style::new().fg(MUTED_DARK)),
         Span::styled("/account claude", Style::new().fg_compat(Color::Mono(MonoColor::White))),
     ]));
     lines
@@ -768,16 +757,16 @@ fn openai_account_lines() -> Vec<Line<'static>> {
 
     let mut lines = vec![Line::from_spans(vec![Span::styled(
         "Accounts",
-        Style::new().fg_compat(MUTED_DARK).bold(),
+        Style::new().fg(MUTED_DARK).bold(),
     )])];
 
     if accounts.is_empty() {
         lines.push(Line::from_spans(vec![Span::styled(
             "No saved OpenAI accounts yet.",
-            Style::new().fg_compat(MUTED),
+            Style::new().fg(MUTED),
         )]));
         lines.push(Line::from_spans(vec![
-            Span::styled("Add more later with ", Style::new().fg_compat(MUTED_DARK)),
+            Span::styled("Add more later with ", Style::new().fg(MUTED_DARK)),
             Span::styled("/account openai add", Style::new().fg_compat(Color::Mono(MonoColor::White))),
         ]));
         return lines;
@@ -786,7 +775,7 @@ fn openai_account_lines() -> Vec<Line<'static>> {
     let active = active_label.unwrap_or_else(crate::auth::codex::primary_account_label);
     lines.push(Line::from_spans(vec![Span::styled(
         format!("{} saved · active: {}", accounts.len(), active),
-        Style::new().fg_compat(MUTED),
+        Style::new().fg(MUTED),
     )]));
 
     for account in accounts.iter().take(6) {
@@ -808,7 +797,7 @@ fn openai_account_lines() -> Vec<Line<'static>> {
         lines.push(Line::from_spans(vec![
             Span::styled(
                 if is_active { "● " } else { "○ " },
-                Style::new().fg_compat(if is_active {
+                Style::new().fg(if is_active {
                     PackedRgba::rgb(111, 214, 181)
                 } else {
                     MUTED
@@ -817,7 +806,7 @@ fn openai_account_lines() -> Vec<Line<'static>> {
             Span::styled(account.label.clone(), Style::new().fg_compat(Color::Mono(MonoColor::White))),
             Span::styled(
                 format!(" · {} · {} · {}", email, account_status, account_id),
-                Style::new().fg_compat(MUTED),
+                Style::new().fg(MUTED),
             ),
         ]));
     }
@@ -825,12 +814,12 @@ fn openai_account_lines() -> Vec<Line<'static>> {
     if accounts.len() > 6 {
         lines.push(Line::from_spans(vec![Span::styled(
             format!("+{} more accounts", accounts.len() - 6),
-            Style::new().fg_compat(MUTED_DARK),
+            Style::new().fg(MUTED_DARK),
         )]));
     }
 
     lines.push(Line::from_spans(vec![
-        Span::styled("Manage with ", Style::new().fg_compat(MUTED_DARK)),
+        Span::styled("Manage with ", Style::new().fg(MUTED_DARK)),
         Span::styled("/account openai", Style::new().fg_compat(Color::Mono(MonoColor::White))),
     ]));
     lines
@@ -875,21 +864,20 @@ fn centered_rect(
     percent_y: u16,
     area: ftui_core::geometry::Rect,
 ) -> ftui_core::geometry::Rect {
-    use ftui_core::geometry::Rect;
-    use ftui_layout::{Constraint, Direction, Flex};
+    use ftui_layout::{Constraint, Flex};
 
     let popup = Flex::vertical()
         .constraints([
-            Constraint::Percentage((100 - percent_y) / 2),
-            Constraint::Percentage(percent_y),
-            Constraint::Percentage((100 - percent_y) / 2),
+            Constraint::Percentage((100 - percent_y) as f32 / 2.0),
+            Constraint::Percentage(percent_y as f32),
+            Constraint::Percentage((100 - percent_y) as f32 / 2.0),
         ])
         .split(area);
     Flex::horizontal()
         .constraints([
-            Constraint::Percentage((100 - percent_x) / 2),
-            Constraint::Percentage(percent_x),
-            Constraint::Percentage((100 - percent_x) / 2),
+            Constraint::Percentage((100 - percent_x) as f32 / 2.0),
+            Constraint::Percentage(percent_x as f32),
+            Constraint::Percentage((100 - percent_x) as f32 / 2.0),
         ])
         .split(popup[1])[1]
 }

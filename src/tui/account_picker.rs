@@ -414,8 +414,9 @@ impl AccountPicker {
     pub fn render(&mut self, frame: &mut Frame) {
         let area = centered_rect(OVERLAY_PERCENT_X, OVERLAY_PERCENT_Y, Rect::new(0, 0, frame.buffer.width(), frame.buffer.height()));
 
+        let title = format!(" {} ", self.title);
         let block = Block::new()
-            .title(format!(" {} ", self.title))
+            .title(title.as_str())
             .borders(Borders::ALL)
             .border_style(Style::new().fg_compat(PANEL_BORDER));
         block.render(area, frame);
@@ -437,7 +438,7 @@ impl AccountPicker {
         self.render_header(frame, rows[0]);
 
         let body = Flex::horizontal()
-            .constraints([Constraint::Percentage(58), Constraint::Percentage(42)])
+            .constraints([Constraint::Percentage(58.0), Constraint::Percentage(42.0)])
             .split(rows[1]);
 
         self.render_action_list(frame, body[0]);
@@ -455,10 +456,7 @@ impl AccountPicker {
 
     fn render_header(&self, frame: &mut Frame, area: Rect) {
         let block = Block::new()
-            .title(Span::styled(
-                " Overview ",
-                Style::new().fg_compat(Color::Mono(MonoColor::White)).bold(),
-            ))
+            .title(" Overview ")
             .borders(Borders::ALL)
             .style(Style::new().bg_compat(PANEL_BG))
             .border_style(Style::new().fg_compat(SECTION_BORDER));
@@ -505,7 +503,7 @@ impl AccountPicker {
             )
         };
         let block = Block::new()
-            .title(Span::styled(title, Style::new().fg_compat(Color::Mono(MonoColor::White)).bold()))
+            .title(title.as_str())
             .borders(Borders::ALL)
             .style(Style::new().bg_compat(PANEL_BG))
             .border_style(Style::new().fg_compat(PANEL_BORDER_ACTIVE));
@@ -579,7 +577,7 @@ impl AccountPicker {
             .map(|item| format!(" {} ", item.provider_label))
             .unwrap_or_else(|| " Details ".to_string());
         let block = Block::new()
-            .title(Span::styled(title, Style::new().fg_compat(Color::Mono(MonoColor::White)).bold()))
+            .title(title.as_str())
             .borders(Borders::ALL)
             .style(Style::new().bg_compat(PANEL_BG))
             .border_style(Style::new().fg_compat(SECTION_BORDER));
@@ -587,7 +585,7 @@ impl AccountPicker {
         block.render(area, frame);
 
         let Some(item) = self.selected_item() else {
-            let paragraph = Paragraph::new(Text::from_line("No action selected"))
+            let paragraph = Paragraph::new(Text::from_line(Line::from("No action selected")))
                 .style(Style::new().fg_compat(Color::Rgb(Rgb::new(80, 80, 80))));
             paragraph.render(inner, frame);
             return;

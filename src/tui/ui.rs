@@ -52,6 +52,7 @@ use ftui_layout::{Constraint, Flex};
 use ftui_render::frame::Frame;
 use ftui_style::{Ansi16, Color, Style};
 use crate::tui::compat::{text_from_lines, line_from_spans, line_from_span};
+use ftui_text::text::{Line, Span};
 use ftui_widgets::{block::Alignment, paragraph::Paragraph, Widget};
 use serde::Serialize;
 #[cfg(test)]
@@ -1675,7 +1676,7 @@ pub fn draw(frame: &mut Frame, app: &dyn TuiState) {
 }
 
 fn draw_inner(frame: &mut Frame, app: &dyn TuiState) {
-    let area = Rect::new(0, 0, frame.buffer.width(), frame.buffer.height()).intersection(*frame.buffer().area());
+    let area = Rect::new(0, 0, frame.buffer.width(), frame.buffer.height());
     if area.width == 0 || area.height == 0 {
         return;
     }
@@ -2338,7 +2339,7 @@ fn draw_inner(frame: &mut Frame, app: &dyn TuiState) {
 
         let mut capture = capture;
         capture.render_timing = Some(render_timing);
-        capture.mermaid = crate::tui::mermaid::debug_stats_json();
+        capture.mermaid = serde_json::from_str(&crate::tui::mermaid::debug_stats_json()).ok();
         capture.side_panel = crate::tui::side_panel_debug_json();
         capture.markdown = crate::tui::markdown::debug_stats_json();
         capture.theme = overlays::debug_palette_json();
@@ -2439,7 +2440,7 @@ pub(crate) fn render_native_scrollbar(
         )]));
     }
 
-    Paragraph::new(text_from_lines(lines)).render(area, &mut frame.buffer);
+    Paragraph::new(text_from_lines(lines)).render(area, frame);
 }
 
 #[cfg(test)]

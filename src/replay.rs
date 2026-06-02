@@ -716,9 +716,6 @@ pub fn compose_swarm_buffers(
     fps: u32,
     cols: u16,
 ) -> Vec<(f64, ratatui::buffer::Buffer)> {
-    use ftui_core::geometry::Rect;
-    use ftui_render::buffer::Buffer;
-
     if pane_frames.is_empty() {
         return Vec::new();
     }
@@ -739,14 +736,16 @@ pub fn compose_swarm_buffers(
     let mut output = Vec::new();
     let mut t = 0.0;
     while t <= end_time + frame_step {
-        let mut canvas = Buffer::new(width, height);
+        let backend = ratatui::backend::TestBackend::new(width, height);
+        let mut terminal = ratatui::Terminal::new(backend).expect("terminal");
+        let mut canvas = terminal.backend().buffer().clone();
         for (idx, pane) in pane_frames.iter().enumerate() {
             let idx = idx as u16;
             let col = idx % cols;
             let row = idx / cols;
             let x = col * pane_width;
             let y = row * pane_height;
-            let area = Rect::new(
+            let area = ratatui::layout::Rect::new(
                 x,
                 y,
                 if col == cols - 1 {
@@ -795,7 +794,9 @@ fn blit_buffer(
         for sx in 0..area.width.min(src.area.width) {
             let dx = area.x + sx;
             let dy = area.y + sy;
-            if let (Some(src_cell), Some(dst_cell)) = (src.get(sx, sy), dst.get_mut(dx, dy)) {
+            if dx < dst.area.width && dy < dst.area.height {
+                let src_cell = &src[(sx, sy)];
+                let dst_cell = &mut dst[(dx, dy)];
                 *dst_cell = src_cell.clone();
             }
         }

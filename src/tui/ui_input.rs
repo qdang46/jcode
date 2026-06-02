@@ -570,7 +570,7 @@ pub(super) fn draw_status(frame: &mut Frame, app: &dyn TuiState, area: Rect, pen
     };
 
     let line = if let Some(build_progress) = crate::build::read_build_progress() {
-        let spinner = super::activity_indicator(elapsed, 12.5);
+        let spinner = super::activity_indicator(elapsed as f64, 12.5, false);
         Line::from_spans(vec![
             Span::styled(spinner, Style::default().fg_compat(rgb(255, 193, 7))),
             Span::styled(
@@ -580,7 +580,7 @@ pub(super) fn draw_status(frame: &mut Frame, app: &dyn TuiState, area: Rect, pen
         ])
     } else if let Some(remaining) = app.rate_limit_remaining() {
         let secs = remaining.as_secs();
-        let spinner = super::activity_indicator(elapsed, 4.0);
+        let spinner = super::activity_indicator(elapsed as f64, 4.0, false);
         let time_str = if secs >= 3600 {
             let hours = secs / 3600;
             let mins = (secs % 3600) / 60;
@@ -603,7 +603,7 @@ pub(super) fn draw_status(frame: &mut Frame, app: &dyn TuiState, area: Rect, pen
             ),
         ])
     } else if app.is_processing() {
-        let spinner = super::activity_indicator(elapsed, 12.5);
+        let spinner = super::activity_indicator(elapsed as f64, 12.5, false);
 
         match app.status() {
             ProcessingStatus::Idle => Line::from_spans(vec![]),
@@ -748,7 +748,7 @@ pub(super) fn draw_status(frame: &mut Frame, app: &dyn TuiState, area: Rect, pen
                         ("···".to_string(), "···".to_string())
                     };
 
-                let anim_color = animated_tool_color(elapsed);
+                let anim_color = animated_tool_color(elapsed as usize);
                 let batch_prog = app.batch_progress();
                 let is_batch = name == "batch";
                 // For batch: compute initial total from the streaming tool call input

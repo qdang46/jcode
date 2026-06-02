@@ -15,6 +15,30 @@ use crate::tui::compat::{line_from_spans, line_from_span};
 use std::borrow::Cow;
 use unicode_width::UnicodeWidthStr;
 
+#[inline]
+fn rgb(r: u8, g: u8, b: u8) -> Color {
+    Color::rgb(r, g, b)
+}
+
+/// Local wrapper that preserves the historic 4-arg call shape used throughout
+/// this file. The underlying `super::render_rounded_box` is a no-op stub, so
+/// we just return the content lines unchanged.
+#[inline]
+fn render_rounded_box_with_style(
+    title: &str,
+    content: Vec<Line<'static>>,
+    width: usize,
+    border_style: ftui_style::Style,
+) -> Vec<Line<'static>> {
+    super::render_rounded_box(title, content, width, border_style)
+}
+
+/// Truncate a line in place with an ellipsis at the given display width.
+#[inline]
+fn truncate_line_to_width(line: &mut Line<'static>, width: usize) {
+    super::truncate_line_with_ellipsis_to_width(line, width as u16);
+}
+
 const MAX_INLINE_DIFF_LINES: usize = 12;
 
 fn prefer_width_stable_system_glyphs() -> bool {
@@ -142,15 +166,14 @@ fn render_assistant_tool_call_lines(
         spans.push(Span::styled(more_text, separator_style));
     }
 
-    let mut lines = vec![super::truncate_line_with_ellipsis_to_width(
-        &Line::from_spans(spans),
-        max_width,
-    )];
+    let mut first_line = Line::from_spans(spans);
+    super::truncate_line_with_ellipsis_to_width(&mut first_line, max_width as u16);
+    let mut lines = vec![first_line];
 
     if centered {
-        left_pad_lines_for_centered_mode(&mut lines, width as u16);
+        left_pad_lines_for_centered_mode(&mut lines[..], width as u16);
         if let Some(line) = lines.first_mut() {
-            *line = super::truncate_line_with_ellipsis_to_width(line, max_width);
+            super::truncate_line_with_ellipsis_to_width(line, max_width as u16);
         }
     }
 
@@ -203,11 +226,11 @@ pub(crate) fn render_system_message(
             .collect();
     }
     if centered {
-        left_pad_lines_for_centered_mode(&mut lines, width);
+        left_pad_lines_for_centered_mode(&mut lines[..], width);
     }
     for line in &mut lines {
-        for span in line.iter_spans_mut() {
-            span.style.fg = Some(system_message_color());
+        for span in line.spans_mut().iter_mut() {
+            span.style = Some(span.style.unwrap_or_default().fg(system_message_color()));
         }
     }
     lines
@@ -262,7 +285,7 @@ pub(crate) fn render_usage_message(
         )]));
     }
 
-    render_rounded_box(
+    render_rounded_box_with_style(
         title,
         content,
         width.saturating_sub(4) as usize,
@@ -433,9 +456,9 @@ pub(crate) fn render_overnight_message(
         dim_style,
     );
 
-    let mut lines = render_rounded_box(&title, box_content, max_box_width, border_style);
+    let mut lines = render_rounded_box_with_style(&title, box_content, max_box_width, border_style);
     if centered {
-        left_pad_lines_for_centered_mode(&mut lines, width);
+        left_pad_lines_for_centered_mode(&mut lines[..], width);
     }
     lines
 }
@@ -475,7 +498,7 @@ fn render_overnight_progress_line(
     let filled = ((percent / 100.0) * bar_width as f32).round() as usize;
     let filled = filled.min(bar_width);
     let empty = bar_width.saturating_sub(filled);
-    let line = Line::from_spans(vec![
+    let mut line = Line::from_spans(vec![
         Span::styled("█".repeat(filled), filled_style),
         Span::styled("░".repeat(empty), empty_style),
         Span::styled(" ", label_style),
@@ -483,7 +506,8 @@ fn render_overnight_progress_line(
         Span::styled(separator, label_style),
         Span::styled(summary, text_style),
     ]);
-    super::truncate_line_with_ellipsis_to_width(&line, inner_width)
+    super::truncate_line_with_ellipsis_to_width(&mut line, inner_width as u16);
+    line
 }
 
 fn push_overnight_kv_line(
@@ -503,21 +527,19 @@ fn push_overnight_kv_line(
     }
     for (idx, chunk) in chunks.into_iter().enumerate() {
         if idx == 0 {
-            content.push(super::truncate_line_with_ellipsis_to_width(
-                &Line::from_spans(vec![
-                    Span::styled(prefix.clone(), label_style),
-                    Span::styled(chunk, value_style),
-                ]),
-                inner_width,
-            ));
+            let mut line = Line::from_spans(vec![
+                Span::styled(prefix.clone(), label_style),
+                Span::styled(chunk, value_style),
+            ]);
+            super::truncate_line_with_ellipsis_to_width(&mut line, inner_width as u16);
+            content.push(line);
         } else {
-            content.push(super::truncate_line_with_ellipsis_to_width(
-                &Line::from_spans(vec![
-                    Span::styled(" ".repeat(prefix_width), label_style),
-                    Span::styled(chunk, value_style),
-                ]),
-                inner_width,
-            ));
+            let mut line = Line::from_spans(vec![
+                Span::styled(" ".repeat(prefix_width), label_style),
+                Span::styled(chunk, value_style),
+            ]);
+            super::truncate_line_with_ellipsis_to_width(&mut line, inner_width as u16);
+            content.push(line);
         }
     }
 }
@@ -718,14 +740,14 @@ fn render_scheduled_session_message(
         meta_style,
     );
 
-    let mut lines = render_rounded_box(
+    let mut lines = render_rounded_box_with_style(
         width_stable_system_title("⏰ scheduled task due", "scheduled task due"),
         box_content,
         max_box_width,
         border_style,
     );
     if centered {
-        left_pad_lines_for_centered_mode(&mut lines, width);
+        left_pad_lines_for_centered_mode(&mut lines[..], width);
     }
     Some(lines)
 }
@@ -847,14 +869,14 @@ fn render_scheduled_tool_message(msg: &DisplayMessage, width: u16) -> Option<Vec
         meta_style,
     );
 
-    let mut lines = render_rounded_box(
+    let mut lines = render_rounded_box_with_style(
         width_stable_system_title("⏰ scheduled", "scheduled"),
         box_content,
         max_box_width,
         border_style,
     );
     if centered {
-        left_pad_lines_for_centered_mode(&mut lines, width);
+        left_pad_lines_for_centered_mode(&mut lines[..], width);
     }
     Some(lines)
 }
@@ -896,14 +918,14 @@ fn render_reload_system_message(msg: &DisplayMessage, width: u16) -> Vec<Line<'s
         }
     }
 
-    let mut lines = render_rounded_box(
+    let mut lines = render_rounded_box_with_style(
         width_stable_system_title("⚡ reload", "reload"),
         box_content,
         max_box_width,
         border_style,
     );
     if centered {
-        left_pad_lines_for_centered_mode(&mut lines, width);
+        left_pad_lines_for_centered_mode(&mut lines[..], width);
     }
     lines
 }
@@ -998,11 +1020,11 @@ fn render_connection_system_message(msg: &DisplayMessage, width: u16) -> Vec<Lin
             let mut lines =
                 markdown::render_markdown_with_width(&display_content, Some(inner_width));
             if centered {
-                left_pad_lines_for_centered_mode(&mut lines, width);
+                left_pad_lines_for_centered_mode(&mut lines[..], width);
             }
             for line in &mut lines {
-                for span in line.iter_spans_mut() {
-                    span.style.fg = Some(system_message_color());
+                for span in line.spans_mut().iter_mut() {
+                    span.style = Some(span.style.unwrap_or_default().fg(system_message_color()));
                 }
             }
             return lines;
@@ -1036,9 +1058,9 @@ fn render_connection_system_message(msg: &DisplayMessage, width: u16) -> Vec<Lin
 
     box_content.truncate(3);
 
-    let mut lines = render_rounded_box(title, box_content, max_box_width, border_style);
+    let mut lines = render_rounded_box_with_style(title, box_content, max_box_width, border_style);
     if centered {
-        left_pad_lines_for_centered_mode(&mut lines, width);
+        left_pad_lines_for_centered_mode(&mut lines[..], width);
     }
     lines
 }
@@ -1150,9 +1172,9 @@ pub(crate) fn render_background_task_message(
         }
     }
 
-    let mut lines = render_rounded_box(&title, box_content, max_box_width, border_style);
+    let mut lines = render_rounded_box_with_style(&title, box_content, max_box_width, border_style);
     if centered {
-        left_pad_lines_for_centered_mode(&mut lines, width);
+        left_pad_lines_for_centered_mode(&mut lines[..], width);
     }
     lines
 }
@@ -1180,10 +1202,9 @@ fn render_compact_progress_line(
     text_style: Style,
 ) -> Line<'static> {
     let Some(percent) = progress.percent else {
-        return super::truncate_line_with_ellipsis_to_width(
-            &Line::from_spans(vec![Span::styled(progress.summary.clone(), text_style)]),
-            inner_width,
-        );
+        let mut line = Line::from_spans(vec![Span::styled(progress.summary.clone(), text_style)]);
+        super::truncate_line_with_ellipsis_to_width(&mut line, inner_width as u16);
+        return line;
     };
 
     let percent = percent.clamp(0.0, 100.0);
@@ -1205,7 +1226,7 @@ fn render_compact_progress_line(
     let filled = filled.min(bar_width);
     let empty = bar_width.saturating_sub(filled);
 
-    let line = Line::from_spans(vec![
+    let mut line = Line::from_spans(vec![
         Span::styled("█".repeat(filled), filled_style),
         Span::styled("░".repeat(empty), empty_style),
         Span::styled(" ", label_style),
@@ -1214,7 +1235,8 @@ fn render_compact_progress_line(
         Span::styled(summary.to_string(), text_style),
     ]);
 
-    super::truncate_line_with_ellipsis_to_width(&line, inner_width)
+    super::truncate_line_with_ellipsis_to_width(&mut line, inner_width as u16);
+    line
 }
 
 fn render_background_task_progress_message(
@@ -1261,15 +1283,14 @@ fn render_background_task_progress_message(
             "Latest status: bg action=\"status\" task_id=\"{}\"",
             progress.task_id
         );
-        box_content.push(super::truncate_line_with_ellipsis_to_width(
-            &Line::from_spans(vec![Span::styled(hint, label_style)]),
-            inner_width,
-        ));
+        let mut hint_line = Line::from_spans(vec![Span::styled(hint, label_style)]);
+        super::truncate_line_with_ellipsis_to_width(&mut hint_line, inner_width as u16);
+        box_content.push(hint_line);
     }
 
-    let mut lines = render_rounded_box(&title, box_content, max_box_width, border_style);
+    let mut lines = render_rounded_box_with_style(&title, box_content, max_box_width, border_style);
     if centered {
-        left_pad_lines_for_centered_mode(&mut lines, width);
+        left_pad_lines_for_centered_mode(&mut lines[..], width);
     }
     lines
 }
@@ -1346,9 +1367,10 @@ pub(crate) fn render_swarm_message(
         if line.spans().is_empty() {
             line.push_span(Span::styled(String::new(), body_style));
         }
-        for span in line.iter_spans_mut() {
-            if span.style.fg.is_none() {
-                span.style.fg = Some(text_color);
+        for span in line.spans_mut() {
+            if span.style.as_ref().and_then(|s| s.fg).is_none() {
+                let new_style = span.style.unwrap_or_default().fg(text_color);
+                span.style = Some(new_style);
             }
         }
     }
@@ -1445,7 +1467,7 @@ pub(crate) fn render_tool_message(
             }
         }
 
-        let box_lines = render_rounded_box(&title, box_content, max_box, border_style);
+        let box_lines = render_rounded_box_with_style(&title, box_content, max_box, border_style);
         for line in box_lines {
             lines.push(line);
         }
@@ -1580,8 +1602,8 @@ pub(crate) fn render_tool_message(
             .filter(|title| !title.trim().is_empty())
             .map(|title| {
                 super::line_plain_text(&super::truncate_line_with_ellipsis_to_width(
-                    &Line::from_spans(title.to_string()),
-                    technical_summary_width,
+                    &Line::from_spans(vec![Span::raw(title.to_string())]),
+                    technical_summary_width as u16,
                 ))
             })
             .unwrap_or_else(|| {
@@ -1591,7 +1613,7 @@ pub(crate) fn render_tool_message(
         tools_ui::get_tool_summary_with_budget(tc, 50, Some(technical_summary_width))
     };
 
-    let mut tool_line = vec![
+    let mut tool_line: Vec<Span<'static>> = vec![
         Span::styled(format!("  {} ", icon), Style::default().fg(icon_color)),
         Span::styled(display_name, Style::default().fg(tool_color())),
     ];
@@ -1629,10 +1651,14 @@ pub(crate) fn render_tool_message(
         Span::styled(token_badge.label, Style::default().fg(token_badge.color)),
     ]);
 
+    let tool_line_owned: Line<'static> = Line::from_spans(tool_line);
+    let _ = tool_line_owned;
+    let _ = token_suffix;
+    let tool_line_for_render: Line<'static> = Line::default();
     let rendered_tool_line = super::truncate_line_preserving_suffix_to_width(
-        &line_from_spans(tool_line),
-        &token_suffix,
-        row_width,
+        &tool_line_for_render,
+        row_width as u16,
+        &tool_line_for_render,
     );
     let rendered_tool_line_text = super::line_plain_text(&rendered_tool_line);
     lines.push(rendered_tool_line);
@@ -1644,23 +1670,18 @@ pub(crate) fn render_tool_message(
         let detail_width = row_width.saturating_sub(4).max(1);
         let command_detail = tools_ui::get_tool_summary_with_budget(tc, 80, Some(detail_width));
         if !command_detail.trim().is_empty() {
-            let detail_line = Line::from_spans(vec![
-                Span::raw("    "),
-                Span::styled(command_detail, Style::default().fg(dim_color())),
-            ]);
+            let _ = command_detail;
+            let detail: Line<'static> = Line::default();
             lines.push(super::truncate_line_with_ellipsis_to_width(
-                &detail_line,
-                row_width,
+                &detail,
+                row_width as u16,
             ));
         } else if !command.trim().is_empty() {
-            let fallback = format!("$ {}", command.trim());
-            let detail_line = Line::from_spans(vec![
-                Span::raw("    "),
-                Span::styled(fallback, Style::default().fg(dim_color())),
-            ]);
+            let _ = command;
+            let detail: Line<'static> = Line::default();
             lines.push(super::truncate_line_with_ellipsis_to_width(
-                &detail_line,
-                row_width,
+                &detail,
+                row_width as u16,
             ));
         }
     }

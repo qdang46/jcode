@@ -164,7 +164,7 @@ pub struct IncrementalMarkdownRenderer;
 
 impl Default for IncrementalMarkdownRenderer {
     fn default() -> Self {
-        Self::new()
+        Self::new(None)
     }
 }
 

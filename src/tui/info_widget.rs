@@ -1095,10 +1095,7 @@ fn render_single_widget(frame: &mut Frame, placement: &WidgetPlacement, data: &I
         .border_style(Style::new().fg(rgb(70, 70, 80)).dim());
 
     if placement.kind == WidgetKind::WorkspaceMap {
-        block = block.title(Span::styled(
-            " Workspace ",
-            Style::new().fg(rgb(120, 120, 130)).dim(),
-        ));
+        block = block.title(" Workspace ");
     }
 
     let inner = block.inner(rect);
@@ -1562,7 +1559,7 @@ fn render_kv_cache_summary_line(cache: &CacheHitInfo) -> Line<'static> {
         Style::new().fg(rgb(100, 100, 110)),
     ));
 
-    Line::from(spans)
+    line_from_spans(spans)
 }
 
 fn ratio_pct(ratio: f32) -> u8 {
@@ -1701,7 +1698,7 @@ fn render_ambient_widget(data: &InfoWidgetData, inner: Rect) -> Vec<Line<'static
                 Style::new().fg(dim),
             ));
         }
-        lines.push(Line::from(spans));
+        lines.push(line_from_spans(spans));
     }
 
     // Last run
@@ -1719,7 +1716,7 @@ fn render_ambient_widget(data: &InfoWidgetData, inner: Rect) -> Vec<Line<'static
                 ));
             }
         }
-        lines.push(Line::from(spans));
+        lines.push(line_from_spans(spans));
     }
 
     // Next scheduled run

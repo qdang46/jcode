@@ -321,7 +321,12 @@ pub(super) fn tint_span_with_diff_color(span: Span<'static>, diff_color: Color) 
         _ => return span,
     };
 
-    let fg = span.style.fg.unwrap_or(Color::Mono(MonoColor::White));
+    let fg = span
+        .style
+        .unwrap_or_default()
+        .fg
+        .map(Color::from)
+        .unwrap_or(Color::Mono(MonoColor::White));
     let (sr, sg, sb) = match fg {
         Color::Rgb(rgb) => (rgb.r, rgb.g, rgb.b),
         Color::Ansi256(n) => super::color_support::indexed_to_rgb(n),
@@ -333,7 +338,7 @@ pub(super) fn tint_span_with_diff_color(span: Span<'static>, diff_color: Color) 
     let blend = |s: u8, d: u8| -> u8 { ((s as u16 * 70 + d as u16 * 30) / 100) as u8 };
 
     let tinted = Color::Rgb(Rgb { r: blend(sr, dr), g: blend(sg, dg), b: blend(sb, db) });
-    Span::styled(span.content, span.style.fg(tinted))
+    Span::styled(span.content, span.style.unwrap_or_default().fg(tinted))
 }
 
 #[cfg(test)]

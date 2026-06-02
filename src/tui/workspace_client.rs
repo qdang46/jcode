@@ -142,6 +142,7 @@ pub fn navigate_left() -> Option<String> {
         state
             .map
             .current_focused_session_id()
+            .as_deref()
             .map(ToString::to_string)
     })
 }
@@ -154,6 +155,7 @@ pub fn navigate_right() -> Option<String> {
         state
             .map
             .current_focused_session_id()
+            .as_deref()
             .map(ToString::to_string)
     })
 }
@@ -168,6 +170,7 @@ pub fn navigate_up() -> Option<String> {
         state
             .map
             .focused_session_in_workspace(target_workspace)
+            .as_deref()
             .map(ToString::to_string)
     })
 }
@@ -182,6 +185,7 @@ pub fn navigate_down() -> Option<String> {
         state
             .map
             .focused_session_in_workspace(target_workspace)
+            .as_deref()
             .map(ToString::to_string)
     })
 }

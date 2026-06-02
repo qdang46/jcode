@@ -1093,9 +1093,8 @@ impl App {
     pub(crate) fn requested_exit_code(&mut self) -> &mut Option<i32> {
         &mut self.requested_exit_code
     }
-    pub(crate) fn session_id(&self) -> String {
-        self.session.id.clone()
-    }
+    // `session_id(&self) -> &str` is provided by `tui_lifecycle_runtime.rs`; do not
+    // add another definition here or the compiler will report E0034.
 
     pub(super) fn begin_kv_cache_request(
         &mut self,

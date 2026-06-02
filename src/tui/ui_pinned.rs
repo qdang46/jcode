@@ -1,30 +1,25 @@
 use ftui_style::MonoColor;
 use crate::tui::compat::StyleCompatExt;
 use ftui_core::geometry::Rect;
-use ftui_render::cell::PackedRgba;
 use ftui_style::{Color, Style};
 use ftui_text::text::{Line, Span, Text};
 use ftui_text::wrap::WrapMode;
 use ftui_widgets::{
     Widget,
-    block::{Alignment, Block},
-    borders::Borders,
+    block::Alignment,
     paragraph::Paragraph,
 };
 use crate::tui::mermaid;
 use crate::tui::markdown;
-use crate::tui::ui::diagram_pane::pinned_diagram_preferred_aspect_ratio;
 use crate::tui::ui_diff::{DiffLineKind, ParsedDiffLine, collect_diff_lines, diff_add_color, diff_del_color, generate_diff_lines_from_tool_input, tint_span_with_diff_color};
 use jcode_tui_messages::WrappedLineMap;
 use crate::tui::color_support::rgb;
 use jcode_tui_style::theme::dim_color;
 use jcode_tui_style::theme::accent_color;
-use jcode_tui_style::theme::blend_color;
 use jcode_tui_style::theme::tool_color;
 use std::collections::{HashMap, VecDeque};
 use std::sync::{Mutex, OnceLock};
 use super::tools_ui;
-use crate::tui::ui_layout::right_rail_border_style;
 use crate::tui::ui::line_left_margins_for_area;
 use crate::tui::DisplayMessage;
 use crate::tui::Frame;
@@ -49,7 +44,7 @@ use layout_support::{
 };
 use util_support::{
     compact_image_label, estimate_side_panel_pane_area, lru_touch, side_panel_content_signature,
-    side_panel_content_area, side_panel_border_style,
+    side_panel_content_area, side_panel_border_style, side_panel_mermaid_preferred_aspect_ratio,
 };
 use selection_support::apply_side_selection_highlight;
 
@@ -1587,7 +1582,7 @@ fn render_side_panel_markdown_cached_with_zoom(
 ) -> PinnedRenderedCache {
     let content_signature = side_panel_content_signature(page);
     let mermaid_aspect_ratio = side_panel_mermaid_preferred_aspect_ratio(page, inner, has_protocol);
-    let mermaid_aspect_bucket = mermaid::preferred_aspect_ratio_bucket(mermaid_aspect_ratio);
+    let mermaid_aspect_bucket = mermaid::preferred_aspect_ratio_bucket_for(mermaid_aspect_ratio);
     let key = SidePanelRenderKey {
         page_id: page.id.clone(),
         content_signature,
@@ -1781,7 +1776,10 @@ fn render_side_panel_markdown_lines_cached(
     markdown::set_diagram_mode_override(saved_override);
 
     let placeholder_hashes: Vec<Option<u64>> = if has_protocol {
-        lines.iter().map(mermaid::parse_image_placeholder).collect()
+        lines
+            .iter()
+            .map(mermaid::parse_image_placeholder_from_line)
+            .collect()
     } else {
         vec![None; lines.len()]
     };
@@ -1818,7 +1816,7 @@ fn wrap_side_panel_markdown_lines(lines: Vec<Line<'static>>, width: usize) -> Ve
     lines
         .into_iter()
         .flat_map(|line| {
-            if is_rendered_table_line(&line) || mermaid::parse_image_placeholder(&line).is_some() {
+            if is_rendered_table_line(&line) || mermaid::parse_image_placeholder_from_line(&line).is_some() {
                 vec![line]
             } else {
                 markdown::wrap_line(line, width)
@@ -1840,7 +1838,7 @@ fn markdown_image_line_to_placeholder(
         return Err(line);
     };
 
-    let hash = mermaid::register_external_image(&path, width, height);
+    let hash = mermaid::register_external_image(path.to_str().unwrap_or(""), &path.to_string_lossy(), width, height);
     let marker = mermaid::image_widget_placeholder_markdown(hash)
         .trim_end()
         .to_string();

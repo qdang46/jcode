@@ -197,9 +197,9 @@ impl App {
                 .collect::<String>();
             self.display_messages = vec![
                 DisplayMessage::user("please edit demo.txt"),
-                DisplayMessage::tool(
-                    "Edited demo.txt".to_string(),
-                    crate::message::ToolCall {
+                {
+                    let mut msg = DisplayMessage::tool_text("Edited demo.txt");
+                    msg.tool_data = Some(crate::message::ToolCall {
                         id: "debug_expand_edit_1".to_string(),
                         name: "edit".to_string(),
                         input: serde_json::json!({
@@ -208,8 +208,9 @@ impl App {
                             "new_string": new_string,
                         }),
                         intent: None,
-                    },
-                ),
+                    });
+                    msg
+                },
             ];
             self.bump_display_messages_version();
             self.diff_mode = crate::config::DiffDisplayMode::Inline;
@@ -473,10 +474,8 @@ impl App {
             let entries = crate::tui::mermaid::debug_cache();
             serde_json::to_string_pretty(&entries).unwrap_or_else(|_| "[]".to_string())
         } else if cmd == "mermaid:evict" || cmd == "mermaid:clear-cache" {
-            match crate::tui::mermaid::clear_cache() {
-                Ok(_) => "mermaid: cache cleared".to_string(),
-                Err(e) => format!("mermaid: cache clear failed: {}", e),
-            }
+            crate::tui::mermaid::clear_cache();
+            "mermaid: cache cleared".to_string()
         } else if cmd == "markdown:stats" {
             let stats = crate::tui::markdown::debug_stats();
             serde_json::to_string_pretty(&stats).unwrap_or_else(|_| "{}".to_string())

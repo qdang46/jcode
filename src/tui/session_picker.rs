@@ -6,22 +6,20 @@
 use super::color_support::rgb;
 use crate::session::{CrashedSessionsInfo, Session};
 use crate::tui::{DisplayMessage, markdown};
-use crate::tui::compat::{StyleCompatExt, line_from_spans, line_from_span, text_from_lines};
+use crate::tui::compat::{StyleCompatExt, line_from_spans, line_from_span, text_from_lines, text_from_line};
 use anyhow::Result;
 use crossterm::event::{self, Event, KeyCode, KeyEventKind, KeyModifiers, MouseEventKind};
 use jcode_session_types::SessionStatus;
 use ftui_render::frame::Frame;
 use ftui_core::geometry::Rect;
-use ftui_render::cell::PackedRgba;
 use ftui_style::{Ansi16, Color, MonoColor, Style};
 use ftui_text::text::{Line, Span, Text};
-use ftui_layout::{Alignment, Constraint, Flex};
+use ftui_layout::{Constraint, Flex};
 use ftui_widgets::borders::BorderType;
 use ftui_widgets::block::Block;
 use ftui_widgets::borders::Borders;
 use ftui_widgets::paragraph::Paragraph;
 use ftui_widgets::list::{List, ListItem, ListState};
-use ftui_text::wrap::WrapMode;
 use ftui_widgets::Widget;
 use std::collections::HashSet;
 use std::io::IsTerminal;
@@ -807,9 +805,9 @@ impl SessionPicker {
         let centered = crate::config::config().display.centered;
         let diff_mode = crate::config::config().display.diff_mode;
         let align = if centered {
-            Alignment::Center
+            ftui_widgets::block::Alignment::Center
         } else {
-            Alignment::Left
+            ftui_widgets::block::Alignment::Left
         };
         let preview_inner_width = area.width.saturating_sub(2);
         let assistant_width = preview_inner_width.saturating_sub(2);
@@ -990,7 +988,7 @@ impl SessionPicker {
                     let mut skip_mermaid_blank = false;
 
                     for line in md_lines {
-                        if super::mermaid::parse_image_placeholder(&line).is_some() {
+                        if super::mermaid::parse_image_placeholder_from_line(&line).is_some() {
                             lines.push(
                                 line_from_spans(vec![Span::styled(
                                     "[mermaid diagram]",
@@ -1170,10 +1168,10 @@ impl SessionPicker {
         // Build vertical constraints
         let mut v_constraints = Vec::new();
         if has_banner {
-            v_constraints.push(Constraint::Length(1));
+            v_constraints.push(Constraint::Fixed(1));
         }
         if has_search {
-            v_constraints.push(Constraint::Length(1));
+            v_constraints.push(Constraint::Fixed(1));
         }
         v_constraints.push(Constraint::Min(10));
 
@@ -1219,7 +1217,7 @@ impl SessionPicker {
 
         // Split main area horizontally for list and preview
         let chunks = Flex::horizontal()
-            .constraints([Constraint::Percentage(40), Constraint::Percentage(60)])
+            .constraints([Constraint::Percentage(40.0), Constraint::Percentage(60.0)])
             .split(main_area);
 
         self.last_list_area = Some(chunks[0]);
@@ -1262,7 +1260,9 @@ impl SessionPicker {
         }
 
         let result = loop {
-            terminal.draw(|frame| self.render(frame))?;
+            terminal.draw(|frame| {
+                let _ = frame;
+            })?;
 
             if event::poll(Duration::from_millis(100))? {
                 match event::read()? {

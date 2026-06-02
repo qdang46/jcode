@@ -14,6 +14,8 @@ mmdr-size-api = ["renderer"]
 [dependencies]
 ftui = { path = "/data/projects/frankentui/crates/ftui" }
 ftui-core = { path = "/data/projects/frankentui/crates/ftui-core" }
+ftui-render = { path = "/data/projects/frankentui/crates/ftui-render" }
+ftui-text = { path = "/data/projects/frankentui/crates/ftui-text" }
 ftui-widgets = { path = "/data/projects/frankentui/crates/ftui-widgets" }
 ftui-tty = { path = "/data/projects/frankentui/crates/ftui-tty" }
 anyhow = "1"

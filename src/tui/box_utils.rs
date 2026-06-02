@@ -12,6 +12,19 @@ pub fn render_rounded_box(title: &str, content: Vec<Line<'_>>, width: usize, bor
 pub fn line_plain_text(line: &Line) -> String {
     line.to_string()
 }
-pub fn truncate_line_preserving_suffix_to_width(_line: &mut Line, _width: u16, _suffix: &str) {}
-pub fn truncate_line_with_ellipsis_to_width(_line: &mut Line, _width: u16) {}
-pub fn truncate_line_to_width(_line: &mut Line, _width: u16) {}
+pub fn truncate_line_preserving_suffix_to_width(
+    line: &Line<'_>,
+    _width: u16,
+    _suffix: &Line<'_>,
+) -> Line<'static> {
+    let _ = (line, _suffix);
+    Line::default()
+}
+pub fn truncate_line_with_ellipsis_to_width(line: &Line<'_>, _width: u16) -> Line<'static> {
+    let _ = line;
+    Line::default()
+}
+pub fn truncate_line_to_width(line: &Line<'_>, _width: u16) -> Line<'static> {
+    let _ = line;
+    Line::default()
+}

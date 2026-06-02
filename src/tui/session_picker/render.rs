@@ -3,6 +3,7 @@ use crate::tui::compat::{StyleCompatExt, text_from_lines};
 use super::*;
 use ftui_text::wrap::WrapMode;
 use ftui_widgets::borders::BorderType;
+use ftui_widgets::StatefulWidget;
 
 impl SessionPicker {
     pub(super) fn crash_reason_line(session: &SessionInfo) -> Option<Line<'static>> {
@@ -409,17 +410,18 @@ impl SessionPicker {
             border_dim
         };
 
+        let title_text: String = title_parts.iter().map(|s| s.content.as_ref()).collect();
         let list = List::new(items)
             .block(
                 Block::default()
                     .borders(Borders::ALL)
                     .border_type(BorderType::Rounded)
-                    .title(Line::from_spans(title_parts))
+                    .title(&title_text)
                     .border_style(Style::default().fg(border_color)),
             )
             .highlight_style(Style::default().bg(rgb(40, 44, 52)).bold());
 
-        frame.render_stateful_widget(list, area, &mut self.list_state);
+        ftui_widgets::StatefulWidget::render(&list, area, frame, &mut self.list_state);
     }
 
     pub(super) fn render_crash_banner(&self, frame: &mut Frame, area: Rect) {
@@ -452,7 +454,7 @@ impl SessionPicker {
         let block = Paragraph::new(text_from_lines(body))
             .block(
                 Block::default()
-                    .title(title)
+                    .title(title.as_str())
                     .borders(Borders::ALL)
                     .border_type(BorderType::Rounded)
                     .border_style(Style::default().fg(rgb(255, 140, 140))),

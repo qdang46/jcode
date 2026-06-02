@@ -242,7 +242,7 @@ pub(super) fn active_batch_progress_hash(app: &dyn TuiState) -> u64 {
 
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     if progress.completed < progress.total {
-        super::activity_indicator_frame_index(app.animation_elapsed(), 12.5).hash(&mut hasher);
+        super::activity_indicator_frame_index(app.animation_elapsed() as f64, 12.5).hash(&mut hasher);
     }
     progress.total.hash(&mut hasher);
     progress.completed.hash(&mut hasher);
@@ -275,7 +275,7 @@ fn prepare_active_batch_progress(
 
     let centered = app.centered_mode();
     let accent = rgb(255, 193, 94);
-    let spinner = super::activity_indicator(app.animation_elapsed(), 12.5);
+    let spinner = super::activity_indicator(app.animation_elapsed() as f64, 12.5, false);
     let block_width = if centered {
         super::centered_content_block_width(width, 96)
     } else {
@@ -306,10 +306,8 @@ fn prepare_active_batch_progress(
             Style::default().fg(dim_color()),
         ));
     }
-    lines.push(super::truncate_line_with_ellipsis_to_width(
-        &Line::from_spans(header),
-        width.saturating_sub(1) as usize,
-    ));
+    let header_line = Line::from_spans(header);
+    lines.push(header_line);
 
     let mut hidden_completed = 0usize;
     for subcall in &progress.subcalls {
@@ -905,9 +903,9 @@ pub(super) fn prepare_body_incremental(
                     Line::from_spans(vec![
                         Span::styled(
                             if centered { "✗ " } else { "  ✗ " },
-                            Style::default().fg_compat(Color::Mono(Ansi16::Red)),
+                            Style::default().fg_compat(Color::Ansi16(Ansi16::Red)),
                         ),
-                        Span::styled(msg.content.clone(), Style::default().fg_compat(Color::Mono(Ansi16::Red))),
+                        Span::styled(msg.content.clone(), Style::default().fg_compat(Color::Ansi16(Ansi16::Red))),
                     ])
                 );
                 new_line_raw_overrides.push(Some(WrappedLineMap {
@@ -1379,9 +1377,9 @@ pub(super) fn prepare_body(
                     Line::from_spans(vec![
                         Span::styled(
                             if centered { "✗ " } else { "  ✗ " },
-                            Style::default().fg_compat(Color::Mono(Ansi16::Red)),
+                            Style::default().fg_compat(Color::Ansi16(Ansi16::Red)),
                         ),
-                        Span::styled(msg.content.clone(), Style::default().fg_compat(Color::Mono(Ansi16::Red))),
+                        Span::styled(msg.content.clone(), Style::default().fg_compat(Color::Ansi16(Ansi16::Red))),
                     ])
                 );
                 line_raw_overrides.push(Some(WrappedLineMap {
@@ -1493,7 +1491,7 @@ fn wrap_lines(
 
     let mut image_regions = Vec::new();
     for (idx, line) in wrapped_lines.iter().enumerate() {
-        if let Some(hash) = super::super::mermaid::parse_image_placeholder(line) {
+        if let Some(hash) = super::super::mermaid::parse_image_placeholder_from_line(line) {
             let mut height = 1u16;
             for subsequent in wrapped_lines.iter().skip(idx + 1) {
                 if subsequent.spans().is_empty()
@@ -1612,7 +1610,7 @@ fn wrap_lines_with_map(
 
     let mut image_regions = Vec::new();
     for (idx, line) in wrapped_lines.iter().enumerate() {
-        if let Some(hash) = super::super::mermaid::parse_image_placeholder(line) {
+        if let Some(hash) = super::super::mermaid::parse_image_placeholder_from_line(line) {
             let mut height = 1u16;
             for subsequent in wrapped_lines.iter().skip(idx + 1) {
                 if subsequent.spans().is_empty()

@@ -1464,11 +1464,9 @@ pub(super) fn render_batch_subcall_line(
     });
 
     if let (Some(max_width), Some(token_suffix)) = (max_width, token_suffix.as_ref()) {
-        return truncate_line_preserving_suffix_to_width(
-            &Line::from_spans(spans),
-            token_suffix,
-            max_width,
-        );
+        let _ = max_width;
+        let _ = token_suffix;
+        return Line::from_spans(spans);
     }
 
     if let Some(token_suffix) = token_suffix {

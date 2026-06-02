@@ -85,9 +85,9 @@ fn highlight_line_selection(
     for span in line.spans() {
         let span_style = span.style.unwrap_or_default();
         let base_bg = span_style.bg.unwrap_or_else(|| PackedRgba::rgb(32, 38, 48));
-        let mut selected_style = span_style.bg_compat(selection_bg_for(Some(base_bg)));
+        let mut selected_style = span_style.bg(selection_bg_for(Some(base_bg)));
         if let Some(fg) = selection_fg_for(span_style.fg) {
-            selected_style = selected_style.fg_compat(fg);
+            selected_style = selected_style.fg(fg);
         }
         for ch in span.content.chars() {
             let width = unicode_width::UnicodeWidthChar::width(ch).unwrap_or(0);
@@ -401,7 +401,7 @@ pub(super) fn draw_messages(
         .enumerate()
     {
         let key = COPY_BADGE_KEYS[slot];
-        let kind_label = match target.kind {
+        let kind_label = match &target.kind {
             jcode_tui_markdown::CopyTargetKind::CodeBlock { language } => {
                 language.as_deref().unwrap_or("code").to_string()
             }
@@ -736,10 +736,10 @@ pub(super) fn draw_messages(
                 width: 1,
                 height: 1,
             };
-            let bar = Paragraph::new(ftui_text::Text::from_line(Span::styled(
+            let bar = Paragraph::new(ftui_text::Text::from_line(Line::from_spans(vec![Span::styled(
                 "│",
                 Style::new().fg(rgb_to_packed(user_color())),
-            )));
+            )])));
             bar.render(bar_area, frame);
         }
     }

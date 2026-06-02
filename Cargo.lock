@@ -4187,6 +4187,8 @@ dependencies = [
  "dirs",
  "ftui",
  "ftui-core",
+ "ftui-render",
+ "ftui-text",
  "ftui-tty",
  "ftui-widgets",
  "image",

@@ -68,10 +68,7 @@ pub(super) fn draw_changelog_overlay(frame: &mut ftui::Frame, area: Rect, scroll
 
     let title = format!(" Changelog {} ", scroll_info);
     let block = Block::new()
-        .title(Span::styled(
-            title,
-            Style::default().fg(rgb(200, 200, 220)).bold(),
-        ))
+        .title(title.as_str())
         .borders(Borders::ALL)
         .border_style(Style::default().fg(dim_color()));
 
@@ -484,10 +481,7 @@ pub(super) fn draw_help_overlay(
 
     let title = format!(" Help {} ", scroll_info);
     let block = Block::new()
-        .title(Span::styled(
-            title,
-            Style::default().fg(rgb(200, 200, 220)).bold(),
-        ))
+        .title(title.as_str())
         .borders(Borders::ALL)
         .border_style(Style::default().fg(dim_color()));
 
@@ -588,36 +582,40 @@ fn render_overlay_box(frame: &mut ftui::Frame, area: Rect, title: &str, color: C
     let block = Block::new()
         .borders(Borders::ALL)
         .border_style(Style::new().fg_compat(color))
-        .title(Span::styled(title.to_string(), Style::new().fg_compat(color)));
+        .title(title);
     block.render(area, frame);
 }
 
 pub(super) fn debug_palette_json() -> Option<serde_json::Value> {
     Some(serde_json::json!({
-        "user_color": color_to_rgb(user_color()),
-        "ai_color": color_to_rgb(ai_color()),
-        "tool_color": color_to_rgb(tool_color()),
-        "dim_color": color_to_rgb(dim_color()),
-        "accent_color": color_to_rgb(accent_color()),
-        "queued_color": color_to_rgb(queued_color()),
-        "asap_color": color_to_rgb(asap_color()),
-        "pending_color": color_to_rgb(pending_color()),
-        "user_text": color_to_rgb(user_text()),
-        "user_bg": color_to_rgb(user_bg()),
-        "ai_text": color_to_rgb(ai_text()),
-        "header_icon_color": color_to_rgb(header_icon_color()),
-        "header_name_color": color_to_rgb(header_name_color()),
-        "header_session_color": color_to_rgb(header_session_color()),
+        "user_color": color_to_rgb(&user_color()),
+        "ai_color": color_to_rgb(&ai_color()),
+        "tool_color": color_to_rgb(&tool_color()),
+        "dim_color": color_to_rgb(&dim_color()),
+        "accent_color": color_to_rgb(&accent_color()),
+        "queued_color": color_to_rgb(&queued_color()),
+        "asap_color": color_to_rgb(&asap_color()),
+        "pending_color": color_to_rgb(&pending_color()),
+        "user_text": color_to_rgb(&user_text()),
+        "user_bg": color_to_rgb(&user_bg()),
+        "ai_text": ai_text().fg.as_ref().map(packed_to_rgb).flatten(),
+        "header_icon_color": color_to_rgb(&header_icon_color()),
+        "header_name_color": color_to_rgb(&header_name_color()),
+        "header_session_color": color_to_rgb(&header_session_color()),
     }))
 }
 
-fn color_to_rgb(color: Color) -> Option<[u8; 3]> {
+fn color_to_rgb(color: &Color) -> Option<[u8; 3]> {
     match color {
         Color::Rgb(rgb) => Some([rgb.r, rgb.g, rgb.b]),
-        Color::Ansi256(n) if n >= 16 => {
-            let (r, g, b) = crate::tui::color_support::indexed_to_rgb(n);
+        Color::Ansi256(n) if *n >= 16 => {
+            let (r, g, b) = crate::tui::color_support::indexed_to_rgb(*n);
             Some([r, g, b])
         }
         _ => None,
     }
+}
+
+fn packed_to_rgb(c: &ftui_render::cell::PackedRgba) -> Option<[u8; 3]> {
+    Some([c.r(), c.g(), c.b()])
 }

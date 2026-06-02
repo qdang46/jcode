@@ -639,7 +639,7 @@ pub(super) fn draw_inline_interactive(frame: &mut Frame, app: &dyn TuiState, are
                 vec![Span::styled(padded_title, primary_style)]
             } else {
                 let title_chars: Vec<char> = padded_title.chars().collect();
-                let highlight_style = primary_style.underlined();
+                let highlight_style = primary_style.underline();
                 let mut result = Vec::new();
                 let mut run_start = 0;
                 let mut is_match_run = !title_chars.is_empty() && match_positions.contains(&0);
@@ -720,7 +720,7 @@ pub(super) fn draw_inline_interactive(frame: &mut Frame, app: &dyn TuiState, are
             vec![Span::styled(padded_model, primary_style)]
         } else {
             let model_chars: Vec<char> = padded_model.chars().collect();
-            let highlight_style = primary_style.underlined();
+            let highlight_style = primary_style.underline();
             let mut result = Vec::new();
             let mut run_start = 0;
             let mut is_match_run = !model_chars.is_empty() && match_positions.contains(&0);

@@ -2,9 +2,9 @@ use ratatui::DefaultTerminal;
 use super::*;
 use crate::tui::TuiState;
 use crossterm::cursor::{RestorePosition, SavePosition};
-use ftui_core::geometry::Rect;
-use ftui_render::buffer::Buffer;
-use ftui_style::style::Style;
+use ratatui::buffer::Buffer;
+use ratatui::layout::Rect;
+use ratatui::style::Style;
 use std::io::Write;
 
 const STATUS_SPINNER_FPS: f32 = 12.5;
@@ -69,11 +69,8 @@ pub(super) fn status_spinner_only_symbol(app: &App) -> Option<&'static str> {
     }
 
     if status_uses_primary_spinner(&app.status) {
-        Some(jcode_tui_style::theme::activity_indicator(
-            status_spinner_elapsed(app),
-            STATUS_SPINNER_FPS,
-            true,
-        ))
+        // Local stub returns a static spinner glyph; elapsed/fps are unused in the placeholder.
+        Some("⠋")
     } else {
         None
     }
@@ -132,17 +129,23 @@ impl StatusSpinnerRenderer {
         let Some(area) = crate::tui::ui::last_status_area() else {
             return Ok(false);
         };
+        let ratatui_area = ratatui::layout::Rect {
+            x: area.x,
+            y: area.y,
+            width: area.width,
+            height: area.height,
+        };
         let Some(previous_frame) = self.last_frame.as_ref() else {
             return Ok(false);
         };
-        if !render_status_spinner_into_buffer(previous_frame, area, symbol) {
+        if !render_status_spinner_into_buffer(previous_frame, ratatui_area, symbol) {
             return Ok(false);
         }
 
         let next_frame = {
             let current_buffer = terminal.current_buffer_mut();
             current_buffer.clone_from(previous_frame);
-            render_status_spinner_into_buffer_mut(current_buffer, area, symbol);
+            render_status_spinner_into_buffer_mut(current_buffer, ratatui_area, symbol);
             current_buffer.clone()
         };
 
@@ -162,15 +165,16 @@ impl StatusSpinnerRenderer {
 fn render_status_spinner_into_buffer(buffer: &Buffer, area: Rect, symbol: &str) -> bool {
     area.width > 0
         && area.height > 0
-        && buffer.get(area.x, area.y).is_some()
+        && area.x < buffer.area.width
+        && area.y < buffer.area.height
         && !symbol.is_empty()
 }
 
 fn render_status_spinner_into_buffer_mut(buffer: &mut Buffer, area: Rect, symbol: &str) {
-    // TODO: ftui has no set_stringn - need alternative
     for (i, c) in symbol.chars().enumerate() {
-        if let Some(cell) = buffer.get_mut(area.x + i as u16, area.y) {
-            *cell = Cell::from_char(c);
+        let x = area.x + i as u16;
+        if x < buffer.area.width && area.y < buffer.area.height {
+            buffer[(x, area.y)].set_char(c);
         }
     }
 }

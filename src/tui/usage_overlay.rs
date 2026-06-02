@@ -289,10 +289,17 @@ impl UsageOverlay {
     }
 
     pub fn render(&self, frame: &mut Frame) {
-        let area = centered_rect(OVERLAY_PERCENT_X, OVERLAY_PERCENT_Y, frame.arena());
+        let frame_area = Rect {
+            x: 0,
+            y: 0,
+            width: frame.width(),
+            height: frame.height(),
+        };
+        let area = centered_rect(OVERLAY_PERCENT_X, OVERLAY_PERCENT_Y, frame_area);
 
+        let title = format!(" {} ", self.title);
         let block = Block::default()
-            .title(format!(" {} ", self.title))
+            .title(title.as_str())
             .borders(Borders::ALL)
             .border_style(Style::default().fg_compat(PANEL_BORDER));
         block.render(area, frame);
@@ -332,10 +339,7 @@ impl UsageOverlay {
 
     fn render_header(&self, frame: &mut Frame, area: Rect) {
         let block = Block::default()
-            .title(Span::styled(
-                " Usage overview ",
-                Style::default().fg_compat(Color::Mono(MonoColor::White)).bold(),
-            ))
+            .title(" Usage overview ")
             .borders(Borders::ALL)
             .style(Style::default().bg_compat(PANEL_BG))
             .border_style(Style::default().fg_compat(SECTION_BORDER));
@@ -406,7 +410,7 @@ impl UsageOverlay {
             format!(" Sources ({}/{}) ", self.selected + 1, self.filtered.len())
         };
         let block = Block::default()
-            .title(Span::styled(title, Style::default().fg_compat(Color::Mono(MonoColor::White)).bold()))
+            .title(title.as_str())
             .borders(Borders::ALL)
             .style(Style::default().bg_compat(PANEL_BG))
             .border_style(Style::default().fg_compat(PANEL_BORDER_ACTIVE));
@@ -483,10 +487,7 @@ impl UsageOverlay {
             .map(|item| item.status.color())
             .unwrap_or(PANEL_BORDER_ACTIVE);
         let block = Block::default()
-            .title(Span::styled(
-                title,
-                Style::default().fg_compat(Color::Mono(MonoColor::White)).bold(),
-            ))
+            .title(title.as_str())
             .borders(Borders::ALL)
             .style(Style::default().bg_compat(PANEL_BG))
             .border_style(Style::default().fg_compat(border_color));

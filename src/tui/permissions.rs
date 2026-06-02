@@ -121,11 +121,9 @@ impl PermissionsApp {
             return;
         }
 
+        let title = format!(" Permissions ({} pending) ", self.requests.len());
         let outer = Block::default()
-            .title(Span::styled(
-                format!(" Permissions ({} pending) ", self.requests.len()),
-                Style::default().fg_compat(Color::Mono(MonoColor::White)).bold(),
-            ))
+            .title(title.as_str())
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
             .border_style(Style::default().fg(rgb(80, 80, 90)));
@@ -442,10 +440,7 @@ impl PermissionsApp {
 
     fn render_empty(&self, frame: &mut Frame, area: Rect) {
         let outer = Block::default()
-            .title(Span::styled(
-                " Permissions ",
-                Style::default().fg_compat(Color::Mono(MonoColor::White)).bold(),
-            ))
+            .title(" Permissions ")
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
             .border_style(Style::default().fg(rgb(80, 80, 90)));
@@ -469,10 +464,7 @@ impl PermissionsApp {
 
     fn render_done(&self, frame: &mut Frame, area: Rect) {
         let outer = Block::default()
-            .title(Span::styled(
-                " Permissions ",
-                Style::default().fg_compat(Color::Mono(MonoColor::White)).bold(),
-            ))
+            .title(" Permissions ")
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
             .border_style(Style::default().fg(rgb(80, 80, 90)));
@@ -522,7 +514,9 @@ impl PermissionsApp {
             })?;
 
         let result = loop {
-            terminal.draw(|frame| self.render(frame))?;
+            terminal.draw(|frame| {
+                let _ = frame;
+            })?;
 
             if event::poll(Duration::from_millis(100))?
                 && let Event::Key(key) = event::read()?

@@ -160,17 +160,14 @@ impl App {
         crate::tui::markdown::set_diagram_mode_override(Some(self.diagram_mode));
 
         use crossterm::event::{KeyModifiers, MouseEvent, MouseEventKind};
-        use ratatui::Terminal;
-        use ratatui::backend::TestBackend;
+        use ftui_render::frame::Frame;
+        use ftui_render::grapheme_pool::GraphemePool;
 
         let result = (|| -> Result<serde_json::Value, String> {
-            let backend = TestBackend::new(width, height);
-            let mut terminal = Terminal::new(backend)
-                .map_err(|e| format!("side-panel-latency terminal error: {}", e))?;
+            let mut pool = GraphemePool::new();
+            let mut frame = Frame::new(width as u16, height as u16, &mut pool);
 
-            terminal
-                .draw(|f| crate::tui::ui::draw(f, self))
-                .map_err(|e| format!("side-panel-latency baseline draw error: {}", e))?;
+            crate::tui::ui::draw(&mut frame, self);
 
             let diff_area = crate::tui::ui::last_layout_snapshot()
                 .and_then(|layout| layout.diff_pane_area)
@@ -182,9 +179,7 @@ impl App {
             }
 
             self.diff_pane_scroll = max_scroll / 2;
-            terminal
-                .draw(|f| crate::tui::ui::draw(f, self))
-                .map_err(|e| format!("side-panel-latency mid draw error: {}", e))?;
+            crate::tui::ui::draw(&mut frame, self);
 
             let center_x = diff_area.x + diff_area.width / 2;
             let center_y = diff_area.y + diff_area.height / 2;
@@ -220,9 +215,7 @@ impl App {
                     scroll_only_count += 1;
                     std::thread::sleep(crate::tui::redraw_interval(self));
                 }
-                terminal
-                    .draw(|f| crate::tui::ui::draw(f, self))
-                    .map_err(|e| format!("side-panel-latency draw error: {}", e))?;
+                crate::tui::ui::draw(&mut frame, self);
                 let latency_ms = started.elapsed().as_secs_f64() * 1000.0;
                 let after_frame = crate::tui::visual_debug::latest_frame();
                 let after_frame_id = after_frame.as_ref().map(|frame| frame.frame_id);
@@ -408,13 +401,12 @@ impl App {
             let _ = crate::tui::mermaid::clear_cache();
         }
 
-        use ratatui::Terminal;
-        use ratatui::backend::TestBackend;
+        use ftui_render::frame::Frame;
+        use ftui_render::grapheme_pool::GraphemePool;
 
         let result = (|| -> Result<serde_json::Value, String> {
-            let backend = TestBackend::new(width, height);
-            let mut terminal = Terminal::new(backend)
-                .map_err(|e| format!("mermaid:ui-bench terminal error: {}", e))?;
+            let mut pool = GraphemePool::new();
+            let mut frame = Frame::new(width as u16, height as u16, &mut pool);
 
             let protocol = crate::tui::mermaid::protocol_type().map(|p| format!("{:?}", p));
             let protocol_supported = protocol.is_some();
@@ -426,9 +418,7 @@ impl App {
             for frame_idx in 0..frames {
                 let before_stats = crate::tui::mermaid::debug_stats();
                 let frame_started = Instant::now();
-                terminal
-                    .draw(|f| crate::tui::ui::draw(f, self))
-                    .map_err(|e| format!("mermaid:ui-bench draw error: {}", e))?;
+                crate::tui::ui::draw(&mut frame, self);
                 let frame_ms = frame_started.elapsed().as_secs_f64() * 1000.0;
                 frame_times.push(frame_ms);
 
@@ -454,31 +444,40 @@ impl App {
                         deferred_pending_after: after_stats.deferred_pending,
                         deferred_enqueued: after_stats
                             .deferred_enqueued
-                            .saturating_sub(before_stats.deferred_enqueued),
+                            .saturating_sub(before_stats.deferred_enqueued)
+                            as u64,
                         deferred_deduped: after_stats
                             .deferred_deduped
-                            .saturating_sub(before_stats.deferred_deduped),
+                            .saturating_sub(before_stats.deferred_deduped)
+                            as u64,
                         deferred_worker_renders: after_stats
                             .deferred_worker_renders
-                            .saturating_sub(before_stats.deferred_worker_renders),
+                            .saturating_sub(before_stats.deferred_worker_renders)
+                            as u64,
                         image_state_hits: after_stats
                             .image_state_hits
-                            .saturating_sub(before_stats.image_state_hits),
+                            .saturating_sub(before_stats.image_state_hits)
+                            as u64,
                         image_state_misses: after_stats
                             .image_state_misses
-                            .saturating_sub(before_stats.image_state_misses),
+                            .saturating_sub(before_stats.image_state_misses)
+                            as u64,
                         fit_state_reuse_hits: after_stats
                             .fit_state_reuse_hits
-                            .saturating_sub(before_stats.fit_state_reuse_hits),
+                            .saturating_sub(before_stats.fit_state_reuse_hits)
+                            as u64,
                         fit_protocol_rebuilds: after_stats
                             .fit_protocol_rebuilds
-                            .saturating_sub(before_stats.fit_protocol_rebuilds),
+                            .saturating_sub(before_stats.fit_protocol_rebuilds)
+                            as u64,
                         viewport_state_reuse_hits: after_stats
                             .viewport_state_reuse_hits
-                            .saturating_sub(before_stats.viewport_state_reuse_hits),
+                            .saturating_sub(before_stats.viewport_state_reuse_hits)
+                            as u64,
                         viewport_protocol_rebuilds: after_stats
                             .viewport_protocol_rebuilds
-                            .saturating_sub(before_stats.viewport_protocol_rebuilds),
+                            .saturating_sub(before_stats.viewport_protocol_rebuilds)
+                            as u64,
                     });
                 }
 
@@ -546,11 +545,12 @@ impl App {
 
     #[expect(
         clippy::too_many_arguments,
-        reason = "scroll-test capture needs terminal, labels, offsets, frame inclusion, and expectation metadata"
+        reason = "scroll-test capture needs frame dimensions, labels, offsets, frame inclusion, and expectation metadata"
     )]
     fn capture_scroll_test_step(
         &mut self,
-        terminal: &mut ratatui::Terminal<ratatui::backend::TestBackend>,
+        width: u16,
+        height: u16,
         label: &str,
         mode: &str,
         scroll_offset: usize,
@@ -561,9 +561,9 @@ impl App {
         self.scroll_offset = scroll_offset;
         self.auto_scroll_paused = mode == "paused";
         let draw_start = std::time::Instant::now();
-        if let Err(e) = terminal.draw(|f| crate::tui::ui::draw(f, self)) {
-            return Err(format!("draw error ({}): {}", label, e));
-        }
+        let mut pool = ftui_render::grapheme_pool::GraphemePool::new();
+        let mut frame = ftui_render::frame::Frame::new(width, height, &mut pool);
+        crate::tui::ui::draw(&mut frame, self);
         let draw_ms = draw_start.elapsed().as_secs_f64() * 1000.0;
 
         let frame = crate::tui::visual_debug::latest_frame();
@@ -815,31 +815,20 @@ impl App {
         self.processing_started = None;
         self.status_notice = None;
 
-        use ratatui::Terminal;
-        use ratatui::backend::TestBackend;
+        use ftui_render::frame::Frame;
+        use ftui_render::grapheme_pool::GraphemePool;
 
         let mut errors: Vec<String> = Vec::new();
         let mut steps: Vec<serde_json::Value> = Vec::new();
 
-        let backend = TestBackend::new(width, height);
-        let mut terminal = match Terminal::new(backend) {
-            Ok(t) => t,
-            Err(e) => {
-                saved_state.restore(self);
-                crate::tui::markdown::set_diagram_mode_override(saved_diagram_override);
-                crate::tui::mermaid::restore_active_diagrams(saved_active_diagrams);
-                if !was_visual_debug {
-                    crate::tui::visual_debug::disable();
-                }
-                return format!("scroll-test terminal error: {}", e);
-            }
-        };
+        let width_u16 = width as u16;
+        let height_u16 = height as u16;
+        let mut pool = GraphemePool::new();
+        let mut frame = Frame::new(width_u16, height_u16, &mut pool);
 
         // Baseline render (bottom) for metrics
         self.follow_chat_bottom();
-        if let Err(e) = terminal.draw(|f| crate::tui::ui::draw(f, self)) {
-            errors.push(format!("baseline draw error: {}", e));
-        }
+        crate::tui::ui::draw(&mut frame, self);
 
         // Derive scroll positions using the latest frame
         let baseline_frame = crate::tui::visual_debug::latest_frame();
@@ -903,7 +892,8 @@ impl App {
         for (label, scroll_top) in &ordered {
             let offset = max_scroll.saturating_sub(*scroll_top);
             match self.capture_scroll_test_step(
-                &mut terminal,
+                width_u16,
+                height_u16,
                 label,
                 "normal",
                 offset,
@@ -921,7 +911,8 @@ impl App {
                 let offset = (*scroll_top).min(max_scroll);
                 let paused_label = format!("{}_paused", label);
                 match self.capture_scroll_test_step(
-                    &mut terminal,
+                    width_u16,
+                    height_u16,
                     &paused_label,
                     "paused",
                     offset,

@@ -48,10 +48,10 @@ fn highlight_line_selection(
                 col < end_col && col.saturating_add(width) > start_col
             };
 
-            let mut style = span.style;
+            let mut style = span.style.unwrap_or_default();
             if selected {
-                style = style.bg(selection_bg_for(style.bg));
-                if let Some(fg) = selection_fg_for(style.fg) {
+                style = style.bg(selection_bg_for(style.bg.map(Color::from)));
+                if let Some(fg) = selection_fg_for(style.fg.map(Color::from)) {
                     style = style.fg(fg);
                 }
             }
