@@ -586,21 +586,21 @@ pub(super) fn build_resume_command(
         }
         ResumeTarget::ClaudeCodeSession { session_id, .. } => {
             let exe = launch_client_executable();
-            let imported_id = crate::import::imported_claude_code_session_id(session_id);
+            let imported_id = crate::casr_adapter::imported_claude_code_session_id(session_id);
             let args = resume_invocation_args(&imported_id, socket);
             let title = format!("🧵 Claude Code {}", &session_id[..session_id.len().min(8)]);
             (exe, args, title)
         }
         ResumeTarget::CodexSession { session_id, .. } => {
             let exe = launch_client_executable();
-            let imported_id = crate::import::imported_codex_session_id(session_id);
+            let imported_id = crate::casr_adapter::imported_codex_session_id(session_id);
             let args = resume_invocation_args(&imported_id, socket);
             let title = format!("🧠 Codex {}", &session_id[..session_id.len().min(8)]);
             (exe, args, title)
         }
         ResumeTarget::PiSession { session_path } => {
             let exe = launch_client_executable();
-            let imported_id = crate::import::imported_pi_session_id(session_path);
+            let imported_id = crate::casr_adapter::imported_pi_session_id(session_path);
             let args = resume_invocation_args(&imported_id, socket);
             let title = format!(
                 "π Pi {}",
@@ -613,7 +613,7 @@ pub(super) fn build_resume_command(
         }
         ResumeTarget::OpenCodeSession { session_id, .. } => {
             let exe = launch_client_executable();
-            let imported_id = crate::import::imported_opencode_session_id(session_id);
+            let imported_id = crate::casr_adapter::imported_opencode_session_id(session_id);
             let args = resume_invocation_args(&imported_id, socket);
             let title = format!("◌ OpenCode {}", &session_id[..session_id.len().min(8)]);
             (exe, args, title)

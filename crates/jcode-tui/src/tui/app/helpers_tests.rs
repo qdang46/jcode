@@ -168,7 +168,7 @@ fn build_resume_command_uses_imported_jcode_session_for_claude_code() {
         vec![
             "--fresh-spawn".to_string(),
             "--resume".to_string(),
-            crate::import::imported_claude_code_session_id("claude-session-123")
+            crate::casr_adapter::imported_claude_code_session_id("claude-session-123")
         ]
     );
     assert!(title.contains("Claude Code"));
@@ -194,7 +194,7 @@ fn build_resume_command_uses_imported_jcode_session_for_codex() {
         vec![
             "--fresh-spawn".to_string(),
             "--resume".to_string(),
-            crate::import::imported_codex_session_id("codex-session-123")
+            crate::casr_adapter::imported_codex_session_id("codex-session-123")
         ]
     );
     assert!(title.contains("Codex"));
