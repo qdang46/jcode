@@ -1375,7 +1375,16 @@ impl App {
             slot.ensure(self.session.working_dir.as_deref())?
         };
 
-        let raw = picker.search(m.query, super::at_picker::AT_PICKER_MAX_SUGGESTIONS);
+        // Phase A @-mention: the resolver expects the full `@<query>` token
+        // with the cursor at the end. `m.query` is the bare query (no `@`),
+        // so we wrap it. The cursor is placed at the end of the synthetic
+        // buffer so the resolver walks back to find the `@` we just added.
+        let input = format!("@{}", m.query);
+        let raw = picker.search(
+            &input,
+            input.len(),
+            super::at_picker::AT_PICKER_MAX_SUGGESTIONS,
+        );
         if raw.is_empty() {
             // Picker still warming up or query has no matches. Returning
             // an empty Vec here would suppress the dropdown and also block

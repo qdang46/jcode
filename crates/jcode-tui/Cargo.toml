@@ -73,6 +73,8 @@ jcode-session-types = { path = "../jcode-session-types" }
 jcode-provider-core = { path = "../jcode-provider-core" }
 jcode-tui-markdown = { path = "../jcode-tui-markdown" }
 jcode-tui-messages = { path = "../jcode-tui-messages" }
+# Phase B: payload resolution for the @-mention system.
+ffs-engine.workspace = true
 jcode-tui-core = { path = "../jcode-tui-core" }
 jcode-tui-mermaid = { path = "../jcode-tui-mermaid" }
 jcode-tui-account-picker = { path = "../jcode-tui-account-picker" }

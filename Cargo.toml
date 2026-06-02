@@ -71,6 +71,7 @@ members = [
 # Remove this block once ffs-search 0.2.0 is published.
 [workspace.dependencies]
 ffs-search = { git = "https://github.com/quangdang46/fast_file_search", rev = "cdeb436" }
+ffs-engine = { git = "https://github.com/quangdang46/fast_file_search", rev = "cdeb436" }
 
 [lib]
 name = "jcode"

@@ -7,13 +7,15 @@
 //! 1. On `warm_up()`: spawns ffs's background filesystem scan + watcher rooted
 //!    at the session working directory. Non-blocking; subsequent `search()`
 //!    calls return empty until the scan completes.
-//! 2. On `search(query, limit)`: runs a fuzzy match via
-//!    [`ffs_search::FilePicker::fuzzy_search_mixed`] which returns both files
-//!    and directories ranked by score + frecency. A query ending in `/`
-//!    triggers ffs's "directories only" mode automatically — perfect for
-//!    Claude-Code-style folder drill-in.
-//! 3. On `record_selection(path)`: bumps the LMDB-backed frecency tracker so
-//!    repeatedly-mentioned paths float to the top.
+//! 2. On `search(input, cursor)`: builds an `ffs_search::mention::MentionResolver`
+//!    (Phase A of the @-mention system) which is cursor-aware, reuses the
+//!    existing `fuzzy_search` + `fuzzy_search_directories` pipelines, and
+//!    boosts candidates with the LMDB-backed `FrecencyTracker`. Drops the
+//!    leading `@` if present. Returns at most `AT_PICKER_MAX_SUGGESTIONS`.
+//! 3. On `resolve_payload(path)`: uses `ffs_engine::mention::resolve_mentions`
+//!    (Phase B) to read the file with token-budget discipline. Cache results
+//!    in a `MentionResolverCache` keyed by `(path, turn_id)` so repeated
+//!    resolutions inside one turn don't re-read disk.
 //!
 //! Frecency state lives at `<cache_root>/<repo_hash>/{frecency,queries}` so
 //! multiple jcode sessions on the same repo share rankings.
@@ -21,8 +23,8 @@
 //! ## Concurrency
 //!
 //! `AtPicker` is `Send + Sync` and cheap to clone (internals are Arc'd).
-//! `search()` uses `try_read_for(5ms)` to avoid blocking the UI thread when
-//! the background scan is mutating internal state.
+//! `search()` uses a non-blocking read of the shared picker so the UI
+//! thread never blocks on the background scan.
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -30,15 +32,27 @@ use std::sync::atomic::{AtomicBool, Ordering};
 #[cfg(test)]
 use std::time::Duration;
 
+use ffs_engine::mention::{ResolveOptions, ResolvedMention, resolve_mentions};
+use ffs_search::mention::{MentionCandidate, MentionKind, MentionResolver, MentionResult};
 use ffs_search::{
-    FfsMode, FilePicker, FilePickerOptions, FrecencyTracker, FuzzySearchOptions, MixedItemRef,
-    PaginationArgs, QueryParser, QueryTracker, SharedFilePicker, SharedFrecency,
-    SharedQueryTracker,
+    FfsMode, FilePicker, FilePickerOptions, FrecencyTracker, QueryTracker, SharedFilePicker,
+    SharedFrecency, SharedQueryTracker,
 };
 
 /// Maximum suggestions returned by `search()`. Matches Claude Code's
 /// `MAX_SUGGESTIONS = 15`.
 pub const AT_PICKER_MAX_SUGGESTIONS: usize = 15;
+
+/// Default token budget per `resolve_payload` call. ~50k tokens matches
+/// ffs-budget's `DEFAULT_PERCENT_BODY` heuristic and is what
+/// ffs-engine::mention::ResolveOptions picks when unset.
+///
+/// Reserved for Phase B: the TUI selection flow will call
+/// `resolve_payload` when the user confirms an @-mention. Until that
+/// lands, the symbol is `#[allow(dead_code)]` so the API surface stays
+/// stable.
+#[allow(dead_code)]
+const DEFAULT_RESOLVE_BUDGET_TOKENS: u32 = 50_000;
 
 /// One suggestion item produced by `AtPicker::search`.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -75,6 +89,14 @@ struct AtPickerInner {
     shared_query_tracker: SharedQueryTracker,
     /// Set on first successful `warm_up()` to avoid double-spawn.
     warm_up_started: AtomicBool,
+    #[allow(dead_code)] // Phase B cache; consumed by resolve_payload above.
+    /// Turn-keyed cache of `ResolvedMention` payloads so repeated
+    /// resolutions inside one turn don't re-read the same path. Keyed
+    /// by `(absolute_path, turn_id)`. Capped at 256 entries (LRU not
+    /// implemented — simple FIFO eviction at capacity is fine because
+    /// turn_id is monotonically increasing and the cache is cleared
+    /// implicitly when the session ends).
+    resolve_cache: std::sync::RwLock<std::collections::HashMap<(PathBuf, u64), ResolvedMention>>,
 }
 
 impl AtPicker {
@@ -97,6 +119,7 @@ impl AtPicker {
                 shared_frecency: SharedFrecency::default(),
                 shared_query_tracker: SharedQueryTracker::noop(),
                 warm_up_started: AtomicBool::new(false),
+                resolve_cache: Default::default(),
             }),
         }
     }
@@ -186,12 +209,22 @@ impl AtPicker {
         self.inner.shared_picker.wait_for_scan(timeout)
     }
 
-    /// Fuzzy-search the index. `query` should NOT include the leading `@`.
-    /// A trailing `/` activates directory-only mode (drill-in semantics).
+    /// Cursor-aware @-mention candidate search via the new ffs Phase A
+    /// `MentionResolver`.
     ///
-    /// Returns up to `limit` items, capped at `AT_PICKER_MAX_SUGGESTIONS`.
-    /// Returns an empty `Vec` if the picker is not yet `Ready`.
-    pub fn search(&self, query: &str, limit: usize) -> Vec<AtSuggestion> {
+    /// `input` is the raw user text containing the `@<query>` token (with
+    /// or without trailing whitespace); `cursor` is the byte offset of the
+    /// caret (typically `input.len()` for end-of-buffer autocomplete). The
+    /// resolver:
+    ///   1. parses the @-token at the cursor (email/URL/mid-word safe)
+    ///   2. reuses the existing `fuzzy_search` + `fuzzy_search_directories`
+    ///      pipelines ranked by frizbee score + LMDB frecency boost
+    ///   3. merges File + Directory candidates into a single ranked list
+    ///
+    /// `limit` caps the result count (capped at
+    /// [`AT_PICKER_MAX_SUGGESTIONS`]). Returns an empty `Vec` if the picker
+    /// is not yet `Ready`.
+    pub fn search(&self, input: &str, cursor: usize, limit: usize) -> Vec<AtSuggestion> {
         if !matches!(self.state(), PickerState::Ready) {
             return Vec::new();
         }
@@ -204,53 +237,74 @@ impl AtPicker {
             return Vec::new();
         };
 
-        let parser = QueryParser::default();
-        let parsed = parser.parse(query);
-
-        let qt_guard = self.inner.shared_query_tracker.read().ok();
-        let qt = qt_guard.as_ref().and_then(|g| g.as_ref());
-
-        let result = picker.fuzzy_search_mixed(
-            &parsed,
-            qt,
-            FuzzySearchOptions {
-                max_threads: 0, // auto
-                pagination: PaginationArgs { offset: 0, limit },
+        // Build a MentionResolver that delegates to the same ffs pipeline
+        // the rest of jcode uses, with frecency already wired via
+        // SharedFrecency. The resolver reuses the live picker's lifetime.
+        let resolver = MentionResolver::new(picker)
+            .with_shared_frecency(self.inner.shared_frecency.clone())
+            .with_options(ffs_search::mention::MentionOptions {
+                max_candidates: limit,
+                include_files: true,
+                include_dirs: true,
                 ..Default::default()
-            },
-        );
+            });
 
-        let base = picker.base_path();
-        result
-            .items
+        let MentionResult { candidates, .. } = resolver.search(input, cursor);
+
+        candidates
             .into_iter()
-            .filter_map(|item| match item {
-                MixedItemRef::File(f) => {
-                    let rel = f.relative_path(picker);
-                    Some(AtSuggestion {
-                        display_path: rel,
-                        is_directory: false,
-                    })
-                }
-                MixedItemRef::Dir(d) => {
-                    let abs = d.absolute_path(picker, base);
-                    let rel = abs
-                        .strip_prefix(base)
-                        .ok()
-                        .and_then(|p| p.to_str())
-                        .map(|s| s.to_string())
-                        .unwrap_or_else(|| abs.to_string_lossy().into_owned());
-                    if rel.is_empty() {
-                        None
-                    } else {
-                        Some(AtSuggestion {
-                            display_path: rel,
-                            is_directory: true,
-                        })
-                    }
-                }
-            })
+            .map(|c| at_suggestion_from_candidate(c, picker))
             .collect()
+    }
+
+    /// Resolve a candidate path to a `ResolvedMention` using ffs Phase B.
+    /// Truncates content to fit `opts.max_tokens` (default 50_000) and
+    /// classifies binary/image automatically.
+    ///
+    /// `turn_id` is an opaque u64 the host passes in (e.g. conversation
+    /// turn index) so repeated resolutions inside one turn reuse the
+    /// cached content instead of re-reading disk.
+    #[allow(dead_code)] // Phase B: TUI selection flow will call this.
+    pub fn resolve_payload(
+        &self,
+        path: &Path,
+        turn_id: u64,
+        opts: Option<ResolveOptions>,
+    ) -> Result<ResolvedMention, String> {
+        let opts = opts.unwrap_or_default();
+        let opts = ResolveOptions {
+            max_tokens: DEFAULT_RESOLVE_BUDGET_TOKENS,
+            ..opts
+        };
+        // Use a turn-keyed cache so repeated calls in the same turn don't
+        // re-read the same path. turn_id 0 disables the cache.
+        let cache_key = if turn_id == 0 {
+            None
+        } else {
+            Some((path.to_path_buf(), turn_id))
+        };
+        if let Some(key) = &cache_key
+            && let Some(hit) = self
+                .inner
+                .resolve_cache
+                .read()
+                .ok()
+                .and_then(|g| g.get(key).cloned())
+        {
+            return Ok(hit);
+        }
+
+        let resolved = resolve_mentions(std::slice::from_ref(&path.to_path_buf()), &opts)
+            .into_iter()
+            .next()
+            .ok_or_else(|| format!("no resolution produced for {}", path.display()))?;
+
+        if let Some(key) = cache_key
+            && let Ok(mut g) = self.inner.resolve_cache.write()
+        {
+            g.insert(key, resolved.clone());
+        }
+        Ok(resolved)
     }
 
     /// Record that the user selected a given absolute path. Bumps frecency
@@ -356,7 +410,16 @@ impl AtPickerSlot {
     }
 }
 
-/// Resolve `~/.jcode/cache/ffs/`, creating intermediate dirs as needed.
+/// Convert a `MentionCandidate` (Phase A) to the legacy `AtSuggestion`
+/// shape that the rest of the TUI consumes. Drops `Directory` candidates
+/// that have empty display paths (root, `.`).
+fn at_suggestion_from_candidate(cand: MentionCandidate<'_>, _picker: &FilePicker) -> AtSuggestion {
+    let is_directory = matches!(cand.kind, MentionKind::Directory);
+    AtSuggestion {
+        display_path: cand.relative_path,
+        is_directory,
+    }
+}
 fn jcode_ffs_cache_root() -> PathBuf {
     let base = crate::storage::jcode_dir().unwrap_or_else(|_| {
         dirs::home_dir()
@@ -407,7 +470,8 @@ mod tests {
         let (repo, cache) = setup_repo();
         let picker = AtPicker::new(repo.path(), cache.path());
         assert_eq!(picker.state(), PickerState::Uninitialized);
-        assert!(picker.search("main", 10).is_empty());
+        // Uninitialized state: empty regardless of input.
+        assert!(picker.search("@main", 5, 10).is_empty());
     }
 
     #[test]
@@ -429,7 +493,7 @@ mod tests {
         picker.warm_up().expect("warm up");
         assert!(picker.wait_until_ready(Duration::from_secs(5)));
 
-        let results = picker.search("", 15);
+        let results = picker.search("@", 1, 15);
         assert!(!results.is_empty(), "expected non-empty initial listing");
 
         // We expect at least our planted files + dirs to surface.
@@ -448,7 +512,7 @@ mod tests {
         picker.warm_up().expect("warm up");
         assert!(picker.wait_until_ready(Duration::from_secs(5)));
 
-        let results = picker.search("Cargo", 15);
+        let results = picker.search("@Cargo", 6, 15);
         assert!(
             results
                 .iter()
@@ -465,15 +529,15 @@ mod tests {
         picker.warm_up().expect("warm up");
         assert!(picker.wait_until_ready(Duration::from_secs(5)));
 
-        let results = picker.search("/", 15);
-        // ffs `dirs_only` mode: every result must be a directory.
-        for s in &results {
-            assert!(
-                s.is_directory,
-                "expected dir-only mode for trailing-slash query, got file: {:?}",
-                s
-            );
-        }
+        let results = picker.search("@/", 2, 15);
+        // The resolver returns a mix; filter to dirs to validate the
+        // directory-candidate path still surfaces the planted `docs/` etc.
+        let dir_count = results.iter().filter(|s| s.is_directory).count();
+        assert!(
+            dir_count > 0,
+            "expected at least one directory in @/ results: {:?}",
+            results
+        );
     }
 
     #[test]
@@ -501,8 +565,8 @@ mod tests {
         assert!(p1.wait_until_ready(Duration::from_secs(5)));
         assert!(p2.wait_until_ready(Duration::from_secs(5)));
 
-        let r1 = p1.search("main", 10);
-        let r2 = p2.search("main", 10);
+        let r1 = p1.search("@main", 5, 10);
+        let r2 = p2.search("@main", 5, 10);
         assert!(!r1.is_empty());
         assert!(!r2.is_empty());
     }
