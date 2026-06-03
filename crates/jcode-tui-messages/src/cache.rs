@@ -1,3 +1,8 @@
+// Migration scaffold: cache types are unused during the frankentui
+// transition but kept intact for the Phase 1.3 follow-up. Suppress
+// dead-code/unused-import noise while the call sites land.
+#![allow(dead_code, unused_imports)]
+
 use crate::DisplayMessage;
 use jcode_config_types::{DiagramDisplayMode, DiffDisplayMode};
 use ftui_text::text::{Line, Span};

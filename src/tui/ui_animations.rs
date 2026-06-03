@@ -1,4 +1,4 @@
-use crate::tui::{TuiState, color_support::rgb};
+use crate::tui::TuiState;
 use ftui_core::geometry::Rect;
 use ftui_render::cell::PackedRgba;
 use ftui_render::frame::Frame;
@@ -9,7 +9,7 @@ use ftui_widgets::block::Alignment;
 use ftui_widgets::paragraph::Paragraph;
 use std::cell::RefCell;
 use std::collections::{HashSet, hash_map::DefaultHasher};
-use std::hash::{Hash, Hasher};
+use std::hash::Hash;
 use std::sync::OnceLock;
 
 const IDLE_VARIANTS: &[&str] = &["donut", "orbit_rings"];
@@ -185,7 +185,7 @@ pub(super) fn draw_idle_animation(frame: &mut Frame, app: &dyn TuiState, area: R
 
         let time_hue = elapsed * 40.0;
         let centered = app.centered_mode();
-        let align = if centered {
+        let _align = if centered {
             Alignment::Center
         } else {
             Alignment::Left

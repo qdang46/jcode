@@ -3,7 +3,6 @@ use crate::tui::compat::{StyleCompatExt, text_from_lines};
 use super::*;
 use ftui_text::wrap::WrapMode;
 use ftui_widgets::borders::BorderType;
-use ftui_widgets::StatefulWidget;
 
 impl SessionPicker {
     pub(super) fn crash_reason_line(session: &SessionInfo) -> Option<Line<'static>> {
@@ -387,7 +386,7 @@ impl SessionPicker {
 
         title_parts.push(Span::styled(" ", Style::default()));
 
-        let help = if self.loading_message.is_some() {
+        let _help = if self.loading_message.is_some() {
             " Esc cancel "
         } else if self.search_active {
             " type to filter, Esc cancel "

@@ -41,9 +41,8 @@ use crate::todo::TodoItem;
 use memory_render::{render_memory_compact, render_memory_expanded, render_memory_widget};
 use ftui_core::geometry::Rect;
 use ftui_style::{Color, Style};
-use crate::tui::compat::{line_from_spans, line_from_span, text_from_lines};
+use crate::tui::compat::{line_from_spans, line_from_span};
 use ftui_text::text::{Line, Span, Text};
-use ftui_layout::Constraint;
 use ftui_widgets::{
     block::Block,
     borders::{BorderType, Borders},
@@ -55,7 +54,6 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
-use unicode_width::UnicodeWidthStr;
 
 use git::{render_git_compact, render_git_widget};
 pub use graph::{GraphEdge, GraphNode, build_graph_topology, graph_node_score};

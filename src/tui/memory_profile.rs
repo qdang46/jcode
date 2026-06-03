@@ -1,4 +1,3 @@
-use ftui_text::text::{Line, Span};
 use crate::message::{ContentBlock, Message};
 use crate::session::Session;
 use crate::side_panel::SidePanelSnapshot;

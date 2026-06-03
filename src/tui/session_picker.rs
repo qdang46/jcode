@@ -1234,7 +1234,7 @@ impl SessionPicker {
                 "session picker requires an interactive terminal (stdin/stdout must be a TTY)"
             );
         }
-        let mut terminal = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| ftui::TerminalSession::new(ftui::SessionOptions::default())))
+        let _terminal = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| ftui::TerminalSession::new(ftui::SessionOptions::default())))
             .map_err(|payload| {
                 let msg = if let Some(s) = payload.downcast_ref::<&str>() {
                     (*s).to_string()

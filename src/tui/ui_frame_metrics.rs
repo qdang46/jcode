@@ -1,7 +1,7 @@
 use super::*;
 use serde::Serialize;
 use std::collections::{VecDeque, hash_map::DefaultHasher};
-use std::hash::{Hash, Hasher};
+use std::hash::Hash;
 use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 use ftui_text::text::Line;

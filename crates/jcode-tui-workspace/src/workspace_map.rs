@@ -87,6 +87,7 @@ impl WorkspaceMap {
 pub struct WorkspaceMapModel {
     workspaces: BTreeMap<String, WorkspaceRow>,
     current_workspace: i32,
+    #[allow(dead_code)] // read by upcoming migration step
     focused_sessions: BTreeMap<String, usize>, // session_id -> workspace index
 }
 

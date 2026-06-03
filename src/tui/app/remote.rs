@@ -503,7 +503,7 @@ pub(super) async fn check_debug_command(
 
 fn handle_terminal_event_while_disconnected(
     app: &mut App,
-    terminal: &mut DefaultTerminal,
+    _terminal: &mut DefaultTerminal,
     event: Option<std::result::Result<Event, std::io::Error>>,
 ) -> Result<bool> {
     let mut needs_redraw = false;

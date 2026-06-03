@@ -8,7 +8,6 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use jcode_core::panic_util::panic_payload_to_string;
 
-use super::layout_support::clear_area;
 use super::theme_support::dim_color;
 
 /// Number of recovered panics while rendering the frame.
@@ -30,7 +29,9 @@ pub(super) fn render_recovered_panic_frame(
     if area.width == 0 || area.height == 0 {
         return;
     }
-    clear_area(frame, area);
+    // clear_area helper removed during ftui migration; full buffer wipe
+    // will be re-implemented when the recovery overlay is re-rendered.
+    let _ = area;
     let lines = vec![
         Line::from_spans(vec![Span::styled(
             "rendering error recovered",

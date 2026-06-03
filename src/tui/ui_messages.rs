@@ -11,7 +11,7 @@ pub(super) use cache_support::get_cached_message_lines;
 use cache_support::{centered_wrap_width, left_pad_lines_for_centered_mode};
 use ftui_render::cell::PackedRgba;
 use ftui_style::Color;
-use crate::tui::compat::{line_from_spans, line_from_span};
+use crate::tui::compat::line_from_span;
 use std::borrow::Cow;
 use unicode_width::UnicodeWidthStr;
 
@@ -35,6 +35,7 @@ fn render_rounded_box_with_style(
 
 /// Truncate a line in place with an ellipsis at the given display width.
 #[inline]
+#[allow(dead_code)] // retained for upcoming ftui migration
 fn truncate_line_to_width(line: &mut Line<'static>, width: usize) {
     super::truncate_line_with_ellipsis_to_width(line, width as u16);
 }

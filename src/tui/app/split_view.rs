@@ -3,7 +3,7 @@ use crate::side_panel::{
     SidePanelPage, SidePanelPageFormat, SidePanelPageSource, SidePanelSnapshot,
 };
 use std::collections::hash_map::DefaultHasher;
-use std::hash::{Hash, Hasher};
+use std::hash::Hash;
 
 pub(super) const SPLIT_VIEW_PAGE_ID: &str = "split_view";
 const SPLIT_VIEW_TITLE: &str = "Split View";

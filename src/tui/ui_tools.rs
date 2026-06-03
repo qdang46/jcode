@@ -1,6 +1,6 @@
 use crate::message::ToolCall;
 
-use super::{dim_color, rgb, tool_color, truncate_line_preserving_suffix_to_width};
+use super::{dim_color, rgb, tool_color};
 use ftui_style::{Color, Style};
 use ftui_text::text::{Line, Span};
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};

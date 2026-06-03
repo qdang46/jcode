@@ -31,7 +31,7 @@ use jcode_tui_messages::DisplayMessage;
 
 use std::cell::RefCell;
 use std::collections::HashSet;
-use std::hash::{Hash, Hasher};
+use std::hash::Hash;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::mpsc;

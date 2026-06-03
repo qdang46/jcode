@@ -4,7 +4,7 @@ use crate::side_panel::{
 };
 use crate::todo::TodoItem;
 use std::collections::hash_map::DefaultHasher;
-use std::hash::{Hash, Hasher};
+use std::hash::Hash;
 
 pub(super) const TODOS_VIEW_PAGE_ID: &str = "session_todos";
 const TODOS_VIEW_TITLE: &str = "Todos";

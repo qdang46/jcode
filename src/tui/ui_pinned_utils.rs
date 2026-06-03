@@ -8,7 +8,7 @@ pub(super) fn lru_touch<K: PartialEq>(order: &mut VecDeque<K>, key: &K) {
     }
 }
 
-pub(super) fn side_panel_content_signature(page: &crate::side_panel::SidePanelPage) -> u64 {
+pub(super) fn side_panel_content_signature(_page: &crate::side_panel::SidePanelPage) -> u64 {
     // TODO[frankentui]: DefaultHasher has no finish() method - stub returns 0
     0
 }

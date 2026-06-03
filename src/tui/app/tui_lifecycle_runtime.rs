@@ -7,6 +7,7 @@ impl App {
         Self::new_for_replay_with_title(session, true)
     }
 
+    #[allow(dead_code)] // public API retained for upcoming migration
     pub(crate) fn new_for_replay_silent(session: crate::session::Session) -> Self {
         Self::new_for_replay_with_title(session, false)
     }
@@ -245,9 +246,9 @@ impl App {
         }
         if let Ok(session) = Session::load(session_id) {
             // Count stats before restoring
-            let mut user_turns = 0;
-            let mut assistant_turns = 0;
-            let mut total_chars = 0;
+            let user_turns = 0;
+            let assistant_turns = 0;
+            let total_chars = 0;
 
             // Stats computation stubbed - display_messages_from_rendered_messages returns empty Vec
             // TODO: restore stats computation when jcode-tui-messages is fully implemented

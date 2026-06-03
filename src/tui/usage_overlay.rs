@@ -542,6 +542,7 @@ fn estimate_item_bytes(item: &UsageOverlayItem) -> usize {
             .sum::<usize>()
 }
 
+#[allow(dead_code)] // retained for upcoming ftui migration
 fn hotkey(text: &'static str) -> Span<'static> {
     Span::styled(text, Style::default().fg_compat(Color::Mono(MonoColor::White)).bg_compat(Color::Ansi16(Ansi16::BrightBlack)))
 }

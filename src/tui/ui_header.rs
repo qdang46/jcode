@@ -368,7 +368,7 @@ pub(super) fn build_persistent_header(app: &dyn TuiState, width: u16) -> Vec<Lin
         .unwrap_or_else(|| crate::id::session_icon(&session_name));
     let nice_model = format_model_name(&short_model);
     let build_info = binary_age().unwrap_or_else(|| "unknown".to_string());
-    let align = Alignment::Center;
+    let _align = Alignment::Center;
     let mut lines: Vec<Line> = Vec::new();
     let w = width as usize;
 
@@ -493,7 +493,7 @@ pub(super) fn build_persistent_header(app: &dyn TuiState, width: u16) -> Vec<Lin
 
 pub(crate) fn build_header_lines(app: &dyn TuiState, width: u16) -> Vec<Line<'static>> {
     let mut lines: Vec<Line> = Vec::new();
-    let align = Alignment::Center;
+    let _align = Alignment::Center;
     let model = app.provider_model();
     let provider_name = app.provider_name();
     let upstream = app.upstream_provider();

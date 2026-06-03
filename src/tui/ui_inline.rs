@@ -85,7 +85,7 @@ fn draw_inline_view(
         return;
     }
 
-    let mut lines: Vec<Line> = Vec::new();
+    let lines: Vec<Line> = Vec::new();
     let mut header_spans = vec![Span::styled(
         view.title.clone(),
         Style::default().fg_compat(Color::Mono(MonoColor::White)).bold(),

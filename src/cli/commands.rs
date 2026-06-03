@@ -371,7 +371,7 @@ async fn run_ambient_visible() -> Result<()> {
     let safety = std::sync::Arc::new(crate::safety::SafetySystem::new());
     crate::tool::ambient::init_safety_system(safety);
 
-    let (terminal, tui_runtime) = init_tui_runtime()?;
+    let (_terminal, tui_runtime) = init_tui_runtime()?;
 
     let mut app = tui::App::new(provider, registry);
     app.set_ambient_mode(context.system_prompt, context.initial_message);

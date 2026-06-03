@@ -5,6 +5,7 @@ use ftui_style::{Color, Rgb, Style};
 use ftui_text::text::Span;
 use ftui_layout::Flex;
 
+#[allow(dead_code)] // helper retained for upcoming migration
 pub(super) fn hotkey(text: &'static str) -> Span<'static> {
     Span::styled(
         text,

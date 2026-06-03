@@ -167,7 +167,7 @@ fn push_user_prompt_lines(
     prompt_num: usize,
     num_color: Color,
     content: &str,
-    align: ftui_widgets::block::Alignment,
+    _align: ftui_widgets::block::Alignment,
 ) {
     let prefix_width = unicode_width::UnicodeWidthStr::width(prompt_num.to_string().as_str())
         + unicode_width::UnicodeWidthStr::width("› ");
@@ -447,7 +447,7 @@ fn prepare_messages_inner(app: &dyn TuiState, width: u16, height: u16) -> Prepar
         let compose_start = Instant::now();
         let suggestions = app.suggestion_prompts();
         let is_centered = app.centered_mode();
-        let suggestion_align = if is_centered {
+        let _suggestion_align = if is_centered {
             ftui_widgets::block::Alignment::Center
         } else {
             ftui_widgets::block::Alignment::Left

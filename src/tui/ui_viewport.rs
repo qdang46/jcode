@@ -11,7 +11,7 @@ use ftui_widgets::paragraph::Paragraph;
 use unicode_width::UnicodeWidthStr;
 use jcode_tui_style::theme::blend_color;
 use jcode_tui_style::theme::accent_color;
-use crate::tui::compat::{color_to_packedrgba, StyleCompatExt};
+use crate::tui::compat::color_to_packedrgba;
 
 #[cfg(target_os = "macos")]
 pub(crate) const COPY_BADGE_ALT_LABEL: &str = "⌥";
@@ -466,7 +466,7 @@ pub(super) fn draw_messages(
     clear_area(frame, area);
 
     if let Some(anim) = active_prompt_anim {
-        let t = (now_ms.saturating_sub(anim.start_ms) as f32 / PROMPT_ENTRY_ANIMATION_MS as f32)
+        let _t = (now_ms.saturating_sub(anim.start_ms) as f32 / PROMPT_ENTRY_ANIMATION_MS as f32)
             .clamp(0.0, 1.0);
 
         let prompt_idx = lower_bound(wrapped_user_prompt_starts, anim.line_idx);
@@ -773,7 +773,7 @@ pub(super) fn draw_messages(
                 let content_width =
                     render_area.width.saturating_sub(prefix_len as u16 + 2) as usize;
                 let dim_style = Style::new().dim();
-                let align = if app.centered_mode() {
+                let _align = if app.centered_mode() {
                     Alignment::Center
                 } else {
                     Alignment::Left

@@ -21,6 +21,7 @@ const MUTED_DARK: PackedRgba = PackedRgba::rgb(100, 106, 122);
 const OVERLAY_PERCENT_X: u16 = 88;
 const OVERLAY_PERCENT_Y: u16 = 74;
 
+#[allow(dead_code)] // retained for upcoming ftui migration
 fn rgb(r: u8, g: u8, b: u8) -> PackedRgba {
     PackedRgba::rgb(r, g, b)
 }
@@ -605,6 +606,7 @@ fn estimate_item_bytes(item: &LoginPickerItem) -> usize {
         + item.provider.menu_detail.len()
 }
 
+#[allow(dead_code)] // retained for upcoming ftui migration
 fn hotkey(text: &'static str) -> Span<'static> {
     Span::styled(text, Style::new().fg_compat(Color::Mono(MonoColor::White)).bg_compat(Color::Ansi16(Ansi16::BrightBlack)))
 }

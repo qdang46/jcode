@@ -276,7 +276,7 @@ fn init_tui_terminal_resume() -> Result<ftui::TerminalSession> {
     crossterm::terminal::enable_raw_mode()
         .map_err(|e| anyhow::anyhow!("failed to enable raw mode on resume: {}", e))?;
 
-    let mut terminal = TerminalSession::new(SessionOptions::default())
+    let terminal = TerminalSession::new(SessionOptions::default())
         .map_err(|e| anyhow::anyhow!("failed to create terminal on resume: {}", e))?;
 
     // TerminalSession::clear would be added when frankentui exposes it;

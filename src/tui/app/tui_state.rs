@@ -1209,7 +1209,7 @@ impl crate::tui::TuiState for App {
         self.app_started.elapsed().as_millis() as u64 / 180
     }
 
-    fn render_streaming_markdown(&self, width: usize) -> Vec<ftui_text::text::Line<'static>> {
+    fn render_streaming_markdown(&self, _width: usize) -> Vec<ftui_text::text::Line<'static>> {
         let mut renderer = self.streaming_md_renderer.borrow_mut();
         // TODO[frankentui]: jcode_tui_markdown IncrementalMarkdownRenderer has no set_width() method
         // renderer.set_width(Some(width));

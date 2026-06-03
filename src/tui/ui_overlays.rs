@@ -8,7 +8,6 @@ use super::{
 use crate::tui::TuiState;
 use crate::tui::info_widget::WidgetPlacement;
 use ftui_core::geometry::Rect;
-use ftui_render::cell::PackedRgba;
 use ftui_style::{Color, Style};
 use ftui_text::text::{Line, Span, Text};
 use ftui_widgets::{

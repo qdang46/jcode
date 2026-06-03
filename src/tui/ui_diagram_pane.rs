@@ -6,7 +6,6 @@ use ftui_core::geometry::Rect;
 use ftui_render::frame::Frame;
 use ftui_style::Style;
 use ftui_text::text::Line;
-use ftui_widgets::borders::BorderType;
 use ftui_widgets::paragraph::Paragraph;
 use ftui_widgets::Widget;
 use serde::Serialize;

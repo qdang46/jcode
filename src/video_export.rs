@@ -446,6 +446,7 @@ fn cell_symbol(cell: Cell) -> String {
     }
 }
 
+#[allow(dead_code)] // retained for upcoming ftui migration
 fn indexed_color_to_hex(idx: u8) -> String {
     match idx {
         0 => "#000000",

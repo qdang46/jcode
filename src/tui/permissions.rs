@@ -1,5 +1,5 @@
 use ftui_style::MonoColor;
-use crate::tui::compat::{StyleCompatExt, text_from_lines, line_from_spans, line_from_span};
+use crate::tui::compat::{StyleCompatExt, text_from_lines};
 use super::color_support::rgb;
 use crate::safety::{self, PermissionRequest, Urgency};
 use anyhow::Result;
@@ -30,6 +30,7 @@ struct PermissionsApp {
     done: bool,
 }
 
+#[allow(dead_code)] // retained for upcoming ftui draw-path port
 impl PermissionsApp {
     fn new(requests: Vec<PermissionRequest>) -> Self {
         Self {
@@ -42,6 +43,7 @@ impl PermissionsApp {
         }
     }
 
+    #[allow(dead_code)] // methods retained for upcoming ftui migration
     fn selected_request(&self) -> Option<&PermissionRequest> {
         self.requests.get(self.selected)
     }
@@ -501,7 +503,7 @@ impl PermissionsApp {
             anyhow::bail!("permissions viewer requires an interactive terminal");
         }
 
-        let mut terminal = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| ftui::TerminalSession::new(ftui::SessionOptions::default())))
+        let _terminal = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| ftui::TerminalSession::new(ftui::SessionOptions::default())))
             .map_err(|payload| {
                 let msg = if let Some(s) = payload.downcast_ref::<&str>() {
                     (*s).to_string()
@@ -581,6 +583,7 @@ impl PermissionsApp {
     }
 }
 
+#[allow(dead_code)] // retained for upcoming ftui migration
 fn detail_height(total: u16) -> u16 {
     let min_list = 5;
     let help = 1;
@@ -590,6 +593,7 @@ fn detail_height(total: u16) -> u16 {
 }
 
 #[derive(Default)]
+#[allow(dead_code)] // retained for upcoming ftui migration
 struct PermissionReview {
     summary: String,
     why_permission_needed: String,
@@ -603,6 +607,7 @@ struct PermissionReview {
     risks: Vec<String>,
 }
 
+#[allow(dead_code)] // retained for upcoming ftui migration
 fn extract_permission_review(req: &PermissionRequest) -> PermissionReview {
     let root = req.context.as_ref().and_then(Value::as_object);
     let review = root
@@ -662,6 +667,7 @@ fn extract_permission_review(req: &PermissionRequest) -> PermissionReview {
     }
 }
 
+#[allow(dead_code)] // retained for upcoming ftui migration
 fn context_string(map: Option<&Map<String, Value>>, keys: &[&str]) -> Option<String> {
     let map = map?;
     keys.iter().find_map(|key| {
@@ -678,6 +684,7 @@ fn context_string(map: Option<&Map<String, Value>>, keys: &[&str]) -> Option<Str
     })
 }
 
+#[allow(dead_code)] // retained for upcoming ftui migration
 fn context_list(map: Option<&Map<String, Value>>, keys: &[&str]) -> Option<Vec<String>> {
     let map = map?;
     for key in keys {
@@ -705,6 +712,7 @@ fn context_list(map: Option<&Map<String, Value>>, keys: &[&str]) -> Option<Vec<S
     None
 }
 
+#[allow(dead_code)] // retained for upcoming ftui migration
 fn pick_context_string(
     review: Option<&Map<String, Value>>,
     details: Option<&Map<String, Value>>,
@@ -716,6 +724,7 @@ fn pick_context_string(
         .or_else(|| context_string(root, keys))
 }
 
+#[allow(dead_code)] // retained for upcoming ftui migration
 fn pick_context_list(
     review: Option<&Map<String, Value>>,
     details: Option<&Map<String, Value>>,
@@ -728,6 +737,7 @@ fn pick_context_list(
         .unwrap_or_default()
 }
 
+#[allow(dead_code)] // retained for upcoming ftui migration
 fn summarize_list(items: &[String], separator: &str, max_items: usize) -> String {
     if items.is_empty() {
         return String::new();
@@ -740,6 +750,7 @@ fn summarize_list(items: &[String], separator: &str, max_items: usize) -> String
     text
 }
 
+#[allow(dead_code)] // retained for upcoming ftui migration
 fn wrap_by_chars(text: &str, width: usize) -> Vec<String> {
     if text.is_empty() || width == 0 {
         return Vec::new();
@@ -755,6 +766,7 @@ fn wrap_by_chars(text: &str, width: usize) -> Vec<String> {
     out
 }
 
+#[allow(dead_code)] // retained for upcoming ftui migration
 fn push_wrapped_field(
     lines: &mut Vec<Line<'static>>,
     label: &str,
@@ -797,6 +809,7 @@ fn push_wrapped_field(
     }
 }
 
+#[allow(dead_code)] // retained for upcoming ftui migration
 fn format_age(duration: chrono::Duration) -> String {
     let secs = duration.num_seconds();
     if secs < 60 {
@@ -813,6 +826,7 @@ fn format_age(duration: chrono::Duration) -> String {
     }
 }
 
+#[allow(dead_code)] // retained for upcoming ftui migration
 fn truncate(s: &str, max_len: usize) -> String {
     if s.len() <= max_len {
         s.to_string()

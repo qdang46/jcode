@@ -1,6 +1,5 @@
 use ftui_render::cell::PackedRgba;
 use ftui_style::MonoColor;
-use super::*;
 use crate::tui::TuiState;
 use ftui_style::{Color, Style};
 use ftui_text::text::{Line, Span};

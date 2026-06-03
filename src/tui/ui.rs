@@ -51,14 +51,14 @@ use ftui_core::geometry::Rect;
 use ftui_layout::{Constraint, Flex};
 use ftui_render::frame::Frame;
 use ftui_style::{Ansi16, Color, Style};
-use crate::tui::compat::{text_from_lines, line_from_spans, line_from_span};
+use crate::tui::compat::text_from_lines;
 use ftui_text::text::{Line, Span};
 use ftui_widgets::{block::Alignment, paragraph::Paragraph, Widget};
 use serde::Serialize;
 #[cfg(test)]
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, VecDeque, hash_map::DefaultHasher};
-use std::hash::{Hash, Hasher};
+use std::hash::Hash;
 #[cfg(not(test))]
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
@@ -358,9 +358,8 @@ use status_support::{
 };
 use theme_support::{
     accent_color, activity_indicator, activity_indicator_frame_index, ai_color, ai_text,
-    animated_tool_color, asap_color, blend_color, dim_color, file_link_color, header_icon_color,
-    header_name_color, header_session_color, pending_color, prompt_entry_bg_color,
-    prompt_entry_color, prompt_entry_shimmer_color, queued_color, rainbow_prompt_color,
+    animated_tool_color, asap_color, dim_color, file_link_color, header_icon_color,
+    header_name_color, header_session_color, pending_color, queued_color, rainbow_prompt_color,
     system_message_color, tool_color, user_bg, user_color, user_text,
 };
 

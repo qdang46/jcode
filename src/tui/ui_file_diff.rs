@@ -2,7 +2,6 @@ use super::*;
 use ftui_render::frame::Frame;
 use ftui_style::{Color, Style};
 use ftui_text::text::{Line, Span, Text};
-use ftui_widgets::{paragraph::Paragraph, Widget};
 use jcode_tui_style::theme::blend_color;
 use jcode_tui_style::theme::accent_color;
 

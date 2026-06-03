@@ -1,4 +1,4 @@
-use ftui_text::text::{Line, Span};
+use ftui_text::text::Line;
 use super::*;
 
 pub(super) use jcode_tui_messages::{centered_wrap_width, left_pad_lines_for_centered_mode};

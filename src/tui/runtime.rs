@@ -50,6 +50,7 @@ pub struct AppWrapper {
 
 /// Display-only state that gets synced from App before each view() call.
 /// This is a subset of what the real view will need.
+#[allow(dead_code)] // fields synced by upcoming migration step
 #[derive(Debug, Default)]
 struct DisplayState {
     messages_version: u64,
@@ -77,6 +78,7 @@ impl AppWrapper {
 
     /// Sync display state from the App into our display struct.
     /// Called before each view() render.
+    #[allow(dead_code)] // retained for upcoming ftui migration
     fn sync_from_app(&mut self) {
         if let Ok(app) = self.app.lock() {
             self.display.messages_version = app.display_messages_version();

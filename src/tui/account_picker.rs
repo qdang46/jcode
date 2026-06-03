@@ -22,7 +22,7 @@ pub use jcode_tui_account_picker::{
 mod render_support;
 use render_support::{
     ActionSection, account_count_summary, account_is_active, action_icon, action_kind_badge,
-    action_kind_help, action_section, centered_rect, command_preview, compact_item_title, hotkey,
+    action_kind_help, action_section, centered_rect, command_preview, compact_item_title,
     metric_span, provider_header_line, provider_style, truncate_with_ellipsis,
 };
 

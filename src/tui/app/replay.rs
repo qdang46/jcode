@@ -4,6 +4,7 @@ use crate::tui::backend::RemoteEventState;
 use anyhow::Result;
 use std::time::{Duration, Instant};
 
+#[allow(dead_code)] // stub for ftui migration; will be re-implemented on Presenter
 pub(super) async fn run_replay(
     _app: App,
     _terminal: (),
@@ -14,6 +15,7 @@ pub(super) async fn run_replay(
     anyhow::bail!("replay mode not yet supported with frankentui")
 }
 
+#[allow(dead_code)] // stub for ftui migration
 pub(super) async fn run_swarm_replay(
     _terminal: (),
     _panes: Vec<PaneReplayInput>,
@@ -122,6 +124,7 @@ pub(super) fn update_replay_elapsed_override(app: &mut App, sim_time_ms: f64) {
     }
 }
 
+#[allow(dead_code)] // test-only helper retained for upcoming migration
 fn schedule_replay_events(timeline: &[TimelineEvent]) -> Vec<(f64, ReplayEvent)> {
     let mut abs_time_ms = 0.0;
     crate::replay::timeline_to_replay_events(timeline)

@@ -1,17 +1,15 @@
 use super::*;
 use crate::tui::TuiState;
-use crossterm::cursor::{RestorePosition, SavePosition};
 use ftui::TerminalSession as DefaultTerminal;
 use ftui_render::buffer::Buffer;
 use ftui_core::geometry::Rect;
-use ftui_style::Style;
-use std::io::Write;
 
 /// Type alias for the terminal type used in the migrated TUI runtime.
 /// frankentui exposes `TerminalSession` for production and `Buffer` for
 /// headless/tests; the legacy `DefaultTerminal = Terminal<CrosstermBackend>`
 /// alias from ratatui maps directly to `ftui::TerminalSession`.
 
+#[allow(dead_code)] // retained for upcoming ftui draw-path port
 const STATUS_SPINNER_FPS: f32 = 12.5;
 pub(super) const STATUS_SPINNER_ONLY_INTERVAL: Duration = Duration::from_millis(80);
 
@@ -142,6 +140,7 @@ impl StatusSpinnerRenderer {
     }
 }
 
+#[allow(dead_code)] // helper retained for upcoming ftui draw-path port
 fn render_status_spinner_into_buffer(buffer: &Buffer, area: Rect, symbol: &str) -> bool {
     area.width > 0
         && area.height > 0
@@ -150,6 +149,7 @@ fn render_status_spinner_into_buffer(buffer: &Buffer, area: Rect, symbol: &str) 
         && !symbol.is_empty()
 }
 
+#[allow(dead_code)] // helper retained for upcoming ftui draw-path port
 fn render_status_spinner_into_buffer_mut(buffer: &mut Buffer, area: Rect, symbol: &str) {
     for (i, c) in symbol.chars().enumerate() {
         let x = area.x + i as u16;
