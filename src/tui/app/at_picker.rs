@@ -369,7 +369,7 @@ fn jcode_ffs_cache_root() -> PathBuf {
 /// a short hash of the absolute path so two repos with the same name don't
 /// collide.
 fn repo_cache_key(path: &Path) -> String {
-    use std::hash::Hash;
+    use std::hash::{Hash, Hasher};
     let basename = path
         .file_name()
         .and_then(|s| s.to_str())
@@ -380,7 +380,7 @@ fn repo_cache_key(path: &Path) -> String {
         );
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     path.hash(&mut hasher);
-    format!("{}-{:016x}", basename, 0) // TODO[frankentui]: stub hasher.finish()
+    format!("{}-{:016x}", basename, hasher.finish())
 }
 
 #[cfg(test)]

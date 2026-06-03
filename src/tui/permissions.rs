@@ -1,4 +1,5 @@
 use ftui_style::MonoColor;
+use ftui::session_draw::TerminalSessionDrawExt;
 use crate::tui::compat::{StyleCompatExt, text_from_lines};
 use super::color_support::rgb;
 use crate::safety::{self, PermissionRequest, Urgency};
@@ -503,7 +504,7 @@ impl PermissionsApp {
             anyhow::bail!("permissions viewer requires an interactive terminal");
         }
 
-        let _terminal = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| ftui::TerminalSession::new(ftui::SessionOptions::default())))
+        let mut terminal = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| ftui::TerminalSession::new(ftui::SessionOptions::default())))
             .map_err(|payload| {
                 let msg = if let Some(s) = payload.downcast_ref::<&str>() {
                     (*s).to_string()
@@ -517,9 +518,7 @@ impl PermissionsApp {
             .map_err(|e| anyhow::anyhow!("failed to initialize terminal: {}", e))?;
 
         let result = loop {
-            // TODO: re-enable full draw path with ftui Presenter once the
-            // ratatui → frankentui virtual buffer is ported.
-            // terminal.draw(|frame| { let _ = frame; })?;
+            terminal.draw(|frame| self.render(frame))?;
 
             if event::poll(Duration::from_millis(100))?
                 && let Event::Key(key) = event::read()?

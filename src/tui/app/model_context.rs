@@ -1,5 +1,6 @@
 use super::*;
 use ftui::TerminalSession as DefaultTerminal;
+use ftui::session_draw::TerminalSessionDrawExt;
 
 impl App {
     fn format_failover_count(value: usize) -> String {
@@ -644,9 +645,7 @@ impl App {
             }
 
             // Redraw UI while we wait
-            // Note: This redraw is disabled during frankentui migration since terminal.draw()
-            // produces ratatui::Frame but ui::draw expects ftui::Frame
-            let _ = terminal; // TODO: re-enable with ftui terminal when frankentui path is complete
+            let _ = terminal.draw(|frame| crate::tui::ui::draw(frame, self));
 
             let compaction = self.registry.compaction();
             let done = if let Ok(mut manager) = compaction.try_write() {

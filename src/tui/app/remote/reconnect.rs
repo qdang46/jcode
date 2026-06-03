@@ -10,6 +10,7 @@ use crossterm::event::EventStream;
 use futures::StreamExt;
 // ratatui removed
 use ftui::TerminalSession as DefaultTerminal;
+use ftui::session_draw::TerminalSessionDrawExt;
 
 use std::time::{Duration, Instant};
 use tokio::time::MissedTickBehavior;
@@ -225,9 +226,7 @@ async fn wait_for_reload_handoff_before_reconnect(
         .as_deref()
         .unwrap_or("server reload in progress");
     set_disconnect_status_message(app, state, reload_wait_status_message(app, state, detail));
-    // Note: terminal.draw produces ratatui::Frame but ui::draw expects ftui::Frame
-    // TODO: re-enable with ftui terminal when frankentui path is complete
-    let _ = terminal; // terminal.draw(|frame| crate::tui::ui::draw(frame, app))?;
+    terminal.draw(|frame| crate::tui::ui::draw(frame, app))?;
 
     let socket_path = crate::server::socket_path();
     match crate::server::inspect_reload_wait_status(
@@ -292,9 +291,7 @@ async fn wait_for_reload_handoff_before_reconnect(
                 tokio::select! {
                     _ = &mut wait => break,
                     _ = redraw.tick() => {
-                        // Note: terminal.draw produces ratatui::Frame but ui::draw expects ftui::Frame
-    // TODO: re-enable with ftui terminal when frankentui path is complete
-    let _ = terminal; // terminal.draw(|frame| crate::tui::ui::draw(frame, app))?;
+                        terminal.draw(|frame| crate::tui::ui::draw(frame, app))?;
                     }
                     event = event_stream.next() => {
                         if handle_terminal_event_while_disconnected(app, terminal, event)? {
@@ -328,9 +325,7 @@ async fn recover_reloading_server(
         app.push_display_message(DisplayMessage::system(content));
         state.disconnect_msg_idx = Some(app.display_messages.len() - 1);
     }
-    // Note: terminal.draw produces ratatui::Frame but ui::draw expects ftui::Frame
-    // TODO: re-enable with ftui terminal when frankentui path is complete
-    let _ = terminal; // terminal.draw(|frame| crate::tui::ui::draw(frame, app))?;
+    terminal.draw(|frame| crate::tui::ui::draw(frame, app))?;
 
     crate::logging::warn(&format!(
         "Reload reconnect failed definitively ({}); spawning a replacement shared server",
@@ -403,9 +398,7 @@ pub(in crate::tui::app) async fn connect_with_retry(
         tokio::select! {
             result = &mut connect => break result,
             _ = redraw.tick() => {
-                // Note: terminal.draw produces ratatui::Frame but ui::draw expects ftui::Frame
-    // TODO: re-enable with ftui terminal when frankentui path is complete
-    let _ = terminal; // terminal.draw(|frame| crate::tui::ui::draw(frame, app))?;
+                terminal.draw(|frame| crate::tui::ui::draw(frame, app))?;
             }
             event = event_stream.next() => {
                 if handle_terminal_event_while_disconnected(app, terminal, event)? {
@@ -465,9 +458,7 @@ pub(in crate::tui::app) async fn connect_with_retry(
             };
 
             set_disconnect_status_message(app, state, msg_content);
-            // Note: terminal.draw produces ratatui::Frame but ui::draw expects ftui::Frame
-    // TODO: re-enable with ftui terminal when frankentui path is complete
-    let _ = terminal; // terminal.draw(|frame| crate::tui::ui::draw(frame, app))?;
+            terminal.draw(|frame| crate::tui::ui::draw(frame, app))?;
 
             if reload_handoff_active(state) {
                 let socket_path = crate::server::socket_path();
@@ -529,9 +520,7 @@ pub(in crate::tui::app) async fn connect_with_retry(
                             tokio::select! {
                                 _ = &mut wait => break,
                                 _ = redraw.tick() => {
-                                    // Note: terminal.draw produces ratatui::Frame but ui::draw expects ftui::Frame
-    // TODO: re-enable with ftui terminal when frankentui path is complete
-    let _ = terminal; // terminal.draw(|frame| crate::tui::ui::draw(frame, app))?;
+                                    terminal.draw(|frame| crate::tui::ui::draw(frame, app))?;
                                 }
                                 event = event_stream.next() => {
                                     if handle_terminal_event_while_disconnected(
@@ -566,9 +555,7 @@ pub(in crate::tui::app) async fn connect_with_retry(
                 tokio::select! {
                     _ = &mut sleep => break,
                     _ = redraw.tick() => {
-                        // Note: terminal.draw produces ratatui::Frame but ui::draw expects ftui::Frame
-    // TODO: re-enable with ftui terminal when frankentui path is complete
-    let _ = terminal; // terminal.draw(|frame| crate::tui::ui::draw(frame, app))?;
+                        terminal.draw(|frame| crate::tui::ui::draw(frame, app))?;
                     }
                     event = event_stream.next() => {
                         if handle_terminal_event_while_disconnected(
@@ -620,9 +607,7 @@ pub(in crate::tui::app) async fn handle_post_connect(
             app.push_display_message(DisplayMessage::system(
                 "Server reloaded. Reloading client binary...".to_string(),
             ));
-            // Note: terminal.draw produces ratatui::Frame but ui::draw expects ftui::Frame
-            // TODO: re-enable with ftui terminal when frankentui path is complete
-            let _ = terminal; // terminal.draw(|frame| crate::tui::ui::draw(frame, app)).map_err(|e| anyhow::anyhow!(e.to_string()))?;
+            terminal.draw(|frame| crate::tui::ui::draw(frame, app))?;
             let session_id = app
                 .remote_session_id
                 .clone()

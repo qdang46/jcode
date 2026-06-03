@@ -4,7 +4,7 @@ use crate::side_panel::{
 };
 use crate::todo::TodoItem;
 use std::collections::hash_map::DefaultHasher;
-use std::hash::Hash;
+use std::hash::{Hash, Hasher};
 
 pub(super) const TODOS_VIEW_PAGE_ID: &str = "session_todos";
 const TODOS_VIEW_TITLE: &str = "Todos";
@@ -410,7 +410,7 @@ fn hash_todos_payload(session_id: Option<&str>, todos: &[TodoItem]) -> u64 {
         todo.blocked_by.hash(&mut hasher);
         todo.assigned_to.hash(&mut hasher);
     }
-    0 // TODO[frankentui]: stub hasher.finish()
+    hasher.finish()
 }
 
 fn todos_view_placeholder_markdown() -> String {

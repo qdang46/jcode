@@ -4,6 +4,7 @@
 //! conversation on the right. Sessions are grouped by server for multi-server support.
 
 use super::color_support::rgb;
+use ftui::session_draw::TerminalSessionDrawExt;
 use crate::session::{CrashedSessionsInfo, Session};
 use crate::tui::{DisplayMessage, markdown};
 use crate::tui::compat::{StyleCompatExt, line_from_spans, line_from_span, text_from_lines, text_from_line};
@@ -1234,7 +1235,7 @@ impl SessionPicker {
                 "session picker requires an interactive terminal (stdin/stdout must be a TTY)"
             );
         }
-        let _terminal = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| ftui::TerminalSession::new(ftui::SessionOptions::default())))
+        let mut terminal = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| ftui::TerminalSession::new(ftui::SessionOptions::default())))
             .map_err(|payload| {
                 let msg = if let Some(s) = payload.downcast_ref::<&str>() {
                     (*s).to_string()
@@ -1261,9 +1262,7 @@ impl SessionPicker {
         }
 
         let result = loop {
-            // TODO: re-enable full draw path with ftui Presenter once the
-            // ratatui → frankentui virtual buffer is ported.
-            // terminal.draw(|frame| { let _ = frame; })?;
+            terminal.draw(|frame| self.render(frame))?;
 
             if event::poll(Duration::from_millis(100))? {
                 match event::read()? {

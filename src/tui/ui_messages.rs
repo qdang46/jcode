@@ -230,7 +230,7 @@ pub(crate) fn render_system_message(
         left_pad_lines_for_centered_mode(&mut lines[..], width);
     }
     for line in &mut lines {
-        for span in line.spans_mut().iter_mut() {
+        for span in line.spans_mut() {
             span.style = Some(span.style.unwrap_or_default().fg(system_message_color()));
         }
     }
@@ -1024,7 +1024,7 @@ fn render_connection_system_message(msg: &DisplayMessage, width: u16) -> Vec<Lin
                 left_pad_lines_for_centered_mode(&mut lines[..], width);
             }
             for line in &mut lines {
-                for span in line.spans_mut().iter_mut() {
+                for span in line.spans_mut() {
                     span.style = Some(span.style.unwrap_or_default().fg(system_message_color()));
                 }
             }

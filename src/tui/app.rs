@@ -31,7 +31,7 @@ use jcode_tui_messages::DisplayMessage;
 
 use std::cell::RefCell;
 use std::collections::HashSet;
-use std::hash::Hash;
+use std::hash::{Hash, Hasher};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::mpsc;
@@ -1663,7 +1663,7 @@ impl App {
 fn stable_hash_str(value: &str) -> u64 {
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     value.hash(&mut hasher);
-    0 // TODO[frankentui]: stub hasher.finish()
+    hasher.finish()
 }
 
 fn stable_hash_json<T: serde::Serialize + ?Sized>(value: &T) -> u64 {

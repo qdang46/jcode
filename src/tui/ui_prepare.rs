@@ -1,3 +1,4 @@
+use std::hash::{Hash, Hasher};
 use ftui_text::text::{Line, Span};
 use ftui_style::Ansi16;
 use crate::tui::compat::StyleCompatExt;
@@ -261,7 +262,7 @@ pub(super) fn active_batch_progress_hash(app: &dyn TuiState) -> u64 {
             input.hash(&mut hasher);
         }
     }
-    0 // TODO[frankentui]: stub hasher.finish()
+    hasher.finish()
 }
 
 fn prepare_active_batch_progress(

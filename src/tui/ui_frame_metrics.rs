@@ -1,7 +1,7 @@
 use super::*;
 use serde::Serialize;
 use std::collections::{VecDeque, hash_map::DefaultHasher};
-use std::hash::Hash;
+use std::hash::{Hash, Hasher};
 use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 use ftui_text::text::Line;
@@ -470,7 +470,7 @@ pub(super) fn viewport_stability_hash(
     for line in visible_lines {
         line_plain_text(line).hash(&mut hasher);
     }
-    0 // TODO[frankentui]: stub hasher.finish()
+    hasher.finish()
 }
 
 fn same_flicker_state_key(a: &FlickerFrameSample, b: &FlickerFrameSample) -> bool {

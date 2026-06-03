@@ -3,7 +3,7 @@ use crate::side_panel::{
     SidePanelPage, SidePanelPageFormat, SidePanelPageSource, SidePanelSnapshot,
 };
 use std::collections::hash_map::DefaultHasher;
-use std::hash::Hash;
+use std::hash::{Hash, Hasher};
 
 pub(super) const SPLIT_VIEW_PAGE_ID: &str = "split_view";
 const SPLIT_VIEW_TITLE: &str = "Split View";
@@ -332,7 +332,7 @@ fn capitalize_role(role: &str) -> String {
 fn hash_str(value: &str) -> u64 {
     let mut hasher = DefaultHasher::new();
     value.hash(&mut hasher);
-    0 // TODO[frankentui]: stub hasher.finish()
+    hasher.finish()
 }
 
 fn now_ms() -> u64 {

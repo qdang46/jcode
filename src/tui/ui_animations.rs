@@ -9,7 +9,7 @@ use ftui_widgets::block::Alignment;
 use ftui_widgets::paragraph::Paragraph;
 use std::cell::RefCell;
 use std::collections::{HashSet, hash_map::DefaultHasher};
-use std::hash::Hash;
+use std::hash::{Hash, Hasher};
 use std::sync::OnceLock;
 
 const IDLE_VARIANTS: &[&str] = &["donut", "orbit_rings"];
@@ -33,7 +33,7 @@ fn animation_seed() -> u64 {
         let mut hasher = DefaultHasher::new();
         std::time::SystemTime::now().hash(&mut hasher);
         std::process::id().hash(&mut hasher);
-        0 // TODO[frankentui]: stub hasher.finish()
+        hasher.finish()
     })
 }
 

@@ -16,6 +16,7 @@ use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers, Mou
 // - Terminal<B> -> ftui Program
 // - Backend -> ftui_backend::Backend
 use ftui::TerminalSession as DefaultTerminal;
+use ftui::session_draw::TerminalSessionDrawExt;
 use std::time::{Duration, Instant};
 
 mod input_dispatch;
@@ -503,7 +504,7 @@ pub(super) async fn check_debug_command(
 
 fn handle_terminal_event_while_disconnected(
     app: &mut App,
-    _terminal: &mut DefaultTerminal,
+    terminal: &mut DefaultTerminal,
     event: Option<std::result::Result<Event, std::io::Error>>,
 ) -> Result<bool> {
     let mut needs_redraw = false;
@@ -537,8 +538,7 @@ fn handle_terminal_event_while_disconnected(
     }
 
     if needs_redraw {
-        // TODO: re-enable with ftui terminal when frankentui path is complete
-        // terminal.draw(|frame| crate::tui::ui::draw(frame, app))?;
+        terminal.draw(|frame| crate::tui::ui::draw(frame, app))?;
     }
 
     Ok(app.should_quit)

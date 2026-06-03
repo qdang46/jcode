@@ -179,4 +179,9 @@ impl IncrementalMarkdownRenderer {
     pub fn take_error(&mut self) -> Option<String> {
         None
     }
+    pub fn reset(&mut self) {}
+    pub fn set_width(&mut self, _max_width: Option<usize>) {}
+    pub fn debug_memory_profile(&self) -> serde_json::Value {
+        serde_json::json!({"present": false, "total_estimate_bytes": 0})
+    }
 }

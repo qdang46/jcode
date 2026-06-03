@@ -1,6 +1,7 @@
 use super::*;
 use crate::tui::TuiState;
 use ftui::TerminalSession as DefaultTerminal;
+use ftui::session_draw::TerminalSessionDrawExt;
 use ftui_render::buffer::Buffer;
 use ftui_core::geometry::Rect;
 
@@ -108,15 +109,14 @@ impl StatusSpinnerRenderer {
     pub(super) fn draw_full(
         &mut self,
         app: &mut App,
-        _terminal: &mut DefaultTerminal,
+        terminal: &mut DefaultTerminal,
     ) -> Result<()> {
         if app.force_full_redraw {
             app.force_full_redraw = false;
             self.invalidate();
         }
 
-        // TODO: re-enable with ftui terminal when frankentui path is complete
-        // terminal.draw(|frame| crate::tui::ui::draw(frame, app))?;
+        terminal.draw(|frame| crate::tui::ui::draw(frame, app))?;
         Ok(())
     }
 
@@ -424,29 +424,116 @@ impl App {
     }
 
     /// Run the TUI in replay mode, playing back a timeline of events.
-    ///
-    /// NOTE: This currently returns an error as frankentui doesn't support
-    /// the ratatui-style replay API. The main TUI uses `tui::runtime::run_frankentui()`.
     pub async fn run_replay(
-        self,
+        mut self,
         _terminal: (),
-        _timeline: Vec<crate::replay::TimelineEvent>,
-        _speed: f64,
+        timeline: Vec<crate::replay::TimelineEvent>,
+        speed: f64,
     ) -> Result<RunResult> {
-        anyhow::bail!("replay mode not yet supported with frankentui");
+        use crate::replay::ReplayEvent;
+        use crossterm::event::{self, Event, KeyCode, KeyEventKind};
+
+        // Create a dedicated TerminalSession for replay rendering
+        let mut terminal = ftui::TerminalSession::new(ftui::SessionOptions::default())
+            .map_err(|e| anyhow::anyhow!("failed to create replay terminal: {}", e))?;
+
+        let replay_events = crate::replay::timeline_to_replay_events(&timeline);
+        if replay_events.is_empty() {
+            anyhow::bail!("No replay events to play");
+        }
+
+        let mut remote = crate::tui::backend::ReplayRemoteState::default();
+        let mut paused = false;
+        let mut replay_turn_id: u64 = 0;
+        let frame_duration_ms = 33.0; // ~30fps
+
+        let total_duration_ms: f64 = replay_events.iter().map(|(d, _)| *d as f64 / speed).sum();
+
+        let mut event_schedule: Vec<(f64, ReplayEvent)> = Vec::new();
+        {
+            let mut abs_time: f64 = 0.0;
+            for (delay_ms, evt) in &replay_events {
+                abs_time += *delay_ms as f64 / speed;
+                event_schedule.push((abs_time, evt.clone()));
+            }
+        }
+
+        let mut event_cursor: usize = 0;
+        let mut sim_time_ms: f64 = 0.0;
+        let start = std::time::Instant::now();
+
+        while sim_time_ms <= total_duration_ms {
+            // Handle pause/unpause and quit
+            while event::poll(std::time::Duration::from_millis(0))? {
+                if let Event::Key(key) = event::read()? {
+                    if key.kind == KeyEventKind::Press {
+                        match key.code {
+                            KeyCode::Char(' ') => paused = !paused,
+                            KeyCode::Char('q') | KeyCode::Esc => {
+                                return Ok(RunResult::default());
+                            }
+                            KeyCode::Char('+') | KeyCode::Char('=') => {
+                                // speed up (simplified: not implemented)
+                            }
+                            KeyCode::Char('-') => {
+                                // slow down (simplified: not implemented)
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+            }
+
+            if !paused {
+                sim_time_ms = start.elapsed().as_secs_f64() * 1000.0 * speed;
+
+                while event_cursor < event_schedule.len()
+                    && event_schedule[event_cursor].0 <= sim_time_ms
+                {
+                    let (_t, event) = &event_schedule[event_cursor];
+                    replay::apply_replay_event(
+                        &mut self,
+                        &mut remote,
+                        event,
+                        &mut replay_turn_id,
+                        Some(sim_time_ms),
+                    );
+                    event_cursor += 1;
+                }
+
+                replay::update_replay_elapsed_override(&mut self, sim_time_ms);
+            }
+
+            terminal.draw(|frame| crate::tui::ui::draw(frame, &self))?;
+            tokio::time::sleep(std::time::Duration::from_millis(frame_duration_ms as u64)).await;
+        }
+
+        // Wait for user to quit after replay finishes
+        terminal.draw(|frame| crate::tui::ui::draw(frame, &self))?;
+        loop {
+            if event::poll(std::time::Duration::from_millis(100))? {
+                if let Event::Key(key) = event::read()? {
+                    if key.kind == KeyEventKind::Press
+                        && matches!(key.code, KeyCode::Char('q') | KeyCode::Esc | KeyCode::Enter)
+                    {
+                        return Ok(RunResult::default());
+                    }
+                }
+            }
+        }
     }
 
     /// Run an interactive swarm replay, rendering multiple sessions in tiled panes.
-    ///
-    /// NOTE: This currently returns an error as frankentui doesn't support
-    /// the ratatui-style swarm replay API.
     pub async fn run_swarm_replay(
         _terminal: (),
         _panes: Vec<crate::replay::PaneReplayInput>,
         _speed: f64,
         _centered_override: Option<bool>,
     ) -> Result<()> {
-        anyhow::bail!("swarm replay mode not yet supported with frankentui");
+        // Swarm replay not yet implemented with frankentui — use headless export instead
+        anyhow::bail!(
+            "interactive swarm replay not yet supported with frankentui; use --video to export"
+        )
     }
 
     /// Run replay headlessly, rendering each frame to an in-memory buffer.
@@ -487,10 +574,13 @@ impl App {
         let mut event_cursor: usize = 0;
         let mut replay_turn_id: u64 = 0;
 
-        // frankentui rendering: emit an empty buffer placeholder. The real
-        // TUI runtime produces ftui frames via `Model::view`; the headless
-        // replay path is a stub for now.
-        frames.push((0.0, ftui_render::buffer::Buffer::new(width, height)));
+        // frankentui: initial frame rendered via headless draw
+        frames.push((
+            0.0,
+            ftui_tty::TtyBackend::headless_draw(width, height, |frame| {
+                crate::tui::ui::draw(frame, &self);
+            }),
+        ));
 
         let progress_interval = (total_duration_ms / 20.0).max(1000.0);
         let mut next_progress = progress_interval;
@@ -512,9 +602,10 @@ impl App {
 
             if sim_time_ms >= next_frame_at {
                 replay::update_replay_elapsed_override(&mut self, sim_time_ms);
-                // frankentui: push a fresh placeholder buffer; rendering is
-                // produced by the ftui runtime when the path is wired up.
-                frames.push((sim_time_ms / 1000.0, ftui_render::buffer::Buffer::new(width, height)));
+                let buf = ftui_tty::TtyBackend::headless_draw(width, height, |frame| {
+                    crate::tui::ui::draw(frame, &self);
+                });
+                frames.push((sim_time_ms / 1000.0, buf));
                 next_frame_at = sim_time_ms + frame_duration_ms;
             }
 
