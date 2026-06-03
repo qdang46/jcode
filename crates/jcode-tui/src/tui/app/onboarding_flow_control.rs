@@ -918,9 +918,7 @@ impl App {
     /// configured providers we trust the cached auth probe (Available -> ready,
     /// Expired -> needs attention). `skip` is the provider key backing the
     /// default model so we don't list it twice.
-    fn onboarding_other_provider_rows(
-        skip: Option<&str>,
-    ) -> (Vec<String>, Vec<String>) {
+    fn onboarding_other_provider_rows(skip: Option<&str>) -> (Vec<String>, Vec<String>) {
         use crate::auth::AuthState;
         let status = crate::auth::AuthStatus::check_fast();
         // (display name, provider-key, state)
@@ -951,9 +949,7 @@ impl App {
             }
             match state {
                 AuthState::Available => ready.push(name.to_string()),
-                AuthState::Expired => {
-                    attention.push(format!("{name} - login expired"))
-                }
+                AuthState::Expired => attention.push(format!("{name} - login expired")),
                 AuthState::NotConfigured => {}
             }
         }
@@ -972,8 +968,7 @@ impl App {
         }
 
         let detail_text = result.detail.clone().unwrap_or_default();
-        let looks_like_auth =
-            !result.ok && Self::onboarding_detail_looks_like_auth(&detail_text);
+        let looks_like_auth = !result.ok && Self::onboarding_detail_looks_like_auth(&detail_text);
 
         // Gather the other configured providers so the summary shows the full
         // picture, not just the default model. We skip the default model's own
