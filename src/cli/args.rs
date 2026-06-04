@@ -460,6 +460,10 @@ pub(crate) enum Command {
     #[command(subcommand)]
     Skills(SkillsCommand),
 
+    /// Manage plugins
+    #[command(subcommand)]
+    Plugin(PluginCommand),
+
     /// Manage trusted project-local MCP configs (`.jcode/mcp.json`, `.claude/mcp.json`).
     /// Trust is enforced when `JCODE_REQUIRE_MCP_TRUST=1` (auto-set by `--safe-eval`).
     #[command(subcommand)]
@@ -1225,6 +1229,52 @@ pub(crate) enum AmbientCommand {
     /// Run an ambient cycle in a visible TUI (internal, spawned by the ambient runner)
     #[command(hide = true)]
     RunVisible,
+}
+
+#[derive(Subcommand, Debug)]
+pub(crate) enum PluginCommand {
+    /// List installed plugins
+    List,
+    /// Install a plugin from npm or local path
+    Install {
+        /// Plugin package name (e.g., "jcode-plugin-foo" or "/path/to/plugin")
+        source: String,
+    },
+    /// Uninstall a plugin
+    Uninstall {
+        /// Plugin ID to remove
+        id: String,
+    },
+    /// Show detailed info about a plugin
+    Info {
+        /// Plugin ID
+        id: String,
+    },
+    /// Enable a disabled plugin
+    Enable {
+        /// Plugin ID to enable
+        id: String,
+    },
+    /// Disable an active plugin
+    Disable {
+        /// Plugin ID to disable
+        id: String,
+    },
+    /// Show plugin audit trail
+    Audit {
+        /// Number of recent entries to show
+        #[arg(long, default_value_t = 20)]
+        recent: usize,
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+    },
+    /// Diagnose plugin system issues
+    Doctor {
+        /// Attempt to fix issues automatically
+        #[arg(long)]
+        fix: bool,
+    },
 }
 
 #[derive(Subcommand, Debug)]

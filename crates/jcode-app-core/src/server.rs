@@ -923,6 +923,8 @@ impl Server {
         // Persist auxiliary discovery metadata after the server is already live.
         self.spawn_registry_metadata_publisher(registry_info);
 
+        crate::plugin::init_plugins(&crate::config::config().plugins).await;
+
         // Spawn WebSocket gateway for iOS/web clients (if enabled)
         let _gateway_handle = self.spawn_gateway(runtime);
 

@@ -12,6 +12,7 @@ pub use jcode_config_types::{
     SessionPickerResumeAction, SwarmSpawnMode, TerminalConfig, UpdateChannel, WebSearchConfig,
     WebSearchEngine,
 };
+pub use jcode_plugin_core::PluginConfig;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::hash::{Hash, Hasher};
@@ -434,6 +435,9 @@ pub struct Config {
 
     /// Terminal / shell execution configuration (issue #260)
     pub terminal: TerminalConfig,
+
+    /// Plugin system configuration
+    pub plugins: PluginConfig,
 }
 
 /// Agent Client Protocol adapter configuration.

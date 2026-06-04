@@ -5,6 +5,9 @@ description = "Possibly the greatest coding agent ever built — blazing-fast TU
 edition = "2024"
 autobins = false
 
+[workspace.package]
+edition = "2024"
+
 [workspace]
 members = [
     ".",
@@ -63,6 +66,8 @@ members = [
     "crates/jcode-mobile-core",
     "crates/jcode-mobile-sim",
     "crates/jcode-desktop",
+    "crates/jcode-plugin-core",
+    "crates/jcode-plugin-runtime",
 ]
 
 # Local override: build against the fast_file_search main branch which

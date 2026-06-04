@@ -1,0 +1,21 @@
+[package]
+name = "jcode-plugin-runtime"
+version = "0.1.0"
+edition = "2024"
+description = "QuickJS plugin runtime: sandbox, transpiler, dispatcher, and bridge for the jcode plugin system"
+
+[dependencies]
+jcode-plugin-core = { path = "../jcode-plugin-core" }
+rquickjs = { version = "0.7", features = ["parallel", "futures", "classes"] }
+tokio = { version = "1", features = ["fs", "process", "sync", "time"] }
+tokio-stream = "0.1"
+futures = "0.3"
+regex = "1"
+tracing = "0.1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+seahash = "4"
+thiserror = "2"
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1", features = ["v4"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }

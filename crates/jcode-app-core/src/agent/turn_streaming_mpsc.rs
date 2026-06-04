@@ -1,4 +1,6 @@
 use super::*;
+use jcode_plugin_core::PluginEvent;
+use jcode_plugin_core::events::{EventInput, HandlerAction};
 
 fn reload_interrupted_tool_result(tc: &ToolCall, elapsed_secs: f64) -> (String, bool) {
     if tc.name == "selfdev" {
@@ -44,6 +46,17 @@ impl Agent {
         let mut incomplete_continuations = 0u32;
 
         loop {
+            // PLUGIN_EVENT: TurnStart - fire-and-forget at beginning of each turn
+            let turn_start = Instant::now();
+            if let Some(system) = crate::plugin::plugin_system() {
+                let session_id = self.session.id.clone();
+                let messages = serde_json::json!({ "message_count": self.session.messages.len() });
+                let input = EventInput::TurnStart { session_id, turn_number: 0, messages };
+                tokio::spawn(async move {
+                    let _ = system.dispatch_event(PluginEvent::TurnStart, input, None).await;
+                });
+            }
+
             let repaired = self.repair_missing_tool_outputs();
             if repaired > 0 {
                 logging::warn(&format!(
@@ -254,6 +267,17 @@ impl Agent {
 
             let mut retry_after_compaction = false;
             let mut keepalive = stream_keepalive_ticker();
+            // PLUGIN_EVENT: MessageStart - before streaming response begins
+            if let Some(system) = crate::plugin::plugin_system() {
+                let session_id = self.session.id.clone();
+                let input = EventInput::MessageStart {
+                    session_id,
+                    role: "assistant".to_string(),
+                };
+                tokio::spawn(async move {
+                    let _ = system.dispatch_event(PluginEvent::MessageStart, input, None).await;
+                });
+            }
             loop {
                 let next_event = std::pin::pin!(stream.next());
                 let event = tokio::select! {
@@ -848,6 +872,20 @@ impl Agent {
                 None
             };
 
+            // PLUGIN_EVENT: MessageEnd - fire-and-forget after response is saved
+            if let Some(system) = crate::plugin::plugin_system() {
+                let session_id = self.session.id.clone();
+                let content = text_content.clone();
+                let input = EventInput::MessageEnd {
+                    session_id,
+                    role: "assistant".to_string(),
+                    content,
+                };
+                tokio::spawn(async move {
+                    let _ = system.dispatch_event(PluginEvent::MessageEnd, input, None).await;
+                });
+            }
+
             if let Some((encrypted_content, compacted_count)) = openai_native_compaction.take() {
                 self.apply_openai_native_compaction(encrypted_content, compacted_count)?;
             }
@@ -1026,6 +1064,41 @@ impl Agent {
                     // Fall through to local execution for native tools with SDK errors
                 }
 
+                // PLUGIN_EVENT: PreToolUse - check if plugin blocks this tool
+                if let Some(system) = crate::plugin::plugin_system() {
+                    let pre_input = EventInput::PreToolUse {
+                        tool_name: tc.name.clone(),
+                        tool_input: tc.input.clone(),
+                        session_id: self.session.id.clone(),
+                    };
+                    let results = system.dispatch_event(PluginEvent::PreToolUse, pre_input, None).await;
+                    if results.iter().any(|(_, r)| matches!(r.action, HandlerAction::Block(_))) {
+                        let reason = results.iter()
+                            .find_map(|(_, r)| {
+                                if let HandlerAction::Block(ref reason) = r.action {
+                                    Some(reason.clone())
+                                } else {
+                                    None
+                                }
+                            })
+                            .unwrap_or_default();
+                        logging::info(&format!("Tool '{}' blocked by plugin: {}", tc.name, reason));
+                        let _ = event_tx.send(ServerEvent::ToolDone {
+                            id: tc.id.clone(),
+                            name: tc.name.clone(),
+                            output: format!("[Blocked by plugin: {}]", reason),
+                            error: Some("blocked_by_plugin".to_string()),
+                        });
+                        self.add_message(Role::User, vec![ContentBlock::ToolResult {
+                            tool_use_id: tc.id.clone(),
+                            content: format!("[Tool blocked by plugin: {}]", reason),
+                            is_error: Some(true),
+                        }]);
+                        tool_results_dirty = true;
+                        continue;
+                    }
+                }
+
                 let ctx = ToolContext {
                     session_id: self.session.id.clone(),
                     message_id: message_id.clone(),
@@ -1133,6 +1206,7 @@ impl Agent {
                                 });
                             }
 
+                            let output_text = output.output.clone();
                             let blocks = tool_output_to_content_blocks(tc.id.clone(), output);
                             self.add_message_with_duration(
                                 Role::User,
@@ -1140,6 +1214,21 @@ impl Agent {
                                 Some(tool_elapsed.as_millis() as u64),
                             );
                             tool_results_dirty = true;
+                            // PLUGIN_EVENT: PostToolUse (success)
+                            if let Some(system) = crate::plugin::plugin_system() {
+                                let tool_output = serde_json::json!({ "output": output_text });
+                                let post_input = EventInput::PostToolUse {
+                                    tool_name: tc.name.clone(),
+                                    tool_input: tc.input.clone(),
+                                    tool_output,
+                                    duration_ms: tool_elapsed.as_millis() as u64,
+                                    success: true,
+                                    session_id: self.session.id.clone(),
+                                };
+                                tokio::spawn(async move {
+                                    let _ = system.dispatch_event(PluginEvent::PostToolUse, post_input, None).await;
+                                });
+                            }
                         }
                         Err(e) => {
                             let error_msg = format!("Error: {}", e);
@@ -1154,12 +1243,27 @@ impl Agent {
                                 Role::User,
                                 vec![ContentBlock::ToolResult {
                                     tool_use_id: tc.id.clone(),
-                                    content: error_msg,
+                                    content: error_msg.clone(),
                                     is_error: Some(true),
                                 }],
                                 Some(tool_elapsed.as_millis() as u64),
                             );
                             tool_results_dirty = true;
+                            // PLUGIN_EVENT: PostToolUse (failure)
+                            if let Some(system) = crate::plugin::plugin_system() {
+                                let tool_output = serde_json::json!({ "error": error_msg });
+                                let post_input = EventInput::PostToolUse {
+                                    tool_name: tc.name.clone(),
+                                    tool_input: tc.input.clone(),
+                                    tool_output,
+                                    duration_ms: tool_elapsed.as_millis() as u64,
+                                    success: false,
+                                    session_id: self.session.id.clone(),
+                                };
+                                tokio::spawn(async move {
+                                    let _ = system.dispatch_event(PluginEvent::PostToolUse, post_input, None).await;
+                                });
+                            }
                         }
                     }
                 } else if self.is_graceful_shutdown() {
@@ -1277,6 +1381,20 @@ impl Agent {
                 for event in Self::build_soft_interrupt_events(injected, point, None) {
                     let _ = event_tx.send(event);
                 }
+            }
+
+            // PLUGIN_EVENT: TurnEnd - fire-and-forget at end of each turn
+            if let Some(system) = crate::plugin::plugin_system() {
+                let session_id = self.session.id.clone();
+                let duration_ms = turn_start.elapsed().as_millis() as u64;
+                let input = EventInput::TurnEnd {
+                    session_id,
+                    turn_number: 0,
+                    duration_ms,
+                };
+                tokio::spawn(async move {
+                    let _ = system.dispatch_event(PluginEvent::TurnEnd, input, None).await;
+                });
             }
         }
 

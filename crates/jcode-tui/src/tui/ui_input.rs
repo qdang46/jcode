@@ -876,10 +876,29 @@ pub(super) fn draw_status(frame: &mut Frame, app: &dyn TuiState, area: Rect, pen
             Line::from("")
         }
     } else {
+        let plugin_count = crate::plugin::plugin_count();
+        let plugin_text = if plugin_count > 0 {
+            format!("[P:{}]", plugin_count)
+        } else {
+            String::new()
+        };
         if let Some(tip) =
             occasional_status_tip(area.width as usize, app.animation_elapsed() as u64)
         {
-            Line::from(vec![Span::styled(tip, Style::default().fg(dim_color()))])
+            if plugin_count > 0 {
+                Line::from(vec![
+                    Span::styled(plugin_text, Style::default().fg(dim_color())),
+                    Span::styled(" · ", Style::default().fg(dim_color())),
+                    Span::styled(tip, Style::default().fg(dim_color())),
+                ])
+            } else {
+                Line::from(vec![Span::styled(tip, Style::default().fg(dim_color()))])
+            }
+        } else if plugin_count > 0 {
+            Line::from(vec![Span::styled(
+                plugin_text,
+                Style::default().fg(dim_color()),
+            )])
         } else {
             Line::from("")
         }

@@ -574,6 +574,61 @@ impl Registry {
         let tool = match tools.get(resolved_name) {
             Some(tool) => tool.clone(),
             None => {
+                // Plugin tool dispatch: route plugin_ prefixed tools through the plugin system
+                if resolved_name.starts_with("plugin_") {
+                    if let Some(system) = crate::plugin::plugin_system() {
+                        drop(tools);
+                        crate::logging::event_info(
+                            "TOOL_LIFECYCLE",
+                            Self::tool_lifecycle_fields(
+                                "start", name, resolved_name, &input, &ctx,
+                            ),
+                        );
+                        let started_at = std::time::Instant::now();
+                        match system.execute_tool(resolved_name, &input).await {
+                            Ok(output_text) => {
+                                let latency_ms = started_at.elapsed().as_millis() as u64;
+                                crate::telemetry::record_tool_execution(
+                                    resolved_name, &input, true, latency_ms,
+                                );
+                                let output = ToolOutput::new(output_text);
+                                let output = self.guard_context_overflow(name, output).await;
+                                let mut fields = Self::tool_lifecycle_fields(
+                                    "done", name, resolved_name, &input, &ctx,
+                                );
+                                fields.push(("elapsed_ms".to_string(), latency_ms.to_string()));
+                                fields.push((
+                                    "output_bytes".to_string(),
+                                    output.output.len().to_string(),
+                                ));
+                                fields.push((
+                                    "output_chars".to_string(),
+                                    output.output.chars().count().to_string(),
+                                ));
+                                fields.push((
+                                    "image_count".to_string(),
+                                    output.images.len().to_string(),
+                                ));
+                                crate::logging::event_info("TOOL_LIFECYCLE", fields);
+                                return Ok(output);
+                            }
+                            Err(e) => {
+                                let latency_ms = started_at.elapsed().as_millis() as u64;
+                                crate::telemetry::record_tool_execution(
+                                    resolved_name, &input, false, latency_ms,
+                                );
+                                let mut fields = Self::tool_lifecycle_fields(
+                                    "error", name, resolved_name, &input, &ctx,
+                                );
+                                fields.push(("elapsed_ms".to_string(), latency_ms.to_string()));
+                                fields.push(("error".to_string(), e.clone()));
+                                crate::logging::event_warn("TOOL_LIFECYCLE", fields);
+                                return Err(anyhow::anyhow!("Plugin tool error: {e}"));
+                            }
+                        }
+                    }
+                }
+
                 // List available tools so the model can recover instead of
                 // spiraling through hallucinated names like "ToolSearch" (#104).
                 let mut available: Vec<&str> = tools.keys().map(|k| k.as_str()).collect();

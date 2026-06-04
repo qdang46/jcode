@@ -39,6 +39,7 @@ pub mod network_retry;
 pub mod notifications;
 pub mod overnight;
 pub mod perf;
+pub mod plugin;
 pub mod prompt_templates;
 pub mod replay;
 pub mod restart_snapshot;

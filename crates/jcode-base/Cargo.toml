@@ -130,6 +130,7 @@ jcode-core = { path = "../jcode-core" }
 jcode-memory-types = { path = "../jcode-memory-types" }
 jcode-message-types = { path = "../jcode-message-types" }
 jcode-overnight-core = { path = "../jcode-overnight-core" }
+jcode-plugin-core = { path = "../jcode-plugin-core" }
 jcode-plan = { path = "../jcode-plan" }
 jcode-swarm-core = { path = "../jcode-swarm-core" }
 jcode-protocol = { path = "../jcode-protocol" }

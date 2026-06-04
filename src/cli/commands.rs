@@ -1396,6 +1396,158 @@ fn is_executable_file(path: &Path) -> bool {
     path.is_file()
 }
 
+pub fn run_plugin_list_command() -> Result<()> {
+    let system = crate::plugin::plugin_system()
+        .ok_or_else(|| anyhow::anyhow!("Plugin system not initialized"))?;
+    let rt = tokio::runtime::Handle::current();
+    let plugins = rt.block_on(system.list_plugins());
+    if plugins.is_empty() {
+        println!("No plugins installed.");
+    } else {
+        println!("Installed plugins:");
+        for (id, state) in &plugins {
+            println!("  {id} [{state}]");
+        }
+    }
+    Ok(())
+}
+
+pub async fn run_plugin_install_command(source: &str) -> Result<()> {
+    let system = crate::plugin::plugin_system()
+        .ok_or_else(|| anyhow::anyhow!("Plugin system not initialized"))?;
+    system.install(source).await?;
+    println!("Plugin installed successfully: {source}");
+    Ok(())
+}
+
+pub async fn run_plugin_uninstall_command(id: &str) -> Result<()> {
+    let system = crate::plugin::plugin_system()
+        .ok_or_else(|| anyhow::anyhow!("Plugin system not initialized"))?;
+    system.uninstall(id).await?;
+    println!("Plugin uninstalled: {id}");
+    Ok(())
+}
+
+pub fn run_plugin_info_command(id: &str) -> Result<()> {
+    let system = crate::plugin::plugin_system()
+        .ok_or_else(|| anyhow::anyhow!("Plugin system not initialized"))?;
+    let rt = tokio::runtime::Handle::current();
+    let plugins = rt.block_on(system.list_plugins());
+    let plugin = plugins
+        .into_iter()
+        .find(|(pid, _)| pid.as_str() == id)
+        .ok_or_else(|| anyhow::anyhow!("Plugin not found: {id}"))?;
+    println!("Plugin: {}", plugin.0);
+    println!("State:  {}", plugin.1);
+    Ok(())
+}
+
+/// Enable a previously disabled plugin.
+pub fn run_plugin_enable_command(id: &str) -> Result<()> {
+    let system = crate::plugin::plugin_system()
+        .ok_or_else(|| anyhow::anyhow!("Plugin system not initialized"))?;
+    let rt = tokio::runtime::Handle::current();
+    rt.block_on(system.enable_plugin(id))?;
+    println!("✅ Plugin '{id}' enabled");
+    Ok(())
+}
+
+/// Disable an active plugin.
+pub fn run_plugin_disable_command(id: &str) -> Result<()> {
+    let system = crate::plugin::plugin_system()
+        .ok_or_else(|| anyhow::anyhow!("Plugin system not initialized"))?;
+    let rt = tokio::runtime::Handle::current();
+    rt.block_on(system.disable_plugin(id))?;
+    println!("⏸  Plugin '{id}' disabled");
+    Ok(())
+}
+
+/// Show the plugin audit trail.
+pub fn run_plugin_audit_command(recent: usize, json: bool) -> Result<()> {
+    let system = crate::plugin::plugin_system()
+        .ok_or_else(|| anyhow::anyhow!("Plugin system not initialized"))?;
+    let entries = system.audit_trail().get_recent(recent);
+    if json {
+        println!("{}", serde_json::to_string_pretty(&entries)?);
+    } else {
+        if entries.is_empty() {
+            println!("No audit entries recorded yet.");
+            return Ok(());
+        }
+        for e in &entries {
+            println!(
+                "{} | {} | {} | {} | {}",
+                e.timestamp.format("%Y-%m-%d %H:%M:%S"),
+                e.plugin_id,
+                e.action,
+                e.resource,
+                e.decision
+            );
+        }
+    }
+    Ok(())
+}
+
+/// Diagnose plugin system issues.
+pub fn run_plugin_doctor_command(fix: bool) -> Result<()> {
+    use crate::plugin::{DISABLE_ALL_PLUGINS, FORCE_DENY, SKIP_HOOKS, check_kill_switches};
+
+    let mut issues = Vec::new();
+    let mut fixes_applied = Vec::new();
+
+    check_kill_switches();
+    if DISABLE_ALL_PLUGINS.load(std::sync::atomic::Ordering::SeqCst) {
+        issues.push("Plugins are disabled via JCODE_DISABLE_PLUGINS=1".to_string());
+    }
+    if SKIP_HOOKS.load(std::sync::atomic::Ordering::SeqCst) {
+        issues.push("Plugin hooks are skipped via JCODE_SKIP_PLUGINS=1".to_string());
+    }
+    if FORCE_DENY.load(std::sync::atomic::Ordering::SeqCst) {
+        issues.push("Force-deny is active via JCODE_TEAM_WORKER=1".to_string());
+    }
+
+    if fix && DISABLE_ALL_PLUGINS.load(std::sync::atomic::Ordering::SeqCst) {
+        DISABLE_ALL_PLUGINS.store(false, std::sync::atomic::Ordering::SeqCst);
+        fixes_applied.push("Cleared JCODE_DISABLE_PLUGINS kill switch".to_string());
+    }
+    if fix && SKIP_HOOKS.load(std::sync::atomic::Ordering::SeqCst) {
+        SKIP_HOOKS.store(false, std::sync::atomic::Ordering::SeqCst);
+        fixes_applied.push("Cleared JCODE_SKIP_PLUGINS kill switch".to_string());
+    }
+    if fix && FORCE_DENY.load(std::sync::atomic::Ordering::SeqCst) {
+        FORCE_DENY.store(false, std::sync::atomic::Ordering::SeqCst);
+        fixes_applied.push("Cleared JCODE_TEAM_WORKER force-deny".to_string());
+    }
+
+    if let Some(sys) = crate::plugin::plugin_system() {
+        let handler_count = sys.dispatcher.handler_count();
+        let plugin_count = sys.dispatcher.plugin_count();
+        println!("Plugin system status:");
+        println!("  Active plugins: {plugin_count}");
+        println!("  Registered handlers: {handler_count}");
+        println!("  Audit trail entries: {}", sys.audit_trail().len());
+    } else {
+        issues.push("Plugin system not initialized".to_string());
+    }
+
+    if !issues.is_empty() {
+        println!("\n⚠️  Issues found:");
+        for issue in &issues {
+            println!("  - {issue}");
+        }
+    }
+    if !fixes_applied.is_empty() {
+        println!("\n🔧 Fixes applied:");
+        for fix in &fixes_applied {
+            println!("  - {fix}");
+        }
+    }
+    if issues.is_empty() && fixes_applied.is_empty() {
+        println!("\n✅ Plugin system is healthy");
+    }
+    Ok(())
+}
+
 pub async fn run_ambient_command(cmd: AmbientSubcommand) -> Result<()> {
     if let AmbientSubcommand::RunVisible = cmd {
         return run_ambient_visible().await;
