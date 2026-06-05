@@ -431,3 +431,57 @@ jobs:
       - name: Check Windows ARM64 target (advisory)
         continue-on-error: true
         run: cargo xwin check --locked --target aarch64-pc-windows-msvc --no-default-features --features pdf
+
+  startup-perf:
+    name: Startup Performance Guard
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ssh-key: ${{ secrets.DEPLOY_KEY }}
+          submodules: recursive
+
+      - name: Configure SSH for cargo git dependencies
+        if: env.DEPLOY_KEY != ''
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_KEY }}
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: startup-perf-ubuntu
+          cache-all-crates: "true"
+
+      - name: Install mold linker
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq mold
+
+      - name: Build release binary
+        run: |
+          mkdir -p .cargo
+          cat > .cargo/config.toml << 'EOF'
+          [target.x86_64-unknown-linux-gnu]
+          linker = "clang"
+          rustflags = ["-C", "link-arg=-fuse-ld=mold"]
+          EOF
+          cargo build --release --target x86_64-unknown-linux-gnu
+
+      - name: Run startup performance benchmark
+        run: |
+          python3 scripts/bench_startup.py \
+            target/x86_64-unknown-linux-gnu/release/jcode \
+            --check \
+            --runs 5 \
+            --max-help-ms 60 \
+            --max-version-ms 60 \
+            --max-server-ready-ms 200 \
+            --max-cold-total-ms 400 \
+            --max-cold-server-check-ms 50 \
+            --max-cold-server-spawn-ms 50 \
+            --max-cold-app-new-ms 50
