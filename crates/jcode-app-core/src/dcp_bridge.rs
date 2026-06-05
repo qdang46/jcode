@@ -44,7 +44,9 @@ fn content_to_part(b: &ContentBlock) -> Option<Part> {
     Some(match b {
         ContentBlock::Text { text, .. } => Part::Text(text.clone()),
         ContentBlock::Reasoning { text } => Part::Reasoning(text.clone()),
-        ContentBlock::ToolUse { id, name, input, .. } => Part::ToolCall {
+        ContentBlock::ToolUse {
+            id, name, input, ..
+        } => Part::ToolCall {
             call_id: id.clone(),
             tool: name.clone(),
             input: input.clone(),
