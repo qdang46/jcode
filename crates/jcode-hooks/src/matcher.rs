@@ -23,12 +23,18 @@ pub struct MatcherContext<'a> {
 impl<'a> MatcherContext<'a> {
     /// Create a new matcher context
     pub fn new(target: &'a str) -> Self {
-        Self { target, context: None }
+        Self {
+            target,
+            context: None,
+        }
     }
 
     /// Create with additional context
     pub fn with_context(target: &'a str, context: &'a str) -> Self {
-        Self { target, context: Some(context) }
+        Self {
+            target,
+            context: Some(context),
+        }
     }
 }
 
@@ -71,7 +77,7 @@ mod tests {
         let matcher = HookMatcher::Exact("Bash".to_string());
         let ctx = MatcherContext::new("Bash");
         assert!(matches(&matcher, &ctx));
-        
+
         let ctx = MatcherContext::new("Write");
         assert!(!matches(&matcher, &ctx));
     }
@@ -81,10 +87,10 @@ mod tests {
         let matcher = HookMatcher::Multi(vec!["Bash".to_string(), "Write".to_string()]);
         let ctx = MatcherContext::new("Bash");
         assert!(matches(&matcher, &ctx));
-        
+
         let ctx = MatcherContext::new("Write");
         assert!(matches(&matcher, &ctx));
-        
+
         let ctx = MatcherContext::new("Edit");
         assert!(!matches(&matcher, &ctx));
     }
@@ -98,13 +104,13 @@ mod tests {
     #[test]
     fn test_regex_matcher() {
         let matcher = HookMatcher::Regex("^Bash(git.*)".to_string());
-        
+
         let ctx = MatcherContext::new("Bash");
         assert!(!matches(&matcher, &ctx)); // No match without git prefix
-        
+
         let ctx = MatcherContext::with_context("Bash", "git commit");
         assert!(matches(&matcher, &ctx));
-        
+
         let ctx = MatcherContext::with_context("Bash", "ls -la");
         assert!(!matches(&matcher, &ctx));
     }

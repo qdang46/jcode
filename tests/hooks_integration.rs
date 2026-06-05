@@ -6,10 +6,10 @@
 
 use jcode_hooks::dispatch::aggregate_decision;
 use jcode_hooks::{
-    dispatch_hooks, matches, AgentHandlerConfig, AggregatedDecision, ClassifiedOutcome,
-    CommandHandlerConfig, DispatchConfig, HookContext, HookEvent, HookHandlerConfig,
-    HookInput, HookInputBuilder, HookMatcher, HookRegistry, HookSettings, HooksConfig,
-    HttpHandlerConfig, MatcherContext, PluginHandlerConfig,
+    AgentHandlerConfig, AggregatedDecision, ClassifiedOutcome, CommandHandlerConfig,
+    DispatchConfig, HookContext, HookEvent, HookHandlerConfig, HookInput, HookInputBuilder,
+    HookMatcher, HookRegistry, HookSettings, HooksConfig, HttpHandlerConfig, MatcherContext,
+    PluginHandlerConfig, dispatch_hooks, matches,
 };
 
 // ===========================================================================
@@ -76,7 +76,11 @@ timeout_secs = 5
     let matching = registry.get_matching(&HookEvent::PreToolUse, &context);
     // Both handlers should match: security_check has matcher "Bash|Write" (Bash matches),
     // audit_log has no matcher (wildcard).
-    assert_eq!(matching.len(), 2, "both PreToolUse handlers should match Bash");
+    assert_eq!(
+        matching.len(),
+        2,
+        "both PreToolUse handlers should match Bash"
+    );
 
     // Step 5: Build HookInput via the builder
     let input = HookInputBuilder::new()
@@ -177,7 +181,10 @@ async fn test_parallel_hook_execution() {
 
     let stats = dispatch_hooks(&HookEvent::PreToolUse, &input, &refs, &config).await;
 
-    assert_eq!(stats.total_dispatched, 5, "all 5 handlers should be dispatched");
+    assert_eq!(
+        stats.total_dispatched, 5,
+        "all 5 handlers should be dispatched"
+    );
     assert_eq!(stats.allowed, 5, "all dry-run handlers should be allowed");
     assert_eq!(stats.failed, 0, "no handler should fail in dry-run");
     assert_eq!(stats.results.len(), 5);
@@ -215,8 +222,13 @@ async fn test_parallel_hook_execution() {
         .collect();
 
     let refs_bounded: Vec<&HookHandlerConfig> = handlers_bounded.iter().collect();
-    let stats_bounded =
-        dispatch_hooks(&HookEvent::PreToolUse, &input, &refs_bounded, &config_bounded).await;
+    let stats_bounded = dispatch_hooks(
+        &HookEvent::PreToolUse,
+        &input,
+        &refs_bounded,
+        &config_bounded,
+    )
+    .await;
 
     assert_eq!(stats_bounded.total_dispatched, 4);
     assert_eq!(stats_bounded.allowed, 4);
@@ -463,7 +475,9 @@ fn test_matcher_filtering() {
     assert!(!matched_commands.contains(&"write_or_edit.sh"));
     assert!(!matched_commands.contains(&"read_pattern.sh"));
 
-    let has_http = matching.iter().any(|h| matches!(h, HookHandlerConfig::Http(_)));
+    let has_http = matching
+        .iter()
+        .any(|h| matches!(h, HookHandlerConfig::Http(_)));
     assert!(has_http, "HTTP handler for Bash should be matched");
 
     // Context for "Write" tool

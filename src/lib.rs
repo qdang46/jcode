@@ -27,6 +27,7 @@ pub mod crash_log;
 pub mod customization;
 pub mod extension_policy;
 pub mod floating_diagram;
+pub mod hooks;
 pub mod model_failover;
 pub mod model_routing;
 pub mod orchestration_api;
@@ -35,7 +36,6 @@ pub mod skill_disable;
 pub mod skill_distillation;
 pub mod theme;
 pub mod turborag;
-pub mod hooks;
 
 use anyhow::Result;
 

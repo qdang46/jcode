@@ -6,7 +6,7 @@
 use std::collections::HashMap;
 
 use crate::config::{HookEvent, HookHandlerConfig, HooksConfig};
-use crate::matcher::{HookMatcher, MatcherContext, matches};
+use crate::matcher::{matches, HookMatcher, MatcherContext};
 
 /// Context passed to hooks for matching decisions.
 ///
@@ -167,10 +167,7 @@ impl HookContext {
         }
     }
 
-    pub fn for_permission_denied(
-        session_id: String,
-        permission_mode: String,
-    ) -> Self {
+    pub fn for_permission_denied(session_id: String, permission_mode: String) -> Self {
         Self {
             session_id,
             transcript_path: String::new(),
@@ -228,11 +225,7 @@ impl HookContext {
     ///
     /// Fired after a permission decision is recorded (approve or deny).
     /// This is an observational event — hooks cannot change the outcome.
-    pub fn for_permission_replied(
-        request_id: String,
-        session_id: String,
-        approved: bool,
-    ) -> Self {
+    pub fn for_permission_replied(request_id: String, session_id: String, approved: bool) -> Self {
         Self {
             session_id,
             transcript_path: String::new(),
@@ -277,11 +270,7 @@ impl HookContext {
     }
 
     /// Create a HookContext for a PreCompact event
-    pub fn for_pre_compact(
-        session_id: String,
-        cwd: String,
-        current_size_bytes: u64,
-    ) -> Self {
+    pub fn for_pre_compact(session_id: String, cwd: String, current_size_bytes: u64) -> Self {
         Self {
             session_id,
             transcript_path: String::new(),
@@ -360,11 +349,7 @@ impl HookContext {
     }
 
     /// Create a HookContext for a Stop event
-    pub fn for_stop(
-        session_id: String,
-        cwd: String,
-        stop_type: Option<String>,
-    ) -> Self {
+    pub fn for_stop(session_id: String, cwd: String, stop_type: Option<String>) -> Self {
         Self {
             session_id,
             transcript_path: String::new(),
@@ -515,11 +500,7 @@ impl HookContext {
     }
 
     /// Create a HookContext for a SessionDiff event
-    pub fn for_session_diff(
-        session_id: String,
-        cwd: String,
-        file_path: Option<String>,
-    ) -> Self {
+    pub fn for_session_diff(session_id: String, cwd: String, file_path: Option<String>) -> Self {
         Self {
             session_id,
             transcript_path: String::new(),
@@ -670,7 +651,7 @@ impl HookRegistry {
                 if let Some(matcher) = self.get_handler_matcher(handler) {
                     // Build matcher context - include command for regex matching
                     let ctx = context.matcher_context();
-                    matches(&matcher, &ctx)
+                    matches(matcher, &ctx)
                 } else {
                     // No matcher means wildcard - always match
                     true
@@ -781,7 +762,9 @@ mod tests {
         let registry = HookRegistry::from_config(config);
         let hooks = registry.get_hooks(&HookEvent::PreToolUse);
         assert_eq!(hooks.len(), 1);
-        assert!(matches!(&hooks[0], HookHandlerConfig::Command(cmd) if cmd.command == "test_command"));
+        assert!(
+            matches!(&hooks[0], HookHandlerConfig::Command(cmd) if cmd.command == "test_command")
+        );
     }
 
     #[test]
@@ -802,7 +785,11 @@ mod tests {
 
     #[test]
     fn test_hook_context_for_tool() {
-        let context = HookContext::for_tool("Bash".to_string(), "session-123".to_string(), "/project".to_string());
+        let context = HookContext::for_tool(
+            "Bash".to_string(),
+            "session-123".to_string(),
+            "/project".to_string(),
+        );
 
         assert_eq!(context.session_id, "session-123");
         assert_eq!(context.cwd, "/project");
@@ -812,7 +799,11 @@ mod tests {
 
     #[test]
     fn test_hook_context_matcher_context() {
-        let context = HookContext::for_tool("Bash".to_string(), "session-123".to_string(), "/project".to_string());
+        let context = HookContext::for_tool(
+            "Bash".to_string(),
+            "session-123".to_string(),
+            "/project".to_string(),
+        );
 
         let ctx = context.matcher_context();
         assert_eq!(ctx.target, "Bash");
@@ -821,7 +812,11 @@ mod tests {
 
     #[test]
     fn test_hook_context_matcher_context_with_context() {
-        let context = HookContext::for_tool("Bash".to_string(), "session-123".to_string(), "/project".to_string());
+        let context = HookContext::for_tool(
+            "Bash".to_string(),
+            "session-123".to_string(),
+            "/project".to_string(),
+        );
 
         let ctx = context.matcher_context_with_context("git commit -m 'test'");
         assert_eq!(ctx.target, "Bash");
@@ -840,7 +835,11 @@ mod tests {
         );
 
         let registry = HookRegistry::from_config(config);
-        let context = HookContext::for_tool("Bash".to_string(), "session-123".to_string(), "/project".to_string());
+        let context = HookContext::for_tool(
+            "Bash".to_string(),
+            "session-123".to_string(),
+            "/project".to_string(),
+        );
 
         // Should return 1 handler (matches all since no matcher)
         let matching = registry.get_matching(&HookEvent::PreToolUse, &context);
@@ -859,7 +858,11 @@ mod tests {
         );
 
         let registry = HookRegistry::from_config(config);
-        let context = HookContext::for_tool("Bash".to_string(), "session-123".to_string(), "/project".to_string());
+        let context = HookContext::for_tool(
+            "Bash".to_string(),
+            "session-123".to_string(),
+            "/project".to_string(),
+        );
 
         // Should return empty for pre_tool_use (only post_tool_use configured)
         let matching = registry.get_matching(&HookEvent::PreToolUse, &context);

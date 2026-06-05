@@ -26,9 +26,6 @@ use self::tools::{
 };
 use self::utils::trace_enabled;
 use crate::build;
-use jcode_hooks::{
-    DispatchConfig, HookContext, HookEvent, HookInputBuilder, HookRegistry,
-};
 use crate::bus::{Bus, BusEvent, SubagentStatus, ToolEvent, ToolStatus};
 use crate::cache_tracker::CacheTracker;
 use crate::compaction::CompactionEvent;
@@ -44,6 +41,7 @@ use crate::skill::SkillRegistry;
 use crate::tool::{Registry, ToolContext, ToolExecutionMode};
 use anyhow::Result;
 use futures::StreamExt;
+use jcode_hooks::{DispatchConfig, HookContext, HookEvent, HookInputBuilder, HookRegistry};
 #[cfg(feature = "dcp")]
 use std::cell::Cell;
 use std::collections::{HashMap, HashSet};
@@ -1056,7 +1054,9 @@ impl Agent {
             &self.provider.model(),
             crate::telemetry::SessionEndReason::Unknown,
         );
-        let crash_msg = message.clone().unwrap_or_else(|| "unknown crash".to_string());
+        let crash_msg = message
+            .clone()
+            .unwrap_or_else(|| "unknown crash".to_string());
         self.persist_soft_interrupt_snapshot();
         self.session.mark_crashed(message);
         if !self.session.messages.is_empty() {

@@ -343,12 +343,7 @@ impl HookInputBuilder {
     }
 
     /// Set session state transition fields (SessionUpdated).
-    pub fn session_state(
-        mut self,
-        prev_state: &str,
-        new_state: &str,
-        update_reason: &str,
-    ) -> Self {
+    pub fn session_state(mut self, prev_state: &str, new_state: &str, update_reason: &str) -> Self {
         self.input.prev_state = Some(prev_state.to_string());
         self.input.new_state = Some(new_state.to_string());
         self.input.update_reason = Some(update_reason.to_string());
@@ -542,14 +537,9 @@ pub enum HookResult {
     /// Hook completed successfully and execution should continue.
     Continue(HookOutput),
     /// Hook blocked the operation (exit code 2 or `continue_` = false).
-    Blocked {
-        reason: String,
-        output: HookOutput,
-    },
+    Blocked { reason: String, output: HookOutput },
     /// Hook failed (non-zero exit code other than 2, HTTP error, timeout).
-    Failed {
-        error: String,
-    },
+    Failed { error: String },
 }
 
 // ===========================================================================
@@ -564,14 +554,9 @@ pub enum AggregatedDecision {
     /// All hooks say continue, or no hooks configured.
     Allow,
     /// At least one hook says "ask" and no hook says "deny".
-    Ask {
-        reasons: Vec<String>,
-    },
+    Ask { reasons: Vec<String> },
     /// At least one hook blocked/denied the operation.
-    Deny {
-        reason: String,
-        source_hook: String,
-    },
+    Deny { reason: String, source_hook: String },
 }
 
 // ===========================================================================

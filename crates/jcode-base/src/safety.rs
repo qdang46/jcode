@@ -57,7 +57,8 @@ fn dispatch_permission_asked_hooks(action: &str, request_id: &str, session_id: &
 /// Args: `(request_id, session_id, approved, via)`.
 type PermissionRepliedHookDispatcher = fn(&str, &str, bool, &str);
 
-static PERMISSION_REPLIED_HOOK_DISPATCHER: OnceLock<PermissionRepliedHookDispatcher> = OnceLock::new();
+static PERMISSION_REPLIED_HOOK_DISPATCHER: OnceLock<PermissionRepliedHookDispatcher> =
+    OnceLock::new();
 
 /// Register the `PermissionReplied` hook dispatcher.
 ///

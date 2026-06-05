@@ -89,7 +89,8 @@ impl Agent {
                     let config = self.dispatch_config.clone();
                     let hook_session_id = self.session.id.clone();
                     let hook_cwd = self.session.working_dir.clone().unwrap_or_default();
-                    let ctx = HookContext::for_pre_compact(hook_session_id.clone(), hook_cwd.clone(), 0);
+                    let ctx =
+                        HookContext::for_pre_compact(hook_session_id.clone(), hook_cwd.clone(), 0);
                     let hook_event = HookEvent::PreCompact;
                     let handlers = registry.get_matching(&hook_event, &ctx);
                     if !handlers.is_empty() {
@@ -98,20 +99,31 @@ impl Agent {
                             .event("PreCompact")
                             .build();
                         let hook_stats = tokio::task::block_in_place(|| {
-                            tokio::runtime::Handle::current().block_on(
-                                jcode_hooks::dispatch_hooks(&hook_event, &hook_input, &handlers, &config)
-                            )
+                            tokio::runtime::Handle::current().block_on(jcode_hooks::dispatch_hooks(
+                                &hook_event,
+                                &hook_input,
+                                &handlers,
+                                &config,
+                            ))
                         });
                         if hook_stats.any_denied() {
-                            let deny_reason = hook_stats.results.iter()
-                                .find(|r| matches!(r.outcome, jcode_hooks::ClassifiedOutcome::Deny { .. }))
+                            let deny_reason = hook_stats
+                                .results
+                                .iter()
+                                .find(|r| {
+                                    matches!(r.outcome, jcode_hooks::ClassifiedOutcome::Deny { .. })
+                                })
                                 .map(|r| match &r.outcome {
-                                    jcode_hooks::ClassifiedOutcome::Deny { reason } => reason.clone(),
+                                    jcode_hooks::ClassifiedOutcome::Deny { reason } => {
+                                        reason.clone()
+                                    }
                                     _ => String::new(),
                                 })
                                 .unwrap_or_else(|| "blocked by hook".to_string());
                             return (
-                                format!("{status_msg}\n\n**Compaction cancelled by hook:** {deny_reason}"),
+                                format!(
+                                    "{status_msg}\n\n**Compaction cancelled by hook:** {deny_reason}"
+                                ),
                                 false,
                             );
                         }
@@ -134,7 +146,13 @@ impl Agent {
                                     .session(&session_id, &cwd)
                                     .event("PostCompact")
                                     .build();
-                                jcode_hooks::dispatch_hooks(&hook_event, &hook_input, &handlers, &config).await;
+                                jcode_hooks::dispatch_hooks(
+                                    &hook_event,
+                                    &hook_input,
+                                    &handlers,
+                                    &config,
+                                )
+                                .await;
                             }
                         });
                         (
@@ -145,7 +163,7 @@ impl Agent {
                             ),
                             true,
                         )
-                    },
+                    }
                     Err(reason) => (
                         format!("{status_msg}\n\n⚠ **Cannot compact:** {reason}"),
                         false,
@@ -207,7 +225,11 @@ impl Agent {
                     {
                         let registry = self.hook_registry.clone();
                         let config = self.dispatch_config.clone();
-                        let ctx = HookContext::for_pre_compact(hook_session_id.clone(), hook_cwd.clone(), 0);
+                        let ctx = HookContext::for_pre_compact(
+                            hook_session_id.clone(),
+                            hook_cwd.clone(),
+                            0,
+                        );
                         let hook_event = HookEvent::PreCompact;
                         let handlers = registry.get_matching(&hook_event, &ctx);
                         if !handlers.is_empty() {
@@ -217,11 +239,18 @@ impl Agent {
                                 .build();
                             let hook_stats = tokio::task::block_in_place(|| {
                                 tokio::runtime::Handle::current().block_on(
-                                    jcode_hooks::dispatch_hooks(&hook_event, &hook_input, &handlers, &config)
+                                    jcode_hooks::dispatch_hooks(
+                                        &hook_event,
+                                        &hook_input,
+                                        &handlers,
+                                        &config,
+                                    ),
                                 )
                             });
                             if hook_stats.any_denied() {
-                                logging::warn("Context-limit auto-recovery blocked by PreCompact hook");
+                                logging::warn(
+                                    "Context-limit auto-recovery blocked by PreCompact hook",
+                                );
                                 return false;
                             }
                         }

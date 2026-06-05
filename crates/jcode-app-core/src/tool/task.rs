@@ -225,11 +225,7 @@ impl Tool for SubagentTool {
                 .session(&sub_session_id, "")
                 .event("SubagentStart")
                 .build();
-            let ctx = HookContext::for_subagent_start(
-                sub_session_id,
-                None,
-                Some(subagent_type),
-            );
+            let ctx = HookContext::for_subagent_start(sub_session_id, None, Some(subagent_type));
             let event = HookEvent::SubagentStart;
             tokio::spawn(async move {
                 let handlers = hook_registry.read().await;
@@ -282,11 +278,7 @@ impl Tool for SubagentTool {
                 .session(&sub_session_id, "")
                 .event("SubagentStop")
                 .build();
-            let ctx = HookContext::for_subagent_stop(
-                sub_session_id,
-                None,
-                Some(subagent_type),
-            );
+            let ctx = HookContext::for_subagent_stop(sub_session_id, None, Some(subagent_type));
             let event = HookEvent::SubagentStop;
             tokio::spawn(async move {
                 let handlers = hook_registry.read().await;

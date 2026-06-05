@@ -242,8 +242,7 @@ pub async fn execute_command_hook(
             if let Some(sig) = output.status.signal() {
                 eprintln!(
                     "Hook command '{}' killed by signal {}",
-                    expanded_command,
-                    sig
+                    expanded_command, sig
                 );
             }
         }
@@ -297,8 +296,14 @@ fn build_command_env(
     }
 
     // Standard hook env vars.
-    env.insert("JCODE_HOOK_EVENT".to_string(), input.hook_event_name.clone());
-    env.insert("JCODE_HOOK_SESSION_ID".to_string(), input.session_id.clone());
+    env.insert(
+        "JCODE_HOOK_EVENT".to_string(),
+        input.hook_event_name.clone(),
+    );
+    env.insert(
+        "JCODE_HOOK_SESSION_ID".to_string(),
+        input.session_id.clone(),
+    );
     env.insert("JCODE_HOOK_CWD".to_string(), input.cwd.clone());
 
     env
@@ -334,10 +339,7 @@ fn interpret_exit_code(
                 .unwrap_or_else(|| {
                     format!("hook command '{}' blocked the operation", command_label)
                 });
-            Ok(HookResult::Blocked {
-                reason,
-                output,
-            })
+            Ok(HookResult::Blocked { reason, output })
         }
         other => {
             let reason = format!(
@@ -428,16 +430,13 @@ pub async fn execute_http_hook(
     request = request.body(body_json);
 
     // Execute the request.
-    let response = request
-        .send()
-        .await
-        .map_err(|e| {
-            if e.is_timeout() {
-                ExecuteError::Timeout(timeout_secs)
-            } else {
-                ExecuteError::HttpError(format!("request to {}: {}", url, e))
-            }
-        })?;
+    let response = request.send().await.map_err(|e| {
+        if e.is_timeout() {
+            ExecuteError::Timeout(timeout_secs)
+        } else {
+            ExecuteError::HttpError(format!("request to {}: {}", url, e))
+        }
+    })?;
 
     let status = response.status();
 
@@ -557,8 +556,14 @@ pub async fn execute_plugin_hook(
 
     // Build environment.
     let mut env_vars: HashMap<String, String> = std::env::vars().collect();
-    env_vars.insert("JCODE_HOOK_EVENT".to_string(), input.hook_event_name.clone());
-    env_vars.insert("JCODE_HOOK_SESSION_ID".to_string(), input.session_id.clone());
+    env_vars.insert(
+        "JCODE_HOOK_EVENT".to_string(),
+        input.hook_event_name.clone(),
+    );
+    env_vars.insert(
+        "JCODE_HOOK_SESSION_ID".to_string(),
+        input.session_id.clone(),
+    );
     env_vars.insert("JCODE_HOOK_CWD".to_string(), input.cwd.clone());
 
     // Spawn the plugin process.
@@ -570,9 +575,7 @@ pub async fn execute_plugin_hook(
         .current_dir(&input.cwd)
         .envs(&env_vars)
         .spawn()
-        .map_err(|e| {
-            ExecuteError::SpawnFailed(format!("plugin '{}': {}", plugin_path, e))
-        })?;
+        .map_err(|e| ExecuteError::SpawnFailed(format!("plugin '{}': {}", plugin_path, e)))?;
 
     // Write HookInput JSON to stdin.
     if let Some(mut stdin) = child.stdin.take() {
@@ -596,11 +599,7 @@ pub async fn execute_plugin_hook(
         {
             use std::os::unix::process::ExitStatusExt;
             if let Some(sig) = output.status.signal() {
-                eprintln!(
-                    "Plugin '{}' killed by signal {}",
-                    plugin_path,
-                    sig
-                );
+                eprintln!("Plugin '{}' killed by signal {}", plugin_path, sig);
             }
         }
         1
@@ -625,11 +624,7 @@ pub async fn execute_plugin_hook(
     // Log stderr.
     let stderr_str = String::from_utf8_lossy(&output.stderr);
     if !stderr_str.trim().is_empty() {
-        eprintln!(
-            "Plugin '{}' stderr: {}",
-            plugin_path,
-            stderr_str.trim()
-        );
+        eprintln!("Plugin '{}' stderr: {}", plugin_path, stderr_str.trim());
     }
 
     interpret_exit_code(exit_code, hook_output, &format!("plugin:{}", plugin_path))
@@ -668,8 +663,8 @@ pub fn expand_env_var(input: &str) -> String {
         return input.to_string();
     }
 
-    let re = Regex::new(r"\$\{([A-Za-z_][A-Za-z0-9_]*)(?::(-)([^}]*))?\}")
-        .expect("valid env var regex");
+    let re =
+        Regex::new(r"\$\{([A-Za-z_][A-Za-z0-9_]*)(?::(-)([^}]*))?\}").expect("valid env var regex");
 
     let mut result = String::with_capacity(input.len());
     let mut last_end = 0;
@@ -957,7 +952,9 @@ mod tests {
     async fn command_hook_exit_2_blocks() {
         let config = CommandHandlerConfig {
             enabled: true,
-            command: "echo '{\"continue_\": false, \"stop_reason\": \"blocked by test\"}' && exit 2".to_string(),
+            command:
+                "echo '{\"continue_\": false, \"stop_reason\": \"blocked by test\"}' && exit 2"
+                    .to_string(),
             ..Default::default()
         };
         let input = HookInput::default();
@@ -1009,7 +1006,10 @@ mod tests {
         let input = HookInput::default();
         let result = execute_agent_hook(&config, &input).await;
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), ExecuteError::AgentNotImplemented));
+        assert!(matches!(
+            result.unwrap_err(),
+            ExecuteError::AgentNotImplemented
+        ));
     }
 
     // -- execute_hook dispatches correctly ------------------------------------

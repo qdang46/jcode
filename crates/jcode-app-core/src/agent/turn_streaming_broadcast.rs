@@ -987,7 +987,9 @@ impl Agent {
                             } else {
                                 output.output.clone()
                             };
-                            let file_path = tc.input.get("file_path")
+                            let file_path = tc
+                                .input
+                                .get("file_path")
                                 .and_then(|v| v.as_str())
                                 .map(|s| s.to_string());
                             let hook_input = HookInputBuilder::new()
@@ -997,16 +999,18 @@ impl Agent {
                                 .tool_output(serde_json::json!({ "output": tool_output_preview }))
                                 .diff(&tool_output_preview, file_path.as_deref())
                                 .build();
-                            let ctx = HookContext::for_session_diff(
-                                session_id,
-                                cwd,
-                                file_path,
-                            );
+                            let ctx = HookContext::for_session_diff(session_id, cwd, file_path);
                             let event = HookEvent::SessionDiff;
                             tokio::spawn(async move {
                                 let handlers = registry.get_matching(&event, &ctx);
                                 if !handlers.is_empty() {
-                                    jcode_hooks::dispatch_hooks(&event, &hook_input, &handlers, &config).await;
+                                    jcode_hooks::dispatch_hooks(
+                                        &event,
+                                        &hook_input,
+                                        &handlers,
+                                        &config,
+                                    )
+                                    .await;
                                 }
                             });
                         }

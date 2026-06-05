@@ -55,7 +55,11 @@ fn test_hook_event_parse_all_variants() {
         ("FileChanged", HookEvent::FileChanged),
     ];
 
-    assert_eq!(standard_cases.len(), 28, "must have exactly 28 standard variants");
+    assert_eq!(
+        standard_cases.len(),
+        28,
+        "must have exactly 28 standard variants"
+    );
     assert_eq!(ALL_EVENT_NAMES.len(), 28);
 
     for (input, expected) in &standard_cases {
@@ -113,7 +117,10 @@ fn test_hook_event_parse_all_variants() {
     // Case-insensitive variations
     assert_eq!(HookEvent::parse("PRETOOLUSE"), Some(HookEvent::PreToolUse));
     assert_eq!(HookEvent::parse("pretooluse"), Some(HookEvent::PreToolUse));
-    assert_eq!(HookEvent::parse("Pre Tool Use"), Some(HookEvent::PreToolUse));
+    assert_eq!(
+        HookEvent::parse("Pre Tool Use"),
+        Some(HookEvent::PreToolUse)
+    );
 
     // Custom variant: custom: prefix
     assert_eq!(
@@ -334,10 +341,7 @@ matcher = "/^Bash/"
     // Verify Stop handler has regex matcher
     match &config.events["Stop"][0] {
         HookHandlerConfig::Command(cmd) => {
-            assert_eq!(
-                cmd.matcher,
-                Some(HookMatcher::Regex("^Bash".to_string()))
-            );
+            assert_eq!(cmd.matcher, Some(HookMatcher::Regex("^Bash".to_string())));
         }
         _ => panic!("expected Command"),
     }
@@ -384,12 +388,10 @@ async fn test_dispatch_single_continue() {
         ..Default::default()
     };
     let input = HookInput::default();
-    let handlers: Vec<HookHandlerConfig> = vec![HookHandlerConfig::Command(
-        CommandHandlerConfig {
-            command: "echo ok".to_string(),
-            ..Default::default()
-        },
-    )];
+    let handlers: Vec<HookHandlerConfig> = vec![HookHandlerConfig::Command(CommandHandlerConfig {
+        command: "echo ok".to_string(),
+        ..Default::default()
+    })];
     let refs: Vec<&HookHandlerConfig> = handlers.iter().collect();
 
     let stats = dispatch_hooks(&HookEvent::PostToolUse, &input, &refs, &config).await;
@@ -515,14 +517,12 @@ async fn test_dispatch_timeout() {
         dry_run: false,
     };
     let input = HookInput::default();
-    let handlers: Vec<HookHandlerConfig> = vec![HookHandlerConfig::Command(
-        CommandHandlerConfig {
-            enabled: true,
-            command: "sleep 10".to_string(),
-            timeout_secs: Some(1),
-            ..Default::default()
-        },
-    )];
+    let handlers: Vec<HookHandlerConfig> = vec![HookHandlerConfig::Command(CommandHandlerConfig {
+        enabled: true,
+        command: "sleep 10".to_string(),
+        timeout_secs: Some(1),
+        ..Default::default()
+    })];
     let refs: Vec<&HookHandlerConfig> = handlers.iter().collect();
 
     let stats = dispatch_hooks(&HookEvent::PreToolUse, &input, &refs, &config).await;
@@ -537,7 +537,10 @@ async fn test_dispatch_timeout() {
     if let ClassifiedOutcome::Failed { error } = &stats.results[0].outcome {
         assert!(error.contains("timed out"), "error was: {}", error);
     } else {
-        panic!("expected Failed outcome, got {:?}", &stats.results[0].outcome);
+        panic!(
+            "expected Failed outcome, got {:?}",
+            &stats.results[0].outcome
+        );
     }
 }
 
@@ -800,10 +803,7 @@ fn test_parse_matcher_pattern() {
         parse_matcher_pattern("/^Bash/"),
         HookMatcher::Regex("^Bash".to_string())
     );
-    assert_eq!(
-        parse_matcher_pattern("  *  "),
-        HookMatcher::Wildcard
-    ); // trimmed
+    assert_eq!(parse_matcher_pattern("  *  "), HookMatcher::Wildcard); // trimmed
 }
 
 // ===========================================================================
@@ -932,10 +932,7 @@ fn test_hooks_config_is_empty() {
 fn test_hook_event_display_and_serde() {
     assert_eq!(format!("{}", HookEvent::PreToolUse), "PreToolUse");
     assert_eq!(format!("{}", HookEvent::Stop), "Stop");
-    assert_eq!(
-        format!("{}", HookEvent::Custom("foo".to_string())),
-        "foo"
-    );
+    assert_eq!(format!("{}", HookEvent::Custom("foo".to_string())), "foo");
 
     // Serde round-trip for all standard variants
     for ev in HookEvent::all_standard() {

@@ -259,8 +259,7 @@ pub async fn dispatch_permission_hooks(
         .build();
 
     let dispatch_config = DispatchConfig::from_settings(&config.settings);
-    let stats =
-        jcode_hooks::dispatch_hooks(&event, &input, &handlers, &dispatch_config).await;
+    let stats = jcode_hooks::dispatch_hooks(&event, &input, &handlers, &dispatch_config).await;
 
     // For PermissionRequest: return true if any hook denied (blocks the prompt).
     // For PermissionDenied: fire-and-forget, always return false.
@@ -316,8 +315,7 @@ pub async fn dispatch_permission_asked_hooks(
         .build();
 
     let dispatch_config = DispatchConfig::from_settings(&config.settings);
-    let stats =
-        jcode_hooks::dispatch_hooks(&event, &input, &handlers, &dispatch_config).await;
+    let stats = jcode_hooks::dispatch_hooks(&event, &input, &handlers, &dispatch_config).await;
 
     // Return true if any hook explicitly allowed (pre-approve).
     stats.allowed > 0

@@ -59,21 +59,11 @@ impl Agent {
         // UserPromptSubmit hook — BLOCKING: can deny the prompt before it enters the conversation
         {
             let session_id = self.session.id.clone();
-            let cwd = self
-                .session
-                .working_dir
-                .clone()
-                .unwrap_or_default();
-            let hook_ctx = HookContext::new(
-                &session_id,
-                "",
-                &cwd,
-                "UserPromptSubmit",
-            );
-            let handlers = self.hook_registry.get_matching(
-                &HookEvent::UserPromptSubmit,
-                &hook_ctx,
-            );
+            let cwd = self.session.working_dir.clone().unwrap_or_default();
+            let hook_ctx = HookContext::new(&session_id, "", &cwd, "UserPromptSubmit");
+            let handlers = self
+                .hook_registry
+                .get_matching(&HookEvent::UserPromptSubmit, &hook_ctx);
             if !handlers.is_empty() {
                 let hook_input = HookInputBuilder::new()
                     .session(&session_id, &cwd)
@@ -97,10 +87,7 @@ impl Agent {
                             _ => String::new(),
                         })
                         .unwrap_or_else(|| "blocked by hook".to_string());
-                    return Err(anyhow::anyhow!(
-                        "Prompt blocked by hook: {}",
-                        deny_reason
-                    ));
+                    return Err(anyhow::anyhow!("Prompt blocked by hook: {}", deny_reason));
                 }
             }
         }
@@ -163,21 +150,11 @@ impl Agent {
         // UserPromptSubmit hook — BLOCKING: can deny the prompt before it enters the conversation
         {
             let session_id = self.session.id.clone();
-            let cwd = self
-                .session
-                .working_dir
-                .clone()
-                .unwrap_or_default();
-            let hook_ctx = HookContext::new(
-                &session_id,
-                "",
-                &cwd,
-                "UserPromptSubmit",
-            );
-            let handlers = self.hook_registry.get_matching(
-                &HookEvent::UserPromptSubmit,
-                &hook_ctx,
-            );
+            let cwd = self.session.working_dir.clone().unwrap_or_default();
+            let hook_ctx = HookContext::new(&session_id, "", &cwd, "UserPromptSubmit");
+            let handlers = self
+                .hook_registry
+                .get_matching(&HookEvent::UserPromptSubmit, &hook_ctx);
             if !handlers.is_empty() {
                 let hook_input = HookInputBuilder::new()
                     .session(&session_id, &cwd)
@@ -201,10 +178,7 @@ impl Agent {
                             _ => String::new(),
                         })
                         .unwrap_or_else(|| "blocked by hook".to_string());
-                    return Err(anyhow::anyhow!(
-                        "Prompt blocked by hook: {}",
-                        deny_reason
-                    ));
+                    return Err(anyhow::anyhow!("Prompt blocked by hook: {}", deny_reason));
                 }
             }
         }

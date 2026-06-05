@@ -23,9 +23,7 @@ use std::path::PathBuf;
 
 use serde::Serialize;
 
-use crate::config::{
-    load_hooks_config, HookEvent, HookHandlerConfig, HookSettings, HooksConfig,
-};
+use crate::config::{load_hooks_config, HookEvent, HookHandlerConfig, HookSettings, HooksConfig};
 use crate::dispatch::{dispatch_hooks, ClassifiedOutcome, DispatchConfig};
 use crate::types::HookInput;
 
@@ -339,10 +337,7 @@ fn set_handler_enabled(event_name: &str, index: usize, enabled: bool) -> Result<
 
     // Update the enabled flag in the loaded config.
     let mut updated_config = config;
-    let handlers = updated_config
-        .events
-        .get_mut(event.display_name())
-        .unwrap();
+    let handlers = updated_config.events.get_mut(event.display_name()).unwrap();
     set_handler_enabled_flag(&mut handlers[index], enabled);
 
     // Write back to the project-level config.
@@ -390,11 +385,7 @@ fn get_handler_enabled(handler: &HookHandlerConfig) -> bool {
 /// In dry-run mode (default), resolves matching handlers and reports which
 /// would fire without actually executing them. With `--execute`, runs the
 /// handlers for real using the dispatch engine.
-async fn run_hooks_test(
-    event_name: &str,
-    execute: bool,
-    json: bool,
-) -> Result<(), CliError> {
+async fn run_hooks_test(event_name: &str, execute: bool, json: bool) -> Result<(), CliError> {
     let event = HookEvent::parse(event_name)
         .ok_or_else(|| CliError::UnknownEvent(event_name.to_string()))?;
 
@@ -582,10 +573,7 @@ fn run_hooks_metrics(json: bool) -> Result<(), CliError> {
         let blocking = HookEvent::parse(event_name)
             .map(|e| e.is_blocking())
             .unwrap_or(false);
-        let enabled_count = handlers
-            .iter()
-            .filter(|h| get_handler_enabled(h))
-            .count();
+        let enabled_count = handlers.iter().filter(|h| get_handler_enabled(h)).count();
         event_summaries.push(EventMetricsSummary {
             event: (*event_name).clone(),
             total_handlers: handlers.len(),
@@ -615,10 +603,7 @@ fn run_hooks_metrics(json: bool) -> Result<(), CliError> {
         println!("  Dry-run mode:       {}", config.settings.dry_run);
         println!("  Fail-closed:        {}", config.settings.fail_closed);
         println!();
-        println!(
-            "Total events with hooks: {}",
-            event_summaries.len()
-        );
+        println!("Total events with hooks: {}", event_summaries.len());
         println!(
             "Total handlers:          {} ({} enabled, {} disabled)",
             total_handlers, enabled_handlers, disabled_handlers
@@ -725,10 +710,7 @@ fn print_hooks_table(settings: &HookSettings, entries: &[HooksEventEntry]) {
     println!("===================");
     println!(
         "  timeout: {}s | concurrency: {} | dry_run: {} | fail_closed: {}",
-        settings.timeout_secs,
-        settings.max_concurrency,
-        settings.dry_run,
-        settings.fail_closed,
+        settings.timeout_secs, settings.max_concurrency, settings.dry_run, settings.fail_closed,
     );
     println!();
 
@@ -741,11 +723,7 @@ fn print_hooks_table(settings: &HookSettings, entries: &[HooksEventEntry]) {
     println!();
 
     for entry in entries {
-        let blocking_tag = if entry.blocking {
-            " [blocking]"
-        } else {
-            ""
-        };
+        let blocking_tag = if entry.blocking { " [blocking]" } else { "" };
         println!(
             "{} ({} handler(s)){}",
             entry.event, entry.handler_count, blocking_tag
@@ -1008,10 +986,7 @@ mod tests {
         assert!(pre_tool.blocking, "PreToolUse should be blocking");
 
         let session_end = entries.iter().find(|e| e.event == "SessionEnd").unwrap();
-        assert!(
-            !session_end.blocking,
-            "SessionEnd should not be blocking"
-        );
+        assert!(!session_end.blocking, "SessionEnd should not be blocking");
     }
 
     #[test]

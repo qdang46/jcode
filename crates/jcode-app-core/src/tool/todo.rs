@@ -118,9 +118,7 @@ impl Tool for TodoTool {
                     .collect();
                 let newly_completed: Vec<TodoItem> = todos
                     .iter()
-                    .filter(|t| {
-                        t.status == "completed" && !completed_ids.contains(t.id.as_str())
-                    })
+                    .filter(|t| t.status == "completed" && !completed_ids.contains(t.id.as_str()))
                     .cloned()
                     .collect();
                 tokio::spawn(async move {
@@ -129,11 +127,10 @@ impl Tool for TodoTool {
                     let dispatch_config = DispatchConfig::from_settings(&hook_config.settings);
 
                     for todo in &new_todos {
-                        let mut hook_ctx =
-                            HookContext::new(&session_id, "", &cwd, "TaskCreated");
+                        let mut hook_ctx = HookContext::new(&session_id, "", &cwd, "TaskCreated");
                         hook_ctx.task_id = Some(todo.id.clone());
-                        let handlers = hook_registry
-                            .get_matching(&HookEvent::TaskCreated, &hook_ctx);
+                        let handlers =
+                            hook_registry.get_matching(&HookEvent::TaskCreated, &hook_ctx);
                         if !handlers.is_empty() {
                             let hook_input = HookInputBuilder::new()
                                 .session(&session_id, &cwd)
@@ -150,11 +147,10 @@ impl Tool for TodoTool {
                     }
 
                     for todo in &newly_completed {
-                        let mut hook_ctx =
-                            HookContext::new(&session_id, "", &cwd, "TaskCompleted");
+                        let mut hook_ctx = HookContext::new(&session_id, "", &cwd, "TaskCompleted");
                         hook_ctx.task_id = Some(todo.id.clone());
-                        let handlers = hook_registry
-                            .get_matching(&HookEvent::TaskCompleted, &hook_ctx);
+                        let handlers =
+                            hook_registry.get_matching(&HookEvent::TaskCompleted, &hook_ctx);
                         if !handlers.is_empty() {
                             let hook_input = HookInputBuilder::new()
                                 .session(&session_id, &cwd)

@@ -214,10 +214,7 @@ pub fn classify_decision(result: &HookResult) -> ClassifiedOutcome {
 ///
 /// `Failed` outcomes are **ignored** unless `fail_closed` is `true`,
 /// in which case they are treated as `Deny`.
-pub fn aggregate_decision(
-    outcomes: &[ClassifiedOutcome],
-    fail_closed: bool,
-) -> AggregatedDecision {
+pub fn aggregate_decision(outcomes: &[ClassifiedOutcome], fail_closed: bool) -> AggregatedDecision {
     let mut ask_reasons: Vec<String> = Vec::new();
     let mut first_deny: Option<(String, &ClassifiedOutcome)> = None;
 
@@ -233,10 +230,7 @@ pub fn aggregate_decision(
             }
             ClassifiedOutcome::Failed { error } => {
                 if fail_closed && first_deny.is_none() {
-                    first_deny = Some((
-                        format!("hook failed (fail-closed): {}", error),
-                        outcome,
-                    ));
+                    first_deny = Some((format!("hook failed (fail-closed): {}", error), outcome));
                 }
             }
             ClassifiedOutcome::Allow => { /* no-op */ }
@@ -270,7 +264,7 @@ pub fn aggregate_decision(
 /// * `event`     -- the [`HookEvent`] being triggered.
 /// * `input`     -- the [`HookInput`] to pass to every handler.
 /// * `handlers`  -- pre-filtered list of handlers (from the registry's
-///                  `get_matching` call).
+///   `get_matching` call).
 /// * `config`    -- dispatch configuration (concurrency, timeouts, policy).
 ///
 /// # Returns
@@ -381,10 +375,7 @@ pub async fn dispatch_hooks(
                         handler_label,
                         outcome: if fail_closed {
                             ClassifiedOutcome::Deny {
-                                reason: format!(
-                                    "hook timed out after {}s (fail-closed)",
-                                    timeout
-                                ),
+                                reason: format!("hook timed out after {}s (fail-closed)", timeout),
                             }
                         } else {
                             ClassifiedOutcome::Failed {
@@ -525,10 +516,7 @@ fn record_metrics(event_name: &str, result: &ClassifiedResult) {
 ///
 /// Each entry is keyed by `"event_name::handler_label"`.
 pub fn get_hook_metrics() -> HashMap<String, HookMetrics> {
-    HOOK_METRICS
-        .lock()
-        .expect("metrics lock poisoned")
-        .clone()
+    HOOK_METRICS.lock().expect("metrics lock poisoned").clone()
 }
 
 /// Return metrics for all handlers that match the given event name.

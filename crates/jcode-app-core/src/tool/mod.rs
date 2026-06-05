@@ -621,7 +621,9 @@ impl Registry {
         );
 
         // --- PreToolUse hook ---
-        let cwd = ctx.working_dir.as_ref()
+        let cwd = ctx
+            .working_dir
+            .as_ref()
             .map(|p| p.to_string_lossy().to_string())
             .unwrap_or_default();
         let hook_ctx = HookContext::for_tool(
@@ -643,16 +645,23 @@ impl Registry {
                     &hook_input,
                     &handlers,
                     &self.dispatch_config,
-                ).await;
+                )
+                .await;
                 if stats.any_denied() {
-                    let deny_reason = stats.results.iter()
+                    let deny_reason = stats
+                        .results
+                        .iter()
                         .find(|r| matches!(r.outcome, jcode_hooks::ClassifiedOutcome::Deny { .. }))
                         .map(|r| match &r.outcome {
                             jcode_hooks::ClassifiedOutcome::Deny { reason } => reason.clone(),
                             _ => String::new(),
                         })
                         .unwrap_or_else(|| "blocked by hook".to_string());
-                    return Err(anyhow::anyhow!("Tool '{}' blocked by hook: {}", resolved_name, deny_reason));
+                    return Err(anyhow::anyhow!(
+                        "Tool '{}' blocked by hook: {}",
+                        resolved_name,
+                        deny_reason
+                    ));
                 }
             }
         }
@@ -681,7 +690,8 @@ impl Registry {
                         &hook_input,
                         &handlers,
                         &self.dispatch_config,
-                    ).await;
+                    )
+                    .await;
                 }
                 drop(hook_registry);
                 output
@@ -689,7 +699,8 @@ impl Registry {
             Err(error) => {
                 // --- PostToolUseFailure hook ---
                 let hook_registry = self.hook_registry.read().await;
-                let handlers = hook_registry.get_matching(&HookEvent::PostToolUseFailure, &hook_ctx);
+                let handlers =
+                    hook_registry.get_matching(&HookEvent::PostToolUseFailure, &hook_ctx);
                 if !handlers.is_empty() {
                     let hook_input = HookInputBuilder::new()
                         .session(&ctx.session_id, &cwd)
@@ -703,7 +714,8 @@ impl Registry {
                         &hook_input,
                         &handlers,
                         &self.dispatch_config,
-                    ).await;
+                    )
+                    .await;
                 }
                 drop(hook_registry);
                 let mut fields =

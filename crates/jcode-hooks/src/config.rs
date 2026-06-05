@@ -106,7 +106,11 @@ impl HookEvent {
         if let Some(rest) = lower.strip_prefix("custom:") {
             let name = trimmed[7..].trim().to_string();
             // If nothing after "custom:", store an empty name.
-            return Some(Self::Custom(if name.is_empty() { rest.trim().to_string() } else { name }));
+            return Some(Self::Custom(if name.is_empty() {
+                rest.trim().to_string()
+            } else {
+                name
+            }));
         }
         if lower == "custom" {
             return Some(Self::Custom(String::new()));
@@ -602,21 +606,13 @@ impl Default for HookSettings {
 /// Loaded from TOML files via [`load_hooks_config`].  The `events` map uses
 /// PascalCase event names as keys (e.g. `"PreToolUse"`) and a vector of
 /// handler configs as values.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Default, Serialize)]
 pub struct HooksConfig {
     /// Global settings.
     pub settings: HookSettings,
     /// Event handlers keyed by event name.
+    #[serde(default)]
     pub events: HashMap<String, Vec<HookHandlerConfig>>,
-}
-
-impl Default for HooksConfig {
-    fn default() -> Self {
-        Self {
-            settings: HookSettings::default(),
-            events: HashMap::new(),
-        }
-    }
 }
 
 // Custom Deserialize to support both `event` and `events` TOML keys.
@@ -666,7 +662,10 @@ impl HooksConfig {
 
         // Events: append handlers.
         for (event_name, new_handlers) in other.events {
-            self.events.entry(event_name).or_default().extend(new_handlers);
+            self.events
+                .entry(event_name)
+                .or_default()
+                .extend(new_handlers);
         }
     }
 
@@ -779,22 +778,46 @@ mod tests {
     #[test]
     fn parse_pascal_case() {
         assert_eq!(HookEvent::parse("PreToolUse"), Some(HookEvent::PreToolUse));
-        assert_eq!(HookEvent::parse("PostToolUse"), Some(HookEvent::PostToolUse));
-        assert_eq!(HookEvent::parse("FileChanged"), Some(HookEvent::FileChanged));
-        assert_eq!(HookEvent::parse("AutoCompactionControl"), Some(HookEvent::AutoCompactionControl));
+        assert_eq!(
+            HookEvent::parse("PostToolUse"),
+            Some(HookEvent::PostToolUse)
+        );
+        assert_eq!(
+            HookEvent::parse("FileChanged"),
+            Some(HookEvent::FileChanged)
+        );
+        assert_eq!(
+            HookEvent::parse("AutoCompactionControl"),
+            Some(HookEvent::AutoCompactionControl)
+        );
     }
 
     #[test]
     fn parse_snake_case() {
-        assert_eq!(HookEvent::parse("pre_tool_use"), Some(HookEvent::PreToolUse));
-        assert_eq!(HookEvent::parse("post_tool_use_failure"), Some(HookEvent::PostToolUseFailure));
-        assert_eq!(HookEvent::parse("user_prompt_submit"), Some(HookEvent::UserPromptSubmit));
+        assert_eq!(
+            HookEvent::parse("pre_tool_use"),
+            Some(HookEvent::PreToolUse)
+        );
+        assert_eq!(
+            HookEvent::parse("post_tool_use_failure"),
+            Some(HookEvent::PostToolUseFailure)
+        );
+        assert_eq!(
+            HookEvent::parse("user_prompt_submit"),
+            Some(HookEvent::UserPromptSubmit)
+        );
     }
 
     #[test]
     fn parse_kebab_case() {
-        assert_eq!(HookEvent::parse("pre-tool-use"), Some(HookEvent::PreToolUse));
-        assert_eq!(HookEvent::parse("session-idle"), Some(HookEvent::SessionIdle));
+        assert_eq!(
+            HookEvent::parse("pre-tool-use"),
+            Some(HookEvent::PreToolUse)
+        );
+        assert_eq!(
+            HookEvent::parse("session-idle"),
+            Some(HookEvent::SessionIdle)
+        );
     }
 
     #[test]
@@ -807,7 +830,10 @@ mod tests {
 
     #[test]
     fn parse_with_spaces() {
-        assert_eq!(HookEvent::parse("Pre Tool Use"), Some(HookEvent::PreToolUse));
+        assert_eq!(
+            HookEvent::parse("Pre Tool Use"),
+            Some(HookEvent::PreToolUse)
+        );
     }
 
     #[test]
@@ -955,7 +981,10 @@ mod tests {
     #[test]
     fn name_uppercase() {
         assert_eq!(HookEvent::PreToolUse.name_uppercase(), "PRETOOLUSE");
-        assert_eq!(HookEvent::AutoCompactionControl.name_uppercase(), "AUTOCOMPACTIONCONTROL");
+        assert_eq!(
+            HookEvent::AutoCompactionControl.name_uppercase(),
+            "AUTOCOMPACTIONCONTROL"
+        );
     }
 
     #[test]
@@ -966,10 +995,7 @@ mod tests {
     #[test]
     fn display_trait() {
         assert_eq!(format!("{}", HookEvent::PreToolUse), "PreToolUse");
-        assert_eq!(
-            format!("{}", HookEvent::Custom("foo".to_string())),
-            "foo"
-        );
+        assert_eq!(format!("{}", HookEvent::Custom("foo".to_string())), "foo");
     }
 
     // -- parse_matcher_pattern -----------------------------------------------

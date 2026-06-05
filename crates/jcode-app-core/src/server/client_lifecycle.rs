@@ -60,7 +60,9 @@ use crate::transport::Stream;
 use anyhow::Result;
 use futures::FutureExt;
 use jcode_agent_runtime::{InterruptSignal, SoftInterruptSource, StreamError};
-use jcode_hooks::{ClassifiedOutcome, DispatchConfig, HookContext, HookEvent, HookInputBuilder, HookRegistry};
+use jcode_hooks::{
+    ClassifiedOutcome, DispatchConfig, HookContext, HookEvent, HookInputBuilder, HookRegistry,
+};
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::{

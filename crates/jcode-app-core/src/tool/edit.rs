@@ -153,11 +153,9 @@ impl Tool for EditTool {
                 let hook_config = load_hooks_config();
                 let hook_registry = HookRegistry::from_config(hook_config.clone());
                 let dispatch_config = DispatchConfig::from_settings(&hook_config.settings);
-                let mut hook_ctx =
-                    HookContext::new(&session_id, "", &cwd, "FileChanged");
+                let mut hook_ctx = HookContext::new(&session_id, "", &cwd, "FileChanged");
                 hook_ctx.file_path = Some(file_path.clone());
-                let handlers =
-                    hook_registry.get_matching(&HookEvent::FileChanged, &hook_ctx);
+                let handlers = hook_registry.get_matching(&HookEvent::FileChanged, &hook_ctx);
                 if !handlers.is_empty() {
                     let mut hook_input = HookInputBuilder::new()
                         .session(&session_id, &cwd)
