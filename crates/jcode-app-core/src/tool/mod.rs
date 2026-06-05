@@ -45,8 +45,9 @@ use anyhow::Result;
 use jcode_message_types::ToolDefinition;
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
-use std::sync::Arc;
-use std::sync::{LazyLock, RwLock as StdRwLock};
+#[cfg(feature = "dcp")]
+use std::sync::Mutex;
+use std::sync::{Arc, LazyLock, RwLock as StdRwLock};
 use tokio::sync::RwLock;
 
 pub(crate) use jcode_tool_core::intent_schema_property;
