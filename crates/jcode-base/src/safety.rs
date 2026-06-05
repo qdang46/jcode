@@ -28,6 +28,56 @@ fn dispatch_permission_notification(action: &str, description: &str, request_id:
     }
 }
 
+/// Callback for dispatching `PermissionAsked` hooks.
+///
+/// Args: `(action, request_id, session_id)`.
+/// Returns `true` if a hook pre-approved the permission.
+type PermissionAskedHookDispatcher = fn(&str, &str, &str) -> bool;
+
+static PERMISSION_ASKED_HOOK_DISPATCHER: OnceLock<PermissionAskedHookDispatcher> = OnceLock::new();
+
+/// Register the `PermissionAsked` hook dispatcher.
+///
+/// Called at startup by the app-core layer. The dispatcher fires
+/// `PermissionAsked` hooks and returns `true` if any hook pre-approved.
+pub fn register_permission_asked_hook_dispatcher(dispatcher: PermissionAskedHookDispatcher) {
+    let _ = PERMISSION_ASKED_HOOK_DISPATCHER.set(dispatcher);
+}
+
+fn dispatch_permission_asked_hooks(action: &str, request_id: &str, session_id: &str) -> bool {
+    if let Some(dispatcher) = PERMISSION_ASKED_HOOK_DISPATCHER.get() {
+        dispatcher(action, request_id, session_id)
+    } else {
+        false
+    }
+}
+
+/// Callback for dispatching `PermissionReplied` hooks.
+///
+/// Args: `(request_id, session_id, approved, via)`.
+type PermissionRepliedHookDispatcher = fn(&str, &str, bool, &str);
+
+static PERMISSION_REPLIED_HOOK_DISPATCHER: OnceLock<PermissionRepliedHookDispatcher> = OnceLock::new();
+
+/// Register the `PermissionReplied` hook dispatcher.
+///
+/// Called at startup by the app-core layer. The dispatcher fires
+/// `PermissionReplied` hooks as an observational event.
+pub fn register_permission_replied_hook_dispatcher(dispatcher: PermissionRepliedHookDispatcher) {
+    let _ = PERMISSION_REPLIED_HOOK_DISPATCHER.set(dispatcher);
+}
+
+fn dispatch_permission_replied_hooks(
+    request_id: &str,
+    session_id: &str,
+    approved: bool,
+    via: &str,
+) {
+    if let Some(dispatcher) = PERMISSION_REPLIED_HOOK_DISPATCHER.get() {
+        dispatcher(request_id, session_id, approved, via);
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Action classification
 // ---------------------------------------------------------------------------
@@ -184,10 +234,29 @@ impl SafetySystem {
     }
 
     /// Submit a permission request. Returns `Queued` with the request id.
+    ///
+    /// Before queuing, fires `PermissionAsked` hooks (blocking). If any hook
+    /// pre-approves (returns "allow"), the request is auto-approved and
+    /// `Approved` is returned without queuing or notifying.
     pub fn request_permission(&self, request: PermissionRequest) -> PermissionResult {
         let request_id = request.id.clone();
         let action = request.action.clone();
         let description = request.description.clone();
+        let session_id = request
+            .context
+            .as_ref()
+            .and_then(|c| c.get("session_id"))
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
+
+        // Fire PermissionAsked hooks (blocking, can pre-approve).
+        if dispatch_permission_asked_hooks(&action, &request_id, &session_id) {
+            // A hook pre-approved — auto-approve without queuing.
+            let _ = self.record_decision(&request_id, true, "hook_pre_approved", None);
+            return PermissionResult::Approved { message: None };
+        }
+
         if let Ok(mut q) = self.queue.lock() {
             q.push(request);
             let _ = persist_queue(&q);
@@ -240,6 +309,9 @@ impl SafetySystem {
     }
 
     /// Record a user decision (approve / deny) for a pending request.
+    ///
+    /// After recording, fires `PermissionReplied` hooks as an observational
+    /// event (fire-and-forget).
     pub fn record_decision(
         &self,
         request_id: &str,
@@ -247,6 +319,19 @@ impl SafetySystem {
         via: &str,
         message: Option<String>,
     ) -> Result<()> {
+        // Look up session_id from the queued request before removing it.
+        let session_id = if let Ok(q) = self.queue.lock() {
+            q.iter()
+                .find(|r| r.id == request_id)
+                .and_then(|r| r.context.as_ref())
+                .and_then(|c| c.get("session_id"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string()
+        } else {
+            String::new()
+        };
+
         // Remove from queue
         if let Ok(mut q) = self.queue.lock() {
             q.retain(|r| r.id != request_id);
@@ -265,6 +350,9 @@ impl SafetySystem {
             h.push(decision);
             let _ = persist_history(&h);
         }
+
+        // Fire PermissionReplied hooks (observational, fire-and-forget).
+        dispatch_permission_replied_hooks(request_id, &session_id, approved, via);
 
         Ok(())
     }

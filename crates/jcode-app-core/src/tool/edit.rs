@@ -2,6 +2,9 @@ use super::{Tool, ToolContext, ToolOutput};
 use crate::bus::{Bus, BusEvent, FileOp, FileTouch};
 use anyhow::Result;
 use async_trait::async_trait;
+use jcode_hooks::{
+    DispatchConfig, HookContext, HookEvent, HookInputBuilder, HookRegistry, load_hooks_config,
+};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use similar::{ChangeTag, TextDiff};
@@ -135,6 +138,44 @@ impl Tool for EditTool {
             )),
             detail,
         }));
+
+        // FileChanged hook (fire-and-forget, observational)
+        {
+            let session_id = ctx.session_id.clone();
+            let cwd = ctx
+                .working_dir
+                .as_ref()
+                .map(|p| p.to_string_lossy().to_string())
+                .unwrap_or_default();
+            let file_path = path.to_string_lossy().to_string();
+            let hook_diff = diff.clone();
+            tokio::spawn(async move {
+                let hook_config = load_hooks_config();
+                let hook_registry = HookRegistry::from_config(hook_config.clone());
+                let dispatch_config = DispatchConfig::from_settings(&hook_config.settings);
+                let mut hook_ctx =
+                    HookContext::new(&session_id, "", &cwd, "FileChanged");
+                hook_ctx.file_path = Some(file_path.clone());
+                let handlers =
+                    hook_registry.get_matching(&HookEvent::FileChanged, &hook_ctx);
+                if !handlers.is_empty() {
+                    let mut hook_input = HookInputBuilder::new()
+                        .session(&session_id, &cwd)
+                        .event("FileChanged")
+                        .build();
+                    hook_input.file_path = Some(file_path);
+                    hook_input.change_type = Some("modified".to_string());
+                    hook_input.diff = Some(hook_diff);
+                    let _ = jcode_hooks::dispatch_hooks(
+                        &HookEvent::FileChanged,
+                        &hook_input,
+                        &handlers,
+                        &dispatch_config,
+                    )
+                    .await;
+                }
+            });
+        }
 
         // Extract context around the edit to help with consecutive edits
         let end_line = start_line + params.new_string.lines().count().saturating_sub(1);

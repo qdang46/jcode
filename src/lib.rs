@@ -35,6 +35,7 @@ pub mod skill_disable;
 pub mod skill_distillation;
 pub mod theme;
 pub mod turborag;
+pub mod hooks;
 
 use anyhow::Result;
 

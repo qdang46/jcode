@@ -56,6 +56,55 @@ impl Agent {
             );
         }
 
+        // UserPromptSubmit hook — BLOCKING: can deny the prompt before it enters the conversation
+        {
+            let session_id = self.session.id.clone();
+            let cwd = self
+                .session
+                .working_dir
+                .clone()
+                .unwrap_or_default();
+            let hook_ctx = HookContext::new(
+                &session_id,
+                "",
+                &cwd,
+                "UserPromptSubmit",
+            );
+            let handlers = self.hook_registry.get_matching(
+                &HookEvent::UserPromptSubmit,
+                &hook_ctx,
+            );
+            if !handlers.is_empty() {
+                let hook_input = HookInputBuilder::new()
+                    .session(&session_id, &cwd)
+                    .event("UserPromptSubmit")
+                    .prompt(user_message)
+                    .build();
+                let stats = jcode_hooks::dispatch_hooks(
+                    &HookEvent::UserPromptSubmit,
+                    &hook_input,
+                    &handlers,
+                    &self.dispatch_config,
+                )
+                .await;
+                if stats.any_denied() {
+                    let deny_reason = stats
+                        .results
+                        .iter()
+                        .find(|r| matches!(r.outcome, jcode_hooks::ClassifiedOutcome::Deny { .. }))
+                        .map(|r| match &r.outcome {
+                            jcode_hooks::ClassifiedOutcome::Deny { reason } => reason.clone(),
+                            _ => String::new(),
+                        })
+                        .unwrap_or_else(|| "blocked by hook".to_string());
+                    return Err(anyhow::anyhow!(
+                        "Prompt blocked by hook: {}",
+                        deny_reason
+                    ));
+                }
+            }
+        }
+
         self.add_message(
             Role::User,
             vec![ContentBlock::Text {
@@ -109,6 +158,55 @@ impl Agent {
                 "Agent received message with {} image(s)",
                 blocks.len() - 1
             ));
+        }
+
+        // UserPromptSubmit hook — BLOCKING: can deny the prompt before it enters the conversation
+        {
+            let session_id = self.session.id.clone();
+            let cwd = self
+                .session
+                .working_dir
+                .clone()
+                .unwrap_or_default();
+            let hook_ctx = HookContext::new(
+                &session_id,
+                "",
+                &cwd,
+                "UserPromptSubmit",
+            );
+            let handlers = self.hook_registry.get_matching(
+                &HookEvent::UserPromptSubmit,
+                &hook_ctx,
+            );
+            if !handlers.is_empty() {
+                let hook_input = HookInputBuilder::new()
+                    .session(&session_id, &cwd)
+                    .event("UserPromptSubmit")
+                    .prompt(user_message)
+                    .build();
+                let stats = jcode_hooks::dispatch_hooks(
+                    &HookEvent::UserPromptSubmit,
+                    &hook_input,
+                    &handlers,
+                    &self.dispatch_config,
+                )
+                .await;
+                if stats.any_denied() {
+                    let deny_reason = stats
+                        .results
+                        .iter()
+                        .find(|r| matches!(r.outcome, jcode_hooks::ClassifiedOutcome::Deny { .. }))
+                        .map(|r| match &r.outcome {
+                            jcode_hooks::ClassifiedOutcome::Deny { reason } => reason.clone(),
+                            _ => String::new(),
+                        })
+                        .unwrap_or_else(|| "blocked by hook".to_string());
+                    return Err(anyhow::anyhow!(
+                        "Prompt blocked by hook: {}",
+                        deny_reason
+                    ));
+                }
+            }
         }
 
         self.add_message(Role::User, blocks);
@@ -594,6 +692,29 @@ impl Agent {
             "Session restored: {} messages in session",
             self.session.messages.len()
         ));
+
+        // Dispatch SessionUpdated hooks — session state changed to "active" via restore
+        {
+            let registry = self.hook_registry.clone();
+            let config = self.dispatch_config.clone();
+            let session_id = self.session.id.clone();
+            let cwd = self.session.working_dir.clone().unwrap_or_default();
+            let prev = previous_status.display().to_string();
+            let hook_input = HookInputBuilder::new()
+                .session(&session_id, &cwd)
+                .event("SessionUpdated")
+                .session_state(&prev, "active", "session_restored")
+                .build();
+            let ctx = HookContext::for_session_updated(session_id, cwd);
+            let event = HookEvent::SessionUpdated;
+            tokio::spawn(async move {
+                let handlers = registry.get_matching(&event, &ctx);
+                if !handlers.is_empty() {
+                    jcode_hooks::dispatch_hooks(&event, &hook_input, &handlers, &config).await;
+                }
+            });
+        }
+
         Ok(previous_status)
     }
 

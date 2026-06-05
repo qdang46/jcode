@@ -63,6 +63,7 @@ members = [
     "crates/jcode-mobile-core",
     "crates/jcode-mobile-sim",
     "crates/jcode-desktop",
+    "crates/jcode-hooks",
 ]
 
 # Local override: build against the fast_file_search main branch which
@@ -105,6 +106,9 @@ path = "src/bin/tui_bench.rs"
 required-features = ["dev-bins"]
 
 [dependencies]
+# Hook system for lifecycle events
+jcode-hooks = { path = "crates/jcode-hooks" }
+
 # Cross-provider session conversion engine (resume/import any provider -> jcode).
 # Pinned to a specific commit SHA on the upstream fork so the dependency is
 # reproducible and doesn't accidentally pick up in-flight changes. Bump the
@@ -160,6 +164,7 @@ similar = "2"            # diffing for edits
 dirs = "5"               # home directory
 anyhow = "1"
 thiserror = "1"
+strum = { version = "0.26", features = ["derive"] }
 libc = "0.2"             # Unix system calls (flock)
 chrono = { version = "0.4", features = ["serde"] }
 regex = "1"

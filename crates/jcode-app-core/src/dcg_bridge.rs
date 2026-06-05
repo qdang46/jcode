@@ -36,6 +36,7 @@ use std::path::PathBuf;
 use std::sync::{LazyLock, Mutex};
 
 use dcg_core::{Decision, Effect, Engine, EngineConfig, Mode, Session, ToolCall};
+use jcode_hooks::{DispatchConfig, HookContext, HookEvent, HookInputBuilder, HookRegistry};
 
 pub use crate::yolo_classifier::YoloClassifier;
 
@@ -189,6 +190,185 @@ pub fn classify_with_mode(action: &str, mode: Mode) -> BridgeDecision {
         Decision::Prompt { .. } => BridgeDecision::Prompt,
         Decision::Deny { .. } => BridgeDecision::Deny,
     }
+}
+
+/// Dispatch permission-related hooks after a bridge classification.
+///
+/// This is the integration point between dcg-core's permission decision and
+/// the jcode hooks v2 system. It fires the appropriate hook event based on the
+/// [`BridgeDecision`] so that user-configured hooks can observe or override
+/// permission outcomes.
+///
+/// # Behavior
+///
+/// - [`BridgeDecision::Prompt`]: Dispatches `PermissionRequest` hooks. If any
+///   hook returns a **deny** decision, this function returns `true` (meaning
+///   the caller should treat the request as blocked). Otherwise returns
+///   `false` (proceed with the normal prompt flow).
+/// - [`BridgeDecision::Deny`]: Dispatches `PermissionDenied` hooks as an
+///   **observational** event (fire-and-forget). Always returns `false` since
+///   the decision is already a denial.
+/// - [`BridgeDecision::Allow`]: No-op, returns `false`.
+///
+/// # Errors
+///
+/// Hook dispatch failures are logged to stderr but never propagated. A
+/// failing hook never blocks or changes the permission outcome.
+pub async fn dispatch_permission_hooks(
+    action: &str,
+    decision: BridgeDecision,
+    session_id: &str,
+    cwd: &str,
+) -> bool {
+    match decision {
+        BridgeDecision::Allow => return false,
+        BridgeDecision::Prompt | BridgeDecision::Deny => {}
+    }
+
+    let config = jcode_hooks::load_hooks_config();
+    if config.is_empty() {
+        return false;
+    }
+
+    let registry = HookRegistry::from_config(config.clone());
+
+    let (event, mut context) = match decision {
+        BridgeDecision::Prompt => (
+            HookEvent::PermissionRequest,
+            HookContext::new(session_id, "", cwd, "PermissionRequest"),
+        ),
+        BridgeDecision::Deny => (
+            HookEvent::PermissionDenied,
+            HookContext::new(session_id, "", cwd, "PermissionDenied"),
+        ),
+        BridgeDecision::Allow => unreachable!(),
+    };
+    let mode_name = format!("{:?}", current_mode());
+    context.tool_name = Some(action.to_string());
+    context.permission_mode = Some(mode_name.clone());
+
+    let handlers = registry.get_matching(&event, &context);
+    if handlers.is_empty() {
+        return false;
+    }
+
+    let input = HookInputBuilder::new()
+        .session(session_id, cwd)
+        .event(event.display_name())
+        .permission(&mode_name, "", action)
+        .build();
+
+    let dispatch_config = DispatchConfig::from_settings(&config.settings);
+    let stats =
+        jcode_hooks::dispatch_hooks(&event, &input, &handlers, &dispatch_config).await;
+
+    // For PermissionRequest: return true if any hook denied (blocks the prompt).
+    // For PermissionDenied: fire-and-forget, always return false.
+    if matches!(decision, BridgeDecision::Prompt) {
+        stats.any_denied()
+    } else {
+        false
+    }
+}
+
+/// Dispatch `PermissionAsked` hooks when a permission request is presented to
+/// the user.
+///
+/// This is a **blocking** event — hooks can return `"allow"` to pre-approve
+/// the permission (skipping the user prompt) or `"deny"` to block it.
+///
+/// # Returns
+///
+/// `true` if any hook pre-approved the permission (the caller should treat
+/// the request as auto-approved). `false` otherwise (proceed with normal
+/// prompt flow, or a hook denied).
+pub async fn dispatch_permission_asked_hooks(
+    action: &str,
+    request_id: &str,
+    session_id: &str,
+    cwd: &str,
+) -> bool {
+    let config = jcode_hooks::load_hooks_config();
+    if config.is_empty() {
+        return false;
+    }
+
+    let registry = HookRegistry::from_config(config.clone());
+    let mode_name = format!("{:?}", current_mode());
+
+    let context = HookContext::for_permission_asked(
+        action.to_string(),
+        session_id.to_string(),
+        mode_name.clone(),
+        request_id.to_string(),
+    );
+
+    let event = HookEvent::PermissionAsked;
+    let handlers = registry.get_matching(&event, &context);
+    if handlers.is_empty() {
+        return false;
+    }
+
+    let input = HookInputBuilder::new()
+        .session(session_id, cwd)
+        .event(event.display_name())
+        .permission(&mode_name, request_id, action)
+        .build();
+
+    let dispatch_config = DispatchConfig::from_settings(&config.settings);
+    let stats =
+        jcode_hooks::dispatch_hooks(&event, &input, &handlers, &dispatch_config).await;
+
+    // Return true if any hook explicitly allowed (pre-approve).
+    stats.allowed > 0
+}
+
+/// Dispatch `PermissionReplied` hooks after a permission decision is recorded.
+///
+/// This is an **observational** event — hooks cannot change the outcome.
+/// Fire-and-forget: failures are logged but never propagated.
+pub async fn dispatch_permission_replied_hooks(
+    request_id: &str,
+    session_id: &str,
+    approved: bool,
+    via: &str,
+) {
+    let config = jcode_hooks::load_hooks_config();
+    if config.is_empty() {
+        return;
+    }
+
+    let registry = HookRegistry::from_config(config.clone());
+
+    let mut context = HookContext::for_permission_replied(
+        request_id.to_string(),
+        session_id.to_string(),
+        approved,
+    );
+    // Populate permission_decision so hooks can see the outcome.
+    context.permission_mode = Some(via.to_string());
+
+    let event = HookEvent::PermissionReplied;
+    let handlers = registry.get_matching(&event, &context);
+    if handlers.is_empty() {
+        return;
+    }
+
+    let cwd = std::env::current_dir()
+        .map(|p| p.to_string_lossy().to_string())
+        .unwrap_or_default();
+
+    let input = HookInputBuilder::new()
+        .session(session_id, &cwd)
+        .event(event.display_name())
+        .permission(via, request_id, "")
+        .build();
+    // Populate permission_decision in the input.
+    let mut input = input;
+    input.permission_decision = Some(if approved { "approved" } else { "denied" }.to_string());
+
+    let dispatch_config = DispatchConfig::from_settings(&config.settings);
+    let _ = jcode_hooks::dispatch_hooks(&event, &input, &handlers, &dispatch_config).await;
 }
 
 /// Centralized list of action names that auto-allowed under jcode's

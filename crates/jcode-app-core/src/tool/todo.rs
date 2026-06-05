@@ -3,6 +3,9 @@ use crate::bus::{Bus, BusEvent, TodoEvent};
 use crate::todo::{TodoItem, load_todos, save_todos};
 use anyhow::Result;
 use async_trait::async_trait;
+use jcode_hooks::{
+    DispatchConfig, HookContext, HookEvent, HookInputBuilder, HookRegistry, load_hooks_config,
+};
 use serde::Deserialize;
 use serde_json::{Value, json};
 
@@ -85,12 +88,88 @@ impl Tool for TodoTool {
         };
         match params.todos {
             Some(todos) => {
+                let existing = load_todos(&ctx.session_id).unwrap_or_default();
+                let existing_ids: std::collections::HashSet<&str> =
+                    existing.iter().map(|t| t.id.as_str()).collect();
+                let completed_ids: std::collections::HashSet<&str> = existing
+                    .iter()
+                    .filter(|t| t.status == "completed")
+                    .map(|t| t.id.as_str())
+                    .collect();
+
                 save_todos(&ctx.session_id, &todos)?;
 
                 Bus::global().publish(BusEvent::TodoUpdated(TodoEvent {
                     session_id: ctx.session_id.clone(),
                     todos: todos.clone(),
                 }));
+
+                // Fire TaskCreated / TaskCompleted hooks (fire-and-forget, observational)
+                let session_id = ctx.session_id.clone();
+                let cwd = ctx
+                    .working_dir
+                    .as_ref()
+                    .map(|p| p.to_string_lossy().to_string())
+                    .unwrap_or_default();
+                let new_todos: Vec<TodoItem> = todos
+                    .iter()
+                    .filter(|t| !existing_ids.contains(t.id.as_str()))
+                    .cloned()
+                    .collect();
+                let newly_completed: Vec<TodoItem> = todos
+                    .iter()
+                    .filter(|t| {
+                        t.status == "completed" && !completed_ids.contains(t.id.as_str())
+                    })
+                    .cloned()
+                    .collect();
+                tokio::spawn(async move {
+                    let hook_config = load_hooks_config();
+                    let hook_registry = HookRegistry::from_config(hook_config.clone());
+                    let dispatch_config = DispatchConfig::from_settings(&hook_config.settings);
+
+                    for todo in &new_todos {
+                        let mut hook_ctx =
+                            HookContext::new(&session_id, "", &cwd, "TaskCreated");
+                        hook_ctx.task_id = Some(todo.id.clone());
+                        let handlers = hook_registry
+                            .get_matching(&HookEvent::TaskCreated, &hook_ctx);
+                        if !handlers.is_empty() {
+                            let hook_input = HookInputBuilder::new()
+                                .session(&session_id, &cwd)
+                                .event("TaskCreated")
+                                .build();
+                            let _ = jcode_hooks::dispatch_hooks(
+                                &HookEvent::TaskCreated,
+                                &hook_input,
+                                &handlers,
+                                &dispatch_config,
+                            )
+                            .await;
+                        }
+                    }
+
+                    for todo in &newly_completed {
+                        let mut hook_ctx =
+                            HookContext::new(&session_id, "", &cwd, "TaskCompleted");
+                        hook_ctx.task_id = Some(todo.id.clone());
+                        let handlers = hook_registry
+                            .get_matching(&HookEvent::TaskCompleted, &hook_ctx);
+                        if !handlers.is_empty() {
+                            let hook_input = HookInputBuilder::new()
+                                .session(&session_id, &cwd)
+                                .event("TaskCompleted")
+                                .build();
+                            let _ = jcode_hooks::dispatch_hooks(
+                                &HookEvent::TaskCompleted,
+                                &hook_input,
+                                &handlers,
+                                &dispatch_config,
+                            )
+                            .await;
+                        }
+                    }
+                });
 
                 let remaining = todos.iter().filter(|t| t.status != "completed").count();
                 Ok(ToolOutput::new(serde_json::to_string_pretty(&todos)?)
