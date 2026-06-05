@@ -2916,7 +2916,7 @@ pub(super) async fn process_message_streaming_mpsc(
         let error_msg = result
             .as_ref()
             .err()
-            .map(|e| crate::util::format_error_chain(e))
+            .map(crate::util::format_error_chain)
             .unwrap_or_else(|| "unknown error".to_string());
         {
             let registry = agent.hook_registry().clone();

@@ -47,6 +47,7 @@ use jcode_message_types::ToolDefinition;
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
+#[cfg(feature = "dcp")]
 use std::sync::Mutex;
 use std::sync::{LazyLock, RwLock as StdRwLock};
 use tokio::sync::RwLock;
