@@ -373,14 +373,13 @@ impl Agent {
                                 let _ = event_tx.send(ServerEvent::TextDelta { text: formatted });
                             }
                         }
-                        if store_reasoning_content {
-                            reasoning_content.push_str(&thinking_text);
-                        }
+                        // Always capture reasoning text so it can be persisted as a
+                        // history-only trace, regardless of provider replay support.
+                        reasoning_content.push_str(&thinking_text);
                     }
-                    StreamEvent::ThinkingDone { duration_secs } => {
+                    StreamEvent::ThinkingDone { duration_secs: _ } => {
                         if reasoning_fmt.is_open() {
-                            let closing = reasoning_fmt
-                                .finish(Some(&format!("*Thought for {:.1}s*", duration_secs)));
+                            let closing = reasoning_fmt.finish(None);
                             if !closing.is_empty() {
                                 let _ = event_tx.send(ServerEvent::TextDelta { text: closing });
                             }
@@ -440,6 +439,7 @@ impl Agent {
                             name,
                             input: serde_json::Value::Null,
                             intent: None,
+                            thought_signature: None,
                         });
                         current_tool_input.clear();
                     }
@@ -470,6 +470,15 @@ impl Agent {
                                 ));
                             }
                             current_tool_input.clear();
+                        }
+                    }
+                    StreamEvent::ToolUseSignature(signature) => {
+                        // Attach Gemini 3 thought signature to the most recent
+                        // tool call so it can be persisted and replayed.
+                        if let Some(tool) = tool_calls.last_mut() {
+                            if !signature.is_empty() {
+                                tool.thought_signature = Some(signature);
+                            }
                         }
                     }
                     StreamEvent::ToolResult {
@@ -814,21 +823,21 @@ impl Agent {
                     cache_control: None,
                 });
             }
+            crate::message::push_reasoning_blocks(
+                &mut content_blocks,
+                &provider_name,
+                &reasoning_content,
+                Some(&reasoning_signature),
+                store_reasoning_content,
+            );
             if store_reasoning_content {
-                crate::message::push_reasoning_content_block(
-                    &mut content_blocks,
-                    &provider_name,
-                    &reasoning_content,
-                    Some(&reasoning_signature),
-                );
                 content_blocks.extend(openai_reasoning_items.iter().cloned());
             }
             for tc in &tool_calls {
                 content_blocks.push(ContentBlock::ToolUse {
                     id: tc.id.clone(),
                     name: tc.name.clone(),
-                    input: tc.input.clone(),
-                });
+                    input: tc.input.clone(), thought_signature: None, });
             }
 
             let assistant_message_id = if !content_blocks.is_empty() {
@@ -1295,6 +1304,7 @@ mod tests {
             name: name.to_string(),
             input,
             intent: None,
+            thought_signature: None,
         }
     }
 

@@ -400,7 +400,7 @@ pub(super) fn write_osc52_clipboard_to(bytes: &[u8], mut writer: impl Write) -> 
 pub(super) fn effort_display_label(effort: &str) -> &str {
     match effort {
         "max" => "Max",
-        "xhigh" => "Max",
+        "xhigh" => "xHigh (Max)",
         "high" => "High",
         "medium" => "Medium",
         "low" => "Low",

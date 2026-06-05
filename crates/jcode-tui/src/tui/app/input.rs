@@ -19,6 +19,37 @@ use std::time::{Duration, Instant};
 
 const INPUT_SHELL_MAX_OUTPUT_LEN: usize = 30_000;
 
+/// Remove reasoning-marked lines from committed transcript text. Reasoning lines
+/// are wrapped in emphasis containing the invisible [`REASONING_SENTINEL`]
+/// (see `jcode_tui_markdown::reasoning_line_markup`). Trailing blank lines left
+/// behind are trimmed so the remaining answer renders cleanly.
+pub(super) fn strip_reasoning_lines(content: &str) -> String {
+    let sentinel = jcode_tui_markdown::REASONING_SENTINEL;
+    let mut out_lines: Vec<&str> = Vec::new();
+    for line in content.split('\n') {
+        if line.contains(sentinel) {
+            continue;
+        }
+        out_lines.push(line);
+    }
+    // Collapse runs of blank lines created by removed reasoning blocks, and trim
+    // leading/trailing blank lines.
+    let mut result = String::with_capacity(content.len());
+    let mut prev_blank = true; // suppress leading blanks
+    for line in out_lines {
+        let is_blank = line.trim().is_empty();
+        if is_blank && prev_blank {
+            continue;
+        }
+        if !result.is_empty() {
+            result.push('\n');
+        }
+        result.push_str(line);
+        prev_blank = is_blank;
+    }
+    result.trim_end().to_string()
+}
+
 pub(super) fn edit_input_in_external_editor(app: &mut App) {
     match edit_text_in_external_editor(&app.input) {
         Ok(edited) => {
@@ -2290,7 +2321,12 @@ pub(super) fn handle_pre_control_shortcuts(
     code: KeyCode,
     modifiers: KeyModifiers,
 ) -> bool {
+    // Plain Ctrl+K kills to end of line (emacs habit). Ctrl+Shift+K must fall
+    // through to the scroll handler: with the Kitty keyboard protocol enabled,
+    // terminals report Ctrl+Shift+K as Char('k') + CONTROL|SHIFT, so without the
+    // Shift guard this would swallow the scroll-up chord and wipe the draft.
     if modifiers.contains(KeyModifiers::CONTROL)
+        && !modifiers.contains(KeyModifiers::SHIFT)
         && matches!(code, KeyCode::Char('k'))
         && !app.input.is_empty()
     {
@@ -3156,14 +3192,13 @@ impl App {
         }
     }
 
-    /// Begin a reasoning region rendered as a dim-gutter markdown blockquote with
-    /// italic body text (no header). Idempotent while the region is open.
+    /// Begin a reasoning region. Reasoning renders as dim, italic text (no
+    /// blockquote gutter, no header, no footer). Idempotent while open.
     pub(super) fn open_reasoning_region(&mut self) {
         if self.reasoning_streaming {
             return;
         }
-        // Separate the reasoning block from any prior content with a blank line so
-        // the blockquote starts cleanly.
+        // Separate the reasoning block from any prior content with a blank line.
         if !self.streaming_text.is_empty() {
             if self.streaming_text.ends_with("\n\n") {
                 // already separated
@@ -3174,47 +3209,60 @@ impl App {
             }
         }
         self.reasoning_streaming = true;
+        self.reasoning_pending_line.clear();
     }
 
-    /// Append reasoning text into the open blockquote region, prefixing each line
-    /// (including blank lines) with `> ` so the whole span stays one quote block,
-    /// rendering with a dim `│` gutter.
+    /// Wrap one complete reasoning line as dim+italic markdown: an invisible
+    /// sentinel inside `*…*` that the renderer strips and styles dim, with no
+    /// gutter. Embedded markdown is escaped so the styling covers the whole line.
+    /// Empty lines are emitted as a bare newline (no empty emphasis run). Shared
+    /// with the server formatter via `jcode-tui-markdown`.
+    fn reasoning_line_markup(line: &str) -> String {
+        jcode_tui_markdown::reasoning_line_markup(line)
+    }
+
+    /// Append streamed reasoning text. Complete lines are emitted immediately as
+    /// dim+italic markdown; a trailing partial line is buffered until its newline
+    /// arrives so emphasis markers always wrap a whole line.
     pub(super) fn append_reasoning_text(&mut self, text: &str) {
         if text.is_empty() {
             return;
         }
-        let mut at_line_start =
-            self.streaming_text.is_empty() || self.streaming_text.ends_with('\n');
-        let mut out = String::with_capacity(text.len() + 8);
+        let mut out = String::new();
         for ch in text.chars() {
-            if at_line_start {
-                out.push_str("> ");
-                at_line_start = false;
-            }
-            out.push(ch);
             if ch == '\n' {
-                at_line_start = true;
+                let line = std::mem::take(&mut self.reasoning_pending_line);
+                out.push_str(&Self::reasoning_line_markup(&line));
+            } else {
+                self.reasoning_pending_line.push(ch);
             }
         }
-        self.append_streaming_text(&out);
+        if !out.is_empty() {
+            self.append_streaming_text(&out);
+        }
     }
 
-    /// Close the reasoning blockquote, optionally writing a footer line (e.g. the
-    /// elapsed `Thought for Xs`) inside the quote, then terminating it with a blank
-    /// line so subsequent output renders as normal text.
-    pub(super) fn close_reasoning_region(&mut self, footer: Option<String>) {
+    /// Flush any buffered partial reasoning line, then end the region. The
+    /// `_footer` argument is ignored (the "Thought for Xs" footer was removed);
+    /// it is kept for call-site compatibility.
+    pub(super) fn close_reasoning_region(&mut self, _footer: Option<String>) {
         if !self.reasoning_streaming {
             return;
         }
-        if !self.streaming_text.is_empty() && !self.streaming_text.ends_with('\n') {
-            self.append_streaming_text("\n");
-        }
-        if let Some(footer) = footer {
-            self.append_reasoning_text(&format!("{}\n", footer));
+        let pending = std::mem::take(&mut self.reasoning_pending_line);
+        if !pending.is_empty() {
+            let markup = Self::reasoning_line_markup(&pending);
+            self.append_streaming_text(&markup);
         }
         self.reasoning_streaming = false;
+        // Terminate the reasoning block with a blank line so following output
+        // renders as a normal paragraph.
         if !self.streaming_text.ends_with("\n\n") {
-            self.append_streaming_text("\n");
+            if self.streaming_text.ends_with('\n') {
+                self.append_streaming_text("\n");
+            } else {
+                self.append_streaming_text("\n\n");
+            }
         }
     }
 
@@ -3226,6 +3274,20 @@ impl App {
         self.refresh_split_view_if_needed();
     }
 
+    /// In `current` reasoning display mode, reasoning is shown live but collapsed
+    /// once the assistant commits a message or runs a tool. Strip any
+    /// reasoning-marked lines (identified by [`REASONING_SENTINEL`]) from text
+    /// about to be committed to the transcript. Other modes pass through.
+    pub(super) fn collapse_reasoning_for_commit(&self, content: String) -> String {
+        if !matches!(
+            crate::config::config().display.reasoning_display(),
+            crate::config::ReasoningDisplayMode::Current
+        ) {
+            return content;
+        }
+        strip_reasoning_lines(&content)
+    }
+
     pub(super) fn replace_streaming_text(&mut self, text: String) {
         self.streaming_text = text;
         self.refresh_split_view_if_needed();
@@ -3235,6 +3297,7 @@ impl App {
         self.streaming_text.clear();
         self.stream_message_ended = false;
         self.reasoning_streaming = false;
+        self.reasoning_pending_line.clear();
         self.refresh_split_view_if_needed();
         self.streaming_md_renderer.borrow_mut().reset();
         crate::tui::mermaid::clear_streaming_preview_diagram();
@@ -3244,6 +3307,7 @@ impl App {
         let content = std::mem::take(&mut self.streaming_text);
         self.stream_message_ended = false;
         self.reasoning_streaming = false;
+        self.reasoning_pending_line.clear();
         self.refresh_split_view_if_needed();
         self.streaming_md_renderer.borrow_mut().reset();
         crate::tui::mermaid::clear_streaming_preview_diagram();
@@ -3261,6 +3325,12 @@ impl App {
         }
 
         let content = self.take_streaming_text();
+        let content = self.collapse_reasoning_for_commit(content);
+        if content.trim().is_empty() {
+            // Nothing left after collapsing reasoning-only content.
+            self.stream_buffer.clear();
+            return false;
+        }
         self.push_display_message(DisplayMessage::assistant(content));
         self.stream_buffer.clear();
         true
@@ -3354,6 +3424,7 @@ impl App {
             || super::debug::handle_debug_command(self, trimmed)
             || super::model_context::handle_model_command(self, trimmed)
             || super::commands::handle_usage_command(self, trimmed)
+            || super::productivity::handle_productivity_command(self, trimmed)
             || super::commands::handle_feedback_command(self, trimmed)
             || super::state_ui::handle_info_command(self, trimmed)
             || super::auth::handle_auth_command(self, trimmed)

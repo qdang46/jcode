@@ -393,7 +393,7 @@ pub fn render_html(session: &crate::session::Session) -> String {
                         ));
                     }
                 }
-                ContentBlock::Reasoning { text } => {
+                ContentBlock::Reasoning { text } | ContentBlock::ReasoningTrace { text } => {
                     let trimmed = text.trim();
                     if !trimmed.is_empty() {
                         out.push_str(&format!(
@@ -489,7 +489,7 @@ fn render_stored_message(out: &mut String, idx: usize, msg: &crate::session::Sto
                     out.push_str("\n\n");
                 }
             }
-            ContentBlock::Reasoning { text } => {
+            ContentBlock::Reasoning { text } | ContentBlock::ReasoningTrace { text } => {
                 let trimmed = text.trim();
                 if !trimmed.is_empty() {
                     out.push_str("<details><summary>thinking</summary>\n\n");
