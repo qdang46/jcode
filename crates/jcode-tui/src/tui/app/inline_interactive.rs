@@ -1771,10 +1771,9 @@ impl App {
                     provider_slug,
                     session_id,
                     ..
-                } => crate::casr_adapter::imported_session_id_for_provider(
-                    &provider_slug,
-                    session_id,
-                ),
+                } => {
+                    crate::casr_adapter::imported_session_id_for_provider(provider_slug, session_id)
+                }
             };
 
             match spawn_resume_target_in_new_terminal(target, &cwd, socket.as_deref()) {
@@ -1892,7 +1891,7 @@ impl App {
                 provider_slug,
                 session_id,
                 ..
-            } => crate::casr_adapter::imported_session_id_for_provider(&provider_slug, session_id),
+            } => crate::casr_adapter::imported_session_id_for_provider(provider_slug, session_id),
         };
 
         // The resolved target is a jcode session id (either native for
