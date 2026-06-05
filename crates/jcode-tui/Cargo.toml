@@ -39,8 +39,15 @@ serde_json = { version = "1", features = ["raw_value"] }
 
 # Utilities
 anyhow = "1"
+thiserror = "1"
+# Resolved by [workspace.dependencies] in the root Cargo.toml to point at
+# the fast_file_search main branch (carries the @-mention system).
+ffs-search.workspace = true
 libc = "0.2"
 chrono = { version = "0.4", features = ["serde"] }
+
+# DCG permission modes (experiment/dcg-permission-modes)
+dcg-core = { git = "https://github.com/quangdang46/destructive_command_guard", branch = "main" }
 regex = "1"
 dirs = "5"
 similar = "2"
@@ -71,6 +78,8 @@ jcode-session-types = { path = "../jcode-session-types" }
 jcode-provider-core = { path = "../jcode-provider-core" }
 jcode-tui-markdown = { path = "../jcode-tui-markdown" }
 jcode-tui-messages = { path = "../jcode-tui-messages" }
+# Phase B: payload resolution for the @-mention system.
+ffs-engine.workspace = true
 jcode-tui-core = { path = "../jcode-tui-core" }
 jcode-tui-mermaid = { path = "../jcode-tui-mermaid" }
 jcode-tui-account-picker = { path = "../jcode-tui-account-picker" }
@@ -94,6 +103,8 @@ jemalloc = ["jcode-app-core/jemalloc"]
 jemalloc-prof = ["jcode-app-core/jemalloc-prof"]
 embeddings = ["jcode-app-core/embeddings"]
 pdf = ["jcode-app-core/pdf"]
+# Forward DCP feature to app-core.
+dcp = ["jcode-app-core/dcp"]
 mmdr-size-api = ["jcode-tui-mermaid/mmdr-size-api"]
 # Forwards the application core's `test-support` feature (and onward to
 # jcode-base) so downstream crates' test targets can reach the whole stack's
@@ -104,6 +115,8 @@ test-support = ["jcode-app-core/test-support"]
 # Enables the downstream test-support helpers for *this* crate's own test
 # target. Feature unification applies this only to test/bench/example builds.
 jcode-app-core = { path = "../jcode-app-core", features = ["test-support"] }
+# Used by the test module in `state_ui_messages.rs` for the `Role` enum.
+jcode-message-types = { path = "../jcode-message-types" }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 global-hotkey = "0.7"

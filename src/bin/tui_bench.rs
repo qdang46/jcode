@@ -1066,6 +1066,10 @@ impl TuiState for BenchState {
         40
     }
 
+    fn diagram_pane_ratio_user_adjusted(&self) -> bool {
+        false
+    }
+
     fn diagram_pane_animating(&self) -> bool {
         false
     }

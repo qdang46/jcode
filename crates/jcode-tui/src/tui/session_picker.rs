@@ -551,6 +551,11 @@ impl SessionPicker {
             ResumeTarget::OpenCodeSession { .. } => external_path.as_deref().and_then(|path| {
                 loading::load_opencode_preview_from_path(std::path::Path::new(path))
             }),
+            // Foreign providers: we don't have a generic preview loader
+            // (each provider has its own transcript format). The TUI
+            // falls back to the metadata-only preview that the
+            // SessionInfo already carries.
+            ResumeTarget::ForeignSession { .. } => None,
         }
     }
 

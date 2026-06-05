@@ -109,14 +109,11 @@ impl App {
                 || (!is_explicit_openai_oauth
                     && auth_status.openai_has_api_key
                     && !auth_status.openai_has_oauth)
-        } else if provider_name.contains("bedrock")
-            || provider_name.contains("azure-openai")
-            || crate::provider_catalog::openai_compatible_profile_by_id(provider_name.trim())
-                .is_some_and(|profile| profile.requires_api_key)
-        {
-            true
         } else {
-            false
+            provider_name.contains("bedrock")
+                || provider_name.contains("azure-openai")
+                || crate::provider_catalog::openai_compatible_profile_by_id(provider_name.trim())
+                    .is_some_and(|profile| profile.requires_api_key)
         };
 
         if !billed_per_token {
@@ -159,15 +156,15 @@ impl App {
             return;
         }
 
-        if is_anthropic {
-            if let Some(estimate) = jcode_provider_core::pricing::anthropic_api_pricing(&model) {
-                let per_mtok = |micros: Option<u64>| micros.map(|m| m as f32 / 1_000_000.0);
-                self.cached_prompt_price = per_mtok(estimate.input_price_per_mtok_micros);
-                self.cached_completion_price = per_mtok(estimate.output_price_per_mtok_micros);
-                self.cached_cache_read_price = per_mtok(estimate.cache_read_price_per_mtok_micros);
-                self.cached_price_model = Some(model);
-                return;
-            }
+        if is_anthropic
+            && let Some(estimate) = jcode_provider_core::pricing::anthropic_api_pricing(&model)
+        {
+            let per_mtok = |micros: Option<u64>| micros.map(|m| m as f32 / 1_000_000.0);
+            self.cached_prompt_price = per_mtok(estimate.input_price_per_mtok_micros);
+            self.cached_completion_price = per_mtok(estimate.output_price_per_mtok_micros);
+            self.cached_cache_read_price = per_mtok(estimate.cache_read_price_per_mtok_micros);
+            self.cached_price_model = Some(model);
+            return;
         }
 
         // Unknown model: leave existing defaults in place but remember the model

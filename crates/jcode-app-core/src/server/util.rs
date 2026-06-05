@@ -80,7 +80,7 @@ pub(crate) fn reload_exec_target(is_selfdev_session: bool) -> Option<(PathBuf, &
     let current_canonical = current_exe.as_ref().map(|p| canonicalize_or(p.clone()));
 
     let mtime = |path: &Path| std::fs::metadata(path).ok().and_then(|m| m.modified().ok());
-    let current_mtime = current_exe.as_ref().map(|p| p.as_path()).and_then(mtime);
+    let current_mtime = current_exe.as_deref().and_then(mtime);
     let candidate_mtime = mtime(candidate_canonical.as_path());
 
     match guarded_reload_target(
