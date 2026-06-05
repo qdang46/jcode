@@ -2558,6 +2558,41 @@ pub(super) fn handle_modal_key(
         return Ok(true);
     }
 
+    if let Some(ref popup_cell) = app.experiment_popup {
+        use crate::tui::experiment_popup::ExperimentPopupAction;
+        let action = {
+            let mut popup = popup_cell.borrow_mut();
+            popup.handle_key(code)
+        };
+        match action {
+            ExperimentPopupAction::Cancel => {
+                app.experiment_popup = None;
+            }
+            ExperimentPopupAction::Apply { changes } => {
+                let mut applied = 0usize;
+                for (key, enabled) in &changes {
+                    let result = if *enabled {
+                        super::commands::handle_experiment_enable_local(app, key)
+                    } else {
+                        super::commands::handle_experiment_disable_local(app, key)
+                    };
+                    if result.is_ok() {
+                        applied += 1;
+                    }
+                }
+                if !changes.is_empty() {
+                    app.push_display_message(jcode_tui_messages::DisplayMessage::system(format!(
+                        "Applied {} experiment flag change(s).",
+                        applied
+                    )));
+                }
+                app.experiment_popup = None;
+            }
+            ExperimentPopupAction::Continue => {}
+        }
+        return Ok(true);
+    }
+
     if app.copy_selection_mode {
         if modifiers.contains(KeyModifiers::CONTROL)
             && matches!(code, KeyCode::Char('c') | KeyCode::Char('d'))
@@ -3452,6 +3487,7 @@ impl App {
             || super::commands::handle_feedback_command(self, trimmed)
             || super::state_ui::handle_info_command(self, trimmed)
             || super::auth::handle_auth_command(self, trimmed)
+            || super::commands::handle_experimental_command(self, trimmed)
             || super::tui_lifecycle_runtime::handle_dev_command(self, trimmed);
         if handled {
             if trimmed.starts_with('/') {

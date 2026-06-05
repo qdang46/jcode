@@ -3659,3 +3659,38 @@ pub(super) fn handle_dcp_command(app: &mut App, trimmed: &str) -> bool {
 #[cfg(test)]
 #[path = "commands_tests.rs"]
 mod tests;
+
+/// Handle /experimental command: open the experiment flags popup.
+pub(super) fn handle_experimental_command(app: &mut App, trimmed: &str) -> bool {
+    if trimmed != "/experimental" && trimmed != "/experiments" {
+        return false;
+    }
+
+    let popup = crate::tui::experiment_popup::ExperimentPopupState::from_config();
+    if popup.is_empty() {
+        app.push_display_message(DisplayMessage::system(
+            "No experimental features available at this time.".to_string(),
+        ));
+        return true;
+    }
+    app.experiment_popup = Some(std::cell::RefCell::new(popup));
+    true
+}
+
+/// Enable an experiment flag in the local config (used by TUI popup apply).
+pub(super) fn handle_experiment_enable_local(_app: &mut App, key: &str) -> anyhow::Result<()> {
+    let mut config = crate::config::Config::load();
+    config.experiments.entries.insert(key.to_string(), true);
+    config.save()?;
+    crate::config::invalidate_config_cache();
+    Ok(())
+}
+
+/// Disable an experiment flag in the local config (used by TUI popup apply).
+pub(super) fn handle_experiment_disable_local(_app: &mut App, key: &str) -> anyhow::Result<()> {
+    let mut config = crate::config::Config::load();
+    config.experiments.entries.insert(key.to_string(), false);
+    config.save()?;
+    crate::config::invalidate_config_cache();
+    Ok(())
+}

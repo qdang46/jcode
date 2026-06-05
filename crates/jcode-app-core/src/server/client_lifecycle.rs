@@ -421,7 +421,12 @@ pub(super) async fn handle_client(
     let registry = Registry::new(provider.clone(), crate::tool::shared_agent_registry()).await;
     let registry_ms = t0.elapsed().as_millis();
 
-    let mut swarm_enabled = crate::config::config().features.swarm;
+    // Gate swarm coordination on the SwarmCoordination experiment flag.
+    // Falls back to the legacy features.swarm value if the experiment is not set.
+    let mut swarm_enabled = jcode_experiment_flags::Experiments::from_config(
+        &crate::config::config().experiments.entries,
+    )
+    .check(jcode_experiment_flags::ExperimentFlag::SwarmCoordination);
     let mut last_available_models_snapshot: Option<String> = None;
     const MAX_LIVE_AVAILABLE_MODELS_UPDATE_BYTES: usize = 64 * 1024;
 
@@ -2407,6 +2412,40 @@ pub(super) async fn handle_client(
                     },
                 )
                 .await;
+            }
+
+            Request::ExperimentList { id: _ } => {
+                let config = crate::config::config();
+                let experiments =
+                    jcode_experiment_flags::Experiments::from_config(&config.experiments.entries);
+                let states = experiments.all_flag_states();
+                let flags: Vec<jcode_protocol::ExperimentFlagWire> = states
+                    .iter()
+                    .map(|s| jcode_protocol::ExperimentFlagWire {
+                        flag: format!("{:?}", s.flag),
+                        key: s.key.to_string(),
+                        stage: format!("{:?}", s.stage),
+                        enabled: s.enabled,
+                        default_enabled: s.default_enabled,
+                    })
+                    .collect();
+                let _ = client_event_tx.send(ServerEvent::ExperimentFlags { flags });
+            }
+
+            Request::ExperimentSet { id, key, enabled } => {
+                let mut config = crate::config::Config::load();
+                config.experiments.entries.insert(key, enabled);
+                if let Err(e) = config.save() {
+                    crate::logging::error(&format!("Failed to save experiment config: {e}"));
+                    let _ = client_event_tx.send(ServerEvent::Error {
+                        id,
+                        message: format!("Failed to save experiment config: {e}"),
+                        retry_after_secs: None,
+                    });
+                } else {
+                    crate::config::invalidate_config_cache();
+                    let _ = client_event_tx.send(ServerEvent::Done { id });
+                }
             }
 
             // These are handled via channels, not direct requests from TUI

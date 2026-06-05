@@ -775,6 +775,18 @@ impl Default for FeatureConfig {
     }
 }
 
+/// Experiment flags section in config.toml — dynamically keyed.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(default)]
+pub struct ExperimentConfig {
+    /// Dynamic experiment flag entries, e.g.:
+    /// [experiments]
+    /// hooks_v2 = true
+    /// js_plugins = false
+    #[serde(flatten)]
+    pub entries: BTreeMap<String, bool>,
+}
+
 /// Search engine used by the websearch tool.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash, Default)]
 #[serde(rename_all = "lowercase")]

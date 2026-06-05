@@ -9,6 +9,7 @@ autobins = false
 members = [
     ".",
     "crates/jcode-agent-runtime",
+    "crates/jcode-experiment-flags",
     "crates/jcode-app-core",
     "crates/jcode-base",
     "crates/jcode-tui",
@@ -77,6 +78,7 @@ members = [
 [workspace.dependencies]
 ffs-search = { git = "https://github.com/quangdang46/fast_file_search", rev = "4cd7f27" }
 ffs-engine = { git = "https://github.com/quangdang46/fast_file_search", rev = "4cd7f27" }
+strum = { version = "0.26", features = ["derive"] }
 
 [lib]
 name = "jcode"
@@ -253,6 +255,7 @@ jcode-task-types = { path = "crates/jcode-task-types" }
 jcode-tool-core = { path = "crates/jcode-tool-core" }
 jcode-tool-types = { path = "crates/jcode-tool-types" }
 jcode-side-panel-types = { path = "crates/jcode-side-panel-types" }
+jcode-experiment-flags = { path = "crates/jcode-experiment-flags" }
 
 # Archive extraction (for auto-update)
 flate2 = "1"

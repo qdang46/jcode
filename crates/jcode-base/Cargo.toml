@@ -126,6 +126,7 @@ jcode-build-support = { path = "../jcode-build-support" }
 jcode-build-meta = { path = "../jcode-build-meta" }
 jcode-compaction-core = { path = "../jcode-compaction-core" }
 jcode-config-types = { path = "../jcode-config-types" }
+jcode-experiment-flags = { path = "../jcode-experiment-flags" }
 jcode-core = { path = "../jcode-core" }
 jcode-memory-types = { path = "../jcode-memory-types" }
 jcode-message-types = { path = "../jcode-message-types" }

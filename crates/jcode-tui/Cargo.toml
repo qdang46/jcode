@@ -91,6 +91,7 @@ jcode-tui-usage-overlay = { path = "../jcode-tui-usage-overlay" }
 jcode-terminal-image = { path = "../jcode-terminal-image" }
 jcode-productivity-core = { path = "../jcode-productivity-core" }
 jcode-tui-workspace = { path = "../jcode-tui-workspace" }
+jcode-experiment-flags = { path = "../jcode-experiment-flags" }
 
 [features]
 default = ["pdf", "embeddings"]

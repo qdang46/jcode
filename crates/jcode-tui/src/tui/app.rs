@@ -1143,6 +1143,8 @@ pub struct App {
     account_picker_overlay: Option<RefCell<super::account_picker::AccountPicker>>,
     /// Usage overlay (None = not visible)
     usage_overlay: Option<RefCell<super::usage_overlay::UsageOverlay>>,
+    /// Experiment flags popup overlay (None = not visible)
+    experiment_popup: Option<RefCell<super::experiment_popup::ExperimentPopupState>>,
     /// Whether a usage refresh request is currently in flight.
     usage_report_refreshing: bool,
     /// Whether a `/productivity` report generation is currently in flight.

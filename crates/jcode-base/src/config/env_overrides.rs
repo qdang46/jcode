@@ -311,6 +311,9 @@ impl Config {
         if let Ok(v) = std::env::var("JCODE_SWARM_ENABLED") {
             if let Some(parsed) = parse_env_bool(&v) {
                 self.features.swarm = parsed;
+                self.experiments
+                    .entries
+                    .insert("swarm".to_string(), parsed);
             }
         }
         if let Ok(v) = std::env::var("JCODE_MESSAGE_TIMESTAMPS") {
@@ -321,6 +324,9 @@ impl Config {
         if let Ok(v) = std::env::var("JCODE_PERSIST_MEMORY_INJECTIONS") {
             if let Some(parsed) = parse_env_bool(&v) {
                 self.features.persist_memory_injections = parsed;
+                self.experiments
+                    .entries
+                    .insert("persist_memory_injections".to_string(), parsed);
             }
         }
         if let Ok(v) = std::env::var("JCODE_UPDATE_CHANNEL") {
@@ -661,6 +667,31 @@ impl Config {
             if let Ok(parsed) = v.trim().parse::<u64>() {
                 if parsed > 0 {
                     self.provider.stream_idle_timeout_secs = parsed;
+                }
+            }
+        }
+
+        // Experiment flags: JCODE_EXPERIMENTS overrides config
+        // Format: comma-separated key=value pairs
+        if let Ok(raw) = std::env::var("JCODE_EXPERIMENTS") {
+            for pair in raw.split(',') {
+                let pair = pair.trim();
+                if let Some((key, value)) = pair.split_once('=') {
+                    let key = key.trim().to_string();
+                    if let Some(val) = parse_env_bool(value.trim()) {
+                        self.experiments.entries.insert(key, val);
+                    }
+                }
+            }
+        }
+
+        // Individual experiment flag env vars (higher priority than JCODE_EXPERIMENTS)
+        // JCODE_DCP_ENABLED, JCODE_SWARM, JCODE_HOOKS_V2, etc.
+        for spec in jcode_experiment_flags::EXPERIMENT_FLAGS {
+            let env_key = format!("JCODE_{}", spec.key.to_uppercase());
+            if let Ok(raw) = std::env::var(&env_key) {
+                if let Some(val) = parse_env_bool(&raw) {
+                    self.experiments.entries.insert(spec.key.to_string(), val);
                 }
             }
         }

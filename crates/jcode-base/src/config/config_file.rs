@@ -58,6 +58,16 @@ impl Config {
             anyhow::anyhow!("Failed to parse config file {}: {}", path.display(), e)
         })?;
         config.display.apply_legacy_compat();
+        // Migrate legacy [features] toggles into [experiments] for users who
+        // haven't yet updated their config. Non-default values are propagated
+        // so behavior is preserved across the FeatureConfig -> ExperimentConfig
+        // transition.
+        jcode_experiment_flags::migrate_feature_legacy_into(
+            &mut config.experiments.entries,
+            Some(config.features.dcp_enabled),
+            Some(config.features.swarm),
+            Some(config.features.persist_memory_injections),
+        );
         Ok(Some(config))
     }
 

@@ -558,7 +558,12 @@ impl Agent {
         memory: &crate::memory::PendingMemory,
     ) -> (Message, bool) {
         let message = Self::memory_injection_message(memory);
-        let persist = crate::config::config().features.persist_memory_injections;
+        let persist = {
+            let config = crate::config::config();
+            let experiments =
+                jcode_experiment_flags::Experiments::from_config(&config.experiments.entries);
+            experiments.check(jcode_experiment_flags::ExperimentFlag::PersistMemoryInjection)
+        };
         if persist {
             self.add_message_with_display_role(
                 Role::User,

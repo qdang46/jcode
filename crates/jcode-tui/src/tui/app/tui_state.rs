@@ -1475,6 +1475,12 @@ impl crate::tui::TuiState for App {
         self.usage_overlay.as_ref()
     }
 
+    fn experiment_popup(
+        &self,
+    ) -> Option<&RefCell<crate::tui::experiment_popup::ExperimentPopupState>> {
+        self.experiment_popup.as_ref()
+    }
+
     fn working_dir(&self) -> Option<String> {
         self.session.working_dir.clone()
     }

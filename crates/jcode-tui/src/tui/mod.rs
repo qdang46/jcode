@@ -17,6 +17,7 @@ mod core;
 // so existing `crate::tui::image` / `crate::tui::image_metadata` paths keep working.
 pub use jcode_terminal_image::display as image;
 use jcode_terminal_image::metadata as image_metadata;
+pub mod experiment_popup;
 pub mod info_widget;
 mod info_widget_layout;
 mod info_widget_overview;
@@ -346,6 +347,12 @@ pub trait TuiState {
     fn account_picker_overlay(&self) -> Option<&std::cell::RefCell<account_picker::AccountPicker>>;
     /// Usage overlay for /usage command
     fn usage_overlay(&self) -> Option<&std::cell::RefCell<usage_overlay::UsageOverlay>>;
+    /// Experiment flags popup for /experimental command
+    fn experiment_popup(
+        &self,
+    ) -> Option<&std::cell::RefCell<experiment_popup::ExperimentPopupState>> {
+        None
+    }
     /// Working directory for this session
     fn working_dir(&self) -> Option<String>;
     /// Monotonic clock for viewport animations

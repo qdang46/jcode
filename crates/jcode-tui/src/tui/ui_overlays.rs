@@ -622,3 +622,96 @@ fn color_to_rgb(color: Color) -> Option<[u8; 3]> {
         _ => None,
     }
 }
+
+pub(super) fn draw_experiment_popup(frame: &mut Frame, area: Rect, app: &dyn TuiState) {
+    use jcode_experiment_flags::Stage;
+
+    clear_area(frame, area);
+
+    let popup = match app.experiment_popup() {
+        Some(p) => p,
+        None => return,
+    };
+    let popup = popup.borrow();
+    let entries = popup.entries();
+    let selected = popup.selected();
+
+    let check_style = Style::default().fg(rgb(120, 220, 150));
+    let uncheck_style = Style::default().fg(dim_color());
+    let selected_style = Style::default().bg(rgb(38, 42, 56));
+    let title_style = Style::default()
+        .fg(accent_color())
+        .add_modifier(Modifier::BOLD);
+    let name_style = Style::default().fg(rgb(230, 230, 240));
+    let desc_style = Style::default().fg(rgb(150, 150, 165));
+    let stage_style = Style::default().fg(rgb(200, 180, 120));
+    let dim_style = Style::default().fg(dim_color());
+
+    let mut lines: Vec<Line<'static>> = Vec::new();
+    lines.push(Line::from(Span::styled(
+        "  Experimental Features",
+        title_style,
+    )));
+    lines.push(Line::from(Span::styled(
+        "  Toggle features on/off. Changes are saved to config.",
+        dim_style,
+    )));
+    lines.push(Line::from(""));
+
+    for (i, entry) in entries.iter().enumerate() {
+        let checkbox = if entry.enabled() { "☑" } else { "☐" };
+        let cb_style = if entry.enabled() {
+            check_style
+        } else {
+            uncheck_style
+        };
+        let stage_label = match entry.stage() {
+            Stage::Experimental { .. } => "experimental",
+            Stage::UnderDevelopment => "dev",
+            _ => "",
+        };
+
+        let is_selected = i == selected;
+        let bg = if is_selected {
+            selected_style
+        } else {
+            Style::default()
+        };
+
+        let mut spans = vec![
+            Span::styled(if is_selected { " > " } else { "   " }, dim_style.patch(bg)),
+            Span::styled(format!("{checkbox} "), cb_style.patch(bg)),
+            Span::styled(entry.name().to_string(), name_style.patch(bg)),
+        ];
+        if !stage_label.is_empty() {
+            spans.push(Span::styled(
+                format!(" [{stage_label}]"),
+                stage_style.patch(bg),
+            ));
+        }
+        spans.push(Span::styled(
+            format!(" — {}", entry.description()),
+            desc_style.patch(bg),
+        ));
+        lines.push(Line::from(spans));
+    }
+
+    lines.push(Line::from(""));
+    lines.push(Line::from(Span::styled(
+        "  Space toggle · Enter apply · Esc cancel · j/k scroll",
+        dim_style,
+    )));
+
+    let block = Block::default()
+        .title(Span::styled(
+            " /experimental ",
+            Style::default()
+                .fg(accent_color())
+                .add_modifier(Modifier::BOLD),
+        ))
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(dim_color()));
+
+    let paragraph = Paragraph::new(lines).block(block).scroll((0, 0));
+    frame.render_widget(paragraph, area);
+}

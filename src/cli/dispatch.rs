@@ -7,8 +7,9 @@ use std::time::Instant;
 
 use super::args::{
     AmbientCommand, Args, AuthCommand, CloudCommand, CloudSessionsCommand, Command,
-    ExportFormatArg, McpCommand, MemoryCommand, ModelCommand, PromptsCommand, ProviderCommand,
-    RestartCommand, ServerCommand, SessionCommand, SkillsCommand, TranscriptModeArg,
+    ExperimentCommand, ExportFormatArg, McpCommand, MemoryCommand, ModelCommand, PromptsCommand,
+    ProviderCommand, RestartCommand, ServerCommand, SessionCommand, SkillsCommand,
+    TranscriptModeArg,
 };
 use crate::{
     agent, auth, build, provider, provider_catalog, server, session, setup_hints, startup_profile,
@@ -16,7 +17,8 @@ use crate::{
 };
 
 use super::{
-    acp, commands, debug, hot_exec, login, output, provider_init, selfdev, terminal, tui_launch,
+    acp, commands, debug, experiment_flags, hot_exec, login, output, provider_init, selfdev,
+    terminal, tui_launch,
 };
 use provider_init::ProviderChoice;
 
@@ -278,6 +280,17 @@ pub(crate) async fn run_main(mut args: Args) -> Result<()> {
             SkillsCommand::Show { name } => commands::run_skills_show(&name)?,
             SkillsCommand::Disable { name } => commands::run_skills_disable(&name)?,
             SkillsCommand::Enable { name } => commands::run_skills_enable(&name)?,
+        },
+        Some(Command::Experiment(subcmd)) => match subcmd {
+            ExperimentCommand::List { json } => {
+                experiment_flags::run_experiment_list_command(json)?
+            }
+            ExperimentCommand::Enable { key } => {
+                experiment_flags::run_experiment_enable_command(&key)?
+            }
+            ExperimentCommand::Disable { key } => {
+                experiment_flags::run_experiment_disable_command(&key)?
+            }
         },
         Some(Command::Mcp(subcmd)) => match subcmd {
             McpCommand::Trust { path } => commands::run_mcp_trust_command(&path)?,
