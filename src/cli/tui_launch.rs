@@ -464,7 +464,7 @@ pub fn list_sessions() -> Result<()> {
                 vec![
                     "--resume".to_string(),
                     crate::casr_adapter::imported_session_id_for_provider(
-                        &provider_slug,
+                        provider_slug,
                         session_id,
                     ),
                 ],
@@ -554,7 +554,7 @@ pub fn list_sessions() -> Result<()> {
                         session_id,
                         ..
                     } => crate::casr_adapter::imported_session_id_for_provider(
-                        &provider_slug,
+                        provider_slug,
                         session_id,
                     ),
                 };
@@ -604,7 +604,7 @@ pub fn list_sessions() -> Result<()> {
                             session_id,
                             ..
                         } => crate::casr_adapter::imported_session_id_for_provider(
-                            &provider_slug,
+                            provider_slug,
                             session_id,
                         ),
                     };
@@ -675,7 +675,7 @@ pub fn list_sessions() -> Result<()> {
                         session_id,
                         ..
                     } => crate::casr_adapter::imported_session_id_for_provider(
-                        &provider_slug,
+                        provider_slug,
                         session_id,
                     ),
                 };
