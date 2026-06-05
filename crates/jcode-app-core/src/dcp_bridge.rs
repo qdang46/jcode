@@ -43,7 +43,9 @@ fn jmsg_to_dcp(m: &JMsg) -> DcpMessage {
 fn content_to_part(b: &ContentBlock) -> Option<Part> {
     Some(match b {
         ContentBlock::Text { text, .. } => Part::Text(text.clone()),
-        ContentBlock::Reasoning { text } => Part::Reasoning(text.clone()),
+        ContentBlock::Reasoning { text } | ContentBlock::ReasoningTrace { text } => {
+            Part::Reasoning(text.clone())
+        }
         ContentBlock::ToolUse {
             id, name, input, ..
         } => Part::ToolCall {
