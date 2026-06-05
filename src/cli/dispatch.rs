@@ -6,9 +6,9 @@ use std::process::{Command as ProcessCommand, Stdio};
 use std::time::Instant;
 
 use super::args::{
-    AmbientCommand, Args, AuthCommand, CloudCommand, CloudSessionsCommand, Command, MemoryCommand,
-    ModelCommand, ProviderCommand, RestartCommand, ServerCommand, SessionCommand,
-    TranscriptModeArg,
+    AmbientCommand, Args, AuthCommand, CloudCommand, CloudSessionsCommand, Command,
+    ExportFormatArg, McpCommand, MemoryCommand, ModelCommand, PromptsCommand, ProviderCommand,
+    RestartCommand, ServerCommand, SessionCommand, SkillsCommand, TranscriptModeArg,
 };
 use crate::{
     agent, auth, build, provider, provider_catalog, server, session, setup_hints, startup_profile,
@@ -117,7 +117,6 @@ pub(crate) async fn run_main(mut args: Args) -> Result<()> {
             .await?;
         }
         Some(Command::Login {
-            provider: login_provider,
             account,
             no_browser,
             print_auth_url,
@@ -132,7 +131,7 @@ pub(crate) async fn run_main(mut args: Args) -> Result<()> {
             api_key_env,
         }) => {
             login::run_login(
-                &login_provider.unwrap_or(args.provider),
+                &args.provider,
                 account.as_deref(),
                 login::LoginOptions {
                     no_browser,
@@ -157,6 +156,9 @@ pub(crate) async fn run_main(mut args: Args) -> Result<()> {
                 },
             )
             .await?;
+        }
+        Some(Command::Logout { provider, all, yes }) => {
+            commands::run_logout_command(provider.as_deref(), all, yes)?;
         }
         Some(Command::Repl) => {
             let (provider, registry) =
@@ -253,7 +255,61 @@ pub(crate) async fn run_main(mut args: Args) -> Result<()> {
                 clear,
                 json,
             } => commands::run_session_rename_command(&session, name.as_deref(), clear, json)?,
+            SessionCommand::Delete {
+                session,
+                force,
+                json,
+            } => commands::run_session_delete_command(&session, force, json)?,
         },
+        Some(Command::Prompts(subcmd)) => match subcmd {
+            PromptsCommand::List { json } => crate::prompt_templates::run_list(json)?,
+            PromptsCommand::Show { name } => crate::prompt_templates::run_show(&name)?,
+            PromptsCommand::New { name, user, force } => {
+                let location = if user {
+                    crate::prompt_templates::NewLocation::User
+                } else {
+                    crate::prompt_templates::NewLocation::Project
+                };
+                crate::prompt_templates::run_new(&name, location, force)?;
+            }
+        },
+        Some(Command::Skills(subcmd)) => match subcmd {
+            SkillsCommand::List { json } => commands::run_skills_list(json)?,
+            SkillsCommand::Show { name } => commands::run_skills_show(&name)?,
+            SkillsCommand::Disable { name } => commands::run_skills_disable(&name)?,
+            SkillsCommand::Enable { name } => commands::run_skills_enable(&name)?,
+        },
+        Some(Command::Mcp(subcmd)) => match subcmd {
+            McpCommand::Trust { path } => commands::run_mcp_trust_command(&path)?,
+            McpCommand::Revoke { path } => commands::run_mcp_revoke_command(&path)?,
+            McpCommand::List { json } => commands::run_mcp_list_command(json)?,
+        },
+        Some(Command::Doctor { json }) => {
+            let format = if json {
+                crate::doctor::DoctorFormat::Json
+            } else {
+                crate::doctor::DoctorFormat::Text
+            };
+            crate::doctor::run(format)?;
+        }
+        Some(Command::Export {
+            session,
+            output,
+            format,
+            redact,
+            to,
+        }) => {
+            if let Some(alias) = to {
+                casr_export_to_provider(&alias, &session)?;
+            } else {
+                let fmt = match format {
+                    ExportFormatArg::Markdown => crate::export::ExportFormat::Markdown,
+                    ExportFormatArg::Json => crate::export::ExportFormat::Json,
+                    ExportFormatArg::Html => crate::export::ExportFormat::Html,
+                };
+                crate::export::run(&session, output, fmt, redact)?;
+            }
+        }
         Some(Command::Ambient(subcmd)) => {
             commands::run_ambient_command(map_ambient_subcommand(subcmd)).await?;
         }
@@ -471,11 +527,63 @@ fn resolve_resume_arg(args: &mut Args) -> Result<()> {
 fn resolve_resume_id(resume_id: &str) -> Result<String> {
     match session::find_session_by_name_or_id(resume_id) {
         Ok(full_id) => Ok(full_id),
-        Err(native_err) => match crate::import::import_external_resume_id(resume_id)? {
-            Some(imported_id) => Ok(imported_id),
-            None => Err(native_err),
-        },
+        Err(native_err) => {
+            // Unified cross-provider import via casr (any provider -> jcode).
+            // The legacy in-house importer (jcode-import-core / crate::import)
+            // has been removed entirely; casr's discovery registry is the
+            // single source of truth for "is this id from a known foreign
+            // provider, and if so, import it".
+            if let Some(imported_id) = casr_import_to_jcode(resume_id) {
+                return Ok(imported_id);
+            }
+            Err(native_err)
+        }
     }
+}
+
+/// Convert a session owned by any casr-supported provider into a native jcode
+/// session on disk, returning the new jcode session id. Returns `None` when
+/// casr cannot resolve/convert the id, so the caller can fall back.
+fn casr_import_to_jcode(resume_id: &str) -> Option<String> {
+    let pipeline = casr::pipeline::ConversionPipeline {
+        registry: casr::discovery::ProviderRegistry::default_registry(),
+    };
+    let result = pipeline
+        .convert(
+            "jcode",
+            resume_id,
+            casr::pipeline::ConvertOptions::default(),
+        )
+        .ok()?;
+    result.written.map(|w| w.session_id)
+}
+
+/// Export a native jcode session into another provider's format via casr and
+/// print the written paths + the target resume command.
+fn casr_export_to_provider(alias: &str, session_ref: &str) -> Result<()> {
+    let session_id = session::find_session_by_name_or_id(session_ref)?;
+    let pipeline = casr::pipeline::ConversionPipeline {
+        registry: casr::discovery::ProviderRegistry::default_registry(),
+    };
+    let opts = casr::pipeline::ConvertOptions {
+        source_hint: Some("jc".to_string()),
+        ..Default::default()
+    };
+    let result = pipeline.convert(alias, &session_id, opts)?;
+    match result.written {
+        Some(written) => {
+            println!(
+                "Exported jcode session {session_id} -> {}",
+                result.target_provider
+            );
+            for path in &written.paths {
+                println!("  wrote: {}", path.display());
+            }
+            println!("  resume: {}", written.resume_command);
+        }
+        None => println!("No output written for export to '{alias}'."),
+    }
+    Ok(())
 }
 
 fn map_memory_subcommand(subcmd: MemoryCommand) -> commands::MemorySubcommand {

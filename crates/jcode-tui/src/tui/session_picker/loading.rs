@@ -300,6 +300,11 @@ fn transcript_paths_for_session(session: &SessionInfo) -> Vec<PathBuf> {
         | ResumeTarget::OpenCodeSession { session_path, .. } => {
             vec![PathBuf::from(session_path)]
         }
+        ResumeTarget::ForeignSession { session_path, .. } => session_path
+            .as_deref()
+            .map(PathBuf::from)
+            .map(|p| vec![p])
+            .unwrap_or_default(),
     }
 }
 
@@ -680,15 +685,6 @@ fn truncate_title_text(text: &str, max_chars: usize) -> String {
     }
     let truncated: String = trimmed.chars().take(max_chars.saturating_sub(1)).collect();
     format!("{}…", truncated.trim_end())
-}
-
-fn parse_timestamp_value(
-    value: Option<&serde_json::Value>,
-) -> Option<chrono::DateTime<chrono::Utc>> {
-    value
-        .and_then(|v| v.as_str())
-        .and_then(|ts| chrono::DateTime::parse_from_rfc3339(ts).ok())
-        .map(|dt| dt.with_timezone(&chrono::Utc))
 }
 
 #[cfg(test)]
@@ -1460,10 +1456,14 @@ pub fn load_sessions() -> Result<Vec<SessionInfo>> {
     };
 
     let external_sessions = std::thread::scope(|scope| {
-        let claude_handle = scope.spawn(|| load_external_claude_code_sessions(scan_limit));
-        let codex_handle = scope.spawn(|| load_external_codex_sessions(scan_limit));
-        let pi_handle = scope.spawn(|| load_external_pi_sessions(scan_limit));
-        let opencode_handle = scope.spawn(|| load_external_opencode_sessions(scan_limit));
+        // Single generic loader that walks every CASR provider known to be
+        // installed (claude-code, codex, pi-agent, opencode, gemini,
+        // cursor, cline, aider, amp, chatgpt, clawdbot, vibe, factory,
+        // openclaw, kiro, jcode). Replaces the four hand-rolled
+        // `load_external_<provider>_sessions` functions that were
+        // maintained separately before CASR became the single source of
+        // truth.
+        let casr_handle = scope.spawn(|| load_external_casr_sessions(scan_limit));
 
         for stem in candidates {
             if sessions.len() >= scan_limit {
@@ -1556,10 +1556,7 @@ pub fn load_sessions() -> Result<Vec<SessionInfo>> {
         }
 
         let mut external = Vec::new();
-        external.extend(claude_handle.join().unwrap_or_default());
-        external.extend(codex_handle.join().unwrap_or_default());
-        external.extend(pi_handle.join().unwrap_or_default());
-        external.extend(opencode_handle.join().unwrap_or_default());
+        external.extend(casr_handle.join().unwrap_or_default());
         external
     });
     sessions.extend(external_sessions);
@@ -1578,78 +1575,143 @@ pub fn load_sessions() -> Result<Vec<SessionInfo>> {
     Ok(sessions)
 }
 
-fn load_external_claude_code_sessions(scan_limit: usize) -> Vec<SessionInfo> {
-    let Ok(sessions) = crate::import::list_claude_code_sessions_lazy(scan_limit) else {
-        return Vec::new();
+/// Enumerate sessions from every CASR-registered provider that is
+/// installed on the host. Replaces the four hand-rolled
+/// `load_external_<provider>_sessions` functions that used to be
+/// maintained separately per provider; the CASR library now owns the
+/// filesystem walks, file parsing, and timestamp heuristics.
+fn load_external_casr_sessions(scan_limit: usize) -> Vec<SessionInfo> {
+    let by_provider = crate::casr_adapter::list_all_casr_sessions(Some(scan_limit));
+    let mut out = Vec::new();
+    for (slug, sessions) in by_provider {
+        for session in sessions {
+            if out.len() >= scan_limit {
+                return out;
+            }
+            out.push(casr_session_to_session_info(&slug, session));
+        }
+    }
+    out
+}
+
+/// Project a CASR `(provider_slug, ClaudeCodeSessionInfo)` into the
+/// picker's `SessionInfo`. Picks the right `SessionSource` and
+/// `ResumeTarget` variant based on the provider slug so that downstream
+/// `match` arms in `tui_launch.rs` / `inline_interactive.rs` continue
+/// to work for the original four providers, and the new `Foreign`
+/// variant carries the rest.
+fn casr_session_to_session_info(
+    provider_slug: &str,
+    session: crate::casr_adapter::ClaudeCodeSessionInfo,
+) -> SessionInfo {
+    let session_id = session.session_id.clone();
+    let session_path = session.full_path.clone();
+    let created_at = session.created.unwrap_or_else(chrono::Utc::now);
+    let last_message_time = session.modified.or(session.created).unwrap_or(created_at);
+    let working_dir = session.project_path.clone();
+
+    let title = session
+        .summary
+        .filter(|s| !s.trim().is_empty())
+        .unwrap_or_else(|| truncate_title_text(&session.first_prompt, 72));
+
+    let short_name = working_dir
+        .as_deref()
+        .and_then(|dir| Path::new(dir).file_name())
+        .and_then(|n| n.to_str())
+        .map(|n| n.to_string())
+        .unwrap_or_else(|| {
+            format!(
+                "{} {}",
+                provider_slug,
+                &session_id[..session_id.len().min(8)]
+            )
+        });
+
+    let session_id_for_index = session_id.clone();
+    let search_index = build_search_index(
+        &format!("{provider_slug}:{session_id}"),
+        &short_name,
+        &title,
+        working_dir.as_deref(),
+        None,
+        &[],
+    );
+
+    // Pick the source + resume_target based on the provider slug.
+    let (source, resume_target) = match provider_slug {
+        "claude-code" => (
+            SessionSource::ClaudeCode,
+            ResumeTarget::ClaudeCodeSession {
+                session_id: session_id.clone(),
+                session_path: session_path.clone(),
+            },
+        ),
+        "codex" => (
+            SessionSource::Codex,
+            ResumeTarget::CodexSession {
+                session_id: session_id.clone(),
+                session_path: session_path.clone(),
+            },
+        ),
+        "pi-agent" => (
+            SessionSource::Pi,
+            ResumeTarget::PiSession {
+                session_path: session_path.clone(),
+            },
+        ),
+        "opencode" => (
+            SessionSource::OpenCode,
+            ResumeTarget::OpenCodeSession {
+                session_id: session_id.clone(),
+                session_path: session_path.clone(),
+            },
+        ),
+        other => (
+            SessionSource::Foreign(other.to_string()),
+            ResumeTarget::ForeignSession {
+                provider_slug: other.to_string(),
+                session_id: session_id.clone(),
+                session_path: Some(session_path.clone()),
+            },
+        ),
     };
 
-    sessions
-        .into_iter()
-        .take(scan_limit)
-        .map(|session| {
-            let session_id = session.session_id;
-            let created_at = session.created.unwrap_or_else(chrono::Utc::now);
-            let last_message_time = session.modified.or(session.created).unwrap_or(created_at);
-            let working_dir = session.project_path;
-            let title = session
-                .summary
-                .filter(|summary| !summary.trim().is_empty())
-                .unwrap_or_else(|| truncate_title_text(&session.first_prompt, 72));
-            let short_name = working_dir
-                .as_deref()
-                .and_then(|dir| Path::new(dir).file_name())
-                .and_then(|name| name.to_str())
-                .map(|name| name.to_string())
-                .unwrap_or_else(|| format!("claude {}", &session_id[..session_id.len().min(8)]));
-            // Keep /resume startup focused on cheap metadata. Transcript-backed
-            // search text is intentionally loaded lazily through preview loading;
-            // reading tens of KiB from every external transcript can dominate the
-            // initial picker load on accounts with many Claude Code sessions.
-            let search_index = build_search_index(
-                &format!("claude:{session_id}"),
-                &short_name,
-                &title,
-                working_dir.as_deref(),
-                None,
-                &[],
-            );
+    // Drop the now-unused captured session_id_for_index so clippy
+    // doesn't complain; reserved for future search_index refinement.
+    let _ = &session_id_for_index;
 
-            SessionInfo {
-                id: format!("claude:{session_id}"),
-                parent_id: None,
-                short_name,
-                icon: "🧵".to_string(),
-                title,
-                message_count: session.message_count as usize,
-                user_message_count: 0,
-                assistant_message_count: 0,
-                created_at,
-                last_message_time,
-                last_active_at: Some(last_message_time),
-                working_dir,
-                model: None,
-                provider_key: Some("claude-code".to_string()),
-                is_canary: false,
-                is_debug: false,
-                saved: false,
-                save_label: None,
-                status: SessionStatus::Closed,
-                needs_catchup: false,
-                estimated_tokens: 0,
-                first_user_prompt: Some(session.first_prompt.clone()),
-                messages_preview: Vec::new(),
-                search_index,
-                server_name: None,
-                server_icon: None,
-                source: SessionSource::ClaudeCode,
-                resume_target: ResumeTarget::ClaudeCodeSession {
-                    session_id,
-                    session_path: session.full_path.clone(),
-                },
-                external_path: Some(session.full_path),
-            }
-        })
-        .collect()
+    SessionInfo {
+        id: format!("{provider_slug}:{session_id}"),
+        parent_id: None,
+        short_name,
+        icon: "💾".to_string(),
+        title,
+        message_count: session.message_count as usize,
+        user_message_count: 0,
+        assistant_message_count: 0,
+        created_at,
+        last_message_time,
+        last_active_at: Some(last_message_time),
+        working_dir,
+        model: None,
+        provider_key: Some(provider_slug.to_string()),
+        is_canary: false,
+        is_debug: false,
+        saved: false,
+        save_label: None,
+        status: SessionStatus::Closed,
+        needs_catchup: false,
+        estimated_tokens: 0,
+        first_user_prompt: Some(session.first_prompt.clone()),
+        messages_preview: Vec::new(),
+        search_index,
+        server_name: None,
+        server_icon: None,
+        source,
+        resume_target,
+        external_path: Some(session_path),
+    }
 }
 
 pub(super) fn load_claude_code_preview_from_path(path: &Path) -> Option<Vec<PreviewMessage>> {
@@ -1691,25 +1753,11 @@ pub(super) fn load_claude_code_preview_from_path(path: &Path) -> Option<Vec<Prev
 }
 
 pub(super) fn load_claude_code_preview(session_id: &str) -> Option<Vec<PreviewMessage>> {
-    let session = crate::import::list_claude_code_sessions()
+    let session = crate::casr_adapter::list_claude_code_sessions()
         .ok()?
         .into_iter()
         .find(|session| session.session_id == session_id)?;
     load_claude_code_preview_from_path(Path::new(&session.full_path))
-}
-
-fn load_external_codex_sessions(scan_limit: usize) -> Vec<SessionInfo> {
-    let Ok(root) = crate::storage::user_home_path(".codex/sessions") else {
-        return Vec::new();
-    };
-    if !root.exists() {
-        return Vec::new();
-    }
-
-    collect_recent_files_recursive(&root, "jsonl", scan_limit)
-        .into_iter()
-        .filter_map(|path| load_codex_session_stub(&path).ok().flatten())
-        .collect()
 }
 
 /// Newest external-transcript modification time (Unix seconds) for the given
@@ -1736,85 +1784,6 @@ pub(crate) fn latest_external_cli_session_secs(
         .and_then(|meta| meta.modified().ok())
         .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
         .map(|duration| duration.as_secs())
-}
-
-fn load_codex_session_stub(path: &Path) -> Result<Option<SessionInfo>> {
-    let file = File::open(path)?;
-    let mut lines = BufReader::new(file).lines();
-    let Some(first_line) = lines.next() else {
-        return Ok(None);
-    };
-    let header: serde_json::Value = serde_json::from_str(&first_line?)?;
-    let meta = if header.get("type").and_then(|v| v.as_str()) == Some("session_meta") {
-        header.get("payload").unwrap_or(&header)
-    } else {
-        &header
-    };
-    let session_id = meta
-        .get("id")
-        .and_then(|v| v.as_str())
-        .unwrap_or_default()
-        .to_string();
-    if session_id.is_empty() {
-        return Ok(None);
-    }
-
-    let created_at = parse_timestamp_value(meta.get("timestamp"))
-        .or_else(|| parse_timestamp_value(header.get("timestamp")))
-        .unwrap_or_else(chrono::Utc::now);
-    let last_message_time = std::fs::metadata(path)
-        .and_then(|meta| meta.modified())
-        .map(chrono::DateTime::<chrono::Utc>::from)
-        .unwrap_or(created_at);
-    let working_dir = meta
-        .get("cwd")
-        .and_then(|v| v.as_str())
-        .map(|s| s.to_string());
-    let short_name = format!("codex {}", &session_id[..session_id.len().min(8)]);
-    let title = format!("Codex session {}", &session_id[..session_id.len().min(8)]);
-    let search_index = build_search_index(
-        &format!("codex:{session_id}"),
-        &short_name,
-        &title,
-        working_dir.as_deref(),
-        None,
-        &[],
-    );
-
-    Ok(Some(SessionInfo {
-        id: format!("codex:{session_id}"),
-        parent_id: None,
-        short_name,
-        icon: "🧠".to_string(),
-        title,
-        message_count: 0,
-        user_message_count: 0,
-        assistant_message_count: 0,
-        created_at,
-        last_message_time,
-        last_active_at: Some(last_message_time),
-        working_dir,
-        model: None,
-        provider_key: Some("openai-codex".to_string()),
-        is_canary: false,
-        is_debug: false,
-        saved: false,
-        save_label: None,
-        status: SessionStatus::Closed,
-        needs_catchup: false,
-        estimated_tokens: 0,
-        first_user_prompt: None,
-        messages_preview: Vec::new(),
-        search_index,
-        server_name: None,
-        server_icon: None,
-        source: SessionSource::Codex,
-        resume_target: ResumeTarget::CodexSession {
-            session_id,
-            session_path: path.to_string_lossy().to_string(),
-        },
-        external_path: Some(path.to_string_lossy().to_string()),
-    }))
 }
 
 fn find_codex_session_file(session_id: &str) -> Option<PathBuf> {
@@ -1905,100 +1874,6 @@ pub(super) fn load_pi_preview_from_path(path: &Path) -> Option<Vec<PreviewMessag
         .ok()
         .flatten()
         .map(|session| session.messages_preview)
-}
-
-fn load_external_pi_sessions(scan_limit: usize) -> Vec<SessionInfo> {
-    let Ok(root) = crate::storage::user_home_path(".pi/agent/sessions") else {
-        return Vec::new();
-    };
-    if !root.exists() {
-        return Vec::new();
-    }
-
-    collect_recent_files_recursive(&root, "jsonl", scan_limit)
-        .into_iter()
-        .filter_map(|path| load_pi_session_stub(&path).ok().flatten())
-        .collect()
-}
-
-fn load_pi_session_stub(path: &Path) -> Result<Option<SessionInfo>> {
-    let file = File::open(path)?;
-    let mut lines = BufReader::new(file).lines();
-    let Some(first_line) = lines.next() else {
-        return Ok(None);
-    };
-    let header: serde_json::Value = serde_json::from_str(&first_line?)?;
-    if header.get("type").and_then(|v| v.as_str()) != Some("session") {
-        return Ok(None);
-    }
-
-    let session_id = header
-        .get("id")
-        .and_then(|v| v.as_str())
-        .unwrap_or_default()
-        .to_string();
-    if session_id.is_empty() {
-        return Ok(None);
-    }
-
-    let created_at = header
-        .get("timestamp")
-        .and_then(|v| v.as_str())
-        .and_then(|ts| chrono::DateTime::parse_from_rfc3339(ts).ok())
-        .map(|dt| dt.with_timezone(&chrono::Utc))
-        .unwrap_or_else(chrono::Utc::now);
-    let last_message_time = std::fs::metadata(path)
-        .and_then(|meta| meta.modified())
-        .map(chrono::DateTime::<chrono::Utc>::from)
-        .unwrap_or(created_at);
-    let working_dir = header
-        .get("cwd")
-        .and_then(|v| v.as_str())
-        .map(|s| s.to_string());
-    let short_name = format!("pi {}", &session_id[..session_id.len().min(8)]);
-    let title = format!("Pi session {}", &session_id[..session_id.len().min(8)]);
-    let search_index = build_search_index(
-        &format!("pi:{session_id}"),
-        &short_name,
-        &title,
-        working_dir.as_deref(),
-        None,
-        &[],
-    );
-
-    Ok(Some(SessionInfo {
-        id: format!("pi:{session_id}"),
-        parent_id: None,
-        short_name,
-        icon: "π".to_string(),
-        title,
-        message_count: 0,
-        user_message_count: 0,
-        assistant_message_count: 0,
-        created_at,
-        last_message_time,
-        last_active_at: Some(last_message_time),
-        working_dir,
-        model: None,
-        provider_key: Some("pi".to_string()),
-        is_canary: false,
-        is_debug: false,
-        saved: false,
-        save_label: None,
-        status: SessionStatus::Closed,
-        needs_catchup: false,
-        estimated_tokens: 0,
-        first_user_prompt: None,
-        messages_preview: Vec::new(),
-        search_index,
-        server_name: None,
-        server_icon: None,
-        source: SessionSource::Pi,
-        resume_target: ResumeTarget::PiSession {
-            session_path: path.to_string_lossy().to_string(),
-        },
-        external_path: Some(path.to_string_lossy().to_string()),
-    }))
 }
 
 fn load_pi_session_info(path: &Path) -> Result<Option<SessionInfo>> {
@@ -2161,108 +2036,11 @@ fn load_pi_session_info(path: &Path) -> Result<Option<SessionInfo>> {
     }))
 }
 
-fn load_external_opencode_sessions(scan_limit: usize) -> Vec<SessionInfo> {
-    let Ok(root) = crate::storage::user_home_path(".local/share/opencode/storage/session") else {
-        return Vec::new();
-    };
-    if !root.exists() {
-        return Vec::new();
-    }
-
-    collect_recent_files_recursive(&root, "json", scan_limit)
-        .into_iter()
-        .filter_map(|path| load_opencode_session_stub(&path).ok().flatten())
-        .collect()
-}
-
 pub(super) fn load_opencode_preview_from_path(path: &Path) -> Option<Vec<PreviewMessage>> {
     load_opencode_session_info(path)
         .ok()
         .flatten()
         .map(|session| session.messages_preview)
-}
-
-fn load_opencode_session_stub(path: &Path) -> Result<Option<SessionInfo>> {
-    let value: serde_json::Value = serde_json::from_reader(File::open(path)?)?;
-    let session_id = value
-        .get("id")
-        .and_then(|v| v.as_str())
-        .unwrap_or_default()
-        .to_string();
-    if session_id.is_empty() {
-        return Ok(None);
-    }
-
-    let created_at = value
-        .get("time")
-        .and_then(|time| time.get("created"))
-        .and_then(|v| v.as_i64())
-        .and_then(chrono::DateTime::<chrono::Utc>::from_timestamp_millis)
-        .unwrap_or_else(chrono::Utc::now);
-    let last_message_time = value
-        .get("time")
-        .and_then(|time| time.get("updated"))
-        .and_then(|v| v.as_i64())
-        .and_then(chrono::DateTime::<chrono::Utc>::from_timestamp_millis)
-        .unwrap_or(created_at);
-    let working_dir = value
-        .get("directory")
-        .and_then(|v| v.as_str())
-        .map(|s| s.to_string());
-    let short_name = format!("opencode {}", &session_id[..session_id.len().min(8)]);
-    let title = value
-        .get("title")
-        .and_then(|v| v.as_str())
-        .map(|s| truncate_title_text(s, 72))
-        .unwrap_or_else(|| {
-            format!(
-                "OpenCode session {}",
-                &session_id[..session_id.len().min(8)]
-            )
-        });
-    let search_index = build_search_index(
-        &format!("opencode:{session_id}"),
-        &short_name,
-        &title,
-        working_dir.as_deref(),
-        None,
-        &[],
-    );
-
-    Ok(Some(SessionInfo {
-        id: format!("opencode:{session_id}"),
-        parent_id: None,
-        short_name,
-        icon: "◌".to_string(),
-        title,
-        message_count: 0,
-        user_message_count: 0,
-        assistant_message_count: 0,
-        created_at,
-        last_message_time,
-        last_active_at: Some(last_message_time),
-        working_dir,
-        model: None,
-        provider_key: Some("opencode".to_string()),
-        is_canary: false,
-        is_debug: false,
-        saved: false,
-        save_label: None,
-        status: SessionStatus::Closed,
-        needs_catchup: false,
-        estimated_tokens: 0,
-        first_user_prompt: None,
-        messages_preview: Vec::new(),
-        search_index,
-        server_name: None,
-        server_icon: None,
-        source: SessionSource::OpenCode,
-        resume_target: ResumeTarget::OpenCodeSession {
-            session_id,
-            session_path: path.to_string_lossy().to_string(),
-        },
-        external_path: Some(path.to_string_lossy().to_string()),
-    }))
 }
 
 fn load_opencode_session_info(path: &Path) -> Result<Option<SessionInfo>> {

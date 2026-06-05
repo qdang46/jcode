@@ -510,8 +510,8 @@ pub async fn run_claude_native_e2e(
     use crate::provider::Provider;
     use crate::provider::anthropic::AnthropicProvider;
 
-    let normalized = crate::auth::lifecycle::normalized_auth_provider_id(Some(provider_id))
-        .unwrap_or("claude");
+    let normalized =
+        crate::auth::lifecycle::normalized_auth_provider_id(Some(provider_id)).unwrap_or("claude");
     let provider_label = crate::auth::lifecycle::provider_display_label(Some(normalized))
         .unwrap_or_else(|| "Anthropic/Claude".to_string());
     let provider_id = normalized.to_string();
@@ -551,7 +551,11 @@ pub async fn run_claude_native_e2e(
     let credential_is_oauth = if tier.requires_api_key() {
         match provider_runtime.resolve_access_token_for_doctor().await {
             Ok((token, is_oauth)) if !token.trim().is_empty() => {
-                let kind = if is_oauth { "OAuth (subscription)" } else { "API key" };
+                let kind = if is_oauth {
+                    "OAuth (subscription)"
+                } else {
+                    "API key"
+                };
                 checks.push(DoctorCheck::passed(
                     checkpoints::AUTH_CREDENTIAL_LOADED,
                     label_for(checkpoints::AUTH_CREDENTIAL_LOADED),
@@ -864,14 +868,10 @@ fn native_antigravity_auth(account: &str) -> LiveVerificationAuth {
 /// the caller fall back to the runtime default.
 fn cheapest_antigravity_model(catalog_models: &[String]) -> Option<String> {
     let is_alias = |m: &&String| m.trim().is_empty() || m.trim() == "default";
-    if let Some(flash) = catalog_models
-        .iter()
-        .filter(|m| !is_alias(m))
-        .find(|m| {
-            let lower = m.to_ascii_lowercase();
-            lower.starts_with("gemini") && lower.contains("flash")
-        })
-    {
+    if let Some(flash) = catalog_models.iter().filter(|m| !is_alias(m)).find(|m| {
+        let lower = m.to_ascii_lowercase();
+        lower.starts_with("gemini") && lower.contains("flash")
+    }) {
         return Some(flash.clone());
     }
     if let Some(gemini) = catalog_models
@@ -881,10 +881,7 @@ fn cheapest_antigravity_model(catalog_models: &[String]) -> Option<String> {
     {
         return Some(gemini.clone());
     }
-    catalog_models
-        .iter()
-        .find(|m| !is_alias(m))
-        .cloned()
+    catalog_models.iter().find(|m| !is_alias(m)).cloned()
 }
 
 /// Run the strict provider/model diagnostic for the **native Antigravity**
@@ -2396,7 +2393,9 @@ mod tests {
         // OpenAI-compatible profiles are driven by the generic doctor, not the
         // native path.
         assert!(!native_doctor_supports_provider("openrouter"));
-        assert!(!native_doctor_supports_provider("definitely-not-a-provider"));
+        assert!(!native_doctor_supports_provider(
+            "definitely-not-a-provider"
+        ));
     }
 
     #[test]

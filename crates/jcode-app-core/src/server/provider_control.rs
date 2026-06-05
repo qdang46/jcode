@@ -1333,6 +1333,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[allow(clippy::await_holding_lock)]
     async fn set_reasoning_effort_does_not_wait_for_busy_agent_lock() {
         let _guard = crate::storage::lock_test_env();
         let _runtime = IsolatedRuntimeDir::new();
@@ -1367,6 +1368,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[allow(clippy::await_holding_lock)]
     async fn set_model_does_not_wait_for_busy_agent_lock() {
         let _guard = crate::storage::lock_test_env();
         let _runtime = IsolatedRuntimeDir::new();
@@ -1402,6 +1404,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[allow(clippy::await_holding_lock)]
     async fn set_service_tier_does_not_wait_for_busy_agent_lock() {
         let _guard = crate::storage::lock_test_env();
         let _runtime = IsolatedRuntimeDir::new();

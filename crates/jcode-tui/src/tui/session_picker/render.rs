@@ -155,7 +155,7 @@ impl SessionPicker {
                 Style::default().fg(rgb(255, 200, 140)),
             ));
         }
-        if let Some(source_badge) = session.source.badge() {
+        if let Some(source_badge) = session.source.clone().badge() {
             line1_spans.push(Span::styled(
                 format!("  {}", source_badge),
                 Style::default()

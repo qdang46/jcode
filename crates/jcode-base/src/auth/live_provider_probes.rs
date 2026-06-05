@@ -634,10 +634,10 @@ async fn consume_native_stream(
                 // Emitted after the matching `ToolUseEnd`; attach it to the most
                 // recent tool call so probes can replay it on the next turn.
                 StreamEvent::ToolUseSignature(signature) => {
-                    if let Some(tool) = outcome.tool_calls.last_mut() {
-                        if !signature.is_empty() {
-                            tool.thought_signature = Some(signature);
-                        }
+                    if let Some(tool) = outcome.tool_calls.last_mut()
+                        && !signature.is_empty()
+                    {
+                        tool.thought_signature = Some(signature);
                     }
                 }
                 StreamEvent::TokenUsage {
@@ -971,10 +971,7 @@ pub async fn run_live_claude_native_tool_smoke(
     .with_evidence("model", serde_json::json!(model))
     .with_evidence("tool_name", serde_json::json!(tool_call.name))
     .with_evidence("tool_arguments", parsed_arguments)
-    .with_evidence(
-        "followup_consumed_result",
-        serde_json::json!(true),
-    );
+    .with_evidence("followup_consumed_result", serde_json::json!(true));
     if total_input != 0 || total_output != 0 {
         stage = stage.with_evidence("usage", usage_evidence(total_input, total_output, 0, 0));
     }

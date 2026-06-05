@@ -906,6 +906,7 @@ impl App {
                                             message_id: self.session_id().to_string(),
                                             tool_call_id: request_id.clone(),
                                             working_dir: self.session.working_dir.as_deref().map(PathBuf::from),
+                                            sandbox_root: crate::sandbox::current_sandbox_root(),
                                             stdin_request_tx: None,
                                             graceful_shutdown_signal: None,
                                             execution_mode: crate::tool::ToolExecutionMode::AgentTurn,
@@ -1014,7 +1015,9 @@ impl App {
                 content_blocks.push(ContentBlock::ToolUse {
                     id: tc.id.clone(),
                     name: tc.name.clone(),
-                    input: tc.input.clone(), thought_signature: None, });
+                    input: tc.input.clone(),
+                    thought_signature: None,
+                });
             }
 
             let assistant_message_id = if !content_blocks.is_empty() {
@@ -1067,14 +1070,14 @@ impl App {
                 if !self.streaming_text.is_empty() {
                     let content = self.collapse_reasoning_for_commit(self.streaming_text.clone());
                     if !content.trim().is_empty() {
-                    self.push_display_message(DisplayMessage {
-                        role: "assistant".to_string(),
-                        content,
-                        tool_calls: vec![],
-                        duration_secs: duration,
-                        title: None,
-                        tool_data: None,
-                    });
+                        self.push_display_message(DisplayMessage {
+                            role: "assistant".to_string(),
+                            content,
+                            tool_calls: vec![],
+                            duration_secs: duration,
+                            title: None,
+                            tool_data: None,
+                        });
                     }
                 }
                 if self.has_streaming_footer_stats() {
@@ -1178,6 +1181,7 @@ impl App {
                     message_id: message_id.clone(),
                     tool_call_id: tc.id.clone(),
                     working_dir: self.session.working_dir.as_deref().map(PathBuf::from),
+                    sandbox_root: crate::sandbox::current_sandbox_root(),
                     stdin_request_tx: None,
                     graceful_shutdown_signal: None,
                     execution_mode: crate::tool::ToolExecutionMode::AgentTurn,

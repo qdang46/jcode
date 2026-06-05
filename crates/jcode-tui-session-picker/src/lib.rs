@@ -2,7 +2,7 @@ use chrono::{DateTime, Utc};
 use jcode_message_types::ToolCall;
 use jcode_session_types::SessionStatus;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum SessionSource {
     Jcode,
@@ -10,18 +10,77 @@ pub enum SessionSource {
     Codex,
     Pi,
     OpenCode,
+    /// Any other provider known to CASR (gemini, cursor, cline, aider,
+    /// amp, chatgpt, clawdbot, vibe, factory, openclaw, kiro, …).
+    /// The string is the CASR provider slug (e.g. `"gemini"`,
+    /// `"kiro"`). The TUI uses this to render a generic badge via
+    /// `SessionSource::badge()`.
+    Foreign(String),
 }
 
 impl SessionSource {
-    pub fn badge(self) -> Option<&'static str> {
+    pub fn badge(self) -> Option<String> {
         match self {
             Self::Jcode => None,
-            Self::ClaudeCode => Some("🧵 Claude Code"),
-            Self::Codex => Some("🧠 Codex"),
-            Self::Pi => Some("π Pi"),
-            Self::OpenCode => Some("◌ OpenCode"),
+            Self::ClaudeCode => Some("🧵 Claude Code".to_string()),
+            Self::Codex => Some("🧠 Codex".to_string()),
+            Self::Pi => Some("π Pi".to_string()),
+            Self::OpenCode => Some("◌ OpenCode".to_string()),
+            Self::Foreign(slug) => Some(badge_for_foreign(&slug)),
         }
     }
+
+    /// Short identifier used in the picker and for stable sorting.
+    pub fn slug(&self) -> &'static str {
+        match self {
+            Self::Jcode => "jcode",
+            Self::ClaudeCode => "claude-code",
+            Self::Codex => "codex",
+            Self::Pi => "pi-agent",
+            Self::OpenCode => "opencode",
+            Self::Foreign(_) => "foreign",
+        }
+    }
+}
+
+/// Map a CASR provider slug to a short badge string for the TUI.
+/// Falls back to a title-cased dashed rendering for unknown slugs.
+fn badge_for_foreign(slug: &str) -> String {
+    let pretty = match slug {
+        "gemini" => "✨ Gemini",
+        "cursor" => "🖱 Cursor",
+        "cline" => "🪶 Cline",
+        "aider" => "🛠 Aider",
+        "amp" => "⚡ Amp",
+        "chatgpt" => "💬 ChatGPT",
+        "clawdbot" => "🤖 ClawdBot",
+        "vibe" => "🌀 Vibe",
+        "factory" => "🏭 Factory",
+        "openclaw" => "🐾 OpenClaw",
+        "kiro" => "🪶 Kiro",
+        _ => return title_case_dashed(slug),
+    };
+    pretty.to_string()
+}
+
+fn title_case_dashed(slug: &str) -> String {
+    // Capitalize first letter of each dash-separated word.
+    let mut out = String::with_capacity(slug.len());
+    let mut at_word_start = true;
+    for ch in slug.chars() {
+        if ch == '-' || ch == '_' {
+            out.push(' ');
+            at_word_start = true;
+        } else if at_word_start {
+            for u in ch.to_uppercase() {
+                out.push(u);
+            }
+            at_word_start = false;
+        } else {
+            out.push(ch);
+        }
+    }
+    out
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -45,6 +104,16 @@ pub enum ResumeTarget {
         session_id: String,
         session_path: String,
     },
+    /// Any other foreign session discovered via CASR. `provider_slug` is
+    /// the CASR provider slug (e.g. `"gemini"`, `"kiro"`, `"chatgpt"`).
+    /// The session id and path are the source's own identifiers; the
+    /// launcher passes the id through `casr::pipeline::derive_target_id`
+    /// to produce a stable jcode session id on resume.
+    ForeignSession {
+        provider_slug: String,
+        session_id: String,
+        session_path: Option<String>,
+    },
 }
 
 impl ResumeTarget {
@@ -55,6 +124,7 @@ impl ResumeTarget {
             Self::CodexSession { session_id, .. } => session_id,
             Self::PiSession { session_path } => session_path,
             Self::OpenCodeSession { session_id, .. } => session_id,
+            Self::ForeignSession { session_id, .. } => session_id,
         }
     }
 }
@@ -191,12 +261,16 @@ pub enum PickerItem {
     },
 }
 
-pub fn session_is_claude_code(source: SessionSource, id: &str) -> bool {
-    source == SessionSource::ClaudeCode || id.starts_with("imported_cc_")
+/// All `session_is_*` helpers take `&SessionSource` so they can be called
+/// from a borrowed `SessionInfo` (where `session.source` is a shared
+/// reference). Internally they pattern-match on the `SessionSource`
+/// variant.
+pub fn session_is_claude_code(source: &SessionSource, id: &str) -> bool {
+    source == &SessionSource::ClaudeCode || id.starts_with("imported_cc_")
 }
 
-pub fn session_is_codex(source: SessionSource, model: Option<&str>) -> bool {
-    if source == SessionSource::Codex {
+pub fn session_is_codex(source: &SessionSource, model: Option<&str>) -> bool {
+    if source == &SessionSource::Codex {
         return true;
     }
     model
@@ -205,11 +279,11 @@ pub fn session_is_codex(source: SessionSource, model: Option<&str>) -> bool {
 }
 
 pub fn session_is_pi(
-    source: SessionSource,
+    source: &SessionSource,
     provider_key: Option<&str>,
     model: Option<&str>,
 ) -> bool {
-    if source == SessionSource::Pi {
+    if source == &SessionSource::Pi {
         return true;
     }
     let provider_matches = provider_key
@@ -230,8 +304,8 @@ pub fn session_is_pi(
     provider_matches || model_matches
 }
 
-pub fn session_is_open_code(source: SessionSource, provider_key: Option<&str>) -> bool {
-    if source == SessionSource::OpenCode {
+pub fn session_is_open_code(source: &SessionSource, provider_key: Option<&str>) -> bool {
+    if source == &SessionSource::OpenCode {
         return true;
     }
     provider_key
@@ -240,6 +314,19 @@ pub fn session_is_open_code(source: SessionSource, provider_key: Option<&str>) -
             key == "opencode" || key == "opencode-go" || key.contains("opencode")
         })
         .unwrap_or(false)
+}
+
+/// Catch-all: does this session belong to ANY CASR-registered provider
+/// (not just the four hand-rolled ones)? Returns true for any
+/// `SessionSource::Foreign(slug)`. Used by the filter to decide whether
+/// a session should appear in the "external CLI" group of the TUI
+/// session picker.
+pub fn session_is_external_casr(source: &SessionSource) -> bool {
+    matches!(source, SessionSource::Foreign(_))
+        || session_is_claude_code(source, "")
+        || session_is_codex(source, None)
+        || session_is_pi(source, None, None)
+        || session_is_open_code(source, None)
 }
 
 #[cfg(test)]

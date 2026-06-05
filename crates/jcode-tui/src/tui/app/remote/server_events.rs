@@ -89,10 +89,10 @@ fn should_defer_history_for_runtime_identity_with_allow(
 /// from a dev/dirty test binary (whose real version would otherwise be
 /// unorderable and short-circuit the comparison).
 fn client_release_version() -> String {
-    if cfg!(test) || cfg!(debug_assertions) {
-        if let Some(v) = std::env::var_os("JCODE_TEST_CLIENT_VERSION_OVERRIDE") {
-            return v.to_string_lossy().into_owned();
-        }
+    if (cfg!(test) || cfg!(debug_assertions))
+        && let Some(v) = std::env::var_os("JCODE_TEST_CLIENT_VERSION_OVERRIDE")
+    {
+        return v.to_string_lossy().into_owned();
     }
     jcode_build_meta::VERSION.to_string()
 }
@@ -320,7 +320,9 @@ pub(in crate::tui::app) fn handle_server_event(
                 id,
                 name,
                 input: serde_json::Value::Null,
-                intent: None, thought_signature: None, });
+                intent: None,
+                thought_signature: None,
+            });
             eager_stream_redraw
         }
         ServerEvent::ToolInput { delta } => {
@@ -337,7 +339,9 @@ pub(in crate::tui::app) fn handle_server_event(
                 id: id.clone(),
                 name: name.clone(),
                 input: parsed_input.clone(),
-                intent: ToolCall::intent_from_input(&parsed_input), thought_signature: None, };
+                intent: ToolCall::intent_from_input(&parsed_input),
+                thought_signature: None,
+            };
             if let Some(key) = App::experimental_feature_key_for_tool(&tool_call) {
                 app.note_experimental_feature_use(key);
             }
@@ -583,14 +587,14 @@ pub(in crate::tui::app) fn handle_server_event(
                 let content = app.take_streaming_text();
                 let content = app.collapse_reasoning_for_commit(content);
                 if !content.trim().is_empty() {
-                app.push_display_message(DisplayMessage {
-                    role: "assistant".to_string(),
-                    content,
-                    tool_calls: Vec::new(),
-                    duration_secs: app.display_turn_duration_secs(),
-                    title: None,
-                    tool_data: None,
-                });
+                    app.push_display_message(DisplayMessage {
+                        role: "assistant".to_string(),
+                        content,
+                        tool_calls: Vec::new(),
+                        duration_secs: app.display_turn_duration_secs(),
+                        title: None,
+                        tool_data: None,
+                    });
                 }
             }
             app.clear_streaming_render_state();
@@ -658,14 +662,14 @@ pub(in crate::tui::app) fn handle_server_event(
                     let content = app.take_streaming_text();
                     let content = app.collapse_reasoning_for_commit(content);
                     if !content.trim().is_empty() {
-                    app.push_display_message(DisplayMessage {
-                        role: "assistant".to_string(),
-                        content,
-                        tool_calls: vec![],
-                        duration_secs: duration,
-                        title: None,
-                        tool_data: None,
-                    });
+                        app.push_display_message(DisplayMessage {
+                            role: "assistant".to_string(),
+                            content,
+                            tool_calls: vec![],
+                            duration_secs: duration,
+                            title: None,
+                            tool_data: None,
+                        });
                     }
                     app.push_turn_footer(duration);
                 } else if app.has_streaming_footer_stats() {
@@ -1627,14 +1631,14 @@ pub(in crate::tui::app) fn handle_server_event(
                 let flushed = app.take_streaming_text();
                 let flushed = app.collapse_reasoning_for_commit(flushed);
                 if !flushed.trim().is_empty() {
-                app.push_display_message(DisplayMessage {
-                    role: "assistant".to_string(),
-                    content: flushed,
-                    tool_calls: vec![],
-                    duration_secs: duration,
-                    title: None,
-                    tool_data: None,
-                });
+                    app.push_display_message(DisplayMessage {
+                        role: "assistant".to_string(),
+                        content: flushed,
+                        tool_calls: vec![],
+                        duration_secs: duration,
+                        title: None,
+                        tool_data: None,
+                    });
                 }
                 app.push_turn_footer(duration);
             }

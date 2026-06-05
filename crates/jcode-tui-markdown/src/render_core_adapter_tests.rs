@@ -97,14 +97,16 @@ fn core_marks_bold_and_code_styling() {
     let core = render_markdown_via_core("text **bold** and `code`");
     let spans: Vec<_> = core.iter().flat_map(|l| l.spans.iter()).collect();
     assert!(
-        spans
-            .iter()
-            .any(|s| s.content.contains("bold")
-                && s.style.add_modifier.contains(ratatui::style::Modifier::BOLD)),
+        spans.iter().any(|s| s.content.contains("bold")
+            && s.style
+                .add_modifier
+                .contains(ratatui::style::Modifier::BOLD)),
         "bold word should carry BOLD modifier"
     );
     assert!(
-        spans.iter().any(|s| s.content.contains("code") && s.style.bg.is_some()),
+        spans
+            .iter()
+            .any(|s| s.content.contains("code") && s.style.bg.is_some()),
         "inline code should carry a background fill"
     );
 }
@@ -125,7 +127,10 @@ fn core_renders_table_borders() {
         .iter()
         .flat_map(|l| l.spans.iter().map(|s| s.content.as_ref()))
         .collect();
-    assert!(text.contains('A') && text.contains('1'), "table cells present: {text}");
+    assert!(
+        text.contains('A') && text.contains('1'),
+        "table cells present: {text}"
+    );
 }
 
 #[test]

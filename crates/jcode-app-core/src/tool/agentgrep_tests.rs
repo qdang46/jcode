@@ -8,6 +8,7 @@ fn test_ctx(root: &Path) -> ToolContext {
         message_id: "test".to_string(),
         tool_call_id: "test".to_string(),
         working_dir: Some(root.to_path_buf()),
+        sandbox_root: None,
         stdin_request_tx: None,
         graceful_shutdown_signal: None,
         execution_mode: super::super::ToolExecutionMode::Direct,
@@ -653,7 +654,9 @@ fn bash_exposure_collects_file_and_line_hits() {
         input: json!({
             "command": "cat src/tool/lsp.rs && rg -n auth_status src/tool/lsp.rs"
         }),
-        intent: None, thought_signature: None, };
+        intent: None,
+        thought_signature: None,
+    };
     let content = "src/tool/lsp.rs:42:let status = auth_status();\n";
 
     collect_bash_exposure(

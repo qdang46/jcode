@@ -80,7 +80,8 @@ pub fn resolve_dual_credential_auth(
             // `has_api_key` already folds in the ANTHROPIC_API_KEY env var via the
             // auth probe, but re-check defensively so an env-only key set after the
             // cached snapshot still reports honestly.
-            let has_api_key = auth.anthropic.has_api_key || std::env::var("ANTHROPIC_API_KEY").is_ok();
+            let has_api_key =
+                auth.anthropic.has_api_key || std::env::var("ANTHROPIC_API_KEY").is_ok();
             let forced = match runtime.as_deref() {
                 Some("claude-api" | "anthropic-api") => Some(ActiveCredential::ApiKey),
                 Some("claude" | "anthropic") => Some(ActiveCredential::OAuth),
@@ -154,7 +155,8 @@ mod tests {
     fn anthropic_explicit_selection_wins_over_auto() {
         let auth = anthropic(true, true);
         let resolved =
-            resolve_dual_credential_auth(ActiveProvider::Claude, &auth, Some("claude-api")).unwrap();
+            resolve_dual_credential_auth(ActiveProvider::Claude, &auth, Some("claude-api"))
+                .unwrap();
         assert_eq!(resolved.active, ActiveCredential::ApiKey);
         assert!(resolved.explicit);
         let resolved =

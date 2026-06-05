@@ -31,6 +31,9 @@ pub(super) use key_handling::reload_stale_remote_server_before_update;
 use queue_recovery::{recover_local_interleave_to_queue, recover_stranded_soft_interrupts};
 // Re-export for sibling modules and tests that access reconnect state and helpers
 // through `super::remote::*` without reaching into private submodules directly.
+// `#[allow(unused_imports)]` is required because rustc flags re-exports as unused
+// when none of the names are referenced within *this* module; they are consumed by
+// sibling modules and the compiler does not look across module boundaries here.
 #[allow(unused_imports)]
 pub(super) use reconnect::{
     ConnectOutcome, PostConnectOutcome, ReloadReconnectHints, RemoteRunState, connect_with_retry,
@@ -46,6 +49,8 @@ use workspace::{handle_workspace_command, handle_workspace_navigation_key};
 
 // Re-export the remote input dispatch helpers for sibling modules/tests that go
 // through the `remote` facade instead of private submodule paths.
+// Same rationale as above: `#[allow(unused_imports)]` silences the false-positive
+// lint for re-exports that are only consumed outside this module.
 #[allow(unused_imports)]
 pub(super) use input_dispatch::{
     apply_remote_transcript_event, apply_transcript_event, begin_remote_send,
@@ -738,14 +743,14 @@ pub(super) fn handle_disconnect(
         let content = app.take_streaming_text();
         let content = app.collapse_reasoning_for_commit(content);
         if !content.trim().is_empty() {
-        app.push_display_message(DisplayMessage {
-            role: "assistant".to_string(),
-            content,
-            tool_calls: vec![],
-            duration_secs: None,
-            title: None,
-            tool_data: None,
-        });
+            app.push_display_message(DisplayMessage {
+                role: "assistant".to_string(),
+                content,
+                tool_calls: vec![],
+                duration_secs: None,
+                title: None,
+                tool_data: None,
+            });
         }
     }
     app.clear_streaming_render_state();
@@ -1251,14 +1256,14 @@ async fn detect_and_cancel_stall(app: &mut App, remote: &mut RemoteConnection) {
                 let content = app.take_streaming_text();
                 let content = app.collapse_reasoning_for_commit(content);
                 if !content.trim().is_empty() {
-                app.push_display_message(DisplayMessage {
-                    role: "assistant".to_string(),
-                    content,
-                    tool_calls: vec![],
-                    duration_secs: None,
-                    title: None,
-                    tool_data: None,
-                });
+                    app.push_display_message(DisplayMessage {
+                        role: "assistant".to_string(),
+                        content,
+                        tool_calls: vec![],
+                        duration_secs: None,
+                        title: None,
+                        tool_data: None,
+                    });
                 }
             }
             if !app.schedule_pending_remote_retry(

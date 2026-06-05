@@ -17,7 +17,6 @@ members = [
     "crates/jcode-auth-types",
     "crates/jcode-embedding",
     "crates/jcode-gateway-types",
-    "crates/jcode-import-core",
     "crates/jcode-pdf",
     "crates/jcode-logging",
     "crates/jcode-background-types",
@@ -69,6 +68,14 @@ members = [
     "crates/jcode-render-core",
 ]
 
+# Local override: build against the fast_file_search main branch which
+# carries the @-mention system (Phases A/B/C/D) before the 0.2.0 release
+# lands on crates.io. The git rev will be bumped as new ffs features land.
+# Remove this block once ffs-search 0.2.0 is published.
+[workspace.dependencies]
+ffs-search = { git = "https://github.com/quangdang46/fast_file_search", rev = "4cd7f27" }
+ffs-engine = { git = "https://github.com/quangdang46/fast_file_search", rev = "4cd7f27" }
+
 [lib]
 name = "jcode"
 path = "src/lib.rs"
@@ -101,6 +108,21 @@ path = "src/bin/tui_bench.rs"
 required-features = ["dev-bins"]
 
 [dependencies]
+# Cross-provider session conversion engine (resume/import any provider -> jcode).
+# Pinned to a specific commit SHA on the upstream fork so the dependency is
+# reproducible and doesn't accidentally pick up in-flight changes. Bump the
+# `rev` value (or switch to a `tag = "vX.Y.Z"`) when you want to pull a newer
+# CASR snapshot.
+casr = { git = "https://github.com/quangdang46/cross_agent_session_resumer", package = "cross_agent_session_resumer", rev = "23a58b8aedf816faf92d5a791fed3a653162d71c" }
+
+# File picker for `@<path>` autocomplete in the TUI input.
+# Provides a long-lived FilePicker with background scan, gitignore-aware walk,
+# fuzzy matching with typo resistance, and frecency-ranked results.
+# The path override under [workspace.dependencies] above redirects this
+# to the local fast_file_search checkout so we exercise the
+# @-mention system (Phases A/B/C/D) before ffs-search 0.2.0 is on crates.io.
+ffs-search.workspace = true
+
 # Memory allocator (reduces fragmentation for long-running server)
 tikv-jemallocator = { version = "0.6", features = ["unprefixed_malloc_on_supported_platforms"], optional = true }
 tikv-jemalloc-ctl = { version = "0.6", optional = true }
@@ -125,6 +147,12 @@ toml = "0.8"
 # CLI
 clap = { version = "4", features = ["derive"] }
 
+# Permission modes (Plan / AcceptEdits / BypassPermissions / DontAsk).
+# Git dep from the DCG repo (not crates.io, not local path).
+# v0.6.0-rc.1 ships the Mode + Effect + Engine + Session API;
+# pack-rule evaluation lands in Phase 2.
+dcg-core = { git = "https://github.com/quangdang46/destructive_command_guard", branch = "main" }
+
 # File operations
 glob = "0.3"
 ignore = "0.4"           # gitignore-aware file walking
@@ -145,12 +173,12 @@ proctitle = "0.1"
 # Embeddings (local inference) - behind feature flag (163 crates, slow to compile)
 jcode-embedding = { path = "crates/jcode-embedding", optional = true }
 jcode-gateway-types = { path = "crates/jcode-gateway-types" }
-jcode-import-core = { path = "crates/jcode-import-core" }
 jcode-logging = { path = "crates/jcode-logging" }
 
 # OAuth
 base64 = "0.22"
 sha2 = "0.10"
+hashline = { version = "0.2", default-features = false, features = ["sha256-anchors"] }
 rand = "0.9.3"
 hex = "0.4"
 url = "2"
@@ -238,6 +266,7 @@ aws-smithy-types = "1.4.7"
 aws-sdk-bedrock = "1.141.0"
 aws-sdk-sts = "1.103.0"
 
+
 [features]
 # Include local ONNX/tokenizer embeddings in default builds so memory recall,
 # semantic retrieval, and embedding-backed features work out of the box.
@@ -260,11 +289,12 @@ jemalloc-prof = [
     "jcode-tui/jemalloc-prof",
 ]
 embeddings = ["dep:jcode-embedding", "jcode-tui/embeddings"]
-mmdr-size-api = ["jcode-tui/mmdr-size-api"]
+dcp = ["jcode-tui/dcp"]
+mmdr-size-api = ["jcode-tui-mermaid/mmdr-size-api"]
 pdf = ["dep:jcode-pdf", "jcode-tui/pdf"]
 
 [target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_System_Threading"] }
+windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_System_Threading", "Win32_System_Console", "Win32_Globalization"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 global-hotkey = "0.7"
