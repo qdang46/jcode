@@ -65,6 +65,7 @@ members = [
     "crates/jcode-mobile-core",
     "crates/jcode-mobile-sim",
     "crates/jcode-desktop",
+    "crates/jcode-mempalace-adapter",
     "crates/jcode-render-core",
 ]
 

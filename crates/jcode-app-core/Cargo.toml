@@ -136,6 +136,7 @@ jcode-task-types = { path = "../jcode-task-types" }
 jcode-tool-core = { path = "../jcode-tool-core" }
 jcode-tool-types = { path = "../jcode-tool-types" }
 jcode-side-panel-types = { path = "../jcode-side-panel-types" }
+jcode-mempalace-adapter = { path = "../jcode-mempalace-adapter", optional = true }
 
 # Archive extraction (for auto-update)
 flate2 = "1"
@@ -170,6 +171,8 @@ dcp = ["dep:dynamic_context_pruning"]
 # jcode-base's `test-support` so downstream crates' test targets can reach the
 # whole stack's helpers. Never enabled in normal (non-test) builds.
 test-support = ["jcode-base/test-support"]
+# mempalace backend: enables MempalaceAdapter for MemoryTool dispatch (#357).
+mempalace-backend = ["dep:jcode-mempalace-adapter", "jcode-mempalace-adapter/backend"]
 
 [dev-dependencies]
 # Used by async streaming tests (ambient/runner_tests, server/client_actions_tests).

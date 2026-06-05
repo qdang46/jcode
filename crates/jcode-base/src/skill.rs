@@ -924,6 +924,5 @@ mod invocation_parse_tests {
         );
         let skill = SkillRegistry::parse_skill(&path).unwrap();
         assert_eq!(skill.tags, vec!["rust", "perf"]);
->>>>>>> origin/master
     }
 }

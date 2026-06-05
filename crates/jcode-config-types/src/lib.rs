@@ -406,6 +406,40 @@ pub struct AuthConfig {
     pub trusted_external_source_paths: Vec<String>,
 }
 
+/// Which memory backend to use for storage and retrieval.
+///
+/// `Native` (default) uses jcode's built-in JSON-based MemoryManager.
+/// `Mempalace` delegates to a mempalace Palace via the adapter crate.
+///
+/// Set in `.jcode/config.json` as `agents.memory_backend` or via
+/// the `JCODE_MEMORY_BACKEND` environment variable.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum MemoryBackend {
+    /// JSON-based MemoryManager (current default).
+    #[default]
+    Native,
+    /// mempalace Palace via MempalaceAdapter.
+    Mempalace,
+}
+
+impl MemoryBackend {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Native => "native",
+            Self::Mempalace => "mempalace",
+        }
+    }
+
+    pub fn parse(value: &str) -> Option<Self> {
+        match value.trim().to_ascii_lowercase().as_str() {
+            "native" => Some(Self::Native),
+            "mempalace" | "palace" => Some(Self::Mempalace),
+            _ => None,
+        }
+    }
+}
+
 /// Agent-specific model defaults.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(default)]
@@ -423,6 +457,9 @@ pub struct AgentsConfig {
     pub memory_model: Option<String>,
     /// Whether memory should use the sidecar for relevance/extraction.
     pub memory_sidecar_enabled: bool,
+    /// Which memory backend to use: "native" (JSON-based) or "mempalace" (Palace).
+    /// Default: `MemoryBackend::Native`. Overridable via `JCODE_MEMORY_BACKEND` env var.
+    pub memory_backend: MemoryBackend,
 }
 
 /// How swarm-created agents should be spawned.

@@ -1,0 +1,32 @@
+[package]
+name = "jcode-mempalace-adapter"
+version = "0.1.0"
+edition = "2024"
+description = "Type-conversion layer between jcode MemoryEntry and mempalace Drawer"
+license = "MIT"
+
+[features]
+default = []
+# Enables the full mempalace backend (Palace runtime, migration tool,
+# MemoryProvider-based MempalaceAdapter). Requires rusqlite 0.33 (aligned).
+backend = ["dep:mempalace-core"]
+
+[dependencies]
+# jcode-side types: only the leaf data types (MemoryEntry, MemoryCategory, …)
+jcode-memory-types = { path = "../jcode-memory-types" }
+
+# Async + error plumbing
+anyhow = "1"
+async-trait = "0.1"
+chrono = { version = "0.4", features = ["serde"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tracing = "0.1"
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+
+# mempalace runtime — feature-gated to avoid pulling in rusqlite/embedvec/fastembed
+# unless the consumer explicitly opts in via `features = ["backend"]`.
+mempalace-core = { git = "https://github.com/quangdang46/mempalace_rust", branch = "main", default-features = false, optional = true }
+
+[dev-dependencies]
+tempfile = "3"
