@@ -5,17 +5,30 @@ use serde::{Deserialize, Serialize};
 pub struct PluginId(String);
 
 impl PluginId {
-    pub fn npm(name: &str) -> Self { Self(format!("npm:{name}")) }
-    pub fn file(path: &str) -> Self { Self(format!("file:{path}")) }
-    pub fn bundled(name: &str) -> Self { Self(format!("builtin:{name}")) }
+    pub fn npm(name: &str) -> Self {
+        Self(format!("npm:{name}"))
+    }
+    pub fn file(path: &str) -> Self {
+        Self(format!("file:{path}"))
+    }
+    pub fn bundled(name: &str) -> Self {
+        Self(format!("builtin:{name}"))
+    }
 
-    pub fn to_string(&self) -> String { self.0.clone() }
+    pub fn to_string(&self) -> String {
+        self.0.clone()
+    }
 
-    pub fn as_str(&self) -> &str { &self.0 }
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
 
     /// Extract the short name (strip prefix)
     pub fn short_name(&self) -> &str {
-        self.0.split_once(':').map(|(_, name)| name).unwrap_or(&self.0)
+        self.0
+            .split_once(':')
+            .map(|(_, name)| name)
+            .unwrap_or(&self.0)
     }
 }
 
@@ -26,7 +39,9 @@ impl std::fmt::Display for PluginId {
 }
 
 impl From<String> for PluginId {
-    fn from(s: String) -> Self { Self(s) }
+    fn from(s: String) -> Self {
+        Self(s)
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
-    use crate::*;
     use crate::serde;
+    use crate::*;
 
     #[test]
     fn plugin_id_npm_creates_correct_format() {
@@ -100,10 +100,7 @@ mod tests {
             format!("{npm:?}"),
             r#"NpmPackage { name: "pkg", version: "1.0" }"#
         );
-        assert_eq!(
-            format!("{file:?}"),
-            r#"LocalFile { path: "/p.wasm" }"#
-        );
+        assert_eq!(format!("{file:?}"), r#"LocalFile { path: "/p.wasm" }"#);
         assert_eq!(format!("{builtin:?}"), r#"Builtin { name: "core" }"#);
         assert_eq!(
             format!("{remote:?}"),
@@ -224,10 +221,7 @@ mod tests {
     fn capability_set_matches_hosts_by_contains() {
         let mut set = CapabilitySet::default();
         set.hosts.push("api.example.com".into());
-        assert!(set.matches(
-            "https://api.example.com/v1",
-            &CapabilityAction::Network
-        ));
+        assert!(set.matches("https://api.example.com/v1", &CapabilityAction::Network));
         assert!(!set.matches("https://other.com", &CapabilityAction::Network));
     }
 
@@ -235,10 +229,7 @@ mod tests {
     fn capability_set_matches_fs_paths_by_prefix() {
         let mut set = CapabilitySet::default();
         set.fs_paths.push("/data".into());
-        assert!(set.matches(
-            "/data/plugins/file.txt",
-            &CapabilityAction::Read
-        ));
+        assert!(set.matches("/data/plugins/file.txt", &CapabilityAction::Read));
         assert!(!set.matches("/other/file.txt", &CapabilityAction::Read));
     }
 
@@ -604,9 +595,7 @@ mod tests {
         let json = serde_json::to_string(&input).unwrap();
         let deserialized: EventInput = serde_json::from_str(&json).unwrap();
         match deserialized {
-            EventInput::Notification {
-                level, message, ..
-            } => {
+            EventInput::Notification { level, message, .. } => {
                 assert_eq!(level, "info");
                 assert_eq!(message, "hello");
             }
@@ -624,7 +613,9 @@ mod tests {
         let deserialized: EventOutput = serde_json::from_str(&json).unwrap();
         match deserialized {
             EventOutput::PreToolUse {
-                block, modified_input, ..
+                block,
+                modified_input,
+                ..
             } => {
                 assert_eq!(block, Some("reason".into()));
                 assert!(modified_input.is_some());
@@ -673,8 +664,7 @@ mod tests {
     fn permission_decision_serde() {
         let json = serde_json::to_string(&PermissionDecision::Deny).unwrap();
         assert_eq!(json, "\"deny\"");
-        let deserialized: PermissionDecision =
-            serde_json::from_str("\"ask\"").unwrap();
+        let deserialized: PermissionDecision = serde_json::from_str("\"ask\"").unwrap();
         assert_eq!(deserialized, PermissionDecision::Ask);
     }
 
@@ -712,8 +702,7 @@ mod tests {
             HandlerAction::Error,
         ] {
             let json = serde_json::to_string(action).unwrap();
-            let deserialized: HandlerAction =
-                serde_json::from_str(&json).unwrap();
+            let deserialized: HandlerAction = serde_json::from_str(&json).unwrap();
             assert_eq!(deserialized, *action);
         }
     }
@@ -722,8 +711,7 @@ mod tests {
     fn handler_action_block_serde() {
         let action = HandlerAction::Block("reason".into());
         let json = serde_json::to_string(&action).unwrap();
-        let deserialized: HandlerAction =
-            serde_json::from_str(&json).unwrap();
+        let deserialized: HandlerAction = serde_json::from_str(&json).unwrap();
         match deserialized {
             HandlerAction::Block(msg) => assert_eq!(msg, "reason"),
             _ => panic!("expected Block"),
@@ -733,10 +721,7 @@ mod tests {
     #[test]
     fn plugin_error_display_invalid_manifest() {
         let err = PluginError::InvalidManifest("missing field".into());
-        assert_eq!(
-            err.to_string(),
-            "Plugin manifest is invalid: missing field"
-        );
+        assert_eq!(err.to_string(), "Plugin manifest is invalid: missing field");
     }
 
     #[test]
@@ -748,10 +733,7 @@ mod tests {
     #[test]
     fn plugin_error_display_load() {
         let err = PluginError::Load("permission denied".into());
-        assert_eq!(
-            err.to_string(),
-            "Failed to load plugin: permission denied"
-        );
+        assert_eq!(err.to_string(), "Failed to load plugin: permission denied");
     }
 
     #[test]
@@ -763,10 +745,7 @@ mod tests {
     #[test]
     fn plugin_error_display_eval() {
         let err = PluginError::Eval("syntax error".into());
-        assert_eq!(
-            err.to_string(),
-            "QuickJS evaluation error: syntax error"
-        );
+        assert_eq!(err.to_string(), "QuickJS evaluation error: syntax error");
     }
 
     #[test]
@@ -778,10 +757,7 @@ mod tests {
     #[test]
     fn plugin_error_display_transpile() {
         let err = PluginError::Transpile("unexpected token".into());
-        assert_eq!(
-            err.to_string(),
-            "SWC transpilation error: unexpected token"
-        );
+        assert_eq!(err.to_string(), "SWC transpilation error: unexpected token");
     }
 
     #[test]
@@ -811,8 +787,7 @@ mod tests {
 
     #[test]
     fn plugin_error_io_conversion() {
-        let io_err =
-            std::io::Error::new(std::io::ErrorKind::NotFound, "file not found");
+        let io_err = std::io::Error::new(std::io::ErrorKind::NotFound, "file not found");
         let err: PluginError = io_err.into();
         assert!(err.to_string().contains("I/O error"));
     }
@@ -857,8 +832,7 @@ mod tests {
                 "kind": "server"
             }
         });
-        let manifest =
-            PluginManifest::from_package_json(&json).unwrap();
+        let manifest = PluginManifest::from_package_json(&json).unwrap();
         assert_eq!(manifest.name, "test-plugin");
         assert_eq!(manifest.version, "1.0.0");
         assert_eq!(manifest.kind, PluginKind::Server);
@@ -875,8 +849,7 @@ mod tests {
                 "kind": "tui"
             }
         });
-        let manifest =
-            PluginManifest::from_package_json(&json).unwrap();
+        let manifest = PluginManifest::from_package_json(&json).unwrap();
         assert_eq!(manifest.version, "2.0.0");
         assert_eq!(manifest.kind, PluginKind::Tui);
     }
@@ -887,8 +860,7 @@ mod tests {
             "jcode": { "name": "a", "package_name": "a", "version": "1.0.0" },
             "pi": { "name": "b", "package_name": "b", "version": "2.0.0" }
         });
-        let manifest =
-            PluginManifest::from_package_json(&json).unwrap();
+        let manifest = PluginManifest::from_package_json(&json).unwrap();
         assert_eq!(manifest.version, "1.0.0");
     }
 
@@ -903,8 +875,7 @@ mod tests {
         manifest.kind = PluginKind::Both;
         manifest.tags = vec!["test".into(), "demo".into()];
         let json = serde_json::to_string_pretty(&manifest).unwrap();
-        let deserialized: PluginManifest =
-            serde_json::from_str(&json).unwrap();
+        let deserialized: PluginManifest = serde_json::from_str(&json).unwrap();
         assert_eq!(deserialized.name, "my-plugin");
         assert_eq!(deserialized.version, "1.2.3");
         assert_eq!(deserialized.description.unwrap(), "A test plugin");
@@ -934,8 +905,7 @@ mod tests {
             both: None,
         };
         let json = serde_json::to_string(&entry).unwrap();
-        let deserialized: PluginEntry =
-            serde_json::from_str(&json).unwrap();
+        let deserialized: PluginEntry = serde_json::from_str(&json).unwrap();
         assert_eq!(deserialized.server.unwrap(), "dist/server.js");
         assert!(deserialized.both.is_none());
     }
@@ -964,8 +934,7 @@ mod tests {
             ..Default::default()
         };
         let json = serde_json::to_string(&caps).unwrap();
-        let deserialized: PluginCapabilities =
-            serde_json::from_str(&json).unwrap();
+        let deserialized: PluginCapabilities = serde_json::from_str(&json).unwrap();
         assert_eq!(deserialized.fs_read, vec!["/data"]);
         assert_eq!(deserialized.network, vec!["api.example.com"]);
         assert!(deserialized.shell);
@@ -982,8 +951,7 @@ mod tests {
             additional_capabilities: None,
         };
         let json = serde_json::to_string(&feature).unwrap();
-        let deserialized: PluginFeature =
-            serde_json::from_str(&json).unwrap();
+        let deserialized: PluginFeature = serde_json::from_str(&json).unwrap();
         assert_eq!(deserialized.description, "A feature");
         assert!(!deserialized.default);
     }
@@ -999,11 +967,12 @@ mod tests {
             max_length: Some(100),
         };
         let json = serde_json::to_string_pretty(&schema).unwrap();
-        let deserialized: SettingSchema =
-            serde_json::from_str(&json).unwrap();
+        let deserialized: SettingSchema = serde_json::from_str(&json).unwrap();
         match deserialized {
             SettingSchema::String {
-                description, secret, ..
+                description,
+                secret,
+                ..
             } => {
                 assert_eq!(description, "name");
                 assert!(secret);
@@ -1021,8 +990,7 @@ mod tests {
             max: Some(100.0),
         };
         let json = serde_json::to_string(&schema).unwrap();
-        let deserialized: SettingSchema =
-            serde_json::from_str(&json).unwrap();
+        let deserialized: SettingSchema = serde_json::from_str(&json).unwrap();
         match deserialized {
             SettingSchema::Number {
                 description,
@@ -1043,8 +1011,7 @@ mod tests {
             default: Some(true),
         };
         let json = serde_json::to_string(&schema).unwrap();
-        let deserialized: SettingSchema =
-            serde_json::from_str(&json).unwrap();
+        let deserialized: SettingSchema = serde_json::from_str(&json).unwrap();
         match deserialized {
             SettingSchema::Boolean {
                 description,
@@ -1065,8 +1032,7 @@ mod tests {
             values: vec!["fast".into(), "slow".into()],
         };
         let json = serde_json::to_string(&schema).unwrap();
-        let deserialized: SettingSchema =
-            serde_json::from_str(&json).unwrap();
+        let deserialized: SettingSchema = serde_json::from_str(&json).unwrap();
         match deserialized {
             SettingSchema::Enum { values, .. } => {
                 assert_eq!(values.len(), 2)
@@ -1087,8 +1053,7 @@ mod tests {
             properties: [("nested".into(), inner)].into(),
         };
         let json = serde_json::to_string(&schema).unwrap();
-        let deserialized: SettingSchema =
-            serde_json::from_str(&json).unwrap();
+        let deserialized: SettingSchema = serde_json::from_str(&json).unwrap();
         match deserialized {
             SettingSchema::Object { properties, .. } => {
                 assert!(properties.contains_key("nested"))
@@ -1109,15 +1074,13 @@ mod tests {
             jcode: Some(">=0.9.0".into()),
         };
         let json = serde_json::to_string(&engines).unwrap();
-        let deserialized: PluginEngines =
-            serde_json::from_str(&json).unwrap();
+        let deserialized: PluginEngines = serde_json::from_str(&json).unwrap();
         assert_eq!(deserialized.jcode.unwrap(), ">=0.9.0");
     }
 
     #[test]
     fn to_json_serializes_pretty() {
-        let json =
-            serde::to_json(&serde_json::json!({"key": "value"})).unwrap();
+        let json = serde::to_json(&serde_json::json!({"key": "value"})).unwrap();
         assert!(json.contains("\"key\""));
         assert!(json.contains("value"));
     }
@@ -1163,8 +1126,10 @@ mod tests {
 
     #[test]
     fn serde_roundtrip_event_output() {
-        let output =
-            EventOutput::PreToolUse { block: None, modified_input: None };
+        let output = EventOutput::PreToolUse {
+            block: None,
+            modified_input: None,
+        };
         let json = serde::to_json(&output).unwrap();
         let deserialized: EventOutput = serde::from_json(&json).unwrap();
         match deserialized {
@@ -1210,8 +1175,7 @@ mod tests {
         manifest.capabilities.network = vec!["localhost".into()];
         manifest.capabilities.shell = true;
         let json = serde_json::to_string(&manifest).unwrap();
-        let deserialized: PluginManifest =
-            serde_json::from_str(&json).unwrap();
+        let deserialized: PluginManifest = serde_json::from_str(&json).unwrap();
         assert_eq!(deserialized.capabilities.fs_read, vec!["/tmp"]);
         assert_eq!(deserialized.capabilities.network, vec!["localhost"]);
         assert!(deserialized.capabilities.shell);
@@ -1234,15 +1198,9 @@ mod tests {
 
     #[test]
     fn integration_error_chain_compatibility() {
-        let io_err = std::io::Error::new(
-            std::io::ErrorKind::PermissionDenied,
-            "permission denied",
-        );
+        let io_err = std::io::Error::new(std::io::ErrorKind::PermissionDenied, "permission denied");
         let plugin_err: PluginError = io_err.into();
         let display = plugin_err.to_string();
-        assert!(
-            display.contains("I/O error")
-                || display.contains("permission denied")
-        );
+        assert!(display.contains("I/O error") || display.contains("permission denied"));
     }
 }

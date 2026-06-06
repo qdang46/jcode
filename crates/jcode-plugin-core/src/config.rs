@@ -59,13 +59,9 @@ pub enum PluginSource {
         version: Option<String>,
     },
     #[serde(rename = "file")]
-    File {
-        path: String,
-    },
+    File { path: String },
     #[serde(rename = "directory")]
-    Directory {
-        path: String,
-    },
+    Directory { path: String },
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]

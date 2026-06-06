@@ -1,10 +1,20 @@
-use std::sync::Arc;
 use jcode_plugin_core::events::HandlerResult;
+use std::sync::Arc;
 
 pub use jcode_plugin_core::preflight::{PreflightResult, StaticAnalysis};
 
 pub enum HandlerSlot {
-    Rust(Arc<dyn Fn(jcode_plugin_core::events::EventInput, Option<jcode_plugin_core::events::EventOutput>) -> std::pin::Pin<Box<dyn std::future::Future<Output = HandlerResult> + Send>> + Send + Sync>),
+    Rust(
+        Arc<
+            dyn Fn(
+                    jcode_plugin_core::events::EventInput,
+                    Option<jcode_plugin_core::events::EventOutput>,
+                )
+                    -> std::pin::Pin<Box<dyn std::future::Future<Output = HandlerResult> + Send>>
+                + Send
+                + Sync,
+        >,
+    ),
 }
 
 impl Clone for HandlerSlot {

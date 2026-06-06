@@ -357,13 +357,11 @@ fn apply_terminal_event(
                 // Let the plugin system handle the key first. If any plugin
                 // consumes it, skip normal TUI key handling.
                 let plugin_handled = if let Some(bridge) = app.plugin_bridge.as_ref() {
-                    if let Some(key_str) = crate::tui::plugin_integration::format_plugin_key(
-                        key.code,
-                        key.modifiers,
-                    ) {
+                    if let Some(key_str) =
+                        crate::tui::plugin_integration::format_plugin_key(key.code, key.modifiers)
+                    {
                         tokio::task::block_in_place(|| {
-                            tokio::runtime::Handle::current()
-                                .block_on(bridge.handle_key(&key_str))
+                            tokio::runtime::Handle::current().block_on(bridge.handle_key(&key_str))
                         })
                     } else {
                         false

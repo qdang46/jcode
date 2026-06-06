@@ -166,8 +166,8 @@ pub(crate) fn draw_status_bar_slots(
     bridge: &PluginTuiBridge,
     area: ratatui::layout::Rect,
 ) {
-    use ratatui::text::{Line, Span};
     use ratatui::style::{Color, Style};
+    use ratatui::text::{Line, Span};
 
     let slots = bridge.read_slots(SlotType::StatusBar);
     if slots.is_empty() {
@@ -197,8 +197,8 @@ pub(crate) fn draw_sidebar_slots(
     bridge: &PluginTuiBridge,
     area: ratatui::layout::Rect,
 ) {
-    use ratatui::text::{Line, Span};
     use ratatui::style::{Color, Style};
+    use ratatui::text::{Line, Span};
     use ratatui::widgets::{Block, Borders, Paragraph};
 
     let slots = bridge.read_slots(SlotType::Sidebar);

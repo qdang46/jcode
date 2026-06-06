@@ -1,11 +1,11 @@
-use std::sync::Arc;
-use std::time::Duration;
-use rquickjs::{AsyncRuntime, AsyncContext};
 use jcode_plugin_core::PluginError;
-use jcode_plugin_core::types::PluginId;
+use jcode_plugin_core::events::{EventInput, EventOutput, HandlerResult, PluginEvent};
 use jcode_plugin_core::manifest::PluginManifest;
 use jcode_plugin_core::security::CapabilityChain;
-use jcode_plugin_core::events::{PluginEvent, EventInput, EventOutput, HandlerResult};
+use jcode_plugin_core::types::PluginId;
+use rquickjs::{AsyncContext, AsyncRuntime};
+use std::sync::Arc;
+use std::time::Duration;
 
 #[derive(Debug, Clone)]
 pub struct DualTimeout {
@@ -34,7 +34,11 @@ pub struct SandboxContext {
 }
 
 impl SandboxContext {
-    pub fn new(id: PluginId, manifest: PluginManifest, runtime: AsyncRuntime) -> Result<Self, PluginError> {
+    pub fn new(
+        id: PluginId,
+        manifest: PluginManifest,
+        runtime: AsyncRuntime,
+    ) -> Result<Self, PluginError> {
         Ok(Self {
             runtime,
             _id: id,
@@ -52,14 +56,19 @@ impl SandboxContext {
         ctx.with(|ctx| {
             ctx.eval::<(), _>(code)
                 .map_err(|e| PluginError::Eval(e.to_string()))
-        }).await
-            .map_err(|e| PluginError::Eval(e.to_string()))?;
+        })
+        .await
+        .map_err(|e| PluginError::Eval(e.to_string()))?;
 
         Ok(())
     }
 
-    pub async fn call_handler(&self, event: PluginEvent, input: EventInput,
-            output: Option<EventOutput>) -> Result<HandlerResult, PluginError> {
+    pub async fn call_handler(
+        &self,
+        event: PluginEvent,
+        input: EventInput,
+        output: Option<EventOutput>,
+    ) -> Result<HandlerResult, PluginError> {
         let timeout = self.get_timeout(event);
         match tokio::time::timeout(timeout, self.call_inner(event, input, output)).await {
             Ok(Ok(r)) => Ok(r),
@@ -74,16 +83,23 @@ impl SandboxContext {
     /// 2. Call the stored JS function reference via QuickJS context
     /// 3. Deserialize the JS return value into HandlerResult
     /// This is blocked on storing JS function references across the Rust boundary.
-    async fn call_inner(&self, _event: PluginEvent, _input: EventInput,
-            _output: Option<EventOutput>) -> Result<HandlerResult, PluginError> {
+    async fn call_inner(
+        &self,
+        _event: PluginEvent,
+        _input: EventInput,
+        _output: Option<EventOutput>,
+    ) -> Result<HandlerResult, PluginError> {
         Ok(HandlerResult::default())
     }
 
     fn get_timeout(&self, event: PluginEvent) -> Duration {
         match event {
-            PluginEvent::PermissionRequest | PluginEvent::PermissionDenied =>
-                self.timeout.permission.unwrap_or(Duration::from_secs(3600)),
-            PluginEvent::SessionEnd | PluginEvent::TurnEnd | PluginEvent::PostCompact
+            PluginEvent::PermissionRequest | PluginEvent::PermissionDenied => {
+                self.timeout.permission.unwrap_or(Duration::from_secs(3600))
+            }
+            PluginEvent::SessionEnd
+            | PluginEvent::TurnEnd
+            | PluginEvent::PostCompact
             | PluginEvent::AutoCompactionStart => self.timeout.info,
             _ => self.timeout.actionable,
         }

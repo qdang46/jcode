@@ -61,7 +61,8 @@ impl Default for PluginManifest {
 
 impl PluginManifest {
     pub fn from_package_json(value: &serde_json::Value) -> Result<Self, PluginError> {
-        let section = value.get("jcode")
+        let section = value
+            .get("jcode")
             .or_else(|| value.get("pi"))
             .ok_or_else(|| PluginError::InvalidManifest("missing 'jcode' or 'pi' field".into()))?;
         serde_json::from_value(section.clone())
@@ -80,7 +81,9 @@ pub enum PluginKind {
 }
 
 impl Default for PluginKind {
-    fn default() -> Self { Self::Server }
+    fn default() -> Self {
+        Self::Server
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -95,7 +98,11 @@ pub struct PluginEntry {
 
 impl Default for PluginEntry {
     fn default() -> Self {
-        Self { server: None, tui: None, both: None }
+        Self {
+            server: None,
+            tui: None,
+            both: None,
+        }
     }
 }
 
@@ -206,5 +213,7 @@ pub struct PluginEngines {
 }
 
 impl Default for PluginEngines {
-    fn default() -> Self { Self { jcode: None } }
+    fn default() -> Self {
+        Self { jcode: None }
+    }
 }

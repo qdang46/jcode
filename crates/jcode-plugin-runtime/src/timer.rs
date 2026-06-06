@@ -6,7 +6,9 @@ impl PluginTimer {
     pub fn get_timeout(event: &str) -> Duration {
         match event {
             "PermissionRequest" | "PermissionDenied" => Duration::from_secs(3600),
-            "SessionEnd" | "TurnEnd" | "PostCompact" | "AutoCompactionStart" => Duration::from_millis(500),
+            "SessionEnd" | "TurnEnd" | "PostCompact" | "AutoCompactionStart" => {
+                Duration::from_millis(500)
+            }
             _ => Duration::from_millis(5000),
         }
     }
@@ -15,7 +17,8 @@ impl PluginTimer {
     where
         F: std::future::Future<Output = T>,
     {
-        tokio::time::timeout(duration, future).await
+        tokio::time::timeout(duration, future)
+            .await
             .map_err(|_| RuntimeTimeout(duration))
     }
 }

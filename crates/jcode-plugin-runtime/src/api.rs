@@ -1,12 +1,12 @@
-use std::sync::Arc;
-use rquickjs::{Ctx, Function, Object, Value};
-use jcode_plugin_core::types::PluginId;
-use jcode_plugin_core::PluginEvent;
-use jcode_plugin_core::manifest::PluginManifest;
-use jcode_plugin_core::security::CapabilityChain;
 use crate::bridge::PromiseBridge;
 use crate::registry::PluginRegistry;
 use crate::types::HandlerSlot;
+use jcode_plugin_core::PluginEvent;
+use jcode_plugin_core::manifest::PluginManifest;
+use jcode_plugin_core::security::CapabilityChain;
+use jcode_plugin_core::types::PluginId;
+use rquickjs::{Ctx, Function, Object, Value};
+use std::sync::Arc;
 
 pub struct PluginApiBindings {
     plugin_id: PluginId,
@@ -24,7 +24,13 @@ impl PluginApiBindings {
         registry: Arc<PluginRegistry>,
         bridge: Arc<PromiseBridge>,
     ) -> Self {
-        Self { plugin_id, _manifest: manifest, _capability_chain: capability_chain, registry, _bridge: bridge }
+        Self {
+            plugin_id,
+            _manifest: manifest,
+            _capability_chain: capability_chain,
+            registry,
+            _bridge: bridge,
+        }
     }
 
     pub fn install<'js>(&self, ctx: &Ctx<'js>) -> Result<(), rquickjs::Error> {
@@ -44,9 +50,12 @@ impl PluginApiBindings {
 
         pi.set("sleep", self.make_sleep_fn(ctx)?)?;
         pi.set("uuid", self.make_uuid_fn(ctx)?)?;
-        pi.set("cwd", std::env::current_dir()
-            .map(|p| p.to_string_lossy().to_string())
-            .unwrap_or_else(|_| ".".to_string()))?;
+        pi.set(
+            "cwd",
+            std::env::current_dir()
+                .map(|p| p.to_string_lossy().to_string())
+                .unwrap_or_else(|_| ".".to_string()),
+        )?;
         let handlers = Object::new(ctx.clone())?;
         pi.set("_handlers", handlers)?;
         ctx.globals().set("__jcode_pi", pi)?;
@@ -88,12 +97,20 @@ impl PluginApiBindings {
                 "Stop" => PluginEvent::Stop,
                 "Notification" => PluginEvent::Notification,
                 _ => {
-                    tracing::warn!("Plugin {} registered handler for unknown event: {}", plugin_id, event);
+                    tracing::warn!(
+                        "Plugin {} registered handler for unknown event: {}",
+                        plugin_id,
+                        event
+                    );
                     return;
                 }
             };
 
-            tracing::debug!("Plugin {} registered handler for event: {}", plugin_id, event);
+            tracing::debug!(
+                "Plugin {} registered handler for event: {}",
+                plugin_id,
+                event
+            );
 
             // Create a Rust handler slot that wraps the JS handler invocation.
             // The actual JS function call happens in the sandbox's call_handler method.
@@ -133,37 +150,44 @@ impl PluginApiBindings {
     }
 
     fn make_get_config_fn<'js>(&self, ctx: &Ctx<'js>) -> Result<Function<'js>, rquickjs::Error> {
-        Function::new(ctx.clone(), |_key: String| {
-            ""
-        })
+        Function::new(ctx.clone(), |_key: String| "")
     }
 
     fn make_logger<'js>(&self, ctx: &Ctx<'js>) -> Result<Object<'js>, rquickjs::Error> {
         let logger = Object::new(ctx.clone())?;
-        logger.set("info", Function::new(ctx.clone(), |msg: String| {
-            tracing::info!("[plugin] {}", msg);
-        })?)?;
-        logger.set("warn", Function::new(ctx.clone(), |msg: String| {
-            tracing::warn!("[plugin] {}", msg);
-        })?)?;
-        logger.set("error", Function::new(ctx.clone(), |msg: String| {
-            tracing::error!("[plugin] {}", msg);
-        })?)?;
-        logger.set("debug", Function::new(ctx.clone(), |msg: String| {
-            tracing::debug!("[plugin] {}", msg);
-        })?)?;
+        logger.set(
+            "info",
+            Function::new(ctx.clone(), |msg: String| {
+                tracing::info!("[plugin] {}", msg);
+            })?,
+        )?;
+        logger.set(
+            "warn",
+            Function::new(ctx.clone(), |msg: String| {
+                tracing::warn!("[plugin] {}", msg);
+            })?,
+        )?;
+        logger.set(
+            "error",
+            Function::new(ctx.clone(), |msg: String| {
+                tracing::error!("[plugin] {}", msg);
+            })?,
+        )?;
+        logger.set(
+            "debug",
+            Function::new(ctx.clone(), |msg: String| {
+                tracing::debug!("[plugin] {}", msg);
+            })?,
+        )?;
         Ok(logger)
     }
 
     fn make_kv_get_fn<'js>(&self, ctx: &Ctx<'js>) -> Result<Function<'js>, rquickjs::Error> {
-        Function::new(ctx.clone(), |_key: String| {
-            ""
-        })
+        Function::new(ctx.clone(), |_key: String| "")
     }
 
     fn make_kv_set_fn<'js>(&self, ctx: &Ctx<'js>) -> Result<Function<'js>, rquickjs::Error> {
-        Function::new(ctx.clone(), |_key: String, _value: Value<'js>| {
-        })
+        Function::new(ctx.clone(), |_key: String, _value: Value<'js>| {})
     }
 
     fn make_sleep_fn<'js>(&self, ctx: &Ctx<'js>) -> Result<Function<'js>, rquickjs::Error> {
@@ -177,8 +201,6 @@ impl PluginApiBindings {
     }
 
     fn make_uuid_fn<'js>(&self, ctx: &Ctx<'js>) -> Result<Function<'js>, rquickjs::Error> {
-        Function::new(ctx.clone(), || {
-            uuid::Uuid::new_v4().to_string()
-        })
+        Function::new(ctx.clone(), || uuid::Uuid::new_v4().to_string())
     }
 }

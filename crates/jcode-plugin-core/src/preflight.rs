@@ -86,7 +86,14 @@ impl PreflightAnalyzer {
         }
 
         // Filesystem access pattern detection
-        let fs_patterns = ["fs.read", "fs.write", "readFile", "writeFile", "readText", "writeText"];
+        let fs_patterns = [
+            "fs.read",
+            "fs.write",
+            "readFile",
+            "writeFile",
+            "readText",
+            "writeText",
+        ];
         let fs_detected: Vec<String> = fs_patterns
             .iter()
             .filter(|p| code.contains(*p))
@@ -97,7 +104,13 @@ impl PreflightAnalyzer {
         }
 
         // Network access pattern detection
-        let net_patterns = ["fetch(", "XMLHttpRequest", "WebSocket", "http.get", "https.get"];
+        let net_patterns = [
+            "fetch(",
+            "XMLHttpRequest",
+            "WebSocket",
+            "http.get",
+            "https.get",
+        ];
         let net_detected: Vec<String> = net_patterns
             .iter()
             .filter(|p| code.contains(*p))
@@ -105,7 +118,15 @@ impl PreflightAnalyzer {
             .collect();
 
         // Suspicious patterns — these are blockers
-        let suspicious = ["rm -rf", "sudo ", "chmod 777", "> /dev/sda", "rm -rf /", "mkfs.", "dd if="];
+        let suspicious = [
+            "rm -rf",
+            "sudo ",
+            "chmod 777",
+            "> /dev/sda",
+            "rm -rf /",
+            "mkfs.",
+            "dd if=",
+        ];
         let found: Vec<String> = suspicious
             .iter()
             .filter(|s| code.contains(*s))
@@ -120,7 +141,10 @@ impl PreflightAnalyzer {
         if (code.contains("exec(") || code.contains("spawn(") || code.contains("child_process"))
             && !declared.shell
         {
-            warnings.push("Code appears to use shell/command execution but shell capability not declared".into());
+            warnings.push(
+                "Code appears to use shell/command execution but shell capability not declared"
+                    .into(),
+            );
             detected.push("shell_exec".into());
         }
 
@@ -175,7 +199,12 @@ mod tests {
         let result = PreflightAnalyzer::analyze(code, &default_caps());
         assert!(!result.passed);
         assert!(!result.blocks.is_empty());
-        assert!(result.static_analysis.suspicious_strings.contains(&"rm -rf".to_string()));
+        assert!(
+            result
+                .static_analysis
+                .suspicious_strings
+                .contains(&"rm -rf".to_string())
+        );
     }
 
     #[test]
@@ -190,7 +219,12 @@ mod tests {
     fn detects_fetch_without_network_capability() {
         let code = r#"fetch("https://example.com/api");"#;
         let result = PreflightAnalyzer::analyze(code, &default_caps());
-        assert!(result.warnings.iter().any(|w| w.contains("network capability")));
+        assert!(
+            result
+                .warnings
+                .iter()
+                .any(|w| w.contains("network capability"))
+        );
     }
 
     #[test]
@@ -199,7 +233,12 @@ mod tests {
         caps.network = vec!["example.com".to_string()];
         let code = r#"fetch("https://example.com/api");"#;
         let result = PreflightAnalyzer::analyze(code, &caps);
-        assert!(!result.warnings.iter().any(|w| w.contains("network capability")));
+        assert!(
+            !result
+                .warnings
+                .iter()
+                .any(|w| w.contains("network capability"))
+        );
     }
 
     #[test]
@@ -221,7 +260,12 @@ mod tests {
     fn detects_function_constructor() {
         let code = r#"new Function("return 1")();"#;
         let result = PreflightAnalyzer::analyze(code, &default_caps());
-        assert!(result.warnings.iter().any(|w| w.contains("Function constructor")));
+        assert!(
+            result
+                .warnings
+                .iter()
+                .any(|w| w.contains("Function constructor"))
+        );
     }
 
     #[test]

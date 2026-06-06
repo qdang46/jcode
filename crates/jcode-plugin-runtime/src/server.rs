@@ -1,16 +1,17 @@
-use std::sync::Arc;
-use jcode_plugin_core::PluginEvent;
-use jcode_plugin_core::types::PluginId;
-use jcode_plugin_core::config::{PluginConfig, DiscoveryPaths};
-use jcode_plugin_core::events::{EventInput, HandlerAction};
-use crate::runtime::{RuntimeManager, RuntimeConfig};
-use crate::dispatcher::RcuDispatcher;
-use crate::registry::PluginRegistry;
-use crate::loader::PluginLoader;
 use crate::audit::AuditTrail;
+use crate::dispatcher::RcuDispatcher;
+use crate::loader::PluginLoader;
+use crate::registry::PluginRegistry;
+use crate::runtime::{RuntimeConfig, RuntimeManager};
 use crate::transpiler::Transpiler;
+use jcode_plugin_core::PluginEvent;
+use jcode_plugin_core::config::{DiscoveryPaths, PluginConfig};
+use jcode_plugin_core::events::{EventInput, HandlerAction};
+use jcode_plugin_core::types::PluginId;
+use std::sync::Arc;
 
-pub static DISABLE_ALL_PLUGINS: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+pub static DISABLE_ALL_PLUGINS: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
 pub static SKIP_HOOKS: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 pub static FORCE_DENY: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
@@ -75,17 +76,23 @@ impl PluginSystem {
         })
     }
 
-    pub async fn dispatch_event(&self, event: PluginEvent,
-            input: jcode_plugin_core::events::EventInput,
-            output: Option<jcode_plugin_core::events::EventOutput>)
-            -> Vec<(PluginId, jcode_plugin_core::events::HandlerResult)> {
+    pub async fn dispatch_event(
+        &self,
+        event: PluginEvent,
+        input: jcode_plugin_core::events::EventInput,
+        output: Option<jcode_plugin_core::events::EventOutput>,
+    ) -> Vec<(PluginId, jcode_plugin_core::events::HandlerResult)> {
         if SKIP_HOOKS.load(std::sync::atomic::Ordering::SeqCst) {
             return Vec::new();
         }
         self.dispatcher.dispatch(event, input, output).await
     }
 
-    pub async fn execute_tool(&self, tool_name: &str, input: &serde_json::Value) -> Result<String, String> {
+    pub async fn execute_tool(
+        &self,
+        tool_name: &str,
+        input: &serde_json::Value,
+    ) -> Result<String, String> {
         use std::sync::atomic::Ordering;
 
         if DISABLE_ALL_PLUGINS.load(Ordering::SeqCst) {
@@ -97,7 +104,9 @@ impl PluginSystem {
         }
 
         if SKIP_HOOKS.load(Ordering::SeqCst) {
-            return Ok(format!("Plugin tool '{tool_name}' executed (hooks skipped)"));
+            return Ok(format!(
+                "Plugin tool '{tool_name}' executed (hooks skipped)"
+            ));
         }
 
         let event = PluginEvent::PreToolUse;
@@ -148,7 +157,10 @@ impl PluginSystem {
         Ok(())
     }
 
-    pub async fn uninstall_by_id(&self, id: &PluginId) -> Result<(), jcode_plugin_core::PluginError> {
+    pub async fn uninstall_by_id(
+        &self,
+        id: &PluginId,
+    ) -> Result<(), jcode_plugin_core::PluginError> {
         self.registry.unregister(id).await;
         tracing::info!("Plugin uninstalled: {id}");
         Ok(())

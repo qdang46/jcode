@@ -93,9 +93,15 @@ impl Agent {
             if let Some(system) = crate::plugin::plugin_system() {
                 let session_id = self.session.id.clone();
                 let messages = serde_json::json!({ "message_count": self.session.messages.len() });
-                let input = EventInput::TurnStart { session_id, turn_number: 0, messages };
+                let input = EventInput::TurnStart {
+                    session_id,
+                    turn_number: 0,
+                    messages,
+                };
                 tokio::spawn(async move {
-                    let _ = system.dispatch_event(PluginEvent::TurnStart, input, None).await;
+                    let _ = system
+                        .dispatch_event(PluginEvent::TurnStart, input, None)
+                        .await;
                 });
             }
 
@@ -321,7 +327,9 @@ impl Agent {
                     role: "assistant".to_string(),
                 };
                 tokio::spawn(async move {
-                    let _ = system.dispatch_event(PluginEvent::MessageStart, input, None).await;
+                    let _ = system
+                        .dispatch_event(PluginEvent::MessageStart, input, None)
+                        .await;
                 });
             }
             loop {
@@ -959,7 +967,9 @@ impl Agent {
                     content,
                 };
                 tokio::spawn(async move {
-                    let _ = system.dispatch_event(PluginEvent::MessageEnd, input, None).await;
+                    let _ = system
+                        .dispatch_event(PluginEvent::MessageEnd, input, None)
+                        .await;
                 });
             }
 
@@ -1148,9 +1158,15 @@ impl Agent {
                         tool_input: tc.input.clone(),
                         session_id: self.session.id.clone(),
                     };
-                    let results = system.dispatch_event(PluginEvent::PreToolUse, pre_input, None).await;
-                    if results.iter().any(|(_, r)| matches!(r.action, HandlerAction::Block(_))) {
-                        let reason = results.iter()
+                    let results = system
+                        .dispatch_event(PluginEvent::PreToolUse, pre_input, None)
+                        .await;
+                    if results
+                        .iter()
+                        .any(|(_, r)| matches!(r.action, HandlerAction::Block(_)))
+                    {
+                        let reason = results
+                            .iter()
                             .find_map(|(_, r)| {
                                 if let HandlerAction::Block(ref reason) = r.action {
                                     Some(reason.clone())
@@ -1166,11 +1182,14 @@ impl Agent {
                             output: format!("[Blocked by plugin: {}]", reason),
                             error: Some("blocked_by_plugin".to_string()),
                         });
-                        self.add_message(Role::User, vec![ContentBlock::ToolResult {
-                            tool_use_id: tc.id.clone(),
-                            content: format!("[Tool blocked by plugin: {}]", reason),
-                            is_error: Some(true),
-                        }]);
+                        self.add_message(
+                            Role::User,
+                            vec![ContentBlock::ToolResult {
+                                tool_use_id: tc.id.clone(),
+                                content: format!("[Tool blocked by plugin: {}]", reason),
+                                is_error: Some(true),
+                            }],
+                        );
                         tool_results_dirty = true;
                         continue;
                     }
@@ -1303,7 +1322,9 @@ impl Agent {
                                     session_id: self.session.id.clone(),
                                 };
                                 tokio::spawn(async move {
-                                    let _ = system.dispatch_event(PluginEvent::PostToolUse, post_input, None).await;
+                                    let _ = system
+                                        .dispatch_event(PluginEvent::PostToolUse, post_input, None)
+                                        .await;
                                 });
                             }
                         }
@@ -1338,7 +1359,9 @@ impl Agent {
                                     session_id: self.session.id.clone(),
                                 };
                                 tokio::spawn(async move {
-                                    let _ = system.dispatch_event(PluginEvent::PostToolUse, post_input, None).await;
+                                    let _ = system
+                                        .dispatch_event(PluginEvent::PostToolUse, post_input, None)
+                                        .await;
                                 });
                             }
                         }
@@ -1470,7 +1493,9 @@ impl Agent {
                     duration_ms,
                 };
                 tokio::spawn(async move {
-                    let _ = system.dispatch_event(PluginEvent::TurnEnd, input, None).await;
+                    let _ = system
+                        .dispatch_event(PluginEvent::TurnEnd, input, None)
+                        .await;
                 });
             }
         }

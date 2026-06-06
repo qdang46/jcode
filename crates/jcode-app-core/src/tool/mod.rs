@@ -633,21 +633,26 @@ impl Registry {
                         drop(tools);
                         crate::logging::event_info(
                             "TOOL_LIFECYCLE",
-                            Self::tool_lifecycle_fields(
-                                "start", name, resolved_name, &input, &ctx,
-                            ),
+                            Self::tool_lifecycle_fields("start", name, resolved_name, &input, &ctx),
                         );
                         let started_at = std::time::Instant::now();
                         match system.execute_tool(resolved_name, &input).await {
                             Ok(output_text) => {
                                 let latency_ms = started_at.elapsed().as_millis() as u64;
                                 crate::telemetry::record_tool_execution(
-                                    resolved_name, &input, true, latency_ms,
+                                    resolved_name,
+                                    &input,
+                                    true,
+                                    latency_ms,
                                 );
                                 let output = ToolOutput::new(output_text);
                                 let output = self.guard_context_overflow(name, output).await;
                                 let mut fields = Self::tool_lifecycle_fields(
-                                    "done", name, resolved_name, &input, &ctx,
+                                    "done",
+                                    name,
+                                    resolved_name,
+                                    &input,
+                                    &ctx,
                                 );
                                 fields.push(("elapsed_ms".to_string(), latency_ms.to_string()));
                                 fields.push((
@@ -668,10 +673,17 @@ impl Registry {
                             Err(e) => {
                                 let latency_ms = started_at.elapsed().as_millis() as u64;
                                 crate::telemetry::record_tool_execution(
-                                    resolved_name, &input, false, latency_ms,
+                                    resolved_name,
+                                    &input,
+                                    false,
+                                    latency_ms,
                                 );
                                 let mut fields = Self::tool_lifecycle_fields(
-                                    "error", name, resolved_name, &input, &ctx,
+                                    "error",
+                                    name,
+                                    resolved_name,
+                                    &input,
+                                    &ctx,
                                 );
                                 fields.push(("elapsed_ms".to_string(), latency_ms.to_string()));
                                 fields.push(("error".to_string(), e.clone()));

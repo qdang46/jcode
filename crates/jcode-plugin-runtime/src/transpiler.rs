@@ -1,10 +1,10 @@
 use jcode_plugin_core::PluginError;
 use std::collections::HashMap;
 use std::sync::Mutex;
-use swc_common::{sync::Lrc, FileName, Globals, Mark, SourceMap, GLOBALS};
+use swc_common::{FileName, GLOBALS, Globals, Mark, SourceMap, sync::Lrc};
 use swc_ecma_ast::EsVersion;
 use swc_ecma_codegen::to_code_default;
-use swc_ecma_parser::{parse_file_as_program, Syntax, TsSyntax};
+use swc_ecma_parser::{Syntax, TsSyntax, parse_file_as_program};
 use swc_ecma_transforms_base::{fixer::fixer, resolver};
 use swc_ecma_transforms_typescript::strip;
 
@@ -18,7 +18,9 @@ pub struct Transpiler {
 
 impl Transpiler {
     pub fn new() -> Self {
-        Self { cache: Mutex::new(HashMap::new()) }
+        Self {
+            cache: Mutex::new(HashMap::new()),
+        }
     }
 
     pub fn transpile(&self, code: &str, filename: &str) -> Result<String, PluginError> {

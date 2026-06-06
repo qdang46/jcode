@@ -1992,9 +1992,8 @@ pub(in crate::tui::app) fn handle_server_event(
                 let pid = plugin_id.clone();
                 let etype = event_type.clone();
                 tokio::task::block_in_place(|| {
-                    tokio::runtime::Handle::current().block_on(
-                        bridge_ref.dispatch_event(&event_name, &data),
-                    )
+                    tokio::runtime::Handle::current()
+                        .block_on(bridge_ref.dispatch_event(&event_name, &data))
                 });
                 crate::logging::info(&format!(
                     "Forwarded plugin event '{}' from '{}' to TUI plugins",

@@ -13,12 +13,12 @@ use jcode_plugin_core::config::{DiscoveryPaths, PluginSource};
 use jcode_plugin_core::manifest::{PluginCapabilities, PluginKind};
 use jcode_plugin_core::preflight::PreflightAnalyzer;
 use jcode_plugin_core::types::PluginId;
-use jcode_plugin_core::{PluginError, HandlerResult};
+use jcode_plugin_core::{HandlerResult, PluginError};
 use rquickjs::{Context, Runtime};
 
 use crate::registry::PluginRegistry;
-use crate::tui_api::{SlotContent, SlotRegistry, TuiPluginApi};
 use crate::transpiler::Transpiler;
+use crate::tui_api::{SlotContent, SlotRegistry, TuiPluginApi};
 
 // ---------------------------------------------------------------------------
 // Per-plugin runtime wrapper
@@ -160,10 +160,7 @@ impl TuiPluginSystem {
             let mut read_dir = tokio::fs::read_dir(dir).await?;
             while let Some(entry) = read_dir.next_entry().await? {
                 let path = entry.path();
-                let name = path
-                    .file_name()
-                    .and_then(|n| n.to_str())
-                    .unwrap_or("");
+                let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
                 if name.ends_with(".ts") || name.ends_with(".js") || name.ends_with(".tsx") {
                     sources.push(PluginSource::File {
                         path: path.to_string_lossy().to_string(),
@@ -182,10 +179,15 @@ impl TuiPluginSystem {
                     if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
                         let package_name = name.replace("__", "/");
                         // Probe package.json for TUI kind.
-                        let pkg_json = path.join("node_modules").join(&package_name).join("package.json");
+                        let pkg_json = path
+                            .join("node_modules")
+                            .join(&package_name)
+                            .join("package.json");
                         if pkg_json.exists() {
                             if let Ok(content) = tokio::fs::read_to_string(&pkg_json).await {
-                                if let Ok(json) = serde_json::from_str::<serde_json::Value>(&content) {
+                                if let Ok(json) =
+                                    serde_json::from_str::<serde_json::Value>(&content)
+                                {
                                     if let Ok(manifest) =
                                         jcode_plugin_core::manifest::PluginManifest::from_package_json(&json)
                                     {
@@ -219,9 +221,16 @@ impl TuiPluginSystem {
             PluginSource::File { path } => {
                 let p = PathBuf::from(path);
                 let id = PluginId::file(path);
-                (p, id, jcode_plugin_core::manifest::PluginManifest::default())
+                (
+                    p,
+                    id,
+                    jcode_plugin_core::manifest::PluginManifest::default(),
+                )
             }
-            PluginSource::Npm { package, version: _ } => {
+            PluginSource::Npm {
+                package,
+                version: _,
+            } => {
                 let id = PluginId::npm(package);
                 // Resolve entry from node_modules.
                 let discovery = DiscoveryPaths::default();
@@ -242,9 +251,7 @@ impl TuiPluginSystem {
                     .as_deref()
                     .or(manifest.entry.both.as_deref())
                     .ok_or_else(|| {
-                        PluginError::InvalidManifest(
-                            "No TUI entry point in manifest".into(),
-                        )
+                        PluginError::InvalidManifest("No TUI entry point in manifest".into())
                     })?;
                 (cache.join(entry), id, manifest)
             }
@@ -255,7 +262,11 @@ impl TuiPluginSystem {
                 } else {
                     p.join("index.js")
                 };
-                (idx, PluginId::file(path), jcode_plugin_core::manifest::PluginManifest::default())
+                (
+                    idx,
+                    PluginId::file(path),
+                    jcode_plugin_core::manifest::PluginManifest::default(),
+                )
             }
         };
 
@@ -279,10 +290,7 @@ impl TuiPluginSystem {
         }
 
         // Transpile TypeScript if needed.
-        let js_code = if path
-            .extension()
-            .map_or(false, |e| e == "ts" || e == "tsx")
-        {
+        let js_code = if path.extension().map_or(false, |e| e == "ts" || e == "tsx") {
             self.transpiler.transpile(&code, &path.to_string_lossy())?
         } else {
             code
@@ -294,8 +302,7 @@ impl TuiPluginSystem {
         let _ = runtime.set_memory_limit(50 * 1024 * 1024);
         let _ = runtime.set_gc_threshold(10 * 1024 * 1024);
 
-        let context =
-            Context::full(&runtime).map_err(|e| PluginError::Runtime(e.to_string()))?;
+        let context = Context::full(&runtime).map_err(|e| PluginError::Runtime(e.to_string()))?;
 
         // Create the TUI API with the shared system slot registry.
         let api = TuiPluginApi::with_system_slots(
@@ -307,28 +314,24 @@ impl TuiPluginSystem {
         // Inject API + evaluate entry point in a single context session.
         let api_ref = &api;
         let js_code_ref = js_code.as_str();
-        context
-            .with(|ctx| -> Result<(), PluginError> {
-                // Install globalThis.__jcode_tui_pi
-                api_ref
-                    .install(&ctx)
-                    .map_err(|e| PluginError::Runtime(format!("API install failed: {e}")))?;
+        context.with(|ctx| -> Result<(), PluginError> {
+            // Install globalThis.__jcode_tui_pi
+            api_ref
+                .install(&ctx)
+                .map_err(|e| PluginError::Runtime(format!("API install failed: {e}")))?;
 
-                // Register helper functions for keybinding/event handler registration.
-                Self::install_handler_registration_helpers(&ctx, &id)?;
+            // Register helper functions for keybinding/event handler registration.
+            Self::install_handler_registration_helpers(&ctx, &id)?;
 
-                // Evaluate the plugin entry point.
-                ctx.eval::<(), _>(js_code_ref)
-                    .map_err(|e| PluginError::Eval(e.to_string()))?;
+            // Evaluate the plugin entry point.
+            ctx.eval::<(), _>(js_code_ref)
+                .map_err(|e| PluginError::Eval(e.to_string()))?;
 
-                Ok(())
-            })?;
+            Ok(())
+        })?;
 
         // Register in the plugin registry.
-        self.plugin_registry
-            .register(id.clone(), ())
-            .await
-            .ok(); // Ignore "already registered" for idempotency.
+        self.plugin_registry.register(id.clone(), ()).await.ok(); // Ignore "already registered" for idempotency.
 
         let plugin = TuiPlugin {
             _id: id.clone(),
@@ -363,30 +366,48 @@ impl TuiPluginSystem {
         let globals = ctx.globals();
 
         // -- keybinding registration helper --
-        let kb_prefix = format!("__jcode_kb_{}_", plugin_id.short_name().replace(['/', '@'], "_"));
+        let kb_prefix = format!(
+            "__jcode_kb_{}_",
+            plugin_id.short_name().replace(['/', '@'], "_")
+        );
         let kb_prefix_for_closure = kb_prefix.clone();
-        let register_kb = Function::new(ctx.clone(), move |key: String, _desc: String, handler: rquickjs::Value<'js>| {
-            let fn_name = format!("{}{}", kb_prefix_for_closure, key.replace('+', "_"));
-            // TODO(WIP): Cannot store the handler value directly (QuickJS Value lifetime).
-            // Full implementation requires wrapping the JS function in a thread-safe
-            // handle (e.g. StoredFunction) and invoking it when the keybinding fires.
-            tracing::info!("Registered keybinding handler: {} [STUB — handler not wired]", fn_name);
-            let _ = handler;
-        })
+        let register_kb = Function::new(
+            ctx.clone(),
+            move |key: String, _desc: String, handler: rquickjs::Value<'js>| {
+                let fn_name = format!("{}{}", kb_prefix_for_closure, key.replace('+', "_"));
+                // TODO(WIP): Cannot store the handler value directly (QuickJS Value lifetime).
+                // Full implementation requires wrapping the JS function in a thread-safe
+                // handle (e.g. StoredFunction) and invoking it when the keybinding fires.
+                tracing::info!(
+                    "Registered keybinding handler: {} [STUB — handler not wired]",
+                    fn_name
+                );
+                let _ = handler;
+            },
+        )
         .map_err(|e| PluginError::Runtime(format!("Failed to create register_keybinding: {e}")))?;
         globals
             .set("__jcode_register_keybinding", register_kb)
             .map_err(|e| PluginError::Runtime(format!("Failed to set register_keybinding: {e}")))?;
 
         // -- event handler registration helper --
-        let evt_prefix = format!("__jcode_evt_{}_", plugin_id.short_name().replace(['/', '@'], "_"));
+        let evt_prefix = format!(
+            "__jcode_evt_{}_",
+            plugin_id.short_name().replace(['/', '@'], "_")
+        );
         let evt_prefix_for_closure = evt_prefix.clone();
-        let register_evt = Function::new(ctx.clone(), move |event: String, handler: rquickjs::Value<'js>| {
-            let fn_name = format!("{}{}", evt_prefix_for_closure, event);
-            // TODO(WIP): Same as keybinding — JS function reference not stored.
-            tracing::info!("Registered TUI event handler: {} [STUB — handler not wired]", fn_name);
-            let _ = handler;
-        })
+        let register_evt = Function::new(
+            ctx.clone(),
+            move |event: String, handler: rquickjs::Value<'js>| {
+                let fn_name = format!("{}{}", evt_prefix_for_closure, event);
+                // TODO(WIP): Same as keybinding — JS function reference not stored.
+                tracing::info!(
+                    "Registered TUI event handler: {} [STUB — handler not wired]",
+                    fn_name
+                );
+                let _ = handler;
+            },
+        )
         .map_err(|e| PluginError::Runtime(format!("Failed to create register_tui_event: {e}")))?;
         globals
             .set("__jcode_register_tui_event", register_evt)
@@ -399,25 +420,33 @@ impl TuiPluginSystem {
             // Wrap keymap.register
             if let Ok(keymap) = tui_obj.get::<_, Object<'js>>("keymap") {
                 let kb_prefix2 = kb_prefix.clone();
-                let wrapped_register = Function::new(ctx.clone(), move |key: String, desc: String, handler: rquickjs::Value<'js>| {
-                    let fn_name = format!("{}{}", kb_prefix2, key.replace('+', "_"));
-                    tracing::info!("TUI keybinding registered: {} ({})", fn_name, desc);
-                    let _ = handler;
-                })
-                .map_err(|e| PluginError::Runtime(format!("Failed to wrap keymap.register: {e}")))?;
-                keymap
-                    .set("register", wrapped_register)
-                    .map_err(|e| PluginError::Runtime(format!("Failed to set keymap.register: {e}")))?;
+                let wrapped_register = Function::new(
+                    ctx.clone(),
+                    move |key: String, desc: String, handler: rquickjs::Value<'js>| {
+                        let fn_name = format!("{}{}", kb_prefix2, key.replace('+', "_"));
+                        tracing::info!("TUI keybinding registered: {} ({})", fn_name, desc);
+                        let _ = handler;
+                    },
+                )
+                .map_err(|e| {
+                    PluginError::Runtime(format!("Failed to wrap keymap.register: {e}"))
+                })?;
+                keymap.set("register", wrapped_register).map_err(|e| {
+                    PluginError::Runtime(format!("Failed to set keymap.register: {e}"))
+                })?;
             }
 
             // Wrap eventBus.on
             if let Ok(event_bus) = tui_obj.get::<_, Object<'js>>("eventBus") {
                 let evt_prefix2 = evt_prefix.clone();
-                let wrapped_on = Function::new(ctx.clone(), move |event: String, handler: rquickjs::Value<'js>| {
-                    let fn_name = format!("{}{}", evt_prefix2, event);
-                    tracing::info!("TUI event handler registered: {}", fn_name);
-                    let _ = handler;
-                })
+                let wrapped_on = Function::new(
+                    ctx.clone(),
+                    move |event: String, handler: rquickjs::Value<'js>| {
+                        let fn_name = format!("{}{}", evt_prefix2, event);
+                        tracing::info!("TUI event handler registered: {}", fn_name);
+                        let _ = handler;
+                    },
+                )
                 .map_err(|e| PluginError::Runtime(format!("Failed to wrap eventBus.on: {e}")))?;
                 event_bus
                     .set("on", wrapped_on)
@@ -438,10 +467,7 @@ impl TuiPluginSystem {
     /// If found, calls it with the key string and reads
     /// `globalThis.__jcode_result.handled` to determine the return value.
     async fn invoke_keybinding(&self, plugin: &TuiPlugin, key: &str) -> bool {
-        let safe_id = plugin
-            ._id
-            .short_name()
-            .replace(['/', '@'], "_");
+        let safe_id = plugin._id.short_name().replace(['/', '@'], "_");
         let fn_name = format!("__jcode_kb_{}_{}", safe_id, key.replace('+', "_"));
         let key_owned = key.to_string();
 
@@ -496,69 +522,73 @@ impl TuiPluginSystem {
         event: &str,
         data: &serde_json::Value,
     ) -> Option<HandlerResult> {
-        let safe_id = plugin
-            ._id
-            .short_name()
-            .replace(['/', '@'], "_");
+        let safe_id = plugin._id.short_name().replace(['/', '@'], "_");
         let fn_name = format!("__jcode_evt_{}_{}", safe_id, event);
         let data_str = data.to_string();
 
-        let result = plugin.context.with(|ctx| -> Result<HandlerResult, PluginError> {
-            let globals = ctx.globals();
+        let result = plugin
+            .context
+            .with(|ctx| -> Result<HandlerResult, PluginError> {
+                let globals = ctx.globals();
 
-            // Check if the handler function exists.
-            let func = match globals.get::<_, rquickjs::Function<'_>>(fn_name.as_str()) {
-                Ok(f) => f,
-                Err(_) => return Ok(HandlerResult::default()), // No handler
-            };
+                // Check if the handler function exists.
+                let func = match globals.get::<_, rquickjs::Function<'_>>(fn_name.as_str()) {
+                    Ok(f) => f,
+                    Err(_) => return Ok(HandlerResult::default()), // No handler
+                };
 
-            // Initialize the result slot.
-            let result_obj = rquickjs::Object::new(ctx.clone())
-                .map_err(|e| PluginError::Runtime(e.to_string()))?;
-            result_obj
-                .set("action", "continue")
-                .map_err(|e| PluginError::Runtime(e.to_string()))?;
-            result_obj
-                .set("output", rquickjs::Undefined)
-                .map_err(|e| PluginError::Runtime(e.to_string()))?;
-            result_obj
-                .set("error", rquickjs::Undefined)
-                .map_err(|e| PluginError::Runtime(e.to_string()))?;
-            globals
-                .set("__jcode_result", result_obj)
-                .map_err(|e| PluginError::Runtime(e.to_string()))?;
+                // Initialize the result slot.
+                let result_obj = rquickjs::Object::new(ctx.clone())
+                    .map_err(|e| PluginError::Runtime(e.to_string()))?;
+                result_obj
+                    .set("action", "continue")
+                    .map_err(|e| PluginError::Runtime(e.to_string()))?;
+                result_obj
+                    .set("output", rquickjs::Undefined)
+                    .map_err(|e| PluginError::Runtime(e.to_string()))?;
+                result_obj
+                    .set("error", rquickjs::Undefined)
+                    .map_err(|e| PluginError::Runtime(e.to_string()))?;
+                globals
+                    .set("__jcode_result", result_obj)
+                    .map_err(|e| PluginError::Runtime(e.to_string()))?;
 
-            // Invoke the handler with the event data as a JSON string.
-            func.call::<(String,), ()>((data_str.clone(),))
-                .map_err(|e| PluginError::Runtime(format!("Event handler error: {e}")))?;
+                // Invoke the handler with the event data as a JSON string.
+                func.call::<(String,), ()>((data_str.clone(),))
+                    .map_err(|e| PluginError::Runtime(format!("Event handler error: {e}")))?;
 
-            // Read back the result.
-            let result_obj = globals
-                .get::<_, rquickjs::Object<'_>>("__jcode_result")
-                .map_err(|e| PluginError::Runtime(e.to_string()))?;
+                // Read back the result.
+                let result_obj = globals
+                    .get::<_, rquickjs::Object<'_>>("__jcode_result")
+                    .map_err(|e| PluginError::Runtime(e.to_string()))?;
 
-            let action_str: String = result_obj.get("action").unwrap_or_else(|_| "continue".to_string());
-            let action = match action_str.as_str() {
-                "block" => {
-                    let msg: String = result_obj
-                        .get("output")
-                        .unwrap_or_else(|_| "blocked".to_string());
-                    jcode_plugin_core::events::HandlerAction::Block(msg)
-                }
-                "allow" => jcode_plugin_core::events::HandlerAction::Allow,
-                "deny" => jcode_plugin_core::events::HandlerAction::Deny,
-                "error" => jcode_plugin_core::events::HandlerAction::Error,
-                _ => jcode_plugin_core::events::HandlerAction::Continue,
-            };
+                let action_str: String = result_obj
+                    .get("action")
+                    .unwrap_or_else(|_| "continue".to_string());
+                let action = match action_str.as_str() {
+                    "block" => {
+                        let msg: String = result_obj
+                            .get("output")
+                            .unwrap_or_else(|_| "blocked".to_string());
+                        jcode_plugin_core::events::HandlerAction::Block(msg)
+                    }
+                    "allow" => jcode_plugin_core::events::HandlerAction::Allow,
+                    "deny" => jcode_plugin_core::events::HandlerAction::Deny,
+                    "error" => jcode_plugin_core::events::HandlerAction::Error,
+                    _ => jcode_plugin_core::events::HandlerAction::Continue,
+                };
 
-            let error: Option<String> = result_obj.get("error").ok().filter(|s: &String| !s.is_empty());
+                let error: Option<String> = result_obj
+                    .get("error")
+                    .ok()
+                    .filter(|s: &String| !s.is_empty());
 
-            Ok(HandlerResult {
-                action,
-                output: None,
-                error,
-            })
-        });
+                Ok(HandlerResult {
+                    action,
+                    output: None,
+                    error,
+                })
+            });
 
         match result {
             Ok(r) => Some(r),
@@ -595,9 +625,7 @@ mod tests {
         let dispatcher = Arc::new(crate::dispatcher::RcuDispatcher::new());
         let registry = Arc::new(PluginRegistry::new(dispatcher));
         let system = TuiPluginSystem::new(registry);
-        let slots = system
-            .render_slot(crate::tui_api::SlotType::Sidebar)
-            .await;
+        let slots = system.render_slot(crate::tui_api::SlotType::Sidebar).await;
         assert!(slots.is_empty());
     }
 

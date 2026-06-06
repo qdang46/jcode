@@ -79,7 +79,10 @@ impl CapabilitySet {
     pub fn matches(&self, resource: &str, _action: &CapabilityAction) -> bool {
         self.tools.iter().any(|t| t == resource)
             || self.hosts.iter().any(|h| host_matches(resource, h))
-            || self.fs_paths.iter().any(|p| resource.starts_with(p.as_str()))
+            || self
+                .fs_paths
+                .iter()
+                .any(|p| resource.starts_with(p.as_str()))
             || self.env_vars.iter().any(|e| e == resource)
             || self.shell_commands.iter().any(|c| c == resource)
             || self.config_keys.iter().any(|k| k == resource)
@@ -146,9 +149,17 @@ pub enum AccessDecision {
 /// so "evil.com" won't accidentally match "notevil.com".
 fn host_matches(resource: &str, pattern: &str) -> bool {
     // Extract hostname from URL if the resource is a full URL
-    let host = if let Some(after_protocol) = resource.strip_prefix("http://").or_else(|| resource.strip_prefix("https://")) {
-        after_protocol.split('/').next().unwrap_or(after_protocol)
-            .split(':').next().unwrap_or(after_protocol) // strip port
+    let host = if let Some(after_protocol) = resource
+        .strip_prefix("http://")
+        .or_else(|| resource.strip_prefix("https://"))
+    {
+        after_protocol
+            .split('/')
+            .next()
+            .unwrap_or(after_protocol)
+            .split(':')
+            .next()
+            .unwrap_or(after_protocol) // strip port
     } else {
         resource
     };

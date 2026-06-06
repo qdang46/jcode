@@ -4,7 +4,7 @@
 //! an event, verify the handler runs and returns the expected result.
 
 use jcode_plugin_core::PluginEvent;
-use jcode_plugin_core::events::{EventInput, HandlerResult, HandlerAction};
+use jcode_plugin_core::events::{EventInput, HandlerAction, HandlerResult};
 use jcode_plugin_core::types::PluginId;
 use std::sync::Arc;
 
@@ -37,9 +37,8 @@ fn test_register_and_dispatch_handler() {
         tool_input: serde_json::json!({}),
         session_id: "sess-1".to_string(),
     };
-    let results = futures::executor::block_on(
-        dispatcher.dispatch(PluginEvent::PreToolUse, input, None)
-    );
+    let results =
+        futures::executor::block_on(dispatcher.dispatch(PluginEvent::PreToolUse, input, None));
     assert_eq!(results.len(), 1);
     let (id, result) = &results[0];
     assert_eq!(id, &plugin_id);
@@ -54,9 +53,8 @@ fn test_dispatch_no_handlers_returns_empty() {
         tool_input: serde_json::json!({}),
         session_id: "".to_string(),
     };
-    let results = futures::executor::block_on(
-        dispatcher.dispatch(PluginEvent::PreToolUse, input, None)
-    );
+    let results =
+        futures::executor::block_on(dispatcher.dispatch(PluginEvent::PreToolUse, input, None));
     assert!(results.is_empty());
     assert!(!dispatcher.has_handler(PluginEvent::PreToolUse));
 }
@@ -88,9 +86,8 @@ fn test_multiple_plugins_dispatch_concurrently() {
         model: "claude".to_string(),
         provider: "anthropic".to_string(),
     };
-    let results = futures::executor::block_on(
-        dispatcher.dispatch(PluginEvent::SessionStart, input, None)
-    );
+    let results =
+        futures::executor::block_on(dispatcher.dispatch(PluginEvent::SessionStart, input, None));
     assert_eq!(results.len(), 3);
     for (_, result) in &results {
         assert!(matches!(result.action, HandlerAction::Allow));
@@ -118,7 +115,11 @@ fn test_bitmap_o1_check() {
     let dispatcher = RcuDispatcher::new();
     let id = PluginId::npm("test");
 
-    for ev in [PluginEvent::PreToolUse, PluginEvent::PostToolUse, PluginEvent::SessionStart] {
+    for ev in [
+        PluginEvent::PreToolUse,
+        PluginEvent::PostToolUse,
+        PluginEvent::SessionStart,
+    ] {
         assert!(!dispatcher.has_handler(ev));
     }
 
@@ -135,8 +136,8 @@ fn test_bitmap_o1_check() {
 
 #[test]
 fn test_preflight_clean_passes() {
-    use jcode_plugin_core::preflight::PreflightAnalyzer;
     use jcode_plugin_core::manifest::PluginCapabilities;
+    use jcode_plugin_core::preflight::PreflightAnalyzer;
 
     let code = r#"
         pi.on("TurnStart", (e) => {
@@ -150,8 +151,8 @@ fn test_preflight_clean_passes() {
 
 #[test]
 fn test_preflight_blocks_evil_code() {
-    use jcode_plugin_core::preflight::PreflightAnalyzer;
     use jcode_plugin_core::manifest::PluginCapabilities;
+    use jcode_plugin_core::preflight::PreflightAnalyzer;
 
     let code = r#"
         exec("rm -rf /");
@@ -166,13 +167,18 @@ fn test_preflight_blocks_evil_code() {
 fn test_audit_trail_ring_buffer() {
     use crate::audit::AuditTrail;
     use jcode_plugin_core::PluginId;
-    use jcode_plugin_core::security::{CapabilityAction, AccessDecision};
+    use jcode_plugin_core::security::{AccessDecision, CapabilityAction};
 
     let trail = AuditTrail::new(3);
     let id = PluginId::npm("test");
 
     for i in 0..5 {
-        trail.log_access(&id, &format!("res-{i}"), &CapabilityAction::Read, &AccessDecision::Allowed("ok".into()));
+        trail.log_access(
+            &id,
+            &format!("res-{i}"),
+            &CapabilityAction::Read,
+            &AccessDecision::Allowed("ok".into()),
+        );
     }
     assert_eq!(trail.len(), 3);
 

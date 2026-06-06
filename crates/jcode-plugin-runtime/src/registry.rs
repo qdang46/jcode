@@ -1,10 +1,10 @@
+use crate::dispatcher::RcuDispatcher;
+use crate::types::HandlerSlot;
+use jcode_plugin_core::PluginEvent;
+use jcode_plugin_core::types::PluginId;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use jcode_plugin_core::PluginEvent;
-use jcode_plugin_core::types::PluginId;
-use crate::dispatcher::RcuDispatcher;
-use crate::types::HandlerSlot;
 
 pub struct PluginRegistry {
     plugins: RwLock<HashMap<PluginId, PluginRegistration>>,
@@ -37,14 +37,19 @@ struct JsToolEntry {
 
 impl JsToolRegistry {
     pub fn new() -> Self {
-        Self { tools: RwLock::new(HashMap::new()) }
+        Self {
+            tools: RwLock::new(HashMap::new()),
+        }
     }
 
     pub async fn register(&self, id: PluginId, name: String, _description: String) {
-        self.tools.write().await.insert(name.clone(), JsToolEntry {
-            plugin_id: id,
-            description: _description,
-        });
+        self.tools.write().await.insert(
+            name.clone(),
+            JsToolEntry {
+                plugin_id: id,
+                description: _description,
+            },
+        );
         tracing::info!("Plugin tool registered: {name}");
     }
 
@@ -67,16 +72,25 @@ impl PluginRegistry {
         }
     }
 
-    pub async fn register(&self, id: PluginId, _context: ()) -> Result<(), jcode_plugin_core::PluginError> {
+    pub async fn register(
+        &self,
+        id: PluginId,
+        _context: (),
+    ) -> Result<(), jcode_plugin_core::PluginError> {
         let mut plugins = self.plugins.write().await;
         if plugins.contains_key(&id) {
-            return Err(jcode_plugin_core::PluginError::Other(format!("Plugin already registered: {id}")));
+            return Err(jcode_plugin_core::PluginError::Other(format!(
+                "Plugin already registered: {id}"
+            )));
         }
-        plugins.insert(id.clone(), PluginRegistration {
-            _id: id.clone(),
-            _state: PluginState::Active,
-            _tools: Vec::new(),
-        });
+        plugins.insert(
+            id.clone(),
+            PluginRegistration {
+                _id: id.clone(),
+                _state: PluginState::Active,
+                _tools: Vec::new(),
+            },
+        );
         tracing::info!("Plugin registered: {id}");
         Ok(())
     }
@@ -90,11 +104,14 @@ impl PluginRegistry {
 
     pub async fn get_state(&self, id: &PluginId) -> Option<String> {
         let plugins = self.plugins.read().await;
-        plugins.get(id).map(|p| match p._state {
-            PluginState::Active => "active",
-            PluginState::Error(_) => "error",
-            PluginState::Disabled => "disabled",
-        }.to_string())
+        plugins.get(id).map(|p| {
+            match p._state {
+                PluginState::Active => "active",
+                PluginState::Error(_) => "error",
+                PluginState::Disabled => "disabled",
+            }
+            .to_string()
+        })
     }
 
     pub fn register_handler(&self, event: PluginEvent, id: PluginId, slot: HandlerSlot) {

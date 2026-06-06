@@ -1,10 +1,10 @@
-use std::sync::Arc;
-use rquickjs::AsyncRuntime;
-use tokio::sync::{Mutex, Semaphore};
-use jcode_plugin_core::PluginError;
-use jcode_plugin_core::types::PluginId;
-use jcode_plugin_core::manifest::PluginManifest;
 use crate::sandbox::SandboxContext;
+use jcode_plugin_core::PluginError;
+use jcode_plugin_core::manifest::PluginManifest;
+use jcode_plugin_core::types::PluginId;
+use rquickjs::AsyncRuntime;
+use std::sync::Arc;
+use tokio::sync::{Mutex, Semaphore};
 
 pub struct RuntimeConfig {
     pub max_concurrent: usize,
@@ -56,7 +56,11 @@ impl RuntimeManager {
         })
     }
 
-    pub fn create_sandbox(&self, _id: PluginId, _manifest: PluginManifest) -> Result<SandboxContext, PluginError> {
+    pub fn create_sandbox(
+        &self,
+        _id: PluginId,
+        _manifest: PluginManifest,
+    ) -> Result<SandboxContext, PluginError> {
         let runtime = self.acquire_runtime()?;
         SandboxContext::new(_id, _manifest, runtime)
     }

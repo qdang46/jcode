@@ -1,8 +1,8 @@
+use crate::registry::PluginRegistry;
+use jcode_plugin_core::types::PluginId;
+use rquickjs::{Ctx, Function, Object, Value};
 use std::collections::HashMap;
 use std::sync::Arc;
-use rquickjs::{Ctx, Function, Object, Value};
-use jcode_plugin_core::types::PluginId;
-use crate::registry::PluginRegistry;
 
 // ---------------------------------------------------------------------------
 // SlotType / SlotContent
@@ -252,10 +252,7 @@ impl TuiPluginApi {
             "box",
             Function::new(ctx.clone(), move |title: String, body: String| -> String {
                 tracing::debug!("Plugin {} renders box: {}", box_id, title);
-                let content = SlotContent::Box {
-                    title,
-                    body,
-                };
+                let content = SlotContent::Box { title, body };
                 content.render()
             }),
         )?;
@@ -289,63 +286,66 @@ impl TuiPluginApi {
         let fill_system = self.system_slots.clone();
         api.set(
             "fill",
-            Function::new(ctx.clone(), move |slot_name: String, content: Object<'js>| {
-                let slot_type = match SlotType::from_str(&slot_name) {
-                    Some(s) => s,
-                    None => {
-                        tracing::warn!(
-                            "Plugin {} tried to fill unknown slot: {}",
-                            fill_id,
-                            slot_name
-                        );
-                        return;
-                    }
-                };
+            Function::new(
+                ctx.clone(),
+                move |slot_name: String, content: Object<'js>| {
+                    let slot_type = match SlotType::from_str(&slot_name) {
+                        Some(s) => s,
+                        None => {
+                            tracing::warn!(
+                                "Plugin {} tried to fill unknown slot: {}",
+                                fill_id,
+                                slot_name
+                            );
+                            return;
+                        }
+                    };
 
-                let kind: String = content.get("kind").unwrap_or_default();
-                let slot_content = match kind.as_str() {
-                    "text" => {
-                        let body: String = content.get("body").unwrap_or_default();
-                        SlotContent::Text { body }
-                    }
-                    "box" => {
-                        let title: String = content.get("title").unwrap_or_default();
-                        let body: String = content.get("body").unwrap_or_default();
-                        SlotContent::Box { title, body }
-                    }
-                    "list" => {
-                        let items: Vec<String> = content.get("items").unwrap_or_default();
-                        SlotContent::List { items }
-                    }
-                    _ => SlotContent::Empty,
-                };
+                    let kind: String = content.get("kind").unwrap_or_default();
+                    let slot_content = match kind.as_str() {
+                        "text" => {
+                            let body: String = content.get("body").unwrap_or_default();
+                            SlotContent::Text { body }
+                        }
+                        "box" => {
+                            let title: String = content.get("title").unwrap_or_default();
+                            let body: String = content.get("body").unwrap_or_default();
+                            SlotContent::Box { title, body }
+                        }
+                        "list" => {
+                            let items: Vec<String> = content.get("items").unwrap_or_default();
+                            SlotContent::List { items }
+                        }
+                        _ => SlotContent::Empty,
+                    };
 
-                tracing::info!(
-                    "Plugin {} filled slot {} with {} content",
-                    fill_id,
-                    slot_type.as_str(),
-                    kind
-                );
+                    tracing::info!(
+                        "Plugin {} filled slot {} with {} content",
+                        fill_id,
+                        slot_type.as_str(),
+                        kind
+                    );
 
-                // Store the content (blocking on the RwLock in a sync closure is fine
-                // because this runs on the QuickJS thread).
-                let key = format!("{}:{}", fill_id, slot_type.as_str());
-                let fill_slots2 = Arc::clone(&fill_slots);
-                // We cannot .await inside a sync Function, so spawn a brief task.
-                let content_for_plugin = slot_content.clone();
-                tokio::spawn(async move {
-                    fill_slots2.write().await.insert(key, content_for_plugin);
-                });
-
-                // Propagate to system-level slot registry if present.
-                if let Some(ref sys) = fill_system {
-                    let sys_key = format!("{}:{}", fill_id, slot_type.as_str());
-                    let sys_slots = Arc::clone(sys);
+                    // Store the content (blocking on the RwLock in a sync closure is fine
+                    // because this runs on the QuickJS thread).
+                    let key = format!("{}:{}", fill_id, slot_type.as_str());
+                    let fill_slots2 = Arc::clone(&fill_slots);
+                    // We cannot .await inside a sync Function, so spawn a brief task.
+                    let content_for_plugin = slot_content.clone();
                     tokio::spawn(async move {
-                        sys_slots.write().await.insert(sys_key, slot_content);
+                        fill_slots2.write().await.insert(key, content_for_plugin);
                     });
-                }
-            }),
+
+                    // Propagate to system-level slot registry if present.
+                    if let Some(ref sys) = fill_system {
+                        let sys_key = format!("{}:{}", fill_id, slot_type.as_str());
+                        let sys_slots = Arc::clone(sys);
+                        tokio::spawn(async move {
+                            sys_slots.write().await.insert(sys_key, slot_content);
+                        });
+                    }
+                },
+            ),
         )?;
 
         // clear(slotName)
@@ -599,7 +599,9 @@ mod tests {
 
     #[test]
     fn slot_content_render_text() {
-        let c = SlotContent::Text { body: "hello".into() };
+        let c = SlotContent::Text {
+            body: "hello".into(),
+        };
         assert_eq!(c.render(), "hello");
     }
 

@@ -1,15 +1,17 @@
-use std::sync::{Arc, RwLock, Mutex};
+use crate::types::HandlerSlot;
 use futures::future::join_all;
 use jcode_plugin_core::PluginEvent;
-use jcode_plugin_core::types::PluginId;
 use jcode_plugin_core::events::{EventInput, EventOutput, HandlerResult};
-use crate::types::HandlerSlot;
+use jcode_plugin_core::types::PluginId;
+use std::sync::{Arc, Mutex, RwLock};
 
 #[derive(Debug, Clone)]
 struct HandlerBitmap(u128);
 
 impl HandlerBitmap {
-    fn new() -> Self { Self(0) }
+    fn new() -> Self {
+        Self(0)
+    }
     fn set(&mut self, event: PluginEvent) {
         self.0 |= 1u128 << (event as u32);
     }
@@ -60,14 +62,20 @@ impl RcuDispatcher {
         // Drain pending first, then build the new snapshot, then publish.
         // This avoids holding the snapshot lock while acquiring the write lock.
         let to_commit: Vec<(PluginEvent, PluginId, HandlerSlot)> = {
-            let Ok(mut pending) = self.pending.lock() else { return; };
-            if pending.is_empty() { return; }
+            let Ok(mut pending) = self.pending.lock() else {
+                return;
+            };
+            if pending.is_empty() {
+                return;
+            }
             pending.drain(..).collect()
         };
 
         // Get the current handlers (read lock — released before write lock)
         let current_handlers = {
-            let Ok(current) = self.snapshot.read() else { return; };
+            let Ok(current) = self.snapshot.read() else {
+                return;
+            };
             current.handlers.clone()
         };
 
@@ -75,7 +83,9 @@ impl RcuDispatcher {
         new_handlers.extend(to_commit);
         let new_bitmap = HandlerBitmap::rebuild(&new_handlers);
 
-        let Ok(mut snapshot) = self.snapshot.write() else { return; };
+        let Ok(mut snapshot) = self.snapshot.write() else {
+            return;
+        };
         *snapshot = Arc::new(RegistrySnapshot {
             bitmap: new_bitmap,
             handlers: new_handlers,
@@ -94,8 +104,12 @@ impl RcuDispatcher {
     ///
     /// Uses `join_all` for concurrent dispatch. Each handler receives
     /// a clone of the input/output and returns its own HandlerResult.
-    pub async fn dispatch(&self, event: PluginEvent, input: EventInput,
-            output: Option<EventOutput>) -> Vec<(PluginId, HandlerResult)> {
+    pub async fn dispatch(
+        &self,
+        event: PluginEvent,
+        input: EventInput,
+        output: Option<EventOutput>,
+    ) -> Vec<(PluginId, HandlerResult)> {
         // RCU: clone the Arc for zero-contention reads
         let snapshot = if let Ok(s) = self.snapshot.read() {
             s.clone()
@@ -108,7 +122,9 @@ impl RcuDispatcher {
             return Vec::new();
         }
 
-        let handlers: Vec<_> = snapshot.handlers.iter()
+        let handlers: Vec<_> = snapshot
+            .handlers
+            .iter()
             .filter(|(e, _, _)| *e == event)
             .map(|(_, id, slot)| (id.clone(), slot.clone()))
             .collect();
@@ -118,16 +134,19 @@ impl RcuDispatcher {
         }
 
         // Dispatch via join_all — each handler gets a clone of the input
-        let futures: Vec<_> = handlers.into_iter().map(|(id, slot)| {
-            let inp = input.clone();
-            let out = output.clone();
-            async move {
-                let result = match slot {
-                    HandlerSlot::Rust(handler) => handler(inp, out).await,
-                };
-                (id, result)
-            }
-        }).collect();
+        let futures: Vec<_> = handlers
+            .into_iter()
+            .map(|(id, slot)| {
+                let inp = input.clone();
+                let out = output.clone();
+                async move {
+                    let result = match slot {
+                        HandlerSlot::Rust(handler) => handler(inp, out).await,
+                    };
+                    (id, result)
+                }
+            })
+            .collect();
 
         join_all(futures).await
     }
@@ -135,7 +154,9 @@ impl RcuDispatcher {
     pub fn unregister_plugin(&self, id: &PluginId) {
         // Get current handlers (read lock — released before write lock)
         let current_handlers = {
-            let Ok(current) = self.snapshot.read() else { return; };
+            let Ok(current) = self.snapshot.read() else {
+                return;
+            };
             current.handlers.clone()
         };
 
@@ -145,7 +166,9 @@ impl RcuDispatcher {
             .collect();
         let new_bitmap = HandlerBitmap::rebuild(&new_handlers);
 
-        let Ok(mut snapshot) = self.snapshot.write() else { return; };
+        let Ok(mut snapshot) = self.snapshot.write() else {
+            return;
+        };
         *snapshot = Arc::new(RegistrySnapshot {
             bitmap: new_bitmap,
             handlers: new_handlers,

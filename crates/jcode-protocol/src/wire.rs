@@ -1249,7 +1249,6 @@ pub enum ServerEvent {
     },
 
     // === Plugin system events ===
-
     /// Plugin system notification
     #[serde(rename = "plugin_notification")]
     PluginNotification {

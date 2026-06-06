@@ -1,13 +1,15 @@
-use std::sync::Arc;
-use std::path::Path;
-use jcode_plugin_core::PluginError;
-use jcode_plugin_core::types::PluginId;
-use jcode_plugin_core::config::{PluginConfig, PluginSource, DiscoveryPaths, is_valid_package_name};
-use jcode_plugin_core::preflight::PreflightAnalyzer;
-use crate::runtime::RuntimeManager;
 use crate::registry::PluginRegistry;
+use crate::runtime::RuntimeManager;
 use crate::transpiler::Transpiler;
 use crate::types::ResolvedEntry;
+use jcode_plugin_core::PluginError;
+use jcode_plugin_core::config::{
+    DiscoveryPaths, PluginConfig, PluginSource, is_valid_package_name,
+};
+use jcode_plugin_core::preflight::PreflightAnalyzer;
+use jcode_plugin_core::types::PluginId;
+use std::path::Path;
+use std::sync::Arc;
 
 pub struct PluginLoader {
     discovery: DiscoveryPaths,
@@ -65,7 +67,11 @@ impl PluginLoader {
         Ok(sources)
     }
 
-    async fn scan_directory(&self, dir: &Path, sources: &mut Vec<PluginSource>) -> Result<(), PluginError> {
+    async fn scan_directory(
+        &self,
+        dir: &Path,
+        sources: &mut Vec<PluginSource>,
+    ) -> Result<(), PluginError> {
         if !dir.exists() {
             tokio::fs::create_dir_all(dir).await?;
             return Ok(());
@@ -73,9 +79,7 @@ impl PluginLoader {
         let mut read_dir = tokio::fs::read_dir(dir).await?;
         while let Some(entry) = read_dir.next_entry().await? {
             let path = entry.path();
-            let name = path.file_name()
-                .and_then(|n| n.to_str())
-                .unwrap_or("");
+            let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
             if name.ends_with(".ts") || name.ends_with(".js") {
                 sources.push(PluginSource::File {
                     path: path.to_string_lossy().to_string(),
@@ -85,7 +89,11 @@ impl PluginLoader {
         Ok(())
     }
 
-    async fn scan_npm_cache(&self, dir: &Path, sources: &mut Vec<PluginSource>) -> Result<(), PluginError> {
+    async fn scan_npm_cache(
+        &self,
+        dir: &Path,
+        sources: &mut Vec<PluginSource>,
+    ) -> Result<(), PluginError> {
         let mut read_dir = tokio::fs::read_dir(dir).await?;
         while let Some(entry) = read_dir.next_entry().await? {
             let path = entry.path();
@@ -108,13 +116,14 @@ impl PluginLoader {
                 let entry = self.resolve_npm_entry(package, version.as_deref()).await?;
                 (entry.path, PluginId::npm(package))
             }
-            PluginSource::File { path } => {
-                (std::path::PathBuf::from(path), PluginId::file(path))
-            }
+            PluginSource::File { path } => (std::path::PathBuf::from(path), PluginId::file(path)),
             PluginSource::Directory { path } => {
                 let p = std::path::Path::new(path);
-                let idx = if p.join("index.ts").exists() { p.join("index.ts") }
-                           else { p.join("index.js") };
+                let idx = if p.join("index.ts").exists() {
+                    p.join("index.ts")
+                } else {
+                    p.join("index.js")
+                };
                 (idx, PluginId::file(path))
             }
         };
@@ -143,22 +152,35 @@ impl PluginLoader {
             code
         };
 
-        let context = self.runtime.create_sandbox(id.clone(), jcode_plugin_core::manifest::PluginManifest::default())?;
+        let context = self.runtime.create_sandbox(
+            id.clone(),
+            jcode_plugin_core::manifest::PluginManifest::default(),
+        )?;
         context.eval(&js_code).await?;
         self.registry.register(id.clone(), ()).await?;
         Ok(id)
     }
 
-    async fn resolve_npm_entry(&self, package: &str, _version: Option<&str>) -> Result<ResolvedEntry, PluginError> {
+    async fn resolve_npm_entry(
+        &self,
+        package: &str,
+        _version: Option<&str>,
+    ) -> Result<ResolvedEntry, PluginError> {
         let cache = self.discovery.npm_cache.join(sanitize_npm_name(package));
         if !cache.exists() {
             self.install_npm(package, None, &cache).await?;
         }
-        let pkg_json = cache.join("node_modules").join(package).join("package.json");
+        let pkg_json = cache
+            .join("node_modules")
+            .join(package)
+            .join("package.json");
         let content = tokio::fs::read_to_string(&pkg_json).await?;
         let json: serde_json::Value = serde_json::from_str(&content)?;
         let manifest = jcode_plugin_core::manifest::PluginManifest::from_package_json(&json)?;
-        let entry = manifest.entry.server.as_ref()
+        let entry = manifest
+            .entry
+            .server
+            .as_ref()
             .or(manifest.entry.both.as_ref())
             .ok_or_else(|| PluginError::InvalidManifest("No server entry point".into()))?;
         Ok(ResolvedEntry {
@@ -167,7 +189,12 @@ impl PluginLoader {
         })
     }
 
-    async fn install_npm(&self, package: &str, _version: Option<&str>, dir: &Path) -> Result<(), PluginError> {
+    async fn install_npm(
+        &self,
+        package: &str,
+        _version: Option<&str>,
+        dir: &Path,
+    ) -> Result<(), PluginError> {
         if !is_valid_package_name(package) {
             return Err(PluginError::Other("Invalid package name".into()));
         }

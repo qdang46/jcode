@@ -1,8 +1,8 @@
+use chrono::{DateTime, Utc};
+use jcode_plugin_core::security::{AccessDecision, CapabilityAction};
+use jcode_plugin_core::types::PluginId;
 use std::collections::VecDeque;
 use std::sync::Mutex;
-use chrono::{DateTime, Utc};
-use jcode_plugin_core::types::PluginId;
-use jcode_plugin_core::security::{CapabilityAction, AccessDecision};
 
 pub struct AuditTrail {
     entries: Mutex<VecDeque<AuditEntry>>,
@@ -27,9 +27,13 @@ impl AuditTrail {
         }
     }
 
-    pub fn log_access(&self, plugin_id: &PluginId, resource: &str,
-            action: &CapabilityAction,
-            decision: &AccessDecision) {
+    pub fn log_access(
+        &self,
+        plugin_id: &PluginId,
+        resource: &str,
+        action: &CapabilityAction,
+        decision: &AccessDecision,
+    ) {
         let (ds, reason) = match decision {
             AccessDecision::Allowed(r) => ("allowed", r.clone()),
             AccessDecision::Denied(r) => ("denied", r.clone()),

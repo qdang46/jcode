@@ -1,8 +1,10 @@
-use jcode_plugin_core::events::{EventInput, HandlerAction};
 use jcode_plugin_core::PluginEvent;
-pub use jcode_plugin_runtime::{check_kill_switches, is_force_deny, PluginSystem, DISABLE_ALL_PLUGINS, FORCE_DENY, SKIP_HOOKS};
-use std::sync::atomic::Ordering;
+use jcode_plugin_core::events::{EventInput, HandlerAction};
+pub use jcode_plugin_runtime::{
+    DISABLE_ALL_PLUGINS, FORCE_DENY, PluginSystem, SKIP_HOOKS, check_kill_switches, is_force_deny,
+};
 use std::sync::OnceLock;
+use std::sync::atomic::Ordering;
 
 static PLUGIN_SYSTEM: OnceLock<PluginSystem> = OnceLock::new();
 

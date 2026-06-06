@@ -68,16 +68,33 @@ impl PluginEvent {
     pub fn all() -> Vec<PluginEvent> {
         use PluginEvent::*;
         vec![
-            PreToolUse, PostToolUse, PostToolUseFailure,
-            ToolExecutionStart, ToolExecutionEnd,
-            SessionStart, SessionEnd, SessionSwitch,
-            SessionCompact, SessionBeforeCompact, SessionShutdown,
-            PermissionRequest, PermissionDenied,
-            AgentStart, AgentEnd, TurnStart, TurnEnd,
-            MessageStart, MessageEnd,
-            PreCompact, PostCompact,
-            TaskCreated, TaskCompleted, AutoCompactionStart,
-            UserPromptSubmit, Stop, Notification,
+            PreToolUse,
+            PostToolUse,
+            PostToolUseFailure,
+            ToolExecutionStart,
+            ToolExecutionEnd,
+            SessionStart,
+            SessionEnd,
+            SessionSwitch,
+            SessionCompact,
+            SessionBeforeCompact,
+            SessionShutdown,
+            PermissionRequest,
+            PermissionDenied,
+            AgentStart,
+            AgentEnd,
+            TurnStart,
+            TurnEnd,
+            MessageStart,
+            MessageEnd,
+            PreCompact,
+            PostCompact,
+            TaskCreated,
+            TaskCompleted,
+            AutoCompactionStart,
+            UserPromptSubmit,
+            Stop,
+            Notification,
         ]
     }
 }
@@ -86,66 +103,159 @@ impl PluginEvent {
 #[serde(tag = "event")]
 pub enum EventInput {
     #[serde(rename = "PreToolUse")]
-    PreToolUse { tool_name: String, tool_input: serde_json::Value, session_id: String },
+    PreToolUse {
+        tool_name: String,
+        tool_input: serde_json::Value,
+        session_id: String,
+    },
     #[serde(rename = "PostToolUse")]
-    PostToolUse { tool_name: String, tool_input: serde_json::Value, tool_output: serde_json::Value, duration_ms: u64, success: bool, session_id: String },
+    PostToolUse {
+        tool_name: String,
+        tool_input: serde_json::Value,
+        tool_output: serde_json::Value,
+        duration_ms: u64,
+        success: bool,
+        session_id: String,
+    },
     #[serde(rename = "PostToolUseFailure")]
-    PostToolUseFailure { tool_name: String, tool_input: serde_json::Value, error: String, duration_ms: u64, session_id: String },
+    PostToolUseFailure {
+        tool_name: String,
+        tool_input: serde_json::Value,
+        error: String,
+        duration_ms: u64,
+        session_id: String,
+    },
     #[serde(rename = "SessionStart")]
-    SessionStart { session_id: String, project_dir: String, model: String, provider: String },
+    SessionStart {
+        session_id: String,
+        project_dir: String,
+        model: String,
+        provider: String,
+    },
     #[serde(rename = "SessionEnd")]
-    SessionEnd { session_id: String, duration_seconds: u64, message_count: u64 },
+    SessionEnd {
+        session_id: String,
+        duration_seconds: u64,
+        message_count: u64,
+    },
     #[serde(rename = "PermissionRequest")]
-    PermissionRequest { action: String, tool_name: Option<String>, target: Option<String>, session_id: String },
+    PermissionRequest {
+        action: String,
+        tool_name: Option<String>,
+        target: Option<String>,
+        session_id: String,
+    },
     #[serde(rename = "AgentStart")]
-    AgentStart { session_id: String, system_prompt: serde_json::Value, tools: serde_json::Value },
+    AgentStart {
+        session_id: String,
+        system_prompt: serde_json::Value,
+        tools: serde_json::Value,
+    },
     #[serde(rename = "TurnStart")]
-    TurnStart { session_id: String, turn_number: u32, messages: serde_json::Value },
+    TurnStart {
+        session_id: String,
+        turn_number: u32,
+        messages: serde_json::Value,
+    },
     #[serde(rename = "UserPromptSubmit")]
     UserPromptSubmit { content: String, session_id: String },
     #[serde(rename = "PreCompact")]
-    PreCompact { session_id: String, message_count: u32, token_count: u64, system_prompt: serde_json::Value },
+    PreCompact {
+        session_id: String,
+        message_count: u32,
+        token_count: u64,
+        system_prompt: serde_json::Value,
+    },
     #[serde(rename = "PostCompact")]
-    PostCompact { session_id: String, messages_removed: u32, tokens_saved: u64 },
+    PostCompact {
+        session_id: String,
+        messages_removed: u32,
+        tokens_saved: u64,
+    },
     #[serde(rename = "Stop")]
     Stop { session_id: String, reason: String },
     #[serde(rename = "Notification")]
-    Notification { level: String, message: String, session_id: Option<String> },
+    Notification {
+        level: String,
+        message: String,
+        session_id: Option<String>,
+    },
     #[serde(rename = "ToolExecutionStart")]
-    ToolExecutionStart { tool_name: String, tool_input: serde_json::Value, session_id: String },
+    ToolExecutionStart {
+        tool_name: String,
+        tool_input: serde_json::Value,
+        session_id: String,
+    },
     #[serde(rename = "ToolExecutionEnd")]
-    ToolExecutionEnd { tool_name: String, tool_output: serde_json::Value, duration_ms: u64, session_id: String },
+    ToolExecutionEnd {
+        tool_name: String,
+        tool_output: serde_json::Value,
+        duration_ms: u64,
+        session_id: String,
+    },
     #[serde(rename = "AgentEnd")]
-    AgentEnd { session_id: String, duration_seconds: u64, message_count: u64 },
+    AgentEnd {
+        session_id: String,
+        duration_seconds: u64,
+        message_count: u64,
+    },
     #[serde(rename = "SessionSwitch")]
-    SessionSwitch { session_id: String, target_session_id: String },
+    SessionSwitch {
+        session_id: String,
+        target_session_id: String,
+    },
     #[serde(rename = "SessionCompact")]
     SessionCompact { session_id: String, reason: String },
     #[serde(rename = "TurnEnd")]
-    TurnEnd { session_id: String, turn_number: u32, duration_ms: u64 },
+    TurnEnd {
+        session_id: String,
+        turn_number: u32,
+        duration_ms: u64,
+    },
     #[serde(rename = "MessageStart")]
     MessageStart { session_id: String, role: String },
     #[serde(rename = "MessageEnd")]
-    MessageEnd { session_id: String, role: String, content: String },
+    MessageEnd {
+        session_id: String,
+        role: String,
+        content: String,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "event")]
 pub enum EventOutput {
     #[serde(rename = "PreToolUse")]
-    PreToolUse { block: Option<String>, modified_input: Option<serde_json::Value> },
+    PreToolUse {
+        block: Option<String>,
+        modified_input: Option<serde_json::Value>,
+    },
     #[serde(rename = "PostToolUse")]
-    PostToolUse { modified_output: Option<serde_json::Value> },
+    PostToolUse {
+        modified_output: Option<serde_json::Value>,
+    },
     #[serde(rename = "PermissionRequest")]
-    PermissionRequest { decision: Option<PermissionDecision>, message: Option<String> },
+    PermissionRequest {
+        decision: Option<PermissionDecision>,
+        message: Option<String>,
+    },
     #[serde(rename = "AgentStart")]
-    AgentStart { additional_system_prompt: Vec<String> },
+    AgentStart {
+        additional_system_prompt: Vec<String>,
+    },
     #[serde(rename = "PreCompact")]
-    PreCompact { system_prompt: Option<serde_json::Value>, instructions: Option<String>, prevent: bool },
+    PreCompact {
+        system_prompt: Option<serde_json::Value>,
+        instructions: Option<String>,
+        prevent: bool,
+    },
     #[serde(rename = "UserPromptSubmit")]
     UserPromptSubmit { modified_prompt: Option<String> },
     #[serde(rename = "Notification")]
-    Notification { suppress: Option<bool>, modified_message: Option<String> },
+    Notification {
+        suppress: Option<bool>,
+        modified_message: Option<String>,
+    },
     #[serde(rename = "Stop")]
     Stop { reason: String },
 }
@@ -187,6 +297,10 @@ pub enum HandlerAction {
 
 impl Default for HandlerResult {
     fn default() -> Self {
-        Self { action: HandlerAction::Continue, output: None, error: None }
+        Self {
+            action: HandlerAction::Continue,
+            output: None,
+            error: None,
+        }
     }
 }
