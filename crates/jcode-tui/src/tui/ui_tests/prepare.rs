@@ -19,6 +19,7 @@ fn test_prepare_messages_live_batch_rows_do_not_soft_wrap_on_narrow_width() {
                     "command": "cargo test --package jcode --lib tui::ui::tests::render_tool_message_batch_rows_do_not_soft_wrap_on_narrow_width -- --nocapture"
                 }),
                 intent: None,
+                thought_signature: None,
             }],
             subcalls: vec![crate::bus::BatchSubcallProgress {
                 index: 1,
@@ -29,6 +30,7 @@ fn test_prepare_messages_live_batch_rows_do_not_soft_wrap_on_narrow_width() {
                         "command": "cargo test --package jcode --lib tui::ui::tests::render_tool_message_batch_rows_do_not_soft_wrap_on_narrow_width -- --nocapture"
                     }),
                     intent: None,
+                    thought_signature: None,
                 },
                 state: crate::bus::BatchSubcallState::Running,
             }],
@@ -78,6 +80,7 @@ fn test_prepare_messages_centered_live_batch_rows_keep_dedicated_padding_span() 
                     "command": "cargo test --package jcode --lib tui::ui::tests::render_tool_message_batch_rows_do_not_soft_wrap_on_narrow_width -- --nocapture --exact with-extra-flags-and-output-to-stretch-the-line"
                 }),
                 intent: None,
+                thought_signature: None,
             }],
             subcalls: vec![crate::bus::BatchSubcallProgress {
                 index: 1,
@@ -88,6 +91,7 @@ fn test_prepare_messages_centered_live_batch_rows_keep_dedicated_padding_span() 
                         "command": "cargo test --package jcode --lib tui::ui::tests::render_tool_message_batch_rows_do_not_soft_wrap_on_narrow_width -- --nocapture --exact with-extra-flags-and-output-to-stretch-the-line"
                     }),
                     intent: None,
+                    thought_signature: None,
                 },
                 state: crate::bus::BatchSubcallState::Running,
             }],
@@ -145,6 +149,7 @@ fn test_prepare_messages_shows_live_batch_progress_in_chat_history() {
                 name: "bash".to_string(),
                 input: serde_json::json!({"command": "cargo build --release --workspace"}),
                 intent: None,
+                thought_signature: None,
             }],
             subcalls: vec![
                 crate::bus::BatchSubcallProgress {
@@ -154,6 +159,7 @@ fn test_prepare_messages_shows_live_batch_progress_in_chat_history() {
                         name: "read".to_string(),
                         input: serde_json::json!({"file_path": "Cargo.toml"}),
                         intent: None,
+                        thought_signature: None,
                     },
                     state: crate::bus::BatchSubcallState::Succeeded,
                 },
@@ -164,6 +170,7 @@ fn test_prepare_messages_shows_live_batch_progress_in_chat_history() {
                         name: "bash".to_string(),
                         input: serde_json::json!({"command": "cargo build --release --workspace"}),
                         intent: None,
+                        thought_signature: None,
                     },
                     state: crate::bus::BatchSubcallState::Running,
                 },
@@ -182,7 +189,7 @@ fn test_prepare_messages_shows_live_batch_progress_in_chat_history() {
     assert!(
         rendered
             .iter()
-            .any(|line| line.contains("⠂ batch · 1/2 done")),
+            .any(|line| line.contains("⠋ batch · 1/2 done")),
         "missing live batch header in {:?}",
         rendered
     );
@@ -194,7 +201,7 @@ fn test_prepare_messages_shows_live_batch_progress_in_chat_history() {
     assert!(
         rendered
             .iter()
-            .any(|line| line.contains("⠂ bash $ cargo build --release --workspace")),
+            .any(|line| line.contains("⠋ bash $ cargo build --release --workspace")),
         "missing running batch subcall in {:?}",
         rendered
     );
@@ -229,6 +236,7 @@ fn test_prepare_messages_places_live_batch_after_committed_assistant_text() {
                 name: "read".to_string(),
                 input: serde_json::json!({"file_path": "src/main.rs"}),
                 intent: None,
+                thought_signature: None,
             }],
             subcalls: vec![crate::bus::BatchSubcallProgress {
                 index: 1,
@@ -237,6 +245,7 @@ fn test_prepare_messages_places_live_batch_after_committed_assistant_text() {
                     name: "read".to_string(),
                     input: serde_json::json!({"file_path": "src/main.rs"}),
                     intent: None,
+                    thought_signature: None,
                 },
                 state: crate::bus::BatchSubcallState::Running,
             }],
@@ -280,6 +289,7 @@ fn test_prepare_messages_live_batch_spinner_advances_between_frames() {
             name: "bash".to_string(),
             input: serde_json::json!({"command": "sleep 1"}),
             intent: None,
+            thought_signature: None,
         }],
         subcalls: vec![crate::bus::BatchSubcallProgress {
             index: 1,
@@ -288,6 +298,7 @@ fn test_prepare_messages_live_batch_spinner_advances_between_frames() {
                 name: "bash".to_string(),
                 input: serde_json::json!({"command": "sleep 1"}),
                 intent: None,
+                thought_signature: None,
             },
             state: crate::bus::BatchSubcallState::Running,
         }],
@@ -320,14 +331,14 @@ fn test_prepare_messages_live_batch_spinner_advances_between_frames() {
     assert!(
         first_rendered
             .iter()
-            .any(|line| line.contains("⠂ batch · 0/1 done")),
+            .any(|line| line.contains("⠋ batch · 0/1 done")),
         "expected first spinner frame in {:?}",
         first_rendered
     );
     assert!(
         second_rendered
             .iter()
-            .any(|line| line.contains("⠆ batch · 0/1 done")),
+            .any(|line| line.contains("⠙ batch · 0/1 done")),
         "expected second spinner frame in {:?}",
         second_rendered
     );
@@ -354,6 +365,7 @@ fn test_prepare_messages_live_batch_centered_mode_uses_left_aligned_padding() {
                 name: "read".to_string(),
                 input: serde_json::json!({"file_path": "Cargo.toml"}),
                 intent: None,
+                thought_signature: None,
             }],
             subcalls: vec![crate::bus::BatchSubcallProgress {
                 index: 1,
@@ -362,6 +374,7 @@ fn test_prepare_messages_live_batch_centered_mode_uses_left_aligned_padding() {
                     name: "read".to_string(),
                     input: serde_json::json!({"file_path": "Cargo.toml"}),
                     intent: None,
+                    thought_signature: None,
                 },
                 state: crate::bus::BatchSubcallState::Running,
             }],
@@ -476,6 +489,7 @@ fn test_prepare_messages_tool_row_refreshes_after_message_version_bump() {
         name: "read".to_string(),
         input: serde_json::json!({"file_path": "src/main.rs"}),
         intent: None,
+        thought_signature: None,
     };
 
     let placeholder = DisplayMessage {
@@ -652,6 +666,7 @@ fn test_render_tool_message_batch_nested_subcall_params_still_render() {
                 ]
             }),
             intent: None,
+            thought_signature: None,
         }),
     };
 
@@ -688,6 +703,7 @@ fn test_render_tool_message_batch_flat_grep_subcall_uses_pattern_and_path() {
                 ]
             }),
             intent: None,
+            thought_signature: None,
         }),
     };
 
@@ -726,6 +742,7 @@ fn test_render_tool_message_batch_subcall_lines_alignment_unset() {
                 ]
             }),
             intent: None,
+            thought_signature: None,
         }),
     };
 
@@ -754,4 +771,65 @@ fn test_render_tool_message_batch_subcall_lines_alignment_unset() {
         );
     }
     crate::tui::markdown::set_center_code_blocks(false);
+}
+
+#[test]
+fn test_prepare_messages_renders_reasoning_role_dim_italic_without_sentinel() {
+    let _guard = crate::storage::lock_test_env();
+    clear_test_render_state_for_tests();
+
+    // A collapsing reasoning message carries sentinel-wrapped dim/italic markup.
+    let mut content = String::new();
+    content.push_str(&jcode_tui_markdown::reasoning_line_markup(
+        "weighing the options",
+    ));
+    content.push_str(&jcode_tui_markdown::reasoning_line_markup(
+        "▸ thought for 3s",
+    ));
+
+    let state = TestState {
+        display_messages: vec![
+            DisplayMessage::user("hi"),
+            DisplayMessage::reasoning(content),
+        ],
+        ..Default::default()
+    };
+
+    let prepared = prepare::prepare_messages(&state, 100, 30);
+    let lines = prepared.materialize_all_lines();
+
+    // The visible reasoning body is present, dim+italic, and sentinel-free.
+    let body = lines
+        .iter()
+        .find(|l| {
+            let joined: String = l.spans.iter().map(|s| s.content.as_ref()).collect();
+            joined.contains("weighing the options")
+        })
+        .expect("reasoning body line present");
+    let rendered: String = body.spans.iter().map(|s| s.content.as_ref()).collect();
+    assert!(
+        !rendered.contains(jcode_tui_markdown::REASONING_SENTINEL),
+        "sentinel must be stripped from visible reasoning: {rendered:?}"
+    );
+    let span = body
+        .spans
+        .iter()
+        .find(|s| s.content.as_ref().contains("weighing"))
+        .expect("body span");
+    assert!(
+        span.style
+            .add_modifier
+            .contains(ratatui::style::Modifier::ITALIC),
+        "reasoning body should be italic: {:?}",
+        span.style
+    );
+
+    // The summary line is present too.
+    assert!(
+        lines.iter().any(|l| {
+            let joined: String = l.spans.iter().map(|s| s.content.as_ref()).collect();
+            joined.contains("thought for 3s")
+        }),
+        "summary line should render"
+    );
 }

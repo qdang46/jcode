@@ -500,6 +500,10 @@ pub(crate) enum Command {
         to: Option<String>,
     },
 
+    /// Manage experiment flags (list, enable, disable)
+    #[command(subcommand)]
+    Experiment(ExperimentCommand),
+
     /// Ambient mode management
     #[command(subcommand)]
     Ambient(AmbientCommand),
@@ -1055,6 +1059,28 @@ pub(crate) enum PromptsCommand {
         /// Overwrite an existing template of the same name.
         #[arg(long)]
         force: bool,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+pub(crate) enum ExperimentCommand {
+    /// List all experiment flags and their current state
+    List {
+        /// Emit JSON instead of human-readable output.
+        #[arg(long)]
+        json: bool,
+    },
+
+    /// Enable an experiment flag by key name
+    Enable {
+        /// Experiment flag key (e.g., "hooks_v2", "js_plugins")
+        key: String,
+    },
+
+    /// Disable an experiment flag by key name
+    Disable {
+        /// Experiment flag key (e.g., "hooks_v2", "js_plugins")
+        key: String,
     },
 }
 

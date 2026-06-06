@@ -6,20 +6,16 @@ mod interrupts;
 mod messages;
 mod prompting;
 mod provider;
-mod reasoning_format;
 mod response_recovery;
 mod status;
 mod streaming;
 mod tools;
 mod turn_execution;
 mod turn_loops;
-mod turn_streaming_broadcast;
 mod turn_streaming_mpsc;
 mod utils;
 
-use self::streaming::{
-    send_stream_keepalive_broadcast, send_stream_keepalive_mpsc, stream_keepalive_ticker,
-};
+use self::streaming::{send_stream_keepalive_mpsc, stream_keepalive_ticker};
 use self::tools::{
     cap_sdk_tool_content_for_history, cap_tool_output_for_history, print_tool_summary,
     tool_output_side_pane_images, tool_output_to_content_blocks,
@@ -53,7 +49,7 @@ use std::ptr::NonNull;
 use std::sync::Mutex;
 use std::sync::{Arc, LazyLock, Mutex as StdMutex};
 use std::time::{Duration, Instant};
-use tokio::sync::{broadcast, mpsc};
+use tokio::sync::mpsc;
 
 use interrupts::{NoToolCallOutcome, PostToolInterruptOutcome};
 pub use jcode_agent_runtime::{
@@ -274,6 +270,10 @@ pub struct Agent {
     mcp_late_register_resolved: bool,
     /// Override system prompt (used by ambient mode to inject a custom prompt)
     system_prompt_override: Option<String>,
+    /// Maximum number of tool-call turns before the agent is forced to
+    /// stop. `None` means unlimited. Set by `SubagentTool` from the agent
+    /// definition's `max_turns` field.
+    max_turns: Option<u32>,
     /// Whether memory features are enabled for this session
     memory_enabled: bool,
     /// One-step undo snapshot captured before the most recent rewind.
@@ -332,6 +332,7 @@ impl Agent {
             locked_tools: None,
             mcp_late_register_resolved: false,
             system_prompt_override: crate::config::config().provider.system_prompt.clone(),
+            max_turns: None,
             memory_enabled: crate::config::config().features.memory,
             rewind_undo_snapshot: None,
             stdin_request_tx: None,
@@ -557,7 +558,12 @@ impl Agent {
         memory: &crate::memory::PendingMemory,
     ) -> (Message, bool) {
         let message = Self::memory_injection_message(memory);
-        let persist = crate::config::config().features.persist_memory_injections;
+        let persist = {
+            let config = crate::config::config();
+            let experiments =
+                jcode_experiment_flags::Experiments::from_config(&config.experiments.entries);
+            experiments.check(jcode_experiment_flags::ExperimentFlag::PersistMemoryInjection)
+        };
         if persist {
             self.add_message_with_display_role(
                 Role::User,
@@ -979,6 +985,9 @@ impl Agent {
                         md.push_str("\n\n");
                     }
                     ContentBlock::Reasoning { text } => {
+                        md.push_str(&format!("*Thinking:* {}\n\n", text));
+                    }
+                    ContentBlock::ReasoningTrace { text } => {
                         md.push_str(&format!("*Thinking:* {}\n\n", text));
                     }
                     ContentBlock::AnthropicThinking { thinking, .. } => {

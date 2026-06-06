@@ -14,7 +14,7 @@ async fn handle_resume_session_registers_live_events_before_history_replay() -> 
     persisted.save()?;
 
     let provider: Arc<dyn Provider> = Arc::new(MockProvider);
-    let registry = Registry::new(provider.clone()).await;
+    let registry = Registry::new(provider.clone(), None).await;
     let agent = Arc::new(Mutex::new(build_test_agent_with_id(
         provider.clone(),
         registry.clone(),

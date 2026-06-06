@@ -1,0 +1,75 @@
+# File picker agent.
+#
+# Spawned by the orchestrator to find files in the codebase that are
+# relevant to a task. Adapted from Codebuff's `file-picker` agent.
+#
+# Why `prefer_tier = "routine"`:
+#   File picking is a fuzzy-search task — a smaller/cheaper model
+#   handles it well. Pay-per-token users who set
+#   `JCODE_ROUTING_ROUTINE=<cheap-model>` save real money here.
+#   Subscription users (Claude Pro, ChatGPT Plus, ...) inherit the
+#   session model and get correctness without any tier mapping.
+#
+# Why `include_message_history = false`:
+#   File picker doesn't need to see prior edit chatter. A clean slate
+#   keeps the prompt short and avoids accidentally biasing path
+#   selection toward already-touched files.
+#
+# Why `inherit_parent_system_prompt = false`:
+#   Like basher, this is a tightly scoped leaf agent. It needs its own
+#   short prompt focused on file discovery, not the parent's full
+#   project/system prompt.
+
+id = "file-picker"
+display_name = "Fletcher the File Fetcher"
+publisher = "jcode"
+version = "0.1.0"
+
+prefer_tier = "routine"
+reasoning = "minimal"
+
+include_message_history = false
+inherit_parent_system_prompt = false
+output_mode = "last_message"
+
+# File picker is read-only — plan mode denies writes without prompting.
+permission_mode = "plan"
+max_turns = 5
+
+# Tools required: read project file tree + glob fallback. Whitelist is
+# checked at runtime against the tool registry; unknown tools fail loudly
+# rather than silently degrading.
+tool_names = [
+    "ls",
+    "glob",
+    "read",
+]
+
+# This agent is a leaf — it does not spawn other agents.
+spawnable_agents = []
+
+spawner_prompt = """
+Spawn this agent to find relevant files in the codebase. Provide a brief
+description of what you're looking for. The agent will return up to ~12
+file paths with one-line summaries. It does fuzzy semantic search; for
+exact-string searches, spawn a code searcher instead.
+"""
+
+system_prompt = """
+You are an expert at finding relevant files in a codebase. You have the
+project file tree and the user's request. Return the most relevant
+files, one per line, prefixed with the path. After the list, write a
+single short paragraph explaining how the files relate to the request.
+
+Do not read file contents — that is the parent agent's job.
+Do not propose changes — that is the editor's job.
+Stay focused on path discovery.
+"""
+
+instructions_prompt = """
+Provide an extremely concise report:
+1. List of relevant file paths (one per line).
+2. One paragraph (<= 4 sentences) explaining the relevance.
+
+Do not exceed 12 paths unless the parent explicitly asks for more.
+"""

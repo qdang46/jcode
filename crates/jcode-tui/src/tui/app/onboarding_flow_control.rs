@@ -208,36 +208,17 @@ impl App {
     /// straight into the resume picker (with an onboarding banner + a
     /// "Start a new session" option) instead of asking a separate Yes/No
     /// "continue where you left off" question. When both CLIs are present we
-    /// surface whichever one has the most recent transcript.
+    /// show *both* their transcripts together in one combined, recency-sorted
+    /// list rather than hiding one behind the other.
     pub(super) fn onboarding_after_model_select(&mut self) {
         if !matches!(self.onboarding_phase(), Some(OnboardingPhase::ModelSelect)) {
             return;
         }
-        match self.onboarding_most_recent_external_cli() {
-            Some(cli) => self.onboarding_open_transcript_picker(cli),
-            None => self.onboarding_show_suggestions(),
-        }
-    }
-
-    /// Among the external CLIs whose OAuth credentials are present, pick the one
-    /// with the most recent transcript. Ties (or a CLI with no transcripts yet)
-    /// fall back to detection order (Codex first). Returns `None` when no
-    /// external CLI login is present.
-    fn onboarding_most_recent_external_cli(&self) -> Option<ExternalCli> {
         let present = crate::tui::app::onboarding_flow::detect_external_cli_oauths();
-        match present.as_slice() {
-            [] => None,
-            [only] => Some(*only),
-            _ => {
-                // Multiple logins: rank by newest transcript mtime.
-                present
-                    .iter()
-                    .max_by_key(|cli| {
-                        session_picker::latest_external_cli_session_secs(**cli).unwrap_or(0)
-                    })
-                    .copied()
-                    .or_else(|| present.first().copied())
-            }
+        if present.is_empty() {
+            self.onboarding_show_suggestions();
+        } else {
+            self.onboarding_open_transcript_picker(&present);
         }
     }
 
@@ -283,7 +264,7 @@ impl App {
             _ => return,
         };
         if wants_continue {
-            self.onboarding_open_transcript_picker(cli);
+            self.onboarding_open_transcript_picker(std::slice::from_ref(&cli));
         } else {
             self.onboarding_show_suggestions();
         }
@@ -296,7 +277,7 @@ impl App {
     ///   - `TelemetryConsent`: Left/h -> No, Right/l -> Yes, toggle with
     ///     Up/Down/k/j/Tab; y/n commit directly, Enter/Space commit the
     ///     highlighted default.
-    ///     Returns true if the key was consumed.
+    /// Returns true if the key was consumed.
     pub(super) fn handle_onboarding_continue_prompt_key(&mut self, code: KeyCode) -> bool {
         match self.onboarding_phase() {
             Some(OnboardingPhase::Login { import }) => {
@@ -585,6 +566,13 @@ impl App {
                     return;
                 }
             };
+            // Auto-import bypasses the manual `pending_login` path, so record
+            // `auth_success` here for each imported provider. Without this the
+            // onboarding activation funnel undercounts every imported login
+            // (the happy path of the guided first-run flow).
+            for (provider, method) in &outcome.imported_auth_labels {
+                crate::telemetry::record_auth_success(provider, method);
+            }
             crate::bus::Bus::global().publish(crate::bus::BusEvent::LoginCompleted(
                 crate::bus::LoginCompleted {
                     provider: "auto-import".to_string(),
@@ -595,56 +583,89 @@ impl App {
         });
     }
 
-    /// Open a single-select resume-style picker filtered to the external CLI's
-    /// transcripts. Falls back to the session-search prompt if none load.
-    pub(super) fn onboarding_open_transcript_picker(&mut self, cli: ExternalCli) {
-        let filter = match cli {
-            ExternalCli::Codex => SessionFilterMode::Codex,
-            ExternalCli::ClaudeCode => SessionFilterMode::ClaudeCode,
-        };
+    /// Open a single-select resume-style picker showing the transcripts of every
+    /// detected external CLI together (Codex and/or Claude Code), sorted by
+    /// recency. Falls back to the session-search prompt if none load.
+    ///
+    /// `clis` is the set of external CLIs the user is logged into. When more than
+    /// one is present we still show them in one combined list so the user never
+    /// has a CLI's history hidden behind the other.
+    pub(super) fn onboarding_open_transcript_picker(&mut self, clis: &[ExternalCli]) {
+        // Choose a representative CLI for the banner/mode headline: the one with
+        // the most recent transcript (falling back to detection order).
+        let headline_cli = clis
+            .iter()
+            .copied()
+            .max_by_key(|cli| session_picker::latest_external_cli_session_secs(*cli).unwrap_or(0))
+            .or_else(|| clis.first().copied())
+            .unwrap_or(ExternalCli::Codex);
 
-        let (server_groups, orphan_sessions) = match session_picker::load_sessions_grouped() {
-            Ok(loaded) => loaded,
-            Err(err) => {
-                crate::logging::error(&format!(
-                    "onboarding: failed to load {} sessions: {err}",
-                    cli.label()
-                ));
-                self.onboarding_fallback_to_session_search(cli);
-                return;
+        let multi = clis.len() > 1;
+        let filter = if multi {
+            SessionFilterMode::ExternalClis
+        } else {
+            match headline_cli {
+                ExternalCli::Codex => SessionFilterMode::Codex,
+                ExternalCli::ClaudeCode => SessionFilterMode::ClaudeCode,
             }
         };
+
+        // The onboarding picker only shows external CLI transcripts, so load just
+        // those instead of paying the full `load_sessions_grouped` cost (parsing
+        // every jcode snapshot and listing servers). This keeps first-run
+        // onboarding snappy while still surfacing every logged-in CLI.
+        let (server_groups, orphan_sessions) =
+            session_picker::load_external_cli_sessions_grouped_multi(clis);
 
         let mut picker = SessionPicker::new_grouped(server_groups, orphan_sessions);
         picker.activate_external_cli_filter(filter);
 
         if picker.visible_session_count() == 0 {
-            self.onboarding_fallback_to_session_search(cli);
+            self.onboarding_fallback_to_session_search(headline_cli);
             return;
         }
 
-        picker.activate_onboarding_banner(Self::onboarding_resume_banner_lines(cli));
+        picker.activate_onboarding_banner(Self::onboarding_resume_banner_lines(clis));
 
         self.session_picker_overlay = Some(RefCell::new(picker));
-        self.session_picker_mode = SessionPickerMode::Onboarding { cli };
+        self.session_picker_mode = SessionPickerMode::Onboarding { cli: headline_cli };
         if let Some(flow) = self.onboarding_flow.as_mut() {
             flow.phase = OnboardingPhase::TranscriptPick {
-                cli,
+                cli: headline_cli,
                 shown_at: Instant::now(),
             };
         }
+        let resume_label = if multi {
+            "Resume a Codex or Claude Code session".to_string()
+        } else {
+            format!("Resume a {} session", headline_cli.label())
+        };
         self.set_status_notice(format!(
-            "Resume a {} session (↑↓ to choose, Enter to resume) or pick \"Start a new session\"",
-            cli.label()
+            "{resume_label} (↑↓ to choose, Enter to resume) or pick \"Start a new session\""
         ));
     }
 
     /// Formatted onboarding prompt shown in the reserved top band of the
     /// resume picker on first run.
-    fn onboarding_resume_banner_lines(cli: ExternalCli) -> Vec<ratatui::text::Line<'static>> {
+    fn onboarding_resume_banner_lines(clis: &[ExternalCli]) -> Vec<ratatui::text::Line<'static>> {
         use ratatui::style::{Color, Modifier, Style};
         use ratatui::text::{Line, Span};
         let accent = crate::tui::color_support::rgb(186, 139, 255);
+        // Describe whichever CLIs were detected: "Codex", "Claude Code", or
+        // "Codex and Claude Code" when both are present.
+        let mut labels: Vec<&'static str> = Vec::new();
+        for cli in clis {
+            let label = cli.label();
+            if !labels.contains(&label) {
+                labels.push(label);
+            }
+        }
+        let found = match labels.as_slice() {
+            [] => "external".to_string(),
+            [only] => (*only).to_string(),
+            [first, second] => format!("{first} and {second}"),
+            _ => labels.join(", "),
+        };
         vec![
             Line::from(vec![Span::styled(
                 "Welcome to jcode 🎉",
@@ -652,8 +673,7 @@ impl App {
             )]),
             Line::from(vec![Span::styled(
                 format!(
-                    "We found your {} sessions. Pick one below to pick up right where you left off,",
-                    cli.label()
+                    "We found your {found} sessions. Pick one below to pick up right where you left off,"
                 ),
                 Style::default().fg(Color::White),
             )]),
@@ -727,10 +747,10 @@ impl App {
     /// so prefer the same resolution the header uses; fall back to the session
     /// model and finally the local provider's model.
     fn onboarding_default_model_id(&self) -> String {
-        if self.is_remote
-            && let Some(model) = self.effective_remote_provider_model()
-        {
-            return model;
+        if self.is_remote {
+            if let Some(model) = self.effective_remote_provider_model() {
+                return model;
+            }
         }
         self.session
             .model
@@ -781,8 +801,22 @@ impl App {
         let model_label = self.onboarding_default_model_label();
         let provider_key = crate::session::derive_session_provider_key(provider.name());
         let session_id = self.session.id.clone();
+        // Whether to also run a definitive live Copilot auth check. Copilot is
+        // unusual: a local GitHub token can exist while the account is banned or
+        // not entitled, so the presence-only probe used by the readiness summary
+        // would otherwise show a banned account as "Ready to use". We skip it
+        // when Copilot is the default provider (the model ping already covers
+        // it) or when no Copilot credentials are present locally.
+        let verify_copilot = provider_key.as_deref() != Some("copilot")
+            && crate::auth::copilot::has_copilot_credentials_fast();
         self.set_status_notice(format!("Checking {model_label}..."));
         tokio::spawn(async move {
+            // Run the definitive Copilot auth check first so its validation
+            // record is persisted (and the auth cache invalidated) before the
+            // readiness summary reads `check_fast()` below.
+            if verify_copilot {
+                let _ = crate::auth::copilot::verify_copilot_credentials_live_default().await;
+            }
             let (ok, detail) = match Self::onboarding_run_model_validation(provider).await {
                 Ok(()) => (true, None),
                 Err(err) => (false, Some(Self::onboarding_trim_validation_error(&err))),

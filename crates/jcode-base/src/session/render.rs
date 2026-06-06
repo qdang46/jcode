@@ -1,5 +1,6 @@
 use super::{Session, StoredDisplayRole};
 use crate::message::{ContentBlock, Role, ToolCall};
+use jcode_config_types::ReasoningDisplayMode;
 pub use jcode_session_types::{
     RenderedCompactedHistoryInfo, RenderedImage, RenderedImageSource, RenderedMessage,
 };
@@ -11,6 +12,43 @@ use std::collections::HashMap;
 /// the transcript should retain recent continuity instead of replacing the
 /// entire compacted prefix with a marker.
 pub const DEFAULT_VISIBLE_COMPACTED_HISTORY_MESSAGES: usize = 64;
+
+/// Format persisted reasoning/thinking text into the dim+italic markdown used
+/// by the live streaming path. Each line is wrapped via the shared `reasoning_line_markup` so resumed
+/// sessions render reasoning identically to how it streamed, terminated by a
+/// blank line so following answer text renders as a normal paragraph.
+///
+/// Honors the active `reasoning_display` mode so re-rendered history (reload,
+/// resume, remote sync, compaction-window expand) matches the live behavior:
+/// - `Off`: persisted reasoning is hidden entirely.
+/// - `Current`: the block folds down to a single `▸ thought (N lines)` trace,
+///   matching the live collapse animation's end state rather than replaying the
+///   full reasoning back into the transcript on every reload.
+/// - `Full`: every reasoning line is shown (classic behavior).
+fn format_reasoning_markup(text: &str) -> String {
+    if text.trim().is_empty() {
+        return String::new();
+    }
+    let mode = crate::config::config().display.reasoning_display();
+    match mode {
+        ReasoningDisplayMode::Off => return String::new(),
+        ReasoningDisplayMode::Current => {
+            let line_count = text.lines().filter(|l| !l.trim().is_empty()).count();
+            let mut out = jcode_tui_markdown::reasoning_summary_line_markup(line_count);
+            // Blank line terminates the reasoning block.
+            out.push('\n');
+            return out;
+        }
+        ReasoningDisplayMode::Full => {}
+    }
+    let mut out = String::new();
+    for line in text.split('\n') {
+        out.push_str(&jcode_tui_markdown::reasoning_line_markup(line));
+    }
+    // Blank line terminates the reasoning block.
+    out.push('\n');
+    out
+}
 
 fn is_internal_system_reminder(msg: &super::StoredMessage) -> bool {
     msg.content
@@ -331,12 +369,18 @@ pub fn render_messages_and_images_with_compacted_history(
                         image.label = Some(label);
                     }
                 }
-                ContentBlock::ToolUse { id, name, input } => {
+                ContentBlock::ToolUse {
+                    id,
+                    name,
+                    input,
+                    thought_signature,
+                } => {
                     let tool_call = ToolCall {
                         id: id.clone(),
                         name: name.clone(),
                         input: input.clone(),
                         intent: ToolCall::intent_from_input(input),
+                        thought_signature: thought_signature.clone(),
                     };
                     tool_map.insert(id.clone(), tool_call);
                     tool_calls.push(name.clone());
@@ -361,6 +405,7 @@ pub fn render_messages_and_images_with_compacted_history(
                             name: "tool".to_string(),
                             input: serde_json::Value::Null,
                             intent: None,
+                            thought_signature: None,
                         })
                     });
                     current_tool = tool_data.clone();
@@ -372,9 +417,10 @@ pub fn render_messages_and_images_with_compacted_history(
                         tool_data,
                     });
                 }
-                ContentBlock::Reasoning { .. }
-                | ContentBlock::AnthropicThinking { .. }
-                | ContentBlock::OpenAIReasoning { .. } => {}
+                ContentBlock::Reasoning { text: t } | ContentBlock::ReasoningTrace { text: t } => {
+                    text.push_str(&format_reasoning_markup(t));
+                }
+                ContentBlock::AnthropicThinking { .. } | ContentBlock::OpenAIReasoning { .. } => {}
                 ContentBlock::Image { media_type, data } => {
                     images.push(RenderedImage {
                         media_type: media_type.clone(),

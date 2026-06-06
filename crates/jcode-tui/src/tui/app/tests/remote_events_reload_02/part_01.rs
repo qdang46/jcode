@@ -9,6 +9,7 @@ fn test_remote_poke_queues_when_turn_is_in_progress() {
         crate::todo::save_todos(
             &app.session.id,
             &[crate::todo::TodoItem {
+                group: None,
                 id: "todo-1".to_string(),
                 content: "Continue working".to_string(),
                 status: "pending".to_string(),
@@ -50,6 +51,7 @@ fn test_remote_poke_queues_when_turn_is_in_progress() {
             &app.session.id,
             &[
                 crate::todo::TodoItem {
+                    group: None,
                     id: "todo-1".to_string(),
                     content: "Continue working".to_string(),
                     status: "pending".to_string(),
@@ -60,6 +62,7 @@ fn test_remote_poke_queues_when_turn_is_in_progress() {
                     completion_confidence: None,
                 },
                 crate::todo::TodoItem {
+                    group: None,
                     id: "todo-2".to_string(),
                     content: "Handle the newly discovered follow-up".to_string(),
                     status: "pending".to_string(),
@@ -148,6 +151,7 @@ fn test_remote_interrupted_auto_poke_requeues_after_deferred_poke() {
         crate::todo::save_todos(
             &app.session.id,
             &[crate::todo::TodoItem {
+                group: None,
                 id: "todo-1".to_string(),
                 content: "Resume after interrupt".to_string(),
                 status: "pending".to_string(),
@@ -503,8 +507,7 @@ fn test_observe_marks_large_tool_results() {
         id: "tool_big".to_string(),
         name: "read".to_string(),
         input: serde_json::json!({"file_path": "large.txt"}),
-        intent: None,
-    };
+        intent: None, thought_signature: None, };
     let output = "x".repeat(48_000);
     app.observe_tool_result(&tool_call, &output, false, Some("read"));
 
@@ -530,8 +533,7 @@ fn test_observe_repaint_does_not_leave_severity_badge_artifact() {
         id: "tool_big".to_string(),
         name: "read".to_string(),
         input: serde_json::json!({"file_path": "large.txt"}),
-        intent: None,
-    };
+        intent: None, thought_signature: None, };
 
     let large_output = "x".repeat(48_000);
     app.observe_tool_result(&tool_call, &large_output, false, Some("read"));

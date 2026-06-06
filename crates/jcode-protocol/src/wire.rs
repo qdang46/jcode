@@ -573,6 +573,14 @@ pub enum Request {
         #[serde(default)]
         timeout_secs: Option<u64>,
     },
+
+    /// Request the current experiment flag states from the server
+    #[serde(rename = "experiment_list")]
+    ExperimentList { id: u64 },
+
+    /// Enable or disable an experiment flag on the server
+    #[serde(rename = "experiment_set")]
+    ExperimentSet { id: u64, key: String, enabled: bool },
 }
 
 /// Server event sent to client
@@ -590,6 +598,27 @@ pub enum ServerEvent {
     /// Streaming text delta
     #[serde(rename = "text_delta")]
     TextDelta { text: String },
+
+    /// Streaming reasoning/thinking delta (raw, unformatted model text).
+    ///
+    /// Unlike [`ServerEvent::TextDelta`], this carries the model's reasoning as
+    /// raw text deltas so the client can render the in-progress line live
+    /// (token-by-token) rather than waiting for a whole line to complete. The
+    /// client is responsible for the dim+italic styling. Clients that predate
+    /// this event simply ignore it (reasoning is still persisted as a
+    /// history-only trace and shown when the message commits).
+    #[serde(rename = "reasoning_delta")]
+    ReasoningDelta { text: String },
+
+    /// Reasoning/thinking finished for the current step. Lets the client close
+    /// its live reasoning region (flush the partial line, add separators) before
+    /// normal output or a tool call begins.
+    #[serde(rename = "reasoning_done")]
+    ReasoningDone {
+        /// Wall-clock reasoning duration in seconds, when known.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        duration_secs: Option<f64>,
+    },
 
     /// Replace the current turn's streamed text content
     /// Used when text-wrapped tool calls are recovered: the garbled text
@@ -935,6 +964,12 @@ pub enum ServerEvent {
         /// Upstream provider (e.g., which provider OpenRouter routed to, or calculated preference)
         #[serde(skip_serializing_if = "Option::is_none")]
         upstream_provider: Option<String>,
+        /// Server-resolved billing credential for this session: `Oauth`
+        /// (subscription) vs `ApiKey` (cost-based), or `None` when the active
+        /// provider has no OAuth-vs-API-key distinction. Lets remote clients
+        /// render usage/billing without re-deriving it from the provider name.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        resolved_credential: Option<jcode_provider_core::ResolvedCredential>,
         /// Reasoning effort for providers that expose it
         #[serde(skip_serializing_if = "Option::is_none")]
         reasoning_effort: Option<String>,
@@ -1232,4 +1267,18 @@ pub enum ServerEvent {
         request_id: String,
         timestamp: chrono::DateTime<chrono::Utc>,
     },
+
+    /// Current experiment flag states (response to ExperimentList)
+    #[serde(rename = "experiment_flags")]
+    ExperimentFlags { flags: Vec<ExperimentFlagWire> },
+}
+
+/// Typed wire representation of a single experiment flag state.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExperimentFlagWire {
+    pub flag: String,
+    pub key: String,
+    pub stage: String,
+    pub enabled: bool,
+    pub default_enabled: bool,
 }

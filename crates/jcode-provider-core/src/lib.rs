@@ -7,8 +7,9 @@ pub mod pricing;
 pub mod selection;
 
 pub use anthropic::{
-    ANTHROPIC_OAUTH_BETA_HEADERS, ANTHROPIC_OAUTH_BETA_HEADERS_1M, anthropic_effectively_1m,
-    anthropic_is_1m_model, anthropic_map_tool_name_for_oauth, anthropic_map_tool_name_from_oauth,
+    ANTHROPIC_OAUTH_BETA_HEADERS, ANTHROPIC_OAUTH_BETA_HEADERS_1M, AnthropicContextMode,
+    anthropic_context_mode, anthropic_effectively_1m, anthropic_is_1m_model,
+    anthropic_map_tool_name_for_oauth, anthropic_map_tool_name_from_oauth,
     anthropic_oauth_beta_headers, anthropic_stainless_arch, anthropic_stainless_os,
     anthropic_strip_1m_suffix,
 };
@@ -25,9 +26,10 @@ pub use models::{
     provider_for_model_with_hint as core_provider_for_model_with_hint, provider_key_from_hint,
 };
 pub use selection::{
-    ActiveProvider, ProviderAvailability, auto_default_provider, dedupe_model_routes,
-    explicit_model_provider_prefix, fallback_sequence, model_name_for_provider,
-    parse_provider_hint, provider_from_model_key, provider_key, provider_label,
+    ActiveProvider, ProviderAvailability, auto_default_provider, cli_provider_arg_for_session_key,
+    dedupe_model_routes, explicit_model_provider_prefix, fallback_sequence,
+    model_name_for_provider, parse_provider_hint, provider_from_model_key, provider_key,
+    provider_label,
 };
 
 use anyhow::Result;
@@ -72,7 +74,24 @@ pub trait Provider: Send + Sync {
     }
 
     /// Get the provider name.
+    ///
+    /// This is the stable, machine-facing identifier (e.g. `"openrouter"`,
+    /// `"claude"`). Several surfaces key billing and routing decisions off this
+    /// value, so it must stay constant for a given provider class even when the
+    /// underlying runtime is a specific OpenAI-compatible profile. Use
+    /// [`Provider::display_name`] for anything shown to the user.
     fn name(&self) -> &str;
+
+    /// Human-facing provider label for the *current runtime selection*.
+    ///
+    /// Defaults to [`Provider::name`]. Provider orchestrators that multiplex
+    /// several backends behind one `name()` (notably the OpenRouter slot, which
+    /// also serves direct OpenAI-compatible profiles such as NVIDIA NIM or
+    /// DeepSeek) override this so the UI reflects the profile the user actually
+    /// selected at runtime instead of a fixed aggregator label.
+    fn display_name(&self) -> String {
+        self.name().to_string()
+    }
 
     /// Get the model identifier being used.
     fn model(&self) -> String {
@@ -85,6 +104,22 @@ pub trait Provider: Send + Sync {
     /// this to report the auth method accurately instead of inferring it from
     /// which credentials happen to be configured.
     fn active_auth_method_label(&self) -> Option<&'static str> {
+        self.active_resolved_credential()
+            .map(ResolvedCredential::auth_method_label)
+    }
+
+    /// The credential the active provider will actually use for the next
+    /// request, when the provider supports both OAuth and API-key auth
+    /// (currently Anthropic and OpenAI). Returns `None` for providers with no
+    /// OAuth-vs-API-key ambiguity.
+    ///
+    /// This is the authoritative, server-side answer to "subscription or
+    /// cost-based billing?". It is computed from the provider's live credential
+    /// mode rather than re-derived from credential probes or env strings, so
+    /// every surface (header tag, info-widget usage, model-switch line) and
+    /// every transport (local or remote) agrees. Remote clients receive the
+    /// resolved value over the wire instead of guessing from a provider name.
+    fn active_resolved_credential(&self) -> Option<ResolvedCredential> {
         None
     }
 
@@ -805,7 +840,7 @@ impl ModelCatalogSnapshot {
 
     pub fn from_provider(provider: &dyn Provider) -> Self {
         Self::new(
-            Some(provider.name().to_string()),
+            Some(provider.display_name()),
             Some(provider.model()),
             provider.available_models_display(),
             provider.model_routes(),
@@ -819,6 +854,36 @@ impl ModelCatalogSnapshot {
 
 pub const CHEAPNESS_REFERENCE_INPUT_TOKENS: u64 = 25_000;
 pub const CHEAPNESS_REFERENCE_OUTPUT_TOKENS: u64 = 5_000;
+
+/// The credential a dual-auth provider (Anthropic / OpenAI) will actually use
+/// for the next request. This is the authoritative billing identity: `Oauth`
+/// means subscription usage, `ApiKey` means cost-based usage. It is resolved
+/// once, server-side, from the provider's live credential mode and shipped to
+/// remote clients so they never have to re-derive it from a provider name.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ResolvedCredential {
+    /// OAuth / subscription login (Claude subscription, Codex login, ...).
+    Oauth,
+    /// Direct provider API key (cost-based billing).
+    ApiKey,
+}
+
+impl ResolvedCredential {
+    /// Human-readable label used by header/auth surfaces.
+    pub fn auth_method_label(self) -> &'static str {
+        match self {
+            Self::Oauth => "OAuth",
+            Self::ApiKey => "API key",
+        }
+    }
+
+    /// True when requests bill against a subscription (OAuth) rather than a
+    /// metered API key.
+    pub fn is_subscription(self) -> bool {
+        matches!(self, Self::Oauth)
+    }
+}
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]

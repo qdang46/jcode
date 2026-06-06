@@ -45,9 +45,22 @@ pub(crate) fn capitalize(s: &str) -> String {
     }
 }
 
-fn format_model_name(short: &str) -> String {
+fn format_model_name(short: &str, provider_name: &str) -> String {
     if short.contains('/') {
-        return format!("OpenRouter: {}", short);
+        // Slashed model ids (e.g. `nvidia/nemotron-...`) are served by the
+        // OpenRouter slot, which also fronts direct OpenAI-compatible profiles
+        // such as NVIDIA NIM or DeepSeek. Label the line with the active
+        // provider's display name instead of hard-coding "OpenRouter" so the
+        // header matches the profile the user actually selected.
+        let label = {
+            let trimmed = provider_name.trim();
+            if trimmed.is_empty() {
+                "OpenRouter".to_string()
+            } else {
+                trimmed.to_string()
+            }
+        };
+        return format!("{}: {}", label, short);
     }
     if short.contains("opus") {
         if short.contains("4.5") {
@@ -221,40 +234,47 @@ pub(super) fn build_auth_status_line(auth: &AuthStatus, max_width: usize) -> Lin
 }
 
 fn header_provider_auth_tag(name: &str, auth: &AuthStatus) -> &'static str {
-    let runtime_provider = std::env::var("JCODE_RUNTIME_PROVIDER")
-        .ok()
-        .map(|value| value.trim().to_ascii_lowercase());
+    let runtime_provider = std::env::var("JCODE_RUNTIME_PROVIDER").ok();
+
+    // Anthropic and OpenAI share one credential-resolution source of truth so
+    // the header tag never drifts from the info widget / model-switch line. We
+    // route through the canonical ActiveProvider rather than matching display
+    // strings, which is how this surface previously broke (name == "claude"
+    // never matched a "anthropic"-only arm and the tag silently vanished).
+    if let Some(provider) = jcode_provider_core::parse_provider_hint(name) {
+        use crate::auth::{ActiveCredential, resolve_dual_credential_auth};
+        match resolve_dual_credential_auth(provider, auth, runtime_provider.as_deref()) {
+            Some(resolved) => {
+                return match resolved.active {
+                    // Preserve the long-standing "oauth+key" affordance for
+                    // OpenAI: only when auto-resolution landed on OAuth while
+                    // both credentials are present. An explicit selection or
+                    // Anthropic surfaces just the active credential.
+                    ActiveCredential::OAuth
+                        if matches!(provider, jcode_provider_core::ActiveProvider::OpenAI)
+                            && resolved.has_both()
+                            && !resolved.explicit =>
+                    {
+                        "oauth+key"
+                    }
+                    ActiveCredential::OAuth => "oauth",
+                    ActiveCredential::ApiKey => "api-key",
+                };
+            }
+            // Provider recognized but no credentials configured: no tag.
+            None if matches!(
+                provider,
+                jcode_provider_core::ActiveProvider::Claude
+                    | jcode_provider_core::ActiveProvider::OpenAI
+            ) =>
+            {
+                return "";
+            }
+            None => {}
+        }
+    }
+
     match name {
-        "anthropic" => {
-            // Honor an explicit OAuth-vs-API-key selection first so the tag
-            // matches the credentials requests will actually use.
-            match runtime_provider.as_deref() {
-                Some("claude-api" | "anthropic-api") => return "api-key",
-                Some("claude" | "anthropic") => return "oauth",
-                _ => {}
-            }
-            // Auto: prefer OAuth (Claude subscription), else the direct API key.
-            if auth.anthropic.has_oauth {
-                "oauth"
-            } else if std::env::var("ANTHROPIC_API_KEY").is_ok() || auth.anthropic.has_api_key {
-                "api-key"
-            } else {
-                ""
-            }
-        }
-        "openai" => {
-            match runtime_provider.as_deref() {
-                Some("openai-api") => return "api-key",
-                Some("openai") => return "oauth",
-                _ => {}
-            }
-            match (auth.openai_has_oauth, auth.openai_has_api_key) {
-                (true, true) => "oauth+key",
-                (true, false) => "oauth",
-                (false, true) => "api-key",
-                (false, false) => "",
-            }
-        }
         "copilot" => {
             if auth.copilot_has_api_token {
                 "oauth"
@@ -382,7 +402,7 @@ pub(super) fn build_persistent_header(app: &dyn TuiState, width: u16) -> Vec<Lin
     let short_model = shorten_model_name(&model);
     let icon = connection_type_icon(app.connection_type().as_deref())
         .unwrap_or_else(|| crate::id::session_icon(&session_name));
-    let nice_model = format_model_name(&short_model);
+    let nice_model = format_model_name(&short_model, &app.provider_name());
     let build_info = binary_age().unwrap_or_else(|| "unknown".to_string());
     let align = Alignment::Center;
     let mut lines: Vec<Line> = Vec::new();
@@ -782,7 +802,7 @@ mod tests {
 
         let provider: Arc<dyn Provider> = Arc::new(MockProvider);
         let rt = tokio::runtime::Runtime::new().expect("test runtime");
-        let registry = rt.block_on(Registry::new(provider.clone()));
+        let registry = rt.block_on(Registry::new(provider.clone(), None));
         crate::tui::app::App::new_for_test_harness(provider, registry)
     }
 
@@ -892,6 +912,12 @@ mod tests {
         // Auto (unset) prefers OAuth when both credentials are present.
         crate::env::remove_var("JCODE_RUNTIME_PROVIDER");
         assert_eq!(header_provider_auth_tag("anthropic", &both), "oauth");
+
+        // The "claude" display name resolves to the same Anthropic tagging.
+        assert_eq!(header_provider_auth_tag("claude", &both), "oauth");
+        crate::env::set_var("JCODE_RUNTIME_PROVIDER", "claude-api");
+        assert_eq!(header_provider_auth_tag("claude", &both), "api-key");
+        crate::env::remove_var("JCODE_RUNTIME_PROVIDER");
 
         // Auto falls back to the API key when no OAuth credential exists.
         let api_only = AuthStatus {
@@ -1014,5 +1040,30 @@ mod tests {
     fn auth_status_line_is_empty_when_nothing_was_attempted() {
         let line = build_auth_status_line(&AuthStatus::default(), 120);
         assert!(line.spans.is_empty(), "line should be empty: {line:?}");
+    }
+
+    #[test]
+    fn format_model_name_labels_slashed_models_with_active_provider() {
+        // Regression for issue #329: a NVIDIA NIM model must be labeled with the
+        // active provider's display name, not the fixed "OpenRouter" aggregator.
+        assert_eq!(
+            format_model_name("nvidia/nemotron-3-super-120b-a12b", "NVIDIA NIM"),
+            "NVIDIA NIM: nvidia/nemotron-3-super-120b-a12b"
+        );
+        // The public aggregator still reads "OpenRouter".
+        assert_eq!(
+            format_model_name("anthropic/claude-sonnet-4", "OpenRouter"),
+            "OpenRouter: anthropic/claude-sonnet-4"
+        );
+        // Missing provider name falls back to "OpenRouter" rather than an empty label.
+        assert_eq!(
+            format_model_name("deepseek/deepseek-chat", ""),
+            "OpenRouter: deepseek/deepseek-chat"
+        );
+        // Non-slashed models are unaffected by the provider label.
+        assert_eq!(
+            format_model_name("claude-opus-4-6", "OpenRouter"),
+            "Claude Opus"
+        );
     }
 }

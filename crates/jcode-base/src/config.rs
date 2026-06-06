@@ -6,11 +6,11 @@
 pub use jcode_config_types::{
     AgentsConfig, AmbientConfig, AuthConfig, AutoJudgeConfig, AutoReviewConfig, CompactionConfig,
     CompactionMode, CrossProviderFailoverMode, DiagramDisplayMode, DiagramPanePosition,
-    DiffDisplayMode, DisplayConfig, FeatureConfig, GatewayConfig, KeybindingsConfig,
-    MarkdownSpacingMode, NamedProviderAuth, NamedProviderConfig, NamedProviderModelConfig,
-    NamedProviderType, NativeScrollbarConfig, ProviderConfig, SafetyConfig,
-    SessionPickerResumeAction, SwarmSpawnMode, TerminalConfig, UpdateChannel, WebSearchConfig,
-    WebSearchEngine,
+    DiffDisplayMode, DisplayConfig, ExperimentConfig, FeatureConfig, GatewayConfig,
+    KeybindingsConfig, MarkdownSpacingMode, NamedProviderAuth, NamedProviderConfig,
+    NamedProviderModelConfig, NamedProviderType, NativeScrollbarConfig, ProviderConfig,
+    ReasoningDisplayMode, SafetyConfig, SessionPickerResumeAction, SwarmSpawnMode, TerminalConfig,
+    UpdateChannel, WebSearchConfig, WebSearchEngine,
 };
 pub use jcode_plugin_core::PluginConfig;
 use serde::{Deserialize, Serialize};
@@ -91,6 +91,8 @@ const CONFIG_ENV_KEYS: &[&str] = &[
     "JCODE_JADE_RELAY_USER_ID",
     "JCODE_MARKDOWN_SPACING",
     "JCODE_MEMORY_ENABLED",
+    "JCODE_MEMORY_MODEL",
+    "JCODE_MEMORY_SIDECAR_ENABLED",
     "JCODE_PERSIST_MEMORY_INJECTIONS",
     "JCODE_MESSAGE_TIMESTAMPS",
     "JCODE_MODEL",
@@ -111,6 +113,7 @@ const CONFIG_ENV_KEYS: &[&str] = &[
     "JCODE_PROVIDER",
     "JCODE_PROMPT_ENTRY_ANIMATION",
     "JCODE_QUEUE_MODE",
+    "JCODE_REASONING_DISPLAY",
     "JCODE_REDRAW_FPS",
     "JCODE_SAME_PROVIDER_ACCOUNT_FAILOVER",
     "JCODE_SCROLL_BOOKMARK_KEY",
@@ -122,6 +125,7 @@ const CONFIG_ENV_KEYS: &[&str] = &[
     "JCODE_SCROLL_PROMPT_UP_KEY",
     "JCODE_SCROLL_UP_FALLBACK_KEY",
     "JCODE_SCROLL_UP_KEY",
+    "JCODE_SEARXNG_URL",
     "JCODE_SHELL",
     "JCODE_SHOW_DIFFS",
     "JCODE_SHOW_THINKING",
@@ -130,6 +134,8 @@ const CONFIG_ENV_KEYS: &[&str] = &[
     "JCODE_SMTP_PASSWORD",
     "JCODE_STREAM_IDLE_TIMEOUT_SECS",
     "JCODE_SWARM_ENABLED",
+    "JCODE_SWARM_MODEL",
+    "JCODE_SWARM_SPAWN_MODE",
     "JCODE_TELEGRAM_BOT_TOKEN",
     "JCODE_TELEGRAM_CHAT_ID",
     "JCODE_TELEGRAM_REPLY_ENABLED",
@@ -387,6 +393,10 @@ pub struct Config {
 
     /// Feature toggles
     pub features: FeatureConfig,
+
+    /// Experiment flags section
+    #[serde(default)]
+    pub experiments: ExperimentConfig,
 
     /// Web search tool configuration
     pub websearch: WebSearchConfig,

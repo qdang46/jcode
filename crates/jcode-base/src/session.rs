@@ -8,6 +8,7 @@ use std::collections::HashSet;
 use std::path::Path;
 mod crash;
 mod journal;
+mod maintenance;
 mod memory_profile;
 mod model;
 mod persistence;
@@ -22,6 +23,7 @@ pub use jcode_session_types::{
     StoredDisplayRole, StoredMemoryInjection, StoredMessage, StoredTokenUsage,
 };
 use journal::{PersistVectorMode, SessionJournalMeta, SessionPersistState};
+pub use maintenance::prune_old_session_backups;
 pub use memory_profile::SessionMemoryProfileSnapshot;
 use memory_profile::{
     ContentBlockMemoryStats, SessionMemoryProfileCache, summarize_blocks, summarize_message_content,
@@ -131,6 +133,11 @@ pub struct Session {
     /// Optional user-provided label for saved sessions
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub save_label: Option<String>,
+    /// IDs of child sessions spawned from this session.
+    /// Populated at spawn time by SubagentTool. Persisted so the TUI
+    /// can display the agent tree.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub children: Vec<String>,
     /// Environment snapshots for post-mortem debugging
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub env_snapshots: Vec<EnvSnapshot>,
@@ -175,6 +182,8 @@ struct SessionStartupStub {
     provider_key: Option<String>,
     #[serde(default)]
     model: Option<String>,
+    #[serde(default)]
+    route_api_method: Option<String>,
     #[serde(default)]
     reasoning_effort: Option<String>,
     #[serde(default)]
@@ -283,6 +292,7 @@ impl Session {
         session.provider_session_id = stub.provider_session_id;
         session.provider_key = stub.provider_key;
         session.model = stub.model;
+        session.route_api_method = stub.route_api_method;
         session.reasoning_effort = stub.reasoning_effort;
         session.subagent_model = stub.subagent_model;
         session.improve_mode = stub.improve_mode;
@@ -317,6 +327,7 @@ impl Session {
         session.provider_session_id = snapshot.provider_session_id;
         session.provider_key = snapshot.provider_key;
         session.model = snapshot.model;
+        session.route_api_method = snapshot.route_api_method;
         session.reasoning_effort = snapshot.reasoning_effort;
         session.subagent_model = snapshot.subagent_model;
         session.improve_mode = snapshot.improve_mode;
@@ -469,6 +480,7 @@ impl Session {
             is_debug: self.is_debug,
             saved: self.saved,
             save_label: self.save_label.clone(),
+            children: self.children.clone(),
         }
     }
 
@@ -653,6 +665,7 @@ impl Session {
         self.is_debug = meta.is_debug;
         self.saved = meta.saved;
         self.save_label = meta.save_label;
+        self.children = meta.children;
         self.mark_memory_profile_dirty();
     }
 
@@ -693,6 +706,7 @@ impl Session {
             is_debug,
             saved: false,
             save_label: None,
+            children: Vec::new(),
             env_snapshots: Vec::new(),
             memory_injections: Vec::new(),
             replay_events: Vec::new(),
@@ -754,6 +768,7 @@ impl Session {
             is_debug,
             saved: false,
             save_label: None,
+            children: Vec::new(),
             env_snapshots: Vec::new(),
             memory_injections: Vec::new(),
             replay_events: Vec::new(),
@@ -767,6 +782,14 @@ impl Session {
         };
         session.reset_persist_state(false);
         session
+    }
+
+    /// Register a child session id. Called by SubagentTool after
+    /// creating the child session.
+    pub fn add_child(&mut self, child_id: String) {
+        if !self.children.contains(&child_id) {
+            self.children.push(child_id);
+        }
     }
 
     /// Mark this session as a debug/test session
@@ -1027,7 +1050,9 @@ impl Session {
         for msg in &mut redacted.messages {
             for block in &mut msg.content {
                 match block {
-                    ContentBlock::Text { text, .. } | ContentBlock::Reasoning { text } => {
+                    ContentBlock::Text { text, .. }
+                    | ContentBlock::Reasoning { text }
+                    | ContentBlock::ReasoningTrace { text } => {
                         *text = crate::message::redact_secrets(text);
                     }
                     ContentBlock::AnthropicThinking { thinking, .. } => {
@@ -1441,6 +1466,8 @@ struct RemoteStartupSessionSnapshot {
     provider_key: Option<String>,
     #[serde(default)]
     model: Option<String>,
+    #[serde(default)]
+    route_api_method: Option<String>,
     #[serde(default)]
     reasoning_effort: Option<String>,
     #[serde(default)]

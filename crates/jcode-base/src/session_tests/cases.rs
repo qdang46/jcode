@@ -130,6 +130,7 @@ fn test_debug_memory_profile_reports_messages_and_provider_cache() {
                 id: "tool_1".to_string(),
                 name: "bash".to_string(),
                 input: serde_json::json!({"command": "echo hi"}),
+                thought_signature: None,
             },
             ContentBlock::ToolResult {
                 tool_use_id: "tool_1".to_string(),
@@ -433,6 +434,7 @@ fn load_startup_stub_preserves_metadata_but_skips_heavy_vectors() -> Result<()> 
     session.model = Some("gpt-5.4".to_string());
     session.reasoning_effort = Some("high".to_string());
     session.provider_key = Some("openai".to_string());
+    session.route_api_method = Some("openai-api".to_string());
     session.set_canary("self-dev");
     session.append_stored_message(StoredMessage {
         id: "msg_1".to_string(),
@@ -482,6 +484,7 @@ fn load_startup_stub_preserves_metadata_but_skips_heavy_vectors() -> Result<()> 
     assert_eq!(stub.model.as_deref(), Some("gpt-5.4"));
     assert_eq!(stub.reasoning_effort.as_deref(), Some("high"));
     assert_eq!(stub.provider_key.as_deref(), Some("openai"));
+    assert_eq!(stub.route_api_method.as_deref(), Some("openai-api"));
     assert!(stub.is_canary);
     assert!(stub.messages.is_empty());
     assert!(stub.env_snapshots.is_empty());
@@ -691,6 +694,7 @@ fn test_save_persists_full_session_content() -> Result<()> {
             input: serde_json::json!({
                 "command": "echo ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123"
             }),
+            thought_signature: None,
         }],
     );
 
@@ -912,6 +916,7 @@ fn test_redacted_for_export_redacts_tool_result_and_tool_input() -> Result<()> {
             input: serde_json::json!({
                 "command": "echo ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123"
             }),
+            thought_signature: None,
         }],
     );
 
@@ -1027,6 +1032,7 @@ fn test_summarize_tool_calls_includes_tool_only_assistant_messages() {
             input: serde_json::json!({
                 "command": "pwd"
             }),
+            thought_signature: None,
         }],
     );
 
@@ -1057,6 +1063,168 @@ fn test_render_messages_honors_system_display_role_override() {
     assert_eq!(rendered.len(), 1);
     assert_eq!(rendered[0].role, "system");
     assert!(rendered[0].content.contains("Background Task Completed"));
+}
+
+#[test]
+fn test_render_messages_renders_persisted_reasoning() {
+    use jcode_tui_markdown::REASONING_SENTINEL;
+
+    let _env_lock = lock_env();
+    let _mode = EnvVarGuard::set("JCODE_REASONING_DISPLAY", "full");
+    crate::config::invalidate_config_cache();
+
+    let mut session = Session::create_with_id(
+        "session_render_reasoning_test".to_string(),
+        None,
+        Some("render reasoning test".to_string()),
+    );
+
+    session.add_message(
+        Role::Assistant,
+        vec![
+            ContentBlock::ReasoningTrace {
+                text: "step one\nstep two".to_string(),
+            },
+            ContentBlock::Text {
+                text: "Here is the answer.".to_string(),
+                cache_control: None,
+            },
+        ],
+    );
+
+    let rendered = render_messages(&session);
+    assert_eq!(rendered.len(), 1);
+    let content = &rendered[0].content;
+    // Reasoning lines are rendered as dim/italic markup with the sentinel.
+    assert!(
+        content.contains(&format!("*{0}step one{0}*", REASONING_SENTINEL)),
+        "expected reasoning markup, got: {content:?}"
+    );
+    assert!(
+        content.contains(&format!("*{0}step two{0}*", REASONING_SENTINEL)),
+        "expected reasoning markup, got: {content:?}"
+    );
+    // Answer text follows the reasoning block.
+    assert!(content.contains("Here is the answer."));
+    let reasoning_end = content.find("step two").unwrap();
+    let answer_start = content.find("Here is the answer.").unwrap();
+    assert!(
+        reasoning_end < answer_start,
+        "reasoning should precede the answer text: {content:?}"
+    );
+}
+
+#[test]
+fn test_render_messages_renders_legacy_reasoning_variant() {
+    use jcode_tui_markdown::REASONING_SENTINEL;
+
+    let _env_lock = lock_env();
+    let _mode = EnvVarGuard::set("JCODE_REASONING_DISPLAY", "full");
+    crate::config::invalidate_config_cache();
+
+    let mut session = Session::create_with_id(
+        "session_render_legacy_reasoning_test".to_string(),
+        None,
+        Some("render legacy reasoning test".to_string()),
+    );
+
+    session.add_message(
+        Role::Assistant,
+        vec![ContentBlock::Reasoning {
+            text: "legacy thought".to_string(),
+        }],
+    );
+
+    let rendered = render_messages(&session);
+    assert_eq!(rendered.len(), 1);
+    assert!(
+        rendered[0]
+            .content
+            .contains(&format!("*{0}legacy thought{0}*", REASONING_SENTINEL)),
+        "expected legacy reasoning markup, got: {:?}",
+        rendered[0].content
+    );
+}
+
+#[test]
+fn test_render_messages_collapses_persisted_reasoning_in_current_mode() {
+    use jcode_tui_markdown::REASONING_SENTINEL;
+
+    let _env_lock = lock_env();
+    let _mode = EnvVarGuard::set("JCODE_REASONING_DISPLAY", "current");
+    crate::config::invalidate_config_cache();
+
+    let mut session = Session::create_with_id(
+        "session_render_reasoning_current_test".to_string(),
+        None,
+        Some("render reasoning current test".to_string()),
+    );
+
+    session.add_message(
+        Role::Assistant,
+        vec![
+            ContentBlock::ReasoningTrace {
+                text: "step one\nstep two\nstep three".to_string(),
+            },
+            ContentBlock::Text {
+                text: "Here is the answer.".to_string(),
+                cache_control: None,
+            },
+        ],
+    );
+
+    let rendered = render_messages(&session);
+    assert_eq!(rendered.len(), 1);
+    let content = &rendered[0].content;
+    // In `current` mode re-rendered history folds the whole reasoning block down
+    // to a single dim/italic trace line, matching the live collapse end state.
+    assert!(
+        content.contains(&format!("*{0}▸ thought (3 lines){0}*", REASONING_SENTINEL)),
+        "expected collapsed reasoning summary, got: {content:?}"
+    );
+    assert!(
+        !content.contains("step one") && !content.contains("step two"),
+        "individual reasoning lines must not be replayed in current mode: {content:?}"
+    );
+    // The answer text is preserved and follows the collapsed trace.
+    assert!(content.contains("Here is the answer."));
+}
+
+#[test]
+fn test_render_messages_hides_persisted_reasoning_in_off_mode() {
+    use jcode_tui_markdown::REASONING_SENTINEL;
+
+    let _env_lock = lock_env();
+    let _mode = EnvVarGuard::set("JCODE_REASONING_DISPLAY", "off");
+    crate::config::invalidate_config_cache();
+
+    let mut session = Session::create_with_id(
+        "session_render_reasoning_off_test".to_string(),
+        None,
+        Some("render reasoning off test".to_string()),
+    );
+
+    session.add_message(
+        Role::Assistant,
+        vec![
+            ContentBlock::ReasoningTrace {
+                text: "secret thought".to_string(),
+            },
+            ContentBlock::Text {
+                text: "Here is the answer.".to_string(),
+                cache_control: None,
+            },
+        ],
+    );
+
+    let rendered = render_messages(&session);
+    assert_eq!(rendered.len(), 1);
+    let content = &rendered[0].content;
+    assert!(
+        !content.contains(REASONING_SENTINEL) && !content.contains("secret thought"),
+        "reasoning must be hidden entirely in off mode: {content:?}"
+    );
+    assert!(content.contains("Here is the answer."));
 }
 
 #[test]
@@ -1434,6 +1602,7 @@ fn test_render_messages_and_images_share_tool_resolution_and_labels() {
                 id: "tool_img_1".to_string(),
                 name: "view_image".to_string(),
                 input: serde_json::json!({"file_path": "/tmp/screenshot.png"}),
+                thought_signature: None,
             },
             ContentBlock::ToolResult {
                 tool_use_id: "tool_img_1".to_string(),
@@ -1566,4 +1735,60 @@ fn fork_resets_provider_session_id_to_force_fresh_thread() {
         forked.provider_session_id, None,
         "fork must start a fresh provider thread to avoid sharing context"
     );
+}
+
+#[test]
+fn reasoning_trace_survives_session_save_and_load() -> Result<()> {
+    let _env_lock = lock_env();
+    let temp_home = tempfile::Builder::new()
+        .prefix("jcode-reasoning-persist-test-")
+        .tempdir()
+        .map_err(|e| anyhow!(e))?;
+    let _home = EnvVarGuard::set("JCODE_HOME", temp_home.path().as_os_str());
+
+    let session_id = "session_reasoning_trace_roundtrip";
+    let mut session = Session::create_with_id(session_id.to_string(), None, None);
+    session.append_stored_message(StoredMessage {
+        id: "msg_assistant".to_string(),
+        role: Role::Assistant,
+        content: vec![
+            ContentBlock::ReasoningTrace {
+                text: "step 1: consider the run loop ordering".to_string(),
+            },
+            ContentBlock::Text {
+                text: "Here is my answer.".to_string(),
+                cache_control: None,
+            },
+        ],
+        display_role: None,
+        timestamp: Some(Utc::now()),
+        tool_duration_ms: None,
+        token_usage: None,
+    });
+    session.save()?;
+
+    // The reasoning must be persisted to the on-disk transcript, not just held
+    // in memory, so it can be recalled/debugged after a restart.
+    let raw = std::fs::read_to_string(session_path(session_id)?)?;
+    assert!(
+        raw.contains("reasoning_trace"),
+        "transcript should serialize reasoning_trace block"
+    );
+    assert!(raw.contains("step 1: consider the run loop ordering"));
+
+    let loaded = Session::load(session_id)?;
+    let assistant = loaded
+        .messages
+        .iter()
+        .find(|m| m.role == Role::Assistant)
+        .ok_or_else(|| anyhow!("assistant message missing after reload"))?;
+    let has_trace = assistant.content.iter().any(|b| {
+        matches!(
+            b,
+            ContentBlock::ReasoningTrace { text }
+                if text == "step 1: consider the run loop ordering"
+        )
+    });
+    assert!(has_trace, "ReasoningTrace must survive save/load roundtrip");
+    Ok(())
 }

@@ -200,6 +200,7 @@ fn build_messages_pairs_tool_use_with_tool_result() {
                     id: "call_1".into(),
                     name: "bash".into(),
                     input: serde_json::json!({"command": "echo hi"}),
+                    thought_signature: None,
                 },
             ],
         ),
@@ -243,6 +244,7 @@ fn build_messages_injects_missing_tool_output() {
                 id: "call_orphan".into(),
                 name: "bash".into(),
                 input: serde_json::json!({"command": "crash"}),
+                thought_signature: None,
             }],
         ),
     ];
@@ -273,16 +275,19 @@ fn build_messages_handles_batch_multiple_tool_calls() {
                     id: "call_a".into(),
                     name: "bash".into(),
                     input: serde_json::json!({"command": "a"}),
+                    thought_signature: None,
                 },
                 ContentBlock::ToolUse {
                     id: "call_b".into(),
                     name: "bash".into(),
                     input: serde_json::json!({"command": "b"}),
+                    thought_signature: None,
                 },
                 ContentBlock::ToolUse {
                     id: "call_c".into(),
                     name: "bash".into(),
                     input: serde_json::json!({"command": "c"}),
+                    thought_signature: None,
                 },
             ],
         ),
@@ -335,6 +340,7 @@ fn build_messages_skips_empty_user_text() {
                 id: "call_1".into(),
                 name: "read".into(),
                 input: serde_json::json!({"file": "x"}),
+                thought_signature: None,
             }],
         ),
         make_msg(
@@ -389,6 +395,7 @@ fn is_user_initiated_tool_result_is_agent() {
                 id: "call_1".into(),
                 name: "file_read".into(),
                 input: json!({}),
+                thought_signature: None,
             }],
         ),
         make_msg(
@@ -440,6 +447,7 @@ fn is_user_initiated_tool_result_with_memory_injection() {
                 id: "call_1".into(),
                 name: "bash".into(),
                 input: json!({}),
+                thought_signature: None,
             }],
         ),
         make_msg(
@@ -477,6 +485,7 @@ fn is_user_initiated_user_text_after_tool_result_without_system_reminder() {
                 id: "call_1".into(),
                 name: "bash".into(),
                 input: json!({}),
+                thought_signature: None,
             }],
         ),
         make_msg(
@@ -507,6 +516,7 @@ fn is_user_initiated_multiple_memory_injections_after_tool_result() {
                 id: "call_1".into(),
                 name: "bash".into(),
                 input: json!({}),
+                thought_signature: None,
             }],
         ),
         make_msg(
@@ -551,6 +561,7 @@ fn build_messages_sanitizes_tool_ids_with_dots() {
                 id: "chatcmpl-BF2xX.tool_call.0".into(),
                 name: "bash".into(),
                 input: serde_json::json!({"command": "echo hi"}),
+                thought_signature: None,
             }],
         ),
         make_msg(
@@ -586,6 +597,7 @@ fn build_messages_sanitizes_anthropic_style_ids() {
                 id: "toolu_01XFDUDYJgAACzvnptvVer6u".into(),
                 name: "read".into(),
                 input: serde_json::json!({"file_path": "foo.rs"}),
+                thought_signature: None,
             }],
         ),
         make_msg(
@@ -623,6 +635,7 @@ fn build_messages_sanitizes_missing_tool_output_ids() {
                 id: "call.with.dots.orphan".into(),
                 name: "bash".into(),
                 input: serde_json::json!({"command": "crash"}),
+                thought_signature: None,
             }],
         ),
     ];

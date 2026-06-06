@@ -35,7 +35,7 @@ fn render_system_message_forces_system_color_on_all_spans() {
 }
 
 #[test]
-fn render_system_message_renders_markdown_syntax_verbatim() {
+fn render_system_message_renders_markdown_formatting() {
     let msg = DisplayMessage::system(
         "**bold** and `code` and # heading\n- bullet item\n[link](http://example.com)",
     );
@@ -47,15 +47,33 @@ fn render_system_message_renders_markdown_syntax_verbatim() {
         .collect::<Vec<_>>()
         .join("\n");
 
-    // Markdown markers must survive as literal plaintext (no formatting applied).
-    assert!(plain.contains("**bold**"), "got: {plain:?}");
-    assert!(plain.contains("`code`"), "got: {plain:?}");
-    assert!(plain.contains("# heading"), "got: {plain:?}");
-    assert!(plain.contains("- bullet item"), "got: {plain:?}");
+    // System messages now render markdown: the inline markers are consumed and
+    // the underlying text survives. Bold/code markers should no longer appear
+    // literally, while the text content and a bullet glyph remain.
+    assert!(plain.contains("bold"), "keeps bold text: {plain:?}");
     assert!(
-        plain.contains("[link](http://example.com)"),
-        "got: {plain:?}"
+        !plain.contains("**bold**"),
+        "strips bold markers: {plain:?}"
     );
+    assert!(plain.contains("code"), "keeps code text: {plain:?}");
+    assert!(plain.contains("heading"), "keeps heading text: {plain:?}");
+    assert!(
+        plain.contains("bullet item"),
+        "keeps bullet text: {plain:?}"
+    );
+    // The link text renders without the raw markdown link syntax.
+    assert!(plain.contains("link"), "keeps link text: {plain:?}");
+    assert!(
+        !plain.contains("[link](http://example.com)"),
+        "strips raw link syntax: {plain:?}"
+    );
+
+    // Color is still forced to the system color over every span.
+    for line in &lines {
+        for span in &line.spans {
+            assert_eq!(span.style.fg, Some(system_message_color()));
+        }
+    }
 }
 
 #[test]
@@ -351,8 +369,7 @@ fn render_tool_message_uses_scheduled_card() {
                 "wake_in_minutes": 1,
                 "target": "resume"
             }),
-            intent: None,
-        }),
+            intent: None, thought_signature: None, }),
     };
 
     let lines = render_tool_message(&msg, 100, crate::config::DiffDisplayMode::Off);
@@ -665,6 +682,7 @@ fn render_tool_message_prefers_subagent_title_with_model() {
                 "subagent_type": "general"
             }),
             intent: None,
+            thought_signature: None,
         }),
     };
 
@@ -694,6 +712,7 @@ fn render_tool_message_shows_intent_and_technical_preview_on_one_line() {
                 "intent": "Verify compact progress card"
             }),
             intent: Some("Verify compact progress card".to_string()),
+            thought_signature: None,
         }),
     };
 
@@ -721,6 +740,7 @@ fn render_tool_message_shows_token_badge() {
             name: "read".to_string(),
             input: serde_json::json!({"file_path": "src/main.rs"}),
             intent: None,
+            thought_signature: None,
         }),
     };
 
@@ -747,6 +767,7 @@ fn render_tool_message_colors_high_token_badge() {
             name: "read".to_string(),
             input: serde_json::json!({"file_path": "src/main.rs"}),
             intent: None,
+            thought_signature: None,
         }),
     };
 
@@ -778,8 +799,7 @@ fn render_tool_message_shows_inline_diff_for_pascal_case_multiedit() {
                     {"old_string": "old line\n", "new_string": "new line\n"}
                 ]
             }),
-            intent: None,
-        }),
+            intent: None, thought_signature: None, }),
     };
 
     let lines = render_tool_message(&msg, 100, crate::config::DiffDisplayMode::Inline);
@@ -817,6 +837,7 @@ fn render_tool_message_inline_mode_truncates_large_diffs() {
                 "new_string": new,
             }),
             intent: None,
+            thought_signature: None,
         }),
     };
 
@@ -860,6 +881,7 @@ fn render_tool_message_full_inline_mode_shows_full_diff() {
                 "new_string": new,
             }),
             intent: None,
+            thought_signature: None,
         }),
     };
 
@@ -901,6 +923,7 @@ fn render_tool_message_memory_recall_centered_mode_left_aligns_with_padding() {
                 "query": "centered mode"
             }),
             intent: None,
+            thought_signature: None,
         }),
     };
 
@@ -954,6 +977,7 @@ fn render_tool_message_memory_store_centered_mode_left_aligns_with_padding() {
                 "content": "Centered mode should pad saved memory cards too"
             }),
             intent: None,
+            thought_signature: None,
         }),
     };
 
@@ -998,6 +1022,7 @@ fn render_tool_message_shows_swarm_spawn_prompt_summary() {
                 "prompt": "Extract the restart command cluster from cli commands and validate it"
             }),
             intent: None,
+            thought_signature: None,
         }),
     };
 
@@ -1037,6 +1062,7 @@ fn render_tool_message_batch_subcall_shows_swarm_dm_details() {
                 ]
             }),
             intent: None,
+            thought_signature: None,
         }),
     };
 

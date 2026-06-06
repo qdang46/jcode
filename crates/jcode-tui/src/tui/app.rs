@@ -75,6 +75,7 @@ mod navigation;
 mod observe;
 pub(crate) mod onboarding_flow;
 mod onboarding_flow_control;
+mod productivity;
 mod remote;
 mod remote_notifications;
 mod replay;
@@ -163,6 +164,11 @@ pub(in crate::tui::app) struct KvCacheRequestSignature {
 
 #[derive(Debug, Clone)]
 struct KvCacheBaseline {
+    /// Session this baseline was captured for. Baselines must only be diffed
+    /// against requests from the same session; otherwise a session switch makes
+    /// the new (often smaller) history look like a broken prefix and produces a
+    /// spurious `harness:_prefix_changed` miss.
+    session_id: Option<String>,
     input_tokens: u64,
     completed_at: Instant,
     provider: String,
@@ -333,6 +339,28 @@ pub enum ProcessingStatus {
     WaitingForNetwork { listener: String },
     /// Executing a tool
     RunningTool(String),
+}
+
+/// Live "collapse the current reasoning" animation state.
+///
+/// In `current` reasoning-display mode the model's reasoning streams live as
+/// dim+italic lines, then must disappear once the answer commits or a tool runs.
+/// Instead of deleting every reasoning line in a single frame (a jarring upward
+/// jump), the closed reasoning block is moved into a dedicated `"reasoning"`
+/// display message that height-collapses toward a one-line summary over a short
+/// ease-out, leaving a `▸ thought for Xs` trace behind.
+#[derive(Clone, Debug)]
+pub(crate) struct ReasoningCollapse {
+    /// Index into `display_messages` of the `"reasoning"` message being collapsed.
+    pub(crate) msg_index: usize,
+    /// One-line dim summary the block collapses down to (markup for
+    /// "▸ thought for Xs"), always shown at the top of the message.
+    pub(crate) summary_markup: String,
+    /// Per-line dim+italic markup for each reasoning line, in order. The block
+    /// shrinks by dropping leading lines until only `summary_markup` remains.
+    pub(crate) line_markups: Vec<String>,
+    /// When the collapse animation started.
+    pub(crate) started_at: Instant,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -601,6 +629,7 @@ pub struct App {
     total_cache_optimal_input_tokens: u64,
     last_cache_reported_input_tokens: Option<u64>,
     last_cache_read_tokens: Option<u64>,
+    last_cache_creation_tokens: Option<u64>,
     last_cache_optimal_input_tokens: Option<u64>,
     cache_next_optimal_input_tokens: Option<u64>,
     kv_cache_baseline: Option<KvCacheBaseline>,
@@ -709,8 +738,28 @@ pub struct App {
     thinking_buffer: String,
     // Whether the legacy single-line thought prefix was emitted this session
     thinking_prefix_emitted: bool,
-    // Whether we are currently streaming reasoning into an open blockquote region
+    // Whether we are currently streaming reasoning (dim+italic) text
     reasoning_streaming: bool,
+    // Incomplete trailing reasoning line awaiting a newline. Rendered live as the
+    // streaming buffer's tail (dim+italic) so reasoning trickles in token-by-token;
+    // promoted to a committed line once its newline arrives.
+    reasoning_pending_line: String,
+    // Byte length of the live partial-reasoning markup currently appended to
+    // `streaming_text` (the rendered tail of `reasoning_pending_line`). Truncated
+    // and re-appended on each delta so the in-progress line updates in place.
+    reasoning_partial_len: usize,
+    // Byte offset in `streaming_text` where the current reasoning block began
+    // (recorded by `open_reasoning_region`). Used in `current` mode to slice the
+    // closed reasoning block out of the stream and hand it to the collapse
+    // animation while keeping any answer text that preceded it in order.
+    reasoning_block_start: Option<usize>,
+    // Wall-clock instant the current reasoning region opened, used to label the
+    // collapsed summary ("▸ thought for Xs").
+    reasoning_block_started_at: Option<Instant>,
+    // Active "collapse the current reasoning" animation (current mode only). While
+    // set, a `"reasoning"` display message height-collapses toward its one-line
+    // summary; the redraw loop advances it each frame and finalizes on completion.
+    reasoning_collapse: Option<ReasoningCollapse>,
     // Hot-reload: if set, exec into new binary with this session ID (no rebuild)
     reload_requested: Option<String>,
     // Hot-rebuild: if set, do full git pull + cargo build + tests then exec
@@ -771,6 +820,12 @@ pub struct App {
     remote_client_instance_id: String,
     remote_provider_name: Option<String>,
     remote_provider_model: Option<String>,
+    /// Server-resolved billing credential reported by a remote server: OAuth
+    /// (subscription) vs API key (cost-based), or `None` when the active
+    /// provider has no OAuth-vs-API-key distinction. Lets the info widget choose
+    /// subscription vs cost-based usage display for remote sessions without
+    /// re-deriving it from the provider name.
+    remote_resolved_credential: Option<jcode_provider_core::ResolvedCredential>,
     remote_startup_phase: Option<RemoteStartupPhase>,
     remote_startup_phase_started: Option<Instant>,
     remote_reasoning_effort: Option<String>,
@@ -812,6 +867,16 @@ pub struct App {
     runtime_mode: AppRuntimeMode,
     // Remote rewind/undo request waiting for the server's replacement History payload.
     pending_remote_rewind_notice: Option<PendingRemoteRewindNotice>,
+    // History-recovery watchdog for the "stuck on loading session…" bug. When a
+    // remote (re)connect never receives the bootstrap `History` event, every
+    // prompt path is gated behind `has_loaded_history()` and the session is
+    // permanently stuck on "loading session…" until the user runs `/restart`.
+    // These track when the current connection began waiting for history and how
+    // many times we have re-requested it, so the watchdog can re-issue
+    // `GetHistory` a few times before giving up.
+    remote_history_wait_started: Option<Instant>,
+    remote_history_recovery_attempts: u32,
+    remote_history_recovery_last_attempt: Option<Instant>,
     // Server was just spawned - allow initial connection retries in run_remote
     server_spawning: bool,
     // Whether running in replay mode (readonly playback of a saved session)
@@ -957,6 +1022,14 @@ pub struct App {
     // the model switch and use stale provider/model state.
     remote_model_switch_in_flight: bool,
     pending_prompt_after_model_switch: Option<input::PreparedInput>,
+    // A manually submitted prompt that arrived before the remote session's
+    // bootstrap History payload was applied. Submitting in that window is racy:
+    // the locally-echoed user message is wiped by the `session_changed`
+    // `clear_display_messages()` in the History handler (the prompt "vanishes"
+    // while the server still streams a reply). Hold it until history loads and
+    // let `process_remote_followups` dispatch it, exactly like a staged startup
+    // prompt.
+    pending_prompt_before_history: Option<input::PreparedInput>,
     // Pending account switch from inline picker (for remote mode async processing)
     pending_account_picker_action: Option<crate::tui::AccountPickerAction>,
     // Keybindings for model switching
@@ -1104,8 +1177,12 @@ pub struct App {
     account_picker_overlay: Option<RefCell<super::account_picker::AccountPicker>>,
     /// Usage overlay (None = not visible)
     usage_overlay: Option<RefCell<super::usage_overlay::UsageOverlay>>,
+    /// Experiment flags popup overlay (None = not visible)
+    experiment_popup: Option<RefCell<super::experiment_popup::ExperimentPopupState>>,
     /// Whether a usage refresh request is currently in flight.
     usage_report_refreshing: bool,
+    /// Whether a `/productivity` report generation is currently in flight.
+    productivity_refreshing: bool,
     /// Last time the passive overnight progress card polled its run files.
     last_overnight_card_refresh: Option<Instant>,
     /// Plugin system bridge for TUI plugin integration.
@@ -1224,7 +1301,7 @@ impl App {
             self.kv_cache_turn_call_index = 1;
         }
 
-        let baseline = self.kv_cache_baseline.clone();
+        let baseline = self.kv_cache_baseline_for_current_session();
         let signature =
             Self::kv_cache_request_signature(messages, tools, system_static, system_dynamic);
         let baseline_messages_prefix_matches = baseline
@@ -1269,7 +1346,7 @@ impl App {
             self.kv_cache_turn_call_index = 1;
         }
 
-        let baseline = self.kv_cache_baseline.clone();
+        let baseline = self.kv_cache_baseline_for_current_session();
         let baseline_messages_prefix_matches = baseline
             .as_ref()
             .and_then(|baseline| baseline.signature.as_ref())
@@ -1291,6 +1368,35 @@ impl App {
             baseline_messages_prefix_matches,
             baseline,
         });
+    }
+
+    /// Session id the next KV-cache baseline should be tagged with.
+    ///
+    /// A single `App` can stream several sessions over its lifetime (remote
+    /// session switches, local handoffs). The baseline must only be compared
+    /// against requests from the same session, so we capture the active id here.
+    fn kv_cache_session_id(&self) -> Option<String> {
+        if self.is_remote {
+            self.remote_session_id.clone()
+        } else {
+            Some(self.session.id.clone())
+        }
+    }
+
+    /// Return the stored baseline only when it belongs to the active session.
+    ///
+    /// Diffing a request against a baseline captured for a different (often
+    /// larger) session makes the new history look like a broken prefix and
+    /// emits a spurious `harness:_prefix_changed` miss. Treat a foreign baseline
+    /// as absent (warmup) instead.
+    fn kv_cache_baseline_for_current_session(&self) -> Option<KvCacheBaseline> {
+        let baseline = self.kv_cache_baseline.clone()?;
+        let current = self.kv_cache_session_id();
+        if baseline.session_id == current {
+            Some(baseline)
+        } else {
+            None
+        }
     }
 
     fn maybe_push_cold_cache_warning(
@@ -1341,7 +1447,16 @@ impl App {
         }
 
         let optimal_input_tokens = self.cache_next_optimal_input_tokens;
-        self.cache_next_optimal_input_tokens = Some(self.streaming_input_tokens);
+        // Stash the *effective* prompt size for this request so the next request's
+        // cache-read can be compared against everything that just became cacheable.
+        // For split-accounting providers (Anthropic) bare `input` is only the
+        // uncached remainder, so the reusable prefix is input + read + creation.
+        self.cache_next_optimal_input_tokens =
+            Some(crate::tui::info_widget::effective_prompt_tokens(
+                self.streaming_input_tokens,
+                self.streaming_cache_read_tokens.unwrap_or(0),
+                self.streaming_cache_creation_tokens.unwrap_or(0),
+            ));
 
         let request = self
             .pending_kv_cache_request
@@ -1351,8 +1466,11 @@ impl App {
 
         self.record_kv_cache_miss_sample(&request);
 
+        let baseline_session_id = self.kv_cache_session_id();
+
         if !has_cache_telemetry {
             self.kv_cache_baseline = Some(KvCacheBaseline {
+                session_id: baseline_session_id,
                 input_tokens: self.streaming_input_tokens,
                 completed_at: Instant::now(),
                 provider: request.provider,
@@ -1379,11 +1497,13 @@ impl App {
             .saturating_add(self.streaming_cache_creation_tokens.unwrap_or(0));
         self.last_cache_reported_input_tokens = Some(self.streaming_input_tokens);
         self.last_cache_read_tokens = Some(self.streaming_cache_read_tokens.unwrap_or(0));
+        self.last_cache_creation_tokens = Some(self.streaming_cache_creation_tokens.unwrap_or(0));
         self.last_cache_optimal_input_tokens = optimal_input_tokens;
 
         self.log_kv_cache_usage_summary(&request, optimal_input_tokens);
 
         self.kv_cache_baseline = Some(KvCacheBaseline {
+            session_id: baseline_session_id,
             input_tokens: self.streaming_input_tokens,
             completed_at: Instant::now(),
             provider: request.provider,
@@ -1589,7 +1709,7 @@ impl App {
             upstream_provider: self.upstream_provider.clone(),
             signature: None,
             baseline_messages_prefix_matches: None,
-            baseline: self.kv_cache_baseline.clone(),
+            baseline: self.kv_cache_baseline_for_current_session(),
         }
     }
 
@@ -1722,7 +1842,7 @@ impl App {
         KvCacheRequestSignature {
             system_static_hash: stable_hash_str(system_static),
             tools_hash: stable_hash_json(tools),
-            messages_hash: stable_hash_json(messages),
+            messages_hash: stable_hash_json(&cache_relevant_messages(messages)),
             message_hashes: message_hashes(messages),
             message_count: messages.len(),
             tool_count: tools.len(),
@@ -1788,8 +1908,58 @@ fn stable_json_len<T: serde::Serialize + ?Sized>(value: &T) -> usize {
         .unwrap_or_default()
 }
 
+/// Project a message down to the fields that actually influence a provider's
+/// KV-cache key, dropping harness-only / volatile metadata.
+///
+/// Providers never receive `Message.timestamp`, `Message.tool_duration_ms`,
+/// history-only `ReasoningTrace` blocks, or the positional `cache_control`
+/// ephemeral breakpoint markers. Hashing the raw `Message` therefore reports
+/// spurious `harness:_prefix_changed` misses whenever one of those fields is
+/// backfilled on an already-sent boundary message, even though the bytes sent
+/// upstream are unchanged. This was confirmed in production logs: at the exact
+/// instant the harness flagged a tail message, `PROVIDER_CANONICAL_INPUT`
+/// showed an append-only prefix (`prefix_matches=true`) and the request still
+/// served 82-98% from cache. Projecting to the cache-relevant shape keeps the
+/// fingerprint aligned with what the provider actually caches.
+fn cache_relevant_message_value(message: &Message) -> serde_json::Value {
+    let mut value = serde_json::to_value(message).unwrap_or(serde_json::Value::Null);
+    if let serde_json::Value::Object(map) = &mut value {
+        // Struct-level metadata that is never part of the prompt token stream.
+        // For user messages the human-readable timestamp is already baked into
+        // the text by `Message::with_timestamps` before this hash is computed,
+        // so removing the redundant struct field cannot hide a real change.
+        map.remove("timestamp");
+        map.remove("tool_duration_ms");
+        if let Some(serde_json::Value::Array(blocks)) = map.get_mut("content") {
+            // `ReasoningTrace` is documented as history-only and is never
+            // replayed to any provider, so it must not affect the cache key.
+            blocks.retain(|block| {
+                block.get("type").and_then(|kind| kind.as_str()) != Some("reasoning_trace")
+            });
+            for block in blocks.iter_mut() {
+                if let serde_json::Value::Object(block) = block
+                    && block.get("type").and_then(|kind| kind.as_str()) == Some("text")
+                {
+                    // The ephemeral cache breakpoint marker hops to the newest
+                    // message each turn; it marks where caching ends, not the
+                    // cached content itself.
+                    block.remove("cache_control");
+                }
+            }
+        }
+    }
+    value
+}
+
+fn cache_relevant_messages(messages: &[Message]) -> Vec<serde_json::Value> {
+    messages.iter().map(cache_relevant_message_value).collect()
+}
+
 fn message_hashes(messages: &[Message]) -> Vec<u64> {
-    messages.iter().map(stable_hash_json).collect()
+    messages
+        .iter()
+        .map(|message| stable_hash_json(&cache_relevant_message_value(message)))
+        .collect()
 }
 
 fn ratio_pct(numerator: u64, denominator: u64) -> u8 {

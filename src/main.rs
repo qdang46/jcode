@@ -81,6 +81,9 @@ fn configure_windows_console_for_utf8() {}
 fn main() -> Result<()> {
     configure_windows_console_for_utf8();
     configure_system_allocator();
+
+    jcode::early_exit_on_help_or_version();
+
     let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
 
     // The macOS global-hotkey listener must run on the real main thread with a

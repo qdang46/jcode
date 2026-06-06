@@ -30,6 +30,17 @@ impl DcpPlugin {
         })
     }
 
+    /// Create with aggressive cache-stability mode (always applies pruning).
+    ///
+    /// Useful for testing and manual compression workflows where you want
+    /// DCP strategies to fire on every transform call.
+    #[cfg(feature = "dcp")]
+    pub fn new_aggressive() -> Result<Self, String> {
+        let mut config = Config::default();
+        config.cache_stability_mode = dynamic_context_pruning::CacheStabilityMode::Aggressive;
+        Self::with_config(config)
+    }
+
     /// Enable/disable DCP at runtime.
     pub fn set_enabled(&mut self, enabled: bool) {
         self.enabled = enabled;

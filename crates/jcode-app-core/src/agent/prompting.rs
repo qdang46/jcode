@@ -34,6 +34,20 @@ impl Agent {
             None
         };
 
+        // Issue #358: when mempalace backend is configured, bypass the
+        // native MemoryAgent and run the mempalace per-turn pipeline instead.
+        #[cfg(feature = "mempalace-backend")]
+        {
+            if is_mempalace_backend() {
+                let sid = session_id.to_string();
+                let working_dir = self.session.working_dir.clone();
+                tokio::spawn(async move {
+                    mempalace_per_turn_pipeline(&sid, messages, working_dir).await;
+                });
+                return pending;
+            }
+        }
+
         // Use the persistent memory-agent pipeline as the single source of truth.
         // Running both this and the legacy MemoryManager background retrieval path
         // can prepare overlapping pending prompts for the same turn, which makes
@@ -113,6 +127,7 @@ impl Agent {
     }
 
     /// Non-blocking memory prompt - takes pending result and spawns check for next turn
+    #[allow(dead_code)]
     pub(super) fn build_memory_prompt_nonblocking(
         &self,
         messages: &[Message],
@@ -120,4 +135,217 @@ impl Agent {
     ) -> Option<crate::memory::PendingMemory> {
         self.build_memory_prompt_nonblocking_shared(messages.to_vec().into(), _memory_event_tx)
     }
+}
+
+/// Wrap a step prompt body in `<system_reminder>...</system_reminder>` tags.
+///
+/// Step prompts are emitted by the harness (not typed by the user), but they
+/// arrive in the conversation transcript at the same position a user message
+/// would. Without disambiguation, the LLM tends to treat them as a fresh user
+/// turn — re-greeting, re-asking, or otherwise breaking flow.
+///
+/// Wrapping the body in `<system_reminder>` tags signals "this is harness
+/// scaffolding, not the user speaking" and lets the model continue its
+/// existing turn cleanly. Returns an empty string when `prompt` is empty so
+/// callers don't end up emitting an empty tag pair.
+///
+/// This helper is intentionally not yet wired into step-prompt emission;
+/// integration will land alongside the Phase 1 `AgentDefinition.step_prompt`
+/// changes.
+pub fn wrap_as_system_reminder(prompt: &str) -> String {
+    if prompt.is_empty() {
+        String::new()
+    } else {
+        format!("<system_reminder>{}</system_reminder>", prompt)
+    }
+}
+
+#[cfg(test)]
+mod wrap_as_system_reminder_tests {
+    use super::wrap_as_system_reminder;
+
+    #[test]
+    fn wrap_as_system_reminder_empty_input_returns_empty() {
+        assert_eq!(wrap_as_system_reminder(""), "");
+    }
+
+    #[test]
+    fn wrap_as_system_reminder_non_empty_input_wrapped_correctly() {
+        let body = "remaining steps: 3";
+        assert_eq!(
+            wrap_as_system_reminder(body),
+            "<system_reminder>remaining steps: 3</system_reminder>"
+        );
+    }
+}
+
+// ---- Issue #358: mempalace per-turn pipeline --------------------------
+
+/// Check if the mempalace backend is configured via environment or config.
+#[cfg(feature = "mempalace-backend")]
+fn is_mempalace_backend() -> bool {
+    // Check env var first (fast path)
+    if let Ok(val) = std::env::var("JCODE_MEMORY_BACKEND") {
+        if val.eq_ignore_ascii_case("mempalace") {
+            return true;
+        }
+    }
+    // TODO: check config file when config loading is wired
+    false
+}
+
+/// Issue #358: mempalace-native per-turn pipeline.
+///
+/// When `memory_backend = "mempalace"`, this replaces the MemoryAgent
+/// singleton's `process_context()` path. It runs:
+///
+/// 1. Format context from messages
+/// 2. Embed context (via Palace embedder)
+/// 3. Search Palace for relevant drawers
+/// 4. Optionally verify via sidecar
+/// 5. Surface results into PENDING_MEMORY (so `take_pending_memory()` works)
+/// 6. Spawn maintenance in background
+///
+/// The pipeline writes into the same `PENDING_MEMORY` static that the
+/// native path uses, so downstream code (TUI, prompting) is unchanged.
+#[cfg(feature = "mempalace-backend")]
+async fn mempalace_per_turn_pipeline(
+    session_id: &str,
+    messages: std::sync::Arc<[Message]>,
+    working_dir: Option<String>,
+) {
+    use crate::memory::{self, MemoryState};
+    use crate::memory_types::MemoryEventKind;
+
+    // Format context from messages
+    let context = memory::format_context_for_relevance(&messages);
+    if context.is_empty() {
+        return;
+    }
+
+    // Resolve palace path from working_dir or default
+    let palace_path = resolve_palace_path(working_dir.as_deref());
+    if palace_path.is_none() {
+        logging::info(&format!(
+            "[{}] mempalace pipeline: no palace path found, skipping",
+            session_id
+        ));
+        return;
+    }
+    let palace_path = palace_path.unwrap();
+
+    // Open adapter (in a real implementation this would be cached/pooled)
+    let adapter = match jcode_mempalace_adapter::MempalaceAdapter::open(&palace_path).await {
+        Ok(a) => a,
+        Err(e) => {
+            logging::info(&format!(
+                "[{}] mempalace pipeline: failed to open palace: {}",
+                session_id, e
+            ));
+            return;
+        }
+    };
+
+    let palace = adapter.palace();
+    use jcode_mempalace_adapter::MemoryProvider;
+
+    // Step 1: Embed context
+    memory::set_state(MemoryState::Embedding);
+    memory::add_event(MemoryEventKind::EmbeddingStarted);
+
+    let query_vec = match palace.embedder().embed(&context).await {
+        Ok(v) => v,
+        Err(e) => {
+            logging::info(&format!(
+                "[{}] mempalace pipeline: embedding failed: {}",
+                session_id, e
+            ));
+            memory::set_state(MemoryState::Idle);
+            return;
+        }
+    };
+
+    // Step 2: Search Palace
+    let scope = jcode_mempalace_adapter::SearchScope::new().limit(10);
+    let hits = match palace.search_with_embedding(&query_vec, &scope).await {
+        Ok(h) => h,
+        Err(e) => {
+            logging::info(&format!(
+                "[{}] mempalace pipeline: search failed: {}",
+                session_id, e
+            ));
+            memory::set_state(MemoryState::Idle);
+            return;
+        }
+    };
+
+    let search_latency = 0u64; // TODO: measure actual latency
+    memory::add_event(MemoryEventKind::EmbeddingComplete {
+        latency_ms: search_latency,
+        hits: hits.len(),
+    });
+
+    if hits.is_empty() {
+        memory::set_state(MemoryState::Idle);
+        return;
+    }
+
+    // Step 3: Verify (optional sidecar)
+    memory::set_state(MemoryState::SidecarChecking { count: hits.len() });
+    memory::add_event(MemoryEventKind::SidecarStarted);
+
+    // For now, take all hits as relevant (sidecar verification can be
+    // added when the LLM sidecar feature is fully wired)
+    let relevant: Vec<_> = hits.into_iter().take(5).collect();
+
+    memory::add_event(MemoryEventKind::SidecarComplete { latency_ms: 0 });
+
+    // Step 4: Format and surface into PENDING_MEMORY
+    if !relevant.is_empty() {
+        let count = relevant.len();
+        let mut prompt = String::from("Relevant memories:\n");
+        let mut ids = Vec::new();
+        for hit in &relevant {
+            prompt.push_str(&format!("- {}\n", hit.text));
+            ids.push(hit.text.clone()); // Use text as surrogate ID
+        }
+
+        memory::set_pending_memory_with_ids(session_id, prompt, count, ids);
+        memory::set_state(MemoryState::FoundRelevant { count });
+    } else {
+        memory::set_state(MemoryState::Idle);
+    }
+
+    // Step 5: Maintenance (spawned, non-blocking)
+    // TODO: wire Palace::spawn_maintenance when available
+}
+
+/// Resolve the mempalace path from the working directory.
+#[cfg(feature = "mempalace-backend")]
+fn resolve_palace_path(working_dir: Option<&str>) -> Option<std::path::PathBuf> {
+    // Check environment variable first
+    if let Ok(path) = std::env::var("JCODE_MEMPALACE_PATH") {
+        let p = std::path::PathBuf::from(&path);
+        if p.exists() {
+            return Some(p);
+        }
+    }
+
+    // Check working directory for .mempalace
+    if let Some(dir) = working_dir {
+        let palace = std::path::PathBuf::from(dir).join(".mempalace");
+        if palace.exists() {
+            return Some(palace);
+        }
+    }
+
+    // Check global palace location
+    if let Some(config_dir) = dirs::config_dir() {
+        let global = config_dir.join("mempalace");
+        if global.exists() {
+            return Some(global);
+        }
+    }
+
+    None
 }

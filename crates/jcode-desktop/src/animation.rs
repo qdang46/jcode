@@ -27,6 +27,13 @@ pub(crate) fn desktop_reduced_motion_enabled() -> bool {
         return enabled;
     }
 
+    // Check centralized DisableRegistry first.
+    if jcode_base::disable::DisableRegistry::global()
+        .disabled(jcode_base::disable::DisableFlag::DesktopAnimation)
+    {
+        return true;
+    }
+
     desktop_reduced_motion_enabled_for_env_value(std::env::var_os(DESKTOP_REDUCED_MOTION_ENV))
 }
 

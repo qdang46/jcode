@@ -3,6 +3,14 @@ use std::process::{Child, Command, Stdio};
 const DISABLE_ENV: &str = "JCODE_DISABLE_POWER_INHIBIT";
 const MODE_ENV: &str = "JCODE_DESKTOP_POWER_INHIBIT";
 
+/// Check both the legacy env var presence and the centralized DisableRegistry.
+fn is_power_inhibit_disabled() -> bool {
+    let legacy = std::env::var_os(DISABLE_ENV).is_some();
+    let registry = jcode_base::disable::DisableRegistry::global()
+        .disabled(jcode_base::disable::DisableFlag::PowerInhibit);
+    legacy || registry
+}
+
 /// Best-effort inhibitor that keeps laptops awake while Jcode is actively
 /// streaming/processing. The helper process is kept alive only while active work
 /// exists, then killed immediately so normal power management resumes.
@@ -21,7 +29,7 @@ impl PowerInhibitor {
         Self {
             child: None,
             available: power_inhibit_available(
-                std::env::var_os(DISABLE_ENV).is_some(),
+                is_power_inhibit_disabled(),
                 mode,
                 current_platform(),
             ),

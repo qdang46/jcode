@@ -952,7 +952,7 @@ async fn restore_agent_session_if_requested_restores_resumed_session() {
     let _guard = crate::storage::lock_test_env();
 
     let provider: Arc<dyn Provider> = Arc::new(TestProvider);
-    let registry = Registry::new(provider.clone()).await;
+    let registry = Registry::new(provider.clone(), None).await;
     let mut original = crate::agent::Agent::new(provider.clone(), registry);
     let original_session_id = original.session_id().to_string();
     original
@@ -960,7 +960,7 @@ async fn restore_agent_session_if_requested_restores_resumed_session() {
         .await
         .expect("seed session");
 
-    let registry = Registry::new(provider.clone()).await;
+    let registry = Registry::new(provider.clone(), None).await;
     let mut resumed = crate::agent::Agent::new(provider, registry);
     let fresh_session_id = resumed.session_id().to_string();
     assert_ne!(fresh_session_id, original_session_id);

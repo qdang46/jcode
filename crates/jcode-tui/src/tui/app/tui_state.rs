@@ -156,48 +156,67 @@ impl App {
         }
     }
 
-    fn widget_auth_method(&self, route: WidgetRouteInfo) -> crate::tui::info_widget::AuthMethod {
+    /// Resolve the active credential (OAuth vs API key) for a dual-auth
+    /// provider (Anthropic / OpenAI). This is the one place billing identity is
+    /// decided for the info widget, regardless of transport:
+    ///
+    /// * Remote sessions use [`App::remote_resolved_credential`], which the
+    ///   server resolved authoritatively from its live credentials.
+    /// * Local sessions use [`resolve_dual_credential_auth`], shared with the
+    ///   header tag and model-switch line so all surfaces agree.
+    ///
+    /// Returns `None` when neither transport can determine the credential (e.g.
+    /// the server didn't report one, or no credentials are configured locally).
+    fn dual_credential_active(
+        &self,
+        route: WidgetRouteInfo,
+        provider: jcode_provider_core::ActiveProvider,
+    ) -> Option<crate::auth::ActiveCredential> {
         if route.is_remote {
-            return crate::tui::info_widget::AuthMethod::Unknown;
+            return self.remote_resolved_credential.map(Into::into);
         }
 
         let auth_status = crate::auth::AuthStatus::check_fast();
         let runtime_provider = active_runtime_provider_key();
+        crate::auth::resolve_dual_credential_auth(
+            provider,
+            &auth_status,
+            runtime_provider.as_deref(),
+        )
+        .map(|resolved| resolved.active)
+    }
+
+    fn widget_auth_method(&self, route: WidgetRouteInfo) -> crate::tui::info_widget::AuthMethod {
+        use crate::auth::ActiveCredential;
+        use crate::tui::info_widget::AuthMethod;
 
         match route.provider {
             WidgetProviderKind::Anthropic => {
-                if matches!(
-                    runtime_provider.as_deref(),
-                    Some("claude-api" | "anthropic-api")
-                ) {
-                    crate::tui::info_widget::AuthMethod::AnthropicApiKey
-                } else if matches!(runtime_provider.as_deref(), Some("claude" | "anthropic")) {
-                    crate::tui::info_widget::AuthMethod::AnthropicOAuth
-                } else if auth_status.anthropic.has_oauth {
-                    // Anthropic Auto prefers OAuth (Claude subscription) before
-                    // falling back to a direct API key.
-                    crate::tui::info_widget::AuthMethod::AnthropicOAuth
-                } else if auth_status.anthropic.has_api_key {
-                    crate::tui::info_widget::AuthMethod::AnthropicApiKey
-                } else {
-                    crate::tui::info_widget::AuthMethod::Unknown
+                match self
+                    .dual_credential_active(route, jcode_provider_core::ActiveProvider::Claude)
+                {
+                    Some(ActiveCredential::OAuth) => AuthMethod::AnthropicOAuth,
+                    Some(ActiveCredential::ApiKey) => AuthMethod::AnthropicApiKey,
+                    None => AuthMethod::Unknown,
                 }
             }
             WidgetProviderKind::OpenAI => {
-                if matches!(runtime_provider.as_deref(), Some("openai-api")) {
-                    crate::tui::info_widget::AuthMethod::OpenAIApiKey
-                } else if matches!(runtime_provider.as_deref(), Some("openai"))
-                    || auth_status.openai_has_oauth
+                match self
+                    .dual_credential_active(route, jcode_provider_core::ActiveProvider::OpenAI)
                 {
-                    crate::tui::info_widget::AuthMethod::OpenAIOAuth
-                } else if auth_status.openai_has_api_key {
-                    crate::tui::info_widget::AuthMethod::OpenAIApiKey
-                } else {
-                    crate::tui::info_widget::AuthMethod::Unknown
+                    Some(ActiveCredential::OAuth) => AuthMethod::OpenAIOAuth,
+                    Some(ActiveCredential::ApiKey) => AuthMethod::OpenAIApiKey,
+                    None => AuthMethod::Unknown,
                 }
             }
+            // Providers below have no OAuth-vs-API-key ambiguity to resolve from
+            // remote credentials; remote sessions render usage via
+            // `widget_usage_info`'s `is_remote` handling, so report Unknown here
+            // and let the local heuristics run only for local sessions.
+            _ if route.is_remote => AuthMethod::Unknown,
             WidgetProviderKind::OpenCode => crate::tui::info_widget::AuthMethod::OpenCodeApiKey,
             WidgetProviderKind::OpenRouter => {
+                let runtime_provider = active_runtime_provider_key();
                 let transport_state =
                     crate::provider::openrouter::OpenRouterTransportState::from_current_env(
                         runtime_provider.as_deref(),
@@ -213,6 +232,7 @@ impl App {
             WidgetProviderKind::CostBasedApiKey => crate::tui::info_widget::AuthMethod::ApiKey,
             WidgetProviderKind::Copilot => crate::tui::info_widget::AuthMethod::CopilotOAuth,
             WidgetProviderKind::Gemini => {
+                let auth_status = crate::auth::AuthStatus::check_fast();
                 if auth_status.gemini == crate::auth::AuthState::Available {
                     crate::tui::info_widget::AuthMethod::GeminiOAuth
                 } else {
@@ -439,9 +459,9 @@ impl crate::tui::TuiState for App {
         if self.is_remote {
             self.remote_header_provider_name().unwrap_or_default()
         } else {
-            self.remote_provider_name.clone().unwrap_or_else(|| {
-                crate::provider_catalog::runtime_provider_display_name(self.provider.name())
-            })
+            self.remote_provider_name
+                .clone()
+                .unwrap_or_else(|| self.provider.display_name())
         }
     }
 
@@ -574,6 +594,10 @@ impl crate::tui::TuiState for App {
 
     fn has_pending_mouse_scroll_animation(&self) -> bool {
         self.mouse_scroll_queue != 0
+    }
+
+    fn reasoning_collapse_animating(&self) -> bool {
+        self.reasoning_collapse_active()
     }
 
     fn total_session_tokens(&self) -> Option<(u64, u64)> {
@@ -873,7 +897,8 @@ impl crate::tui::TuiState for App {
                             tool_result_count += 1;
                             tool_result_chars += content.len();
                         }
-                        ContentBlock::Reasoning { text } => {
+                        ContentBlock::Reasoning { text }
+                        | ContentBlock::ReasoningTrace { text } => {
                             asst_chars += text.len();
                         }
                         ContentBlock::AnthropicThinking {
@@ -1007,6 +1032,7 @@ impl crate::tui::TuiState for App {
                     status: item.status.clone(),
                     priority: item.priority.clone(),
                     id: item.id.clone(),
+                    group: None,
                     blocked_by: item.blocked_by.clone(),
                     assigned_to: item.assigned_to.clone(),
                     confidence: None,
@@ -1194,6 +1220,7 @@ impl crate::tui::TuiState for App {
                 optimal_input_tokens: self.total_cache_optimal_input_tokens,
                 last_reported_input_tokens: self.last_cache_reported_input_tokens,
                 last_read_tokens: self.last_cache_read_tokens,
+                last_creation_tokens: self.last_cache_creation_tokens,
                 last_optimal_input_tokens: self.last_cache_optimal_input_tokens,
                 miss_attributions: self
                     .kv_cache_miss_samples
@@ -1272,9 +1299,9 @@ impl crate::tui::TuiState for App {
             provider_name: if uses_remote_widget_metadata {
                 self.remote_provider_name
                     .clone()
-                    .or_else(|| Some(self.provider.name().to_string()))
+                    .or_else(|| Some(self.provider.display_name()))
             } else {
-                Some(self.provider.name().to_string())
+                Some(self.provider.display_name())
             },
             auth_method,
             upstream_provider: self.upstream_provider.clone(),
@@ -1453,6 +1480,12 @@ impl crate::tui::TuiState for App {
         self.usage_overlay.as_ref()
     }
 
+    fn experiment_popup(
+        &self,
+    ) -> Option<&RefCell<crate::tui::experiment_popup::ExperimentPopupState>> {
+        self.experiment_popup.as_ref()
+    }
+
     fn working_dir(&self) -> Option<String> {
         self.session.working_dir.clone()
     }
@@ -1478,16 +1511,23 @@ impl crate::tui::TuiState for App {
             return None;
         }
 
-        let text = self.current_copy_selection_text().unwrap_or_default();
-        let has_selection = !text.is_empty();
+        // Compute selection metrics without building the full selected string,
+        // which previously re-allocated the entire selection on every render
+        // frame and drag move (O(selection) per frame; a "select all" rebuilt
+        // the whole transcript text repeatedly).
+        let (selected_chars, selected_lines) = self
+            .normalized_copy_selection()
+            .and_then(crate::tui::ui::copy_selection_metrics)
+            .unwrap_or((0, 0));
+        let has_selection = selected_chars > 0;
         Some(crate::tui::CopySelectionStatus {
             pane: self
                 .current_copy_selection_pane()
                 .unwrap_or(crate::tui::CopySelectionPane::Chat),
             has_action: has_selection,
-            selected_chars: text.chars().count(),
+            selected_chars,
             selected_lines: if has_selection {
-                text.lines().count().max(1)
+                selected_lines.max(1)
             } else {
                 0
             },

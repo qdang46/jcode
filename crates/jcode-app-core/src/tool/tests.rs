@@ -33,7 +33,7 @@ impl Provider for MockProvider {
 async fn test_tool_definitions_are_sorted() {
     // Create registry with mock provider
     let provider: Arc<dyn Provider> = Arc::new(MockProvider);
-    let registry = Registry::new(provider).await;
+    let registry = Registry::new(provider, None).await;
 
     // Get definitions multiple times and verify they're always in the same order
     let defs1 = registry.definitions(None).await;
@@ -98,7 +98,7 @@ fn tool_definitions_do_not_auto_inject_intent() {
 #[tokio::test]
 async fn first_party_tool_definitions_include_optional_intent_explicitly() {
     let provider: Arc<dyn Provider> = Arc::new(MockProvider);
-    let registry = Registry::new(provider).await;
+    let registry = Registry::new(provider, None).await;
     registry.register_ambient_tools().await;
 
     let defs = registry.definitions(None).await;
@@ -160,7 +160,7 @@ fn test_resolve_tool_name_oauth_aliases() {
 #[tokio::test]
 async fn test_batch_resolves_oauth_names() {
     let provider: Arc<dyn Provider> = Arc::new(MockProvider);
-    let registry = Registry::new(provider).await;
+    let registry = Registry::new(provider, None).await;
     let temp_dir = std::env::temp_dir();
     let temp_dir_str = temp_dir.to_string_lossy().to_string();
 
@@ -188,7 +188,7 @@ async fn test_batch_resolves_oauth_names() {
 #[tokio::test]
 async fn registry_execute_enforces_session_tool_policy_after_alias_resolution() {
     let provider: Arc<dyn Provider> = Arc::new(MockProvider);
-    let registry = Registry::new(provider).await;
+    let registry = Registry::new(provider, None).await;
     let temp_dir = std::env::temp_dir();
     let session_id = "test-policy-deny";
     set_session_tool_policy(session_id, None, HashSet::from(["grep".to_string()]));
@@ -225,7 +225,7 @@ async fn registry_execute_enforces_session_tool_policy_after_alias_resolution() 
 #[tokio::test]
 async fn test_definitions_keep_batch_schema_generic() {
     let provider: Arc<dyn Provider> = Arc::new(MockProvider);
-    let registry = Registry::new(provider).await;
+    let registry = Registry::new(provider, None).await;
 
     let defs = registry.definitions(None).await;
     let batch_def = defs
@@ -255,7 +255,7 @@ fn resolve_tool_name_maps_communicate_to_swarm() {
 #[ignore]
 async fn print_tool_definition_token_report() {
     let provider: Arc<dyn Provider> = Arc::new(MockProvider);
-    let registry = Registry::new(provider).await;
+    let registry = Registry::new(provider, None).await;
     let mut defs = registry.definitions(None).await;
     defs.sort_by_key(|def| std::cmp::Reverse(def.prompt_token_estimate()));
 
@@ -324,7 +324,7 @@ fn collect_schema_errors(schema: &Value, path: &str, errors: &mut Vec<String>) {
 #[tokio::test]
 async fn test_tool_definitions_do_not_expose_invalid_array_schemas() {
     let provider: Arc<dyn Provider> = Arc::new(MockProvider);
-    let registry = Registry::new(provider).await;
+    let registry = Registry::new(provider, None).await;
 
     let defs = registry.definitions(None).await;
     let mut errors = Vec::new();
@@ -449,7 +449,7 @@ async fn test_context_guard_zero_budget_passes_through() {
 #[tokio::test]
 async fn test_request_permission_is_ambient_only() {
     let provider: Arc<dyn Provider> = Arc::new(MockProvider);
-    let registry = Registry::new(provider).await;
+    let registry = Registry::new(provider, None).await;
 
     let defs = registry.definitions(None).await;
     assert!(
@@ -476,7 +476,7 @@ async fn test_no_builtin_tools_env_disables_registry() {
     crate::env::set_var("JCODE_NO_BUILTIN_TOOLS", "1");
 
     let provider: Arc<dyn Provider> = Arc::new(MockProvider);
-    let registry = Registry::new(provider).await;
+    let registry = Registry::new(provider, None).await;
     let defs = registry.definitions(None).await;
 
     assert!(
@@ -502,7 +502,7 @@ async fn test_default_registry_has_builtin_tools() {
     crate::env::remove_var("JCODE_NO_BUILTIN_TOOLS");
 
     let provider: Arc<dyn Provider> = Arc::new(MockProvider);
-    let registry = Registry::new(provider).await;
+    let registry = Registry::new(provider, None).await;
     let defs = registry.definitions(None).await;
 
     assert!(
@@ -537,7 +537,7 @@ fn closest_tool_names_suggests_near_misses() {
 #[tokio::test]
 async fn unknown_tool_error_lists_available_tools_and_suggestions() {
     let provider: Arc<dyn Provider> = Arc::new(MockProvider);
-    let registry = Registry::new(provider).await;
+    let registry = Registry::new(provider, None).await;
     registry.register_ambient_tools().await;
 
     let ctx = ToolContext {

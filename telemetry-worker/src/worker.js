@@ -1,3 +1,6 @@
+import { getStats } from "./stats.js";
+import { DASHBOARD_HTML } from "./dashboard.js";
+
 let cachedEventColumns = null;
 let cachedSessionDetailColumns = null;
 let cachedTurnDetailColumns = null;
@@ -10,11 +13,34 @@ export default {
       });
     }
 
+    const url = new URL(request.url);
+
+    // Read-only dashboard surface (GET). The HTML page is public; the JSON stats
+    // endpoint is gated behind DASHBOARD_TOKEN so raw aggregates are not exposed
+    // to anyone who finds the URL. Raw events are never returned, only counts.
+    if (request.method === "GET") {
+      if (url.pathname === "/" || url.pathname === "/dashboard") {
+        return htmlResponse(DASHBOARD_HTML);
+      }
+      if (url.pathname === "/v1/stats") {
+        if (!isAuthorized(request, env)) {
+          return jsonResponse({ error: "Unauthorized" }, 401);
+        }
+        try {
+          const stats = await getStats(env);
+          return jsonResponse(stats);
+        } catch (err) {
+          console.error("stats error", err);
+          return jsonResponse({ error: "Internal error" }, 500);
+        }
+      }
+      return jsonResponse({ error: "Not found" }, 404);
+    }
+
     if (request.method !== "POST") {
       return jsonResponse({ error: "Method not allowed" }, 405);
     }
 
-    const url = new URL(request.url);
     if (url.pathname !== "/v1/event") {
       return jsonResponse({ error: "Not found" }, 404);
     }
@@ -53,6 +79,21 @@ export default {
     }
   },
 };
+
+// When DASHBOARD_TOKEN is unset the stats endpoint stays locked (deny by
+// default) rather than leaking aggregates. Accepts either a Bearer header or a
+// ?token= query param so it works from curl and the browser fetch alike.
+function isAuthorized(request, env) {
+  const expected = env.DASHBOARD_TOKEN;
+  if (!expected) {
+    return false;
+  }
+  const url = new URL(request.url);
+  const header = request.headers.get("authorization") || "";
+  const bearer = header.startsWith("Bearer ") ? header.slice(7) : null;
+  const provided = bearer || url.searchParams.get("token") || request.headers.get("x-dashboard-token");
+  return provided != null && provided === expected;
+}
 
 async function insertEvent(env, body) {
   const columns = await getEventColumns(env);
@@ -361,6 +402,7 @@ async function recordDailyActivity(env, body) {
   const meaningful = isMeaningfulLifecycleEvent(body) ? 1 : 0;
   const release = body.build_channel === "release" ? 1 : 0;
   const meaningfulRelease = meaningful && release ? 1 : 0;
+  const isCi = boolToInt(body.is_ci);
   const sessionStartCount = body.event === "session_start" ? 1 : 0;
   const turnEndCount = body.event === "turn_end" ? 1 : 0;
   const sessionEndCount = body.event === "session_end" ? 1 : 0;
@@ -379,8 +421,10 @@ async function recordDailyActivity(env, body) {
         turn_end_count,
         session_end_count,
         session_crash_count,
+        ci_active,
+        last_is_ci,
         last_build_channel
-      ) VALUES (?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(activity_date, telemetry_id) DO UPDATE SET
         last_seen_at = datetime('now'),
         raw_active = 1,
@@ -391,6 +435,8 @@ async function recordDailyActivity(env, body) {
         turn_end_count = turn_end_count + excluded.turn_end_count,
         session_end_count = session_end_count + excluded.session_end_count,
         session_crash_count = session_crash_count + excluded.session_crash_count,
+        ci_active = MAX(ci_active, excluded.ci_active),
+        last_is_ci = excluded.last_is_ci,
         last_build_channel = COALESCE(excluded.last_build_channel, daily_active_users.last_build_channel)
     `).bind(
       activityDate,
@@ -402,6 +448,8 @@ async function recordDailyActivity(env, body) {
       turnEndCount,
       sessionEndCount,
       sessionCrashCount,
+      isCi,
+      isCi,
       body.build_channel || null,
     ).run();
   } catch (err) {
@@ -413,22 +461,41 @@ async function recordDailyActivity(env, body) {
 
 function isMeaningfulLifecycleEvent(body) {
   const errors = body.errors || {};
-  return ["session_end", "session_crash"].includes(body.event) && (
-    (body.turns || 0) > 0
-    || boolToInt(body.had_user_prompt) > 0
-    || boolToInt(body.had_assistant_response) > 0
-    || (body.assistant_responses || 0) > 0
-    || (body.tool_calls || 0) > 0
-    || (body.executed_tool_calls || 0) > 0
-    || (body.duration_secs || 0) > 0
-    || (errors.provider_timeout || 0) > 0
-    || (errors.auth_failed || 0) > 0
-    || (errors.tool_error || 0) > 0
-    || (errors.mcp_error || 0) > 0
-    || (errors.rate_limited || 0) > 0
-    || (body.provider_switches || 0) > 0
-    || (body.model_switches || 0) > 0
-  );
+  if (["session_end", "session_crash"].includes(body.event)) {
+    return (
+      (body.turns || 0) > 0
+      || boolToInt(body.had_user_prompt) > 0
+      || boolToInt(body.had_assistant_response) > 0
+      || (body.assistant_responses || 0) > 0
+      || (body.tool_calls || 0) > 0
+      || (body.executed_tool_calls || 0) > 0
+      || (body.duration_secs || 0) > 0
+      || (errors.provider_timeout || 0) > 0
+      || (errors.auth_failed || 0) > 0
+      || (errors.tool_error || 0) > 0
+      || (errors.mcp_error || 0) > 0
+      || (errors.rate_limited || 0) > 0
+      || (body.provider_switches || 0) > 0
+      || (body.model_switches || 0) > 0
+    );
+  }
+  // A turn_end event only fires after a real user turn completes (a prompt was
+  // submitted and the agent did work), so it is strong evidence of meaningful
+  // activity even when the session_end/session_crash event is lost (process
+  // killed, machine shutdown, network drop on the final flush, or a session
+  // still open at UTC midnight). Counting it here avoids undercounting the
+  // headline meaningful DAU for those users.
+  if (body.event === "turn_end") {
+    return (
+      (body.assistant_responses || 0) > 0
+      || (body.tool_calls || 0) > 0
+      || (body.executed_tool_calls || 0) > 0
+      || (body.file_write_calls || 0) > 0
+      || (body.tests_run || 0) > 0
+      || boolToInt(body.turn_success) > 0
+    );
+  }
+  return false;
 }
 
 async function insertSessionDetails(env, body, columns) {
@@ -567,10 +634,21 @@ function jsonResponse(data, status = 200) {
   });
 }
 
+function htmlResponse(html, status = 200) {
+  return new Response(html, {
+    status,
+    headers: {
+      "Content-Type": "text/html; charset=utf-8",
+      "Cache-Control": "no-store",
+      ...corsHeaders(),
+    },
+  });
+}
+
 function corsHeaders() {
   return {
     "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Dashboard-Token",
   };
 }

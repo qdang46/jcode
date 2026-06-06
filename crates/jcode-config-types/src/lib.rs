@@ -161,6 +161,47 @@ impl MarkdownSpacingMode {
     }
 }
 
+/// How to display the model's reasoning/thinking content in the TUI.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ReasoningDisplayMode {
+    /// Never display reasoning content.
+    #[default]
+    Off,
+    /// Keep every reasoning trace in the transcript (classic behavior).
+    Full,
+    /// Show only the *current* reasoning live; collapse it once the model
+    /// commits an assistant message or tool call, then show the next one.
+    Current,
+}
+
+impl ReasoningDisplayMode {
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Off => "Off",
+            Self::Full => "Full",
+            Self::Current => "Current",
+        }
+    }
+
+    pub fn cycle(self) -> Self {
+        match self {
+            Self::Off => Self::Current,
+            Self::Current => Self::Full,
+            Self::Full => Self::Off,
+        }
+    }
+
+    pub fn parse(value: &str) -> Option<Self> {
+        match value.trim().to_lowercase().as_str() {
+            "off" | "none" | "false" | "0" | "no" => Some(Self::Off),
+            "full" | "all" | "true" | "1" | "yes" | "on" => Some(Self::Full),
+            "current" | "live" | "ephemeral" | "collapse" => Some(Self::Current),
+            _ => None,
+        }
+    }
+}
+
 /// Update channel: how aggressively to receive updates.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
@@ -365,6 +406,40 @@ pub struct AuthConfig {
     pub trusted_external_source_paths: Vec<String>,
 }
 
+/// Which memory backend to use for storage and retrieval.
+///
+/// `Native` (default) uses jcode's built-in JSON-based MemoryManager.
+/// `Mempalace` delegates to a mempalace Palace via the adapter crate.
+///
+/// Set in `.jcode/config.json` as `agents.memory_backend` or via
+/// the `JCODE_MEMORY_BACKEND` environment variable.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum MemoryBackend {
+    /// JSON-based MemoryManager (current default).
+    #[default]
+    Native,
+    /// mempalace Palace via MempalaceAdapter.
+    Mempalace,
+}
+
+impl MemoryBackend {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Native => "native",
+            Self::Mempalace => "mempalace",
+        }
+    }
+
+    pub fn parse(value: &str) -> Option<Self> {
+        match value.trim().to_ascii_lowercase().as_str() {
+            "native" => Some(Self::Native),
+            "mempalace" | "palace" => Some(Self::Mempalace),
+            _ => None,
+        }
+    }
+}
+
 /// Agent-specific model defaults.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(default)]
@@ -382,6 +457,9 @@ pub struct AgentsConfig {
     pub memory_model: Option<String>,
     /// Whether memory should use the sidecar for relevance/extraction.
     pub memory_sidecar_enabled: bool,
+    /// Which memory backend to use: "native" (JSON-based) or "mempalace" (Palace).
+    /// Default: `MemoryBackend::Native`. Overridable via `JCODE_MEMORY_BACKEND` env var.
+    pub memory_backend: MemoryBackend,
 }
 
 /// How swarm-created agents should be spawned.
@@ -404,6 +482,15 @@ impl SwarmSpawnMode {
             "headless" => Some(Self::Headless),
             "auto" => Some(Self::Auto),
             _ => None,
+        }
+    }
+
+    /// Canonical lowercase string for this mode (matches the config/env values).
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Visible => "visible",
+            Self::Headless => "headless",
+            Self::Auto => "auto",
         }
     }
 }
@@ -556,8 +643,12 @@ pub struct DisplayConfig {
     pub debug_socket: bool,
     /// Center all content (default: false)
     pub centered: bool,
-    /// Show thinking/reasoning content by default (default: false)
+    /// Show thinking/reasoning content by default (default: true)
     pub show_thinking: bool,
+    /// How to display reasoning/thinking content (off/full/current).
+    /// When unset, falls back to `show_thinking` (true => full, false => off).
+    #[serde(default)]
+    reasoning_display: Option<ReasoningDisplayMode>,
     /// How to display mermaid diagrams (none/margin/pinned, default: none).
     /// Mermaid rendering is temporarily disabled for users unless JCODE_ENABLE_MERMAID=1.
     pub diagram_mode: DiagramDisplayMode,
@@ -598,7 +689,8 @@ impl Default for DisplayConfig {
             mouse_capture: true,
             debug_socket: false,
             centered: false,
-            show_thinking: false,
+            show_thinking: true,
+            reasoning_display: Some(ReasoningDisplayMode::Current),
             diagram_mode: DiagramDisplayMode::default(),
             markdown_spacing: MarkdownSpacingMode::default(),
             idle_animation: true,
@@ -624,6 +716,30 @@ impl DisplayConfig {
                 DiffDisplayMode::Off
             };
         }
+    }
+
+    /// Resolve the effective reasoning display mode. Prefers the explicit
+    /// `reasoning_display` field, falling back to the legacy `show_thinking`
+    /// boolean (true => Full, false => Off) when unset.
+    pub fn reasoning_display(&self) -> ReasoningDisplayMode {
+        self.reasoning_display.unwrap_or(if self.show_thinking {
+            ReasoningDisplayMode::Full
+        } else {
+            ReasoningDisplayMode::Off
+        })
+    }
+
+    /// Set the reasoning display mode and keep `show_thinking` in sync so the
+    /// provider request path (which still keys off `show_thinking`) requests
+    /// reasoning whenever any display mode is active.
+    pub fn set_reasoning_display(&mut self, mode: ReasoningDisplayMode) {
+        self.reasoning_display = Some(mode);
+        self.show_thinking = !matches!(mode, ReasoningDisplayMode::Off);
+    }
+
+    /// Whether reasoning content should be generated/requested at all.
+    pub fn reasoning_enabled(&self) -> bool {
+        !matches!(self.reasoning_display(), ReasoningDisplayMode::Off)
     }
 }
 
@@ -657,6 +773,18 @@ impl Default for FeatureConfig {
             dcp_enabled: true,
         }
     }
+}
+
+/// Experiment flags section in config.toml — dynamically keyed.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(default)]
+pub struct ExperimentConfig {
+    /// Dynamic experiment flag entries, e.g.:
+    /// [experiments]
+    /// hooks_v2 = true
+    /// js_plugins = false
+    #[serde(flatten)]
+    pub entries: BTreeMap<String, bool>,
 }
 
 /// Search engine used by the websearch tool.

@@ -451,7 +451,7 @@ fn test_model_picker_reuses_cached_entries_until_invalidated() {
         delay: Duration::ZERO,
     });
     let rt = tokio::runtime::Runtime::new().unwrap();
-    let registry = rt.block_on(crate::tool::Registry::new(provider.clone()));
+    let registry = rt.block_on(crate::tool::Registry::new(provider.clone(), None));
     let mut app = App::new_for_test_harness(provider, registry);
     app.queue_mode = false;
     app.diff_mode = crate::config::DiffDisplayMode::Inline;
@@ -492,7 +492,7 @@ fn test_shift_tab_model_favorite_hotkey_preserves_input_line() {
         delay: Duration::ZERO,
     });
     let rt = tokio::runtime::Runtime::new().unwrap();
-    let registry = rt.block_on(crate::tool::Registry::new(provider.clone()));
+    let registry = rt.block_on(crate::tool::Registry::new(provider.clone(), None));
     let mut app = App::new_for_test_harness(provider, registry);
     app.queue_mode = false;
     app.diff_mode = crate::config::DiffDisplayMode::Inline;
@@ -528,7 +528,7 @@ fn test_tui_api_key_auth_refreshes_catalog_shows_diff_without_opening_picker() {
     let refreshes = provider.refreshes.clone();
     let provider: Arc<dyn Provider> = Arc::new(provider);
     let rt = tokio::runtime::Runtime::new().unwrap();
-    let registry = rt.block_on(crate::tool::Registry::new(provider.clone()));
+    let registry = rt.block_on(crate::tool::Registry::new(provider.clone(), None));
     let mut app = App::new_for_test_harness(provider, registry);
     app.queue_mode = false;
     app.diff_mode = crate::config::DiffDisplayMode::Inline;
@@ -625,7 +625,7 @@ fn test_tui_cerebras_paste_key_lifecycle_has_no_degraded_success_messages() {
     let set_model_requests = fake_provider.set_model_requests.clone();
     let provider: Arc<dyn Provider> = Arc::new(fake_provider);
     let rt = tokio::runtime::Runtime::new().unwrap();
-    let registry = rt.block_on(crate::tool::Registry::new(provider.clone()));
+    let registry = rt.block_on(crate::tool::Registry::new(provider.clone(), None));
     let mut app = App::new_for_test_harness(provider, registry);
     app.queue_mode = false;
     app.diff_mode = crate::config::DiffDisplayMode::Inline;
@@ -917,7 +917,7 @@ fn test_tui_openai_compatible_empty_catalog_does_not_switch_to_profile_default()
         set_model_attempts: StdArc::clone(&set_model_attempts),
     });
     let rt = tokio::runtime::Runtime::new().unwrap();
-    let registry = rt.block_on(crate::tool::Registry::new(provider.clone()));
+    let registry = rt.block_on(crate::tool::Registry::new(provider.clone(), None));
     let mut app = App::new_for_test_harness(provider, registry);
     app.queue_mode = false;
     app.diff_mode = crate::config::DiffDisplayMode::Inline;
@@ -977,7 +977,7 @@ fn test_tui_openai_compatible_local_refresh_failure_is_pending_not_final_failure
         set_model_attempts: StdArc::clone(&set_model_attempts),
     });
     let rt = tokio::runtime::Runtime::new().unwrap();
-    let registry = rt.block_on(crate::tool::Registry::new(provider.clone()));
+    let registry = rt.block_on(crate::tool::Registry::new(provider.clone(), None));
     let mut app = App::new_for_test_harness(provider, registry);
     app.queue_mode = false;
     app.diff_mode = crate::config::DiffDisplayMode::Inline;
@@ -1044,7 +1044,7 @@ fn test_model_picker_opens_simplified_state_before_async_routes_complete() {
         delay: Duration::from_millis(75),
     });
     let rt = tokio::runtime::Runtime::new().unwrap();
-    let registry = rt.block_on(crate::tool::Registry::new(provider.clone()));
+    let registry = rt.block_on(crate::tool::Registry::new(provider.clone(), None));
     let mut app = App::new_for_test_harness(provider, registry);
     app.queue_mode = false;
     app.diff_mode = crate::config::DiffDisplayMode::Inline;
@@ -1083,7 +1083,7 @@ fn test_model_picker_state_space_preserves_provider_labels_after_route_hydration
         model: StdArc::new(StdMutex::new("gpt-5.5".to_string())),
     });
     let rt = tokio::runtime::Runtime::new().unwrap();
-    let registry = rt.block_on(crate::tool::Registry::new(provider.clone()));
+    let registry = rt.block_on(crate::tool::Registry::new(provider.clone(), None));
     let mut app = App::new_for_test_harness(provider, registry);
     app.queue_mode = false;
     app.diff_mode = crate::config::DiffDisplayMode::Inline;
@@ -1154,7 +1154,7 @@ fn test_model_picker_does_not_cache_single_model_fallback() {
         delay: Duration::ZERO,
     });
     let rt = tokio::runtime::Runtime::new().unwrap();
-    let registry = rt.block_on(crate::tool::Registry::new(provider.clone()));
+    let registry = rt.block_on(crate::tool::Registry::new(provider.clone(), None));
     let mut app = App::new_for_test_harness(provider, registry);
     app.queue_mode = false;
     app.diff_mode = crate::config::DiffDisplayMode::Inline;
@@ -1215,7 +1215,7 @@ fn test_login_completed_spawns_auth_refresh_when_runtime_is_available() {
         delay: Duration::from_millis(150),
     });
     let rt = tokio::runtime::Runtime::new().unwrap();
-    let registry = rt.block_on(crate::tool::Registry::new(provider.clone()));
+    let registry = rt.block_on(crate::tool::Registry::new(provider.clone(), None));
     let mut app = App::new_for_test_harness(provider, registry);
     app.queue_mode = false;
     app.diff_mode = crate::config::DiffDisplayMode::Inline;
@@ -1424,7 +1424,7 @@ fn test_azure_login_completion_switches_local_model_without_completion() {
         complete_calls: StdArc::clone(&complete_calls),
     });
     let rt = tokio::runtime::Runtime::new().unwrap();
-    let registry = rt.block_on(crate::tool::Registry::new(provider.clone()));
+    let registry = rt.block_on(crate::tool::Registry::new(provider.clone(), None));
     let mut app = App::new_for_test_harness(provider, registry);
     app.queue_mode = false;
     app.diff_mode = crate::config::DiffDisplayMode::Inline;
@@ -1858,6 +1858,7 @@ fn test_poke_arms_auto_poke_until_todos_are_done() {
         crate::todo::save_todos(
             &app.session.id,
             &[crate::todo::TodoItem {
+                group: None,
                 id: "todo-1".to_string(),
                 content: "Finish the remaining task".to_string(),
                 status: "pending".to_string(),
@@ -1888,6 +1889,7 @@ fn test_poke_status_reports_current_state() {
         crate::todo::save_todos(
             &app.session.id,
             &[crate::todo::TodoItem {
+                group: None,
                 id: "todo-1".to_string(),
                 content: "Finish the remaining task".to_string(),
                 status: "pending".to_string(),
@@ -1940,6 +1942,7 @@ fn test_poke_off_disarms_and_clears_queued_followup() {
         crate::todo::save_todos(
             &app.session.id,
             &[crate::todo::TodoItem {
+                group: None,
                 id: "todo-1".to_string(),
                 content: "Keep going".to_string(),
                 status: "pending".to_string(),
@@ -1987,6 +1990,7 @@ fn test_poke_queues_when_turn_is_in_progress() {
         crate::todo::save_todos(
             &app.session.id,
             &[crate::todo::TodoItem {
+                group: None,
                 id: "todo-1".to_string(),
                 content: "Finish the remaining task".to_string(),
                 status: "pending".to_string(),
@@ -2021,6 +2025,7 @@ fn test_poke_queues_when_turn_is_in_progress() {
             &app.session.id,
             &[
                 crate::todo::TodoItem {
+                    group: None,
                     id: "todo-1".to_string(),
                     content: "Finish the remaining task".to_string(),
                     status: "pending".to_string(),
@@ -2031,6 +2036,7 @@ fn test_poke_queues_when_turn_is_in_progress() {
                     completion_confidence: None,
                 },
                 crate::todo::TodoItem {
+                    group: None,
                     id: "todo-2".to_string(),
                     content: "Pick up the newly discovered task".to_string(),
                     status: "pending".to_string(),
@@ -2088,6 +2094,7 @@ fn test_finish_turn_auto_pokes_again_when_todos_remain() {
         crate::todo::save_todos(
             &app.session.id,
             &[crate::todo::TodoItem {
+                group: None,
                 id: "todo-1".to_string(),
                 content: "Keep going".to_string(),
                 status: "in_progress".to_string(),
@@ -2118,6 +2125,7 @@ fn test_finish_turn_auto_poke_queues_confidence_summary_when_todos_done() {
             &app.session.id,
             &[
                 crate::todo::TodoItem {
+                    group: None,
                     id: "todo-1".to_string(),
                     content: "Finish risky provider path".to_string(),
                     status: "completed".to_string(),
@@ -2128,6 +2136,7 @@ fn test_finish_turn_auto_poke_queues_confidence_summary_when_todos_done() {
                     completion_confidence: Some(80),
                 },
                 crate::todo::TodoItem {
+                    group: None,
                     id: "todo-2".to_string(),
                     content: "Document straightforward behavior".to_string(),
                     status: "completed".to_string(),
@@ -2191,6 +2200,7 @@ fn test_finish_turn_without_auto_poke_does_not_queue_confidence_summary() {
         crate::todo::save_todos(
             &app.session.id,
             &[crate::todo::TodoItem {
+                group: None,
                 id: "todo-1".to_string(),
                 content: "Done without poke".to_string(),
                 status: "completed".to_string(),
@@ -2224,6 +2234,7 @@ fn test_finish_turn_auto_poke_preserves_visible_turn_started() {
         crate::todo::save_todos(
             &app.session.id,
             &[crate::todo::TodoItem {
+                group: None,
                 id: "todo-1".to_string(),
                 content: "Keep going".to_string(),
                 status: "in_progress".to_string(),

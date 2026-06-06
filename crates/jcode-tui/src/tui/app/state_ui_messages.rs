@@ -42,18 +42,15 @@ fn stored_message_visible_text(message: &crate::session::StoredMessage) -> Strin
 /// `show_thinking` decision without mutating the global config.
 pub(super) fn stored_message_visible_text_with_show_thinking(
     message: &crate::session::StoredMessage,
-    show_thinking: bool,
+    _show_thinking: bool,
 ) -> String {
     let mut parts = Vec::new();
     for block in &message.content {
         match block {
-            ContentBlock::Text { text, .. } => {
+            ContentBlock::Text { text, .. }
+            | ContentBlock::Reasoning { text }
+            | ContentBlock::ReasoningTrace { text } => {
                 if !text.trim().is_empty() {
-                    parts.push(text.trim().to_string());
-                }
-            }
-            ContentBlock::Reasoning { text } => {
-                if show_thinking && !text.trim().is_empty() {
                     parts.push(text.trim().to_string());
                 }
             }
@@ -82,8 +79,13 @@ impl App {
             return;
         }
         let is_tool = message.role == "tool";
+        // Maintain the cached display-message counters incrementally for this
+        // single append, then bump the version without a full O(M) rescan.
+        // Appending is the hot path; rescanning every append was O(M^2) over a
+        // long session.
+        self.adjust_display_message_stats(&message, true);
         self.display_messages.push(message);
-        self.bump_display_messages_version();
+        self.bump_display_messages_version_no_stats();
         if is_tool && self.diff_mode.has_side_pane() && self.diff_pane_auto_scroll {
             self.diff_pane_scroll = usize::MAX;
         }
@@ -91,6 +93,8 @@ impl App {
 
     pub(super) fn replace_display_messages(&mut self, mut messages: Vec<DisplayMessage>) {
         compact_display_messages_for_storage(&mut messages);
+        // Indices the collapse animation targets no longer apply to the new list.
+        self.reasoning_collapse = None;
         self.display_messages = messages;
         self.sync_compacted_history_lazy_from_display_messages();
         self.bump_display_messages_version();
@@ -353,6 +357,12 @@ impl App {
 
     pub(super) fn clear_display_messages(&mut self) {
         self.compacted_history_lazy = CompactedHistoryLazyState::default();
+        // The transcript (and the index the collapse animation targets) is about
+        // to be discarded; drop any in-flight collapse so it can't mutate a stale
+        // or unrelated message.
+        self.reasoning_collapse = None;
+        self.reasoning_block_start = None;
+        self.reasoning_block_started_at = None;
         if !self.display_messages.is_empty() {
             self.display_messages.clear();
             self.bump_display_messages_version();

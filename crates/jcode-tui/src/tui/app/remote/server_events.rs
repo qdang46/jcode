@@ -61,9 +61,20 @@ fn server_release_is_older_than_client(server_version: Option<&str>, client_vers
 /// attached to is not running the binary we expect.
 ///
 /// Precedence:
+/// - The client independently measured the server's release version as strictly
+///   older than its own clean release version -> defer. This wins even over the
+///   server's own `server_has_update: Some(false)` self-report, because a stale
+///   long-lived daemon legitimately reports "no newer binary to reload into"
+///   (its `shared-server` channel still points at its own old build) while the
+///   client can plainly see it is an older release. Trusting the server here is
+///   exactly what left "current client, stale server" stuck (the daemon's reload
+///   decision runs old code that can never drag itself forward). The newer
+///   client is authoritative, so it defers and repairs the channel before
+///   reloading.
 /// - `Some(true)`: the server self-reported a newer binary on disk -> defer.
 /// - `Some(false)`: the server is new enough to self-assess and found nothing
-///   newer to reload into -> trust it, do not fight it with a forced reload.
+///   newer to reload into, AND the client could not prove it is older -> trust
+///   it, do not fight it with a forced reload.
 /// - `None`: the server is too old to self-report. Fall back to our own
 ///   client-side release-version comparison, which is the only signal that can
 ///   catch a pre-self-heal daemon.
@@ -75,10 +86,16 @@ fn should_defer_history_for_runtime_identity_with_allow(
     if allow_mismatch {
         return false;
     }
+    // A client-proven-older server always wins: never let an old daemon's
+    // (locally correct but globally wrong) "no update" self-report veto the
+    // client's own release-order comparison.
+    if client_detected_stale {
+        return true;
+    }
     match server_has_update {
         Some(true) => true,
         Some(false) => false,
-        None => client_detected_stale,
+        None => false,
     }
 }
 
@@ -147,19 +164,29 @@ mod runtime_identity_tests {
     }
 
     #[test]
-    fn client_detection_only_applies_when_server_cannot_self_report() {
+    fn client_detected_older_server_always_defers() {
         // Ancient server (server_has_update: None) that the client independently
         // measured as older -> defer. This is the issue #295 macOS case where a
         // pre-self-heal daemon can never set server_has_update itself.
         assert!(should_defer_history_for_runtime_identity_with_allow(
             None, true, false
         ));
-        // A server new enough to self-assess and report "no newer binary" is
-        // trusted, even if a naive version compare disagrees: forcing a reload
-        // would only loop against a server that has nothing newer to exec into.
-        assert!(!should_defer_history_for_runtime_identity_with_allow(
+        // A server that self-reports "no newer binary" (Some(false)) but that the
+        // client can PROVE is an older release -> still defer. The daemon's
+        // self-report is locally correct (its own shared-server channel points at
+        // its old build) but globally wrong; the newer client is authoritative.
+        // This is the "current client, stale server" report: trusting Some(false)
+        // here is exactly what left the server stuck on the old version forever.
+        assert!(should_defer_history_for_runtime_identity_with_allow(
             Some(false),
             true,
+            false
+        ));
+        // Same-release/newer server (client could not prove it is older) that
+        // self-reports "no newer binary" -> trust it, do not force a reload loop.
+        assert!(!should_defer_history_for_runtime_identity_with_allow(
+            Some(false),
+            false,
             false
         ));
     }
@@ -220,6 +247,8 @@ pub(in crate::tui::app) fn handle_server_event(
         &event,
         ServerEvent::TextDelta { .. }
             | ServerEvent::TextReplace { .. }
+            | ServerEvent::ReasoningDelta { .. }
+            | ServerEvent::ReasoningDone { .. }
             | ServerEvent::ToolStart { .. }
             | ServerEvent::ToolInput { .. }
             | ServerEvent::ToolExec { .. }
@@ -277,6 +306,31 @@ pub(in crate::tui::app) fn handle_server_event(
             app.resume_streaming_tps();
             true
         }
+        ServerEvent::ReasoningDelta { text } => {
+            // Reasoning streams live (dim+italic) before the answer. Flush any
+            // buffered normal text first so ordering is preserved, then render the
+            // in-progress reasoning line token-by-token.
+            if let Some(chunk) = app.stream_buffer.flush() {
+                app.append_streaming_text(&chunk);
+            }
+            if matches!(
+                app.status,
+                ProcessingStatus::Sending
+                    | ProcessingStatus::Connecting(_)
+                    | ProcessingStatus::Thinking(_)
+            ) || (app.is_processing && matches!(app.status, ProcessingStatus::Idle))
+            {
+                app.status = ProcessingStatus::Streaming;
+            }
+            app.resume_streaming_tps();
+            app.append_reasoning_text(&text);
+            app.last_stream_activity = Some(Instant::now());
+            eager_stream_redraw
+        }
+        ServerEvent::ReasoningDone { .. } => {
+            app.close_reasoning_region(None);
+            eager_stream_redraw
+        }
         ServerEvent::ToolStart { id, name } => {
             // Tool-call JSON is provider-generated output and is included in output-token
             // usage. Keep the TPS timer running until the server reports ToolExec; actual
@@ -294,6 +348,7 @@ pub(in crate::tui::app) fn handle_server_event(
                 name,
                 input: serde_json::Value::Null,
                 intent: None,
+                thought_signature: None,
             });
             eager_stream_redraw
         }
@@ -312,6 +367,7 @@ pub(in crate::tui::app) fn handle_server_event(
                 name: name.clone(),
                 input: parsed_input.clone(),
                 intent: ToolCall::intent_from_input(&parsed_input),
+                thought_signature: None,
             };
             if let Some(key) = App::experimental_feature_key_for_tool(&tool_call) {
                 app.note_experimental_feature_use(key);
@@ -373,6 +429,15 @@ pub(in crate::tui::app) fn handle_server_event(
             if app.record_completed_stream_cache_usage() {
                 app.total_input_tokens = app.total_input_tokens.saturating_add(input);
                 app.total_output_tokens = app.total_output_tokens.saturating_add(output);
+                // The server only reports tokens, never a dollar cost, so the
+                // remote client prices each completed call itself. This is the
+                // first usage snapshot for this call, so bill the full counts.
+                app.accrue_remote_call_cost(
+                    input,
+                    output,
+                    app.streaming_cache_read_tokens.unwrap_or(0),
+                    app.streaming_cache_creation_tokens.unwrap_or(0),
+                );
                 app.last_api_completed = Some(Instant::now());
                 app.last_api_completed_provider = Some(<App as TuiState>::provider_name(app));
                 app.last_api_completed_model = Some(<App as TuiState>::provider_model(app));
@@ -384,6 +449,19 @@ pub(in crate::tui::app) fn handle_server_event(
                 app.total_output_tokens = app
                     .total_output_tokens
                     .saturating_add(output.saturating_sub(previous_output));
+                // Bill only the new tokens since the previous snapshot for this
+                // same call, so a call that reports usage multiple times while
+                // streaming is billed exactly once overall.
+                app.accrue_remote_call_cost(
+                    input.saturating_sub(previous_input),
+                    output.saturating_sub(previous_output),
+                    app.streaming_cache_read_tokens
+                        .unwrap_or(0)
+                        .saturating_sub(previous_cache_read.unwrap_or(0)),
+                    app.streaming_cache_creation_tokens
+                        .unwrap_or(0)
+                        .saturating_sub(previous_cache_creation.unwrap_or(0)),
+                );
 
                 let had_cache_telemetry =
                     previous_cache_read.is_some() || previous_cache_creation.is_some();
@@ -411,13 +489,20 @@ pub(in crate::tui::app) fn handle_server_event(
                         );
                     app.last_cache_reported_input_tokens = Some(input);
                     app.last_cache_read_tokens = Some(app.streaming_cache_read_tokens.unwrap_or(0));
+                    app.last_cache_creation_tokens =
+                        Some(app.streaming_cache_creation_tokens.unwrap_or(0));
                 }
 
                 if let Some(baseline) = app.kv_cache_baseline.as_mut() {
                     baseline.input_tokens = input;
                     baseline.completed_at = Instant::now();
                 }
-                app.cache_next_optimal_input_tokens = Some(input);
+                app.cache_next_optimal_input_tokens =
+                    Some(crate::tui::info_widget::effective_prompt_tokens(
+                        input,
+                        app.streaming_cache_read_tokens.unwrap_or(0),
+                        app.streaming_cache_creation_tokens.unwrap_or(0),
+                    ));
                 app.last_api_completed = Some(Instant::now());
                 app.last_api_completed_provider = Some(<App as TuiState>::provider_name(app));
                 app.last_api_completed_model = Some(<App as TuiState>::provider_model(app));
@@ -527,14 +612,17 @@ pub(in crate::tui::app) fn handle_server_event(
             }
             if !app.streaming_text.is_empty() {
                 let content = app.take_streaming_text();
-                app.push_display_message(DisplayMessage {
-                    role: "assistant".to_string(),
-                    content,
-                    tool_calls: Vec::new(),
-                    duration_secs: app.display_turn_duration_secs(),
-                    title: None,
-                    tool_data: None,
-                });
+                let content = app.collapse_reasoning_for_commit(content);
+                if !content.trim().is_empty() {
+                    app.push_display_message(DisplayMessage {
+                        role: "assistant".to_string(),
+                        content,
+                        tool_calls: Vec::new(),
+                        duration_secs: app.display_turn_duration_secs(),
+                        title: None,
+                        tool_data: None,
+                    });
+                }
             }
             app.clear_streaming_render_state();
             app.stream_buffer.clear();
@@ -599,14 +687,17 @@ pub(in crate::tui::app) fn handle_server_event(
                 if !app.streaming_text.is_empty() {
                     let duration = app.display_turn_duration_secs();
                     let content = app.take_streaming_text();
-                    app.push_display_message(DisplayMessage {
-                        role: "assistant".to_string(),
-                        content,
-                        tool_calls: vec![],
-                        duration_secs: duration,
-                        title: None,
-                        tool_data: None,
-                    });
+                    let content = app.collapse_reasoning_for_commit(content);
+                    if !content.trim().is_empty() {
+                        app.push_display_message(DisplayMessage {
+                            role: "assistant".to_string(),
+                            content,
+                            tool_calls: vec![],
+                            duration_secs: duration,
+                            title: None,
+                            tool_data: None,
+                        });
+                    }
                     app.push_turn_footer(duration);
                 } else if app.has_streaming_footer_stats() {
                     let duration = app.display_turn_duration_secs();
@@ -868,6 +959,7 @@ pub(in crate::tui::app) fn handle_server_event(
             connection_type,
             status_detail,
             upstream_provider,
+            resolved_credential,
             reasoning_effort,
             service_tier,
             compaction_mode,
@@ -885,7 +977,10 @@ pub(in crate::tui::app) fn handle_server_event(
                 server_has_update,
                 server_version.as_deref(),
             ) {
-                let client_detected_stale = server_has_update.is_none();
+                let client_detected_stale = server_release_is_older_than_client(
+                    server_version.as_deref(),
+                    &client_release_version(),
+                );
                 app.remote_server_version = server_version;
                 app.remote_server_short_name = server_name.clone();
                 app.remote_server_icon = server_icon.clone();
@@ -893,11 +988,29 @@ pub(in crate::tui::app) fn handle_server_event(
                 app.pending_server_reload = true;
                 app.clear_remote_startup_phase();
                 if client_detected_stale {
-                    // The server was too old to self-report an update
-                    // (server_has_update: None), but we independently measured
-                    // its release version as older than ours. This is the
-                    // issue #295 case: a pre-self-heal daemon that would
-                    // otherwise reject newer protocol requests (e.g. set_route).
+                    // The client independently measured the server's release as
+                    // older than its own. This covers both a pre-self-heal daemon
+                    // (server_has_update: None) AND a daemon that self-reports
+                    // "no update" because its own shared-server channel still
+                    // points at its old binary (the "current client, stale
+                    // server" report). Repair the channel client-side so the
+                    // forced reload below has a strictly-newer binary to exec
+                    // into instead of re-execing the same old build.
+                    match crate::build::repair_stale_shared_server_channel() {
+                        Ok(crate::build::SharedServerRepair::Repaired { repaired_to, .. }) => {
+                            crate::logging::info(&format!(
+                                "stale-server repair: repointed shared-server channel to {} before reloading older server",
+                                repaired_to
+                            ));
+                        }
+                        Ok(crate::build::SharedServerRepair::AlreadyCurrent) => {}
+                        Err(err) => {
+                            crate::logging::warn(&format!(
+                                "stale-server repair: failed to repoint shared-server channel: {}",
+                                err
+                            ));
+                        }
+                    }
                     app.set_status_notice(
                         "Connected server is an older release; reloading it before attach",
                     );
@@ -947,6 +1060,7 @@ pub(in crate::tui::app) fn handle_server_event(
                 app.total_cache_optimal_input_tokens = 0;
                 app.last_cache_reported_input_tokens = None;
                 app.last_cache_read_tokens = None;
+                app.last_cache_creation_tokens = None;
                 app.last_cache_optimal_input_tokens = None;
                 app.cache_next_optimal_input_tokens = None;
                 app.kv_cache_baseline = None;
@@ -996,6 +1110,9 @@ pub(in crate::tui::app) fn handle_server_event(
                 autojudge_enabled.unwrap_or(crate::config::config().autojudge.enabled);
             if upstream_provider.is_some() {
                 app.upstream_provider = upstream_provider;
+            }
+            if session_changed || resolved_credential.is_some() {
+                app.remote_resolved_credential = resolved_credential;
             }
             if session_changed || connection_type.is_some() {
                 app.connection_type = connection_type;
@@ -1106,6 +1223,9 @@ pub(in crate::tui::app) fn handle_server_event(
                     history_model.as_deref().unwrap_or("<none>")
                 ));
                 remote.mark_history_loaded();
+                // History arrived: cancel the "stuck on loading session…"
+                // recovery watchdog so it doesn't re-request on a later tick.
+                app.clear_remote_history_wait();
                 if messages.is_empty() && !session_changed && !app.display_messages().is_empty() {
                     crate::logging::info(
                         "Preserving locally restored display history for metadata-only History bootstrap",
@@ -1557,14 +1677,17 @@ pub(in crate::tui::app) fn handle_server_event(
             if !app.streaming_text.is_empty() {
                 let duration = app.display_turn_duration_secs();
                 let flushed = app.take_streaming_text();
-                app.push_display_message(DisplayMessage {
-                    role: "assistant".to_string(),
-                    content: flushed,
-                    tool_calls: vec![],
-                    duration_secs: duration,
-                    title: None,
-                    tool_data: None,
-                });
+                let flushed = app.collapse_reasoning_for_commit(flushed);
+                if !flushed.trim().is_empty() {
+                    app.push_display_message(DisplayMessage {
+                        role: "assistant".to_string(),
+                        content: flushed,
+                        tool_calls: vec![],
+                        duration_secs: duration,
+                        title: None,
+                        tool_data: None,
+                    });
+                }
                 app.push_turn_footer(duration);
             }
             app.mark_soft_interrupt_injected(&content);

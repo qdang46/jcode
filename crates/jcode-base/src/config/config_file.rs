@@ -10,6 +10,10 @@ impl Config {
 
     /// Load config from file, with environment variable overrides
     pub fn load() -> Self {
+        // Trigger DisableRegistry initialization early so env vars are read
+        // before any config-dependent code runs.
+        let _ = crate::disable::DisableRegistry::global();
+
         let mut config = Self::load_from_file().unwrap_or_default();
         config.apply_env_overrides();
         config
@@ -20,6 +24,9 @@ impl Config {
     /// Unlike [`Self::load`], this returns TOML/read errors to callers that need
     /// to distinguish a malformed config from an absent config.
     pub fn load_strict() -> anyhow::Result<Self> {
+        // Trigger DisableRegistry initialization early.
+        let _ = crate::disable::DisableRegistry::global();
+
         let mut config = Self::load_from_file_strict()?.unwrap_or_default();
         config.apply_env_overrides();
         Ok(config)
@@ -51,6 +58,16 @@ impl Config {
             anyhow::anyhow!("Failed to parse config file {}: {}", path.display(), e)
         })?;
         config.display.apply_legacy_compat();
+        // Migrate legacy [features] toggles into [experiments] for users who
+        // haven't yet updated their config. Non-default values are propagated
+        // so behavior is preserved across the FeatureConfig -> ExperimentConfig
+        // transition.
+        jcode_experiment_flags::migrate_feature_legacy_into(
+            &mut config.experiments.entries,
+            Some(config.features.dcp_enabled),
+            Some(config.features.swarm),
+            Some(config.features.persist_memory_injections),
+        );
         Ok(Some(config))
     }
 
@@ -156,6 +173,18 @@ impl Config {
         cfg.display.centered = centered;
         cfg.save()?;
         crate::logging::info(&format!("Saved display.centered to config: {}", centered));
+        Ok(())
+    }
+
+    /// Update the persisted reasoning display mode preference.
+    pub fn set_reasoning_display(mode: ReasoningDisplayMode) -> anyhow::Result<()> {
+        let mut cfg = Self::load();
+        cfg.display.set_reasoning_display(mode);
+        cfg.save()?;
+        crate::logging::info(&format!(
+            "Saved display.reasoning_display to config: {}",
+            mode.label()
+        ));
         Ok(())
     }
 

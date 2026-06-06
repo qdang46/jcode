@@ -141,7 +141,7 @@ fn clone_split_session_uses_persisted_session_state() {
 #[tokio::test]
 async fn enabling_swarm_does_not_auto_elect_coordinator() {
     let provider: Arc<dyn Provider> = Arc::new(MockProvider);
-    let registry = Registry::new(provider.clone()).await;
+    let registry = Registry::new(provider.clone(), None).await;
     let agent = Arc::new(Mutex::new(Agent::new(provider, registry)));
     let (member_event_tx, _member_event_rx) = mpsc::unbounded_channel();
     let now = Instant::now();
@@ -242,7 +242,7 @@ async fn rename_session_event_uses_agent_session_id_even_when_client_id_is_stale
     crate::env::set_var("JCODE_HOME", temp.path());
 
     let provider: Arc<dyn Provider> = Arc::new(MockProvider);
-    let registry = Registry::new(provider.clone()).await;
+    let registry = Registry::new(provider.clone(), None).await;
     let agent = Arc::new(Mutex::new(Agent::new(provider, registry)));
     let agent_session_id = agent.lock().await.session_id().to_string();
     let stale_client_session_id = "session_stale_client_id";
@@ -321,7 +321,7 @@ async fn notify_session_runs_scheduled_task_immediately_for_idle_live_session() 
         StreamEvent::MessageEnd { stop_reason: None },
     ]);
     let provider_dyn: Arc<dyn Provider> = provider.clone();
-    let registry = Registry::new(provider_dyn.clone()).await;
+    let registry = Registry::new(provider_dyn.clone(), None).await;
     let agent = Arc::new(Mutex::new(Agent::new(provider_dyn, registry)));
     let session_id = agent.lock().await.session_id().to_string();
     let sessions = Arc::new(RwLock::new(HashMap::<String, Arc<Mutex<Agent>>>::from([(
@@ -422,7 +422,7 @@ async fn notify_session_runs_scheduled_task_immediately_for_idle_live_session() 
 #[tokio::test]
 async fn notify_session_queues_soft_interrupt_when_live_session_is_busy() {
     let provider: Arc<dyn Provider> = Arc::new(MockProvider);
-    let registry = Registry::new(provider.clone()).await;
+    let registry = Registry::new(provider.clone(), None).await;
     let agent = Arc::new(Mutex::new(Agent::new(provider, registry)));
     let session_id = agent.lock().await.session_id().to_string();
     let queue = agent.lock().await.soft_interrupt_queue();

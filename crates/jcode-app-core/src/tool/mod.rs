@@ -30,6 +30,8 @@ mod session_search;
 mod side_panel;
 mod skill;
 mod task;
+pub mod task_management;
+mod team;
 mod todo;
 mod webfetch;
 mod websearch;
@@ -45,8 +47,9 @@ use anyhow::Result;
 use jcode_message_types::ToolDefinition;
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
-use std::sync::Arc;
-use std::sync::{LazyLock, RwLock as StdRwLock};
+#[cfg(feature = "dcp")]
+use std::sync::Mutex;
+use std::sync::{Arc, LazyLock, RwLock as StdRwLock};
 use tokio::sync::RwLock;
 
 pub(crate) use jcode_tool_core::intent_schema_property;
@@ -93,6 +96,23 @@ fn session_tool_policy(session_id: &str) -> Option<SessionToolPolicy> {
         .unwrap_or_else(|poisoned| poisoned.into_inner())
         .get(session_id)
         .cloned()
+}
+
+static SHARED_AGENT_REGISTRY: LazyLock<Option<Arc<jcode_agent_runtime::AgentRegistry>>> =
+    LazyLock::new(|| {
+        let home = dirs::home_dir();
+        let cwd = std::env::current_dir().ok();
+        let mut registry = jcode_agent_runtime::AgentRegistry::new();
+        registry.discover_standard_paths(home.as_deref(), cwd.as_deref());
+        if registry.is_empty() {
+            None
+        } else {
+            Some(Arc::new(registry))
+        }
+    });
+
+pub fn shared_agent_registry() -> Option<Arc<jcode_agent_runtime::AgentRegistry>> {
+    SHARED_AGENT_REGISTRY.clone()
 }
 
 /// Registry of available tools (Arc-wrapped for sharing)
@@ -274,7 +294,10 @@ impl Registry {
         tools
     }
 
-    pub async fn new(provider: Arc<dyn Provider>) -> Self {
+    pub async fn new(
+        provider: Arc<dyn Provider>,
+        agent_registry: Option<Arc<jcode_agent_runtime::AgentRegistry>>,
+    ) -> Self {
         let start = std::time::Instant::now();
         let skills_start = std::time::Instant::now();
         let skills = Self::shared_skills_registry();
@@ -323,7 +346,7 @@ impl Registry {
             Self::insert_tool(
                 &mut tools_map,
                 "subagent",
-                task::SubagentTool::new(provider, registry.clone()),
+                task::SubagentTool::new(provider, registry.clone(), agent_registry),
             );
             Self::insert_tool(
                 &mut tools_map,
@@ -345,6 +368,37 @@ impl Registry {
             Self::insert_tool(&mut tools_map, "dcp_compress", DcpCompressTool::new());
             Self::insert_tool(&mut tools_map, "dcp_decompress", DcpDecompressTool::new());
             Self::insert_tool(&mut tools_map, "dcp_recompress", DcpRecompressTool::new());
+        }
+
+        // Register experimental team/task tools when opted in via env var.
+        // Canary sessions register these explicitly via register_experimental_tools().
+        let experimental_tools_enabled = matches!(
+            std::env::var("JCODE_EXPERIMENTAL_TOOLS")
+                .ok()
+                .as_deref()
+                .map(str::trim)
+                .map(str::to_ascii_lowercase)
+                .as_deref(),
+            Some("1") | Some("true") | Some("yes") | Some("on")
+        );
+        if experimental_tools_enabled && !no_builtin {
+            Self::insert_tool(&mut tools_map, "team_create", team::TeamCreateTool::new());
+            Self::insert_tool(&mut tools_map, "team_delete", team::TeamDeleteTool::new());
+            Self::insert_tool(
+                &mut tools_map,
+                "task_create",
+                task_management::TaskCreateTool::new(),
+            );
+            Self::insert_tool(
+                &mut tools_map,
+                "task_update",
+                task_management::TaskUpdateTool::new(),
+            );
+            Self::insert_tool(
+                &mut tools_map,
+                "task_list",
+                task_management::TaskListTool::new(),
+            );
         }
 
         let write_start = std::time::Instant::now();
@@ -1010,6 +1064,39 @@ impl Registry {
         self.register(
             "debug_socket".to_string(),
             Arc::new(debug_socket_tool) as Arc<dyn Tool>,
+        )
+        .await;
+    }
+
+    /// Register experimental team/task tools.
+    ///
+    /// Gated behind `JCODE_EXPERIMENTAL_TOOLS=1` or canary sessions.
+    /// These tools expose team and task management primitives that are
+    /// still under active development and not yet ready for general use.
+    pub async fn register_experimental_tools(&self) {
+        self.register(
+            "team_create".to_string(),
+            Arc::new(team::TeamCreateTool::new()) as Arc<dyn Tool>,
+        )
+        .await;
+        self.register(
+            "team_delete".to_string(),
+            Arc::new(team::TeamDeleteTool::new()) as Arc<dyn Tool>,
+        )
+        .await;
+        self.register(
+            "task_create".to_string(),
+            Arc::new(task_management::TaskCreateTool::new()) as Arc<dyn Tool>,
+        )
+        .await;
+        self.register(
+            "task_update".to_string(),
+            Arc::new(task_management::TaskUpdateTool::new()) as Arc<dyn Tool>,
+        )
+        .await;
+        self.register(
+            "task_list".to_string(),
+            Arc::new(task_management::TaskListTool::new()) as Arc<dyn Tool>,
         )
         .await;
     }

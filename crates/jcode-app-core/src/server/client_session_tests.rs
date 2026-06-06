@@ -90,7 +90,7 @@ fn test_agent(messages: Vec<crate::session::StoredMessage>) -> Agent {
     let provider: Arc<dyn Provider> = Arc::new(MockProvider);
     let rt = tokio::runtime::Runtime::new().expect("runtime");
     let _guard = rt.enter();
-    let registry = rt.block_on(Registry::new(provider.clone()));
+    let registry = rt.block_on(Registry::new(provider.clone(), None));
     build_test_agent(provider, registry, messages)
 }
 

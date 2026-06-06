@@ -2,6 +2,48 @@ use super::*;
 use jcode_plugin_core::PluginEvent;
 use jcode_plugin_core::events::{EventInput, HandlerAction};
 
+/// Largest byte index `<= index` that is a UTF-8 char boundary in `text`.
+/// Equivalent to the unstable `str::floor_char_boundary`, reimplemented so the
+/// incremental marker scan can clamp its scan-window start onto a valid
+/// boundary without re-scanning the whole accumulated response.
+fn floor_char_boundary(text: &str, index: usize) -> usize {
+    if index >= text.len() {
+        return text.len();
+    }
+    let mut boundary = index;
+    while boundary > 0 && !text.is_char_boundary(boundary) {
+        boundary -= 1;
+    }
+    boundary
+}
+
+/// The wrapped-tool-call markers emitted by some models inside plain text.
+const WRAP_TOOL_MARKERS: [&str; 2] = ["to=functions.", "+#+#"];
+
+/// Find the first wrapped-tool-call marker in `accumulated`, scanning only the
+/// newly appended `delta` plus a short overlap from the previous tail (so a
+/// marker straddling the append boundary is still found).
+///
+/// This avoids re-scanning the entire accumulated response on every streamed
+/// delta, which was O(response) per token and O(response^2) over a full answer.
+fn find_wrap_marker_incremental(accumulated: &str, appended_len: usize) -> Option<usize> {
+    let max_marker_len = WRAP_TOOL_MARKERS
+        .iter()
+        .map(|marker| marker.len())
+        .max()
+        .unwrap_or(0);
+    let scan_start = accumulated
+        .len()
+        .saturating_sub(appended_len + max_marker_len.saturating_sub(1));
+    let scan_start = floor_char_boundary(accumulated, scan_start);
+    let window = &accumulated[scan_start..];
+    WRAP_TOOL_MARKERS
+        .iter()
+        .filter_map(|marker| window.find(marker))
+        .min()
+        .map(|rel_idx| scan_start + rel_idx)
+}
+
 fn reload_interrupted_tool_result(tc: &ToolCall, elapsed_secs: f64) -> (String, bool) {
     if tc.name == "selfdev" {
         return ("Reload initiated. Process restarting...".to_string(), false);
@@ -259,7 +301,11 @@ impl Agent {
                 crate::provider::stores_reasoning_content_for_context(&provider_name);
             let mut reasoning_content = String::new();
             let mut reasoning_signature = String::new();
-            let mut reasoning_fmt = crate::agent::reasoning_format::ReasoningStreamFormatter::new();
+            // Whether a live reasoning region is currently streaming to the client.
+            // Raw reasoning deltas are sent as `ReasoningDelta`; the client owns the
+            // dim/italic styling and live partial-line rendering. We close the region
+            // (via `ReasoningDone`) before real output or a tool call begins.
+            let mut reasoning_open = false;
             let mut openai_reasoning_items: Vec<ContentBlock> = Vec::new();
             let mut openai_native_compaction: Option<(String, usize)> = None;
             let mut tool_id_to_name: std::collections::HashMap<String, String> =
@@ -391,39 +437,42 @@ impl Agent {
                     }
                     StreamEvent::ThinkingDelta(thinking_text) => {
                         // Only send thinking content if enabled in config
-                        if crate::config::config().display.show_thinking {
-                            let formatted = reasoning_fmt.push_delta(&thinking_text);
-                            if !formatted.is_empty() {
-                                let _ = event_tx.send(ServerEvent::TextDelta { text: formatted });
-                            }
+                        if crate::config::config().display.show_thinking
+                            && !thinking_text.is_empty()
+                        {
+                            reasoning_open = true;
+                            let _ = event_tx.send(ServerEvent::ReasoningDelta {
+                                text: thinking_text.clone(),
+                            });
                         }
-                        if store_reasoning_content {
-                            reasoning_content.push_str(&thinking_text);
-                        }
+                        // Always capture reasoning text so it can be persisted as a
+                        // history-only trace, regardless of provider replay support.
+                        reasoning_content.push_str(&thinking_text);
                     }
                     StreamEvent::ThinkingDone { duration_secs } => {
-                        if reasoning_fmt.is_open() {
-                            let closing = reasoning_fmt
-                                .finish(Some(&format!("*Thought for {:.1}s*", duration_secs)));
-                            if !closing.is_empty() {
-                                let _ = event_tx.send(ServerEvent::TextDelta { text: closing });
-                            }
+                        if reasoning_open {
+                            reasoning_open = false;
+                            let _ = event_tx.send(ServerEvent::ReasoningDone {
+                                duration_secs: Some(duration_secs),
+                            });
                         }
                     }
                     StreamEvent::TextDelta(text) => {
-                        // Close any open reasoning blockquote before real output so the
-                        // answer renders as a normal paragraph rather than inside the quote.
-                        if reasoning_fmt.is_open() && !text.trim().is_empty() {
-                            let closing = reasoning_fmt.finish(None);
-                            if !closing.is_empty() {
-                                let _ = event_tx.send(ServerEvent::TextDelta { text: closing });
-                            }
+                        // Close any open reasoning region before real output so the
+                        // answer renders as a normal paragraph rather than as reasoning.
+                        if reasoning_open && !text.trim().is_empty() {
+                            reasoning_open = false;
+                            let _ = event_tx.send(ServerEvent::ReasoningDone {
+                                duration_secs: None,
+                            });
                         }
                         text_content.push_str(&text);
                         if !text_wrapped_detected {
-                            if let Some(marker_idx) = text_content
-                                .find("to=functions.")
-                                .or_else(|| text_content.find("+#+#"))
+                            // Scan only the new delta (plus a short overlap for
+                            // markers straddling the boundary) instead of the
+                            // whole accumulated response on every token.
+                            if let Some(marker_idx) =
+                                find_wrap_marker_incremental(&text_content, text.len())
                             {
                                 text_wrapped_detected = true;
                                 let clean_prefix =
@@ -448,11 +497,11 @@ impl Agent {
                         }
                     }
                     StreamEvent::ToolUseStart { id, name } => {
-                        if reasoning_fmt.is_open() {
-                            let closing = reasoning_fmt.finish(None);
-                            if !closing.is_empty() {
-                                let _ = event_tx.send(ServerEvent::TextDelta { text: closing });
-                            }
+                        if reasoning_open {
+                            reasoning_open = false;
+                            let _ = event_tx.send(ServerEvent::ReasoningDone {
+                                duration_secs: None,
+                            });
                         }
                         let _ = event_tx.send(ServerEvent::ToolStart {
                             id: id.clone(),
@@ -464,6 +513,7 @@ impl Agent {
                             name,
                             input: serde_json::Value::Null,
                             intent: None,
+                            thought_signature: None,
                         });
                         current_tool_input.clear();
                     }
@@ -494,6 +544,15 @@ impl Agent {
                                 ));
                             }
                             current_tool_input.clear();
+                        }
+                    }
+                    StreamEvent::ToolUseSignature(signature) => {
+                        // Attach Gemini 3 thought signature to the most recent
+                        // tool call so it can be persisted and replayed.
+                        if let Some(tool) = tool_calls.last_mut()
+                            && !signature.is_empty()
+                        {
+                            tool.thought_signature = Some(signature);
                         }
                     }
                     StreamEvent::ToolResult {
@@ -602,6 +661,14 @@ impl Agent {
                         stop_reason: reason,
                     } => {
                         saw_message_end = true;
+                        // Close any still-open reasoning region (e.g. a reasoning-only
+                        // step) so the client flushes its live partial line.
+                        if reasoning_open {
+                            reasoning_open = false;
+                            let _ = event_tx.send(ServerEvent::ReasoningDone {
+                                duration_secs: None,
+                            });
+                        }
                         if reason.is_some() {
                             stop_reason = reason;
                         }
@@ -782,6 +849,14 @@ impl Agent {
                     usage_cache_read,
                     usage_cache_creation,
                 );
+
+                let input = usage_input.unwrap_or(0);
+                let output = usage_output.unwrap_or(0);
+                let total = input
+                    .saturating_add(output)
+                    .saturating_add(usage_cache_read.unwrap_or(0))
+                    .saturating_add(usage_cache_creation.unwrap_or(0));
+                crate::session_metrics::record_token_usage(&self.session.id, total, output);
             }
 
             if usage_input.is_some()
@@ -838,13 +913,14 @@ impl Agent {
                     cache_control: None,
                 });
             }
+            crate::message::push_reasoning_blocks(
+                &mut content_blocks,
+                &provider_name,
+                &reasoning_content,
+                Some(&reasoning_signature),
+                store_reasoning_content,
+            );
             if store_reasoning_content {
-                crate::message::push_reasoning_content_block(
-                    &mut content_blocks,
-                    &provider_name,
-                    &reasoning_content,
-                    Some(&reasoning_signature),
-                );
                 content_blocks.extend(openai_reasoning_items.iter().cloned());
             }
             for tc in &tool_calls {
@@ -852,6 +928,7 @@ impl Agent {
                     id: tc.id.clone(),
                     name: tc.name.clone(),
                     input: tc.input.clone(),
+                    thought_signature: None,
                 });
             }
 
@@ -1413,6 +1490,7 @@ mod tests {
             name: name.to_string(),
             input,
             intent: None,
+            thought_signature: None,
         }
     }
 
@@ -1438,5 +1516,78 @@ mod tests {
 
         assert!(is_error);
         assert!(message.contains("interrupted by server reload"));
+    }
+
+    /// Reference O(n) full scan, preserving the original precedence: the
+    /// `to=functions.` marker is checked before `+#+#`.
+    fn find_wrap_marker_full(text: &str) -> Option<usize> {
+        text.find("to=functions.").or_else(|| text.find("+#+#"))
+    }
+
+    /// Simulate streaming `full` in arbitrary deltas and assert the incremental
+    /// scan finds the first marker position, matching a full rescan each step.
+    fn assert_incremental_matches(full: &str, chunk: usize) {
+        let mut acc = String::new();
+        let mut incremental_hit: Option<usize> = None;
+        let bytes = full.as_bytes();
+        let mut i = 0;
+        while i < bytes.len() {
+            let mut end = (i + chunk).min(bytes.len());
+            while end < bytes.len() && !full.is_char_boundary(end) {
+                end += 1;
+            }
+            let delta = &full[i..end];
+            acc.push_str(delta);
+            if incremental_hit.is_none() {
+                incremental_hit = find_wrap_marker_incremental(&acc, delta.len());
+            }
+            i = end;
+        }
+        // The earliest of either marker in the full text.
+        let fn_pos = full.find("to=functions.");
+        let plus_pos = full.find("+#+#");
+        let expected = match (fn_pos, plus_pos) {
+            (Some(a), Some(b)) => Some(a.min(b)),
+            (a, b) => a.or(b),
+        };
+        assert_eq!(
+            incremental_hit, expected,
+            "incremental scan mismatch for {full:?} chunk={chunk}"
+        );
+    }
+
+    #[test]
+    fn wrap_marker_incremental_detects_markers_across_chunk_sizes() {
+        let cases = [
+            "plain answer with no marker at all",
+            "answer then to=functions.foo({})",
+            "answer then +#+# wrapped",
+            "prefix +#+# and later to=functions.bar",
+            "unicode 🔄 résumé then to=functions.baz",
+            "",
+            "to=functions.first",
+            "+#+#",
+        ];
+        for case in cases {
+            for chunk in [1usize, 2, 3, 5, 7, 100] {
+                assert_incremental_matches(case, chunk);
+            }
+        }
+    }
+
+    #[test]
+    fn wrap_marker_incremental_finds_marker_straddling_delta_boundary() {
+        // Feed "to=functions." split right in the middle so the marker only
+        // exists once both halves are appended; the overlap window must catch it.
+        let mut acc = String::new();
+        acc.push_str("answer to=fun");
+        assert_eq!(
+            find_wrap_marker_incremental(&acc, "answer to=fun".len()),
+            None
+        );
+        acc.push_str("ctions.tool");
+        let hit = find_wrap_marker_incremental(&acc, "ctions.tool".len());
+        assert_eq!(hit, find_wrap_marker_full(&acc));
+        assert_eq!(hit, Some("answer ".len()));
     }
 }

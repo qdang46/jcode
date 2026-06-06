@@ -241,6 +241,7 @@ impl Session {
             is_debug: self.is_debug,
             saved: false,
             save_label: None,
+            children: Vec::new(),
             ..Self::create(Some(self.id.clone()), None)
         }
     }

@@ -109,6 +109,7 @@ fn test_render_tool_message_batch_flat_subcall_params_include_read_details() {
                 ]
             }),
             intent: None,
+            thought_signature: None,
         }),
     };
 
@@ -153,8 +154,7 @@ fn test_render_tool_message_batch_subcalls_show_individual_token_badges() {
                         {"tool": "grep", "pattern": "TODO", "path": "src"}
                     ]
                 }),
-                intent: None,
-            }),
+                intent: None, thought_signature: None, }),
         };
 
     let lines = render_tool_message(&msg, 120, crate::config::DiffDisplayMode::Off);
@@ -193,8 +193,7 @@ fn test_render_tool_message_batch_first_subcall_token_badge_with_timing_prefix()
                     {"tool": "bash", "command": "echo second"}
                 ]
             }),
-            intent: None,
-        }),
+            intent: None, thought_signature: None, }),
     };
 
     let lines = render_tool_message(&msg, 120, crate::config::DiffDisplayMode::Off);
@@ -229,6 +228,7 @@ fn test_render_tool_message_batch_last_subcall_keeps_token_badge_without_trailin
                 ]
             }),
             intent: None,
+            thought_signature: None,
         }),
     };
 
@@ -275,6 +275,7 @@ Completed: 2 succeeded, 1 failed"
                 ]
             }),
             intent: Some("Inspect schemas".to_string()),
+            thought_signature: None,
         }),
     };
 
@@ -324,8 +325,7 @@ fn test_render_tool_message_batch_all_failed_marks_all_children_failed() {
                     {"tool": "agentgrep"}
                 ]
             }),
-            intent: None,
-        }),
+            intent: None, thought_signature: None, }),
     };
 
     let lines = render_tool_message(&msg, 120, crate::config::DiffDisplayMode::Off);
@@ -359,6 +359,7 @@ fn test_tool_summary_read_supports_start_line_end_line() {
             "end_line": 20
         }),
         intent: None,
+        thought_signature: None,
     };
 
     let summary = tools_ui::get_tool_summary_with_budget(&tool, 50, Some(40));
@@ -382,6 +383,7 @@ fn test_render_tool_message_batch_includes_start_end_read_details() {
                 ]
             }),
             intent: None,
+            thought_signature: None,
         }),
     };
 
@@ -412,6 +414,7 @@ fn test_tool_summary_path_truncation_keeps_filename_tail() {
             "limit": 40
         }),
         intent: None,
+        thought_signature: None,
     };
 
     let summary = tools_ui::get_tool_summary_with_budget(&tool, 50, Some(28));
@@ -432,6 +435,7 @@ fn test_tool_summary_grep_truncation_prefers_middle() {
             "path": "src/some/really/long/module"
         }),
         intent: None,
+        thought_signature: None,
     };
 
     let summary = tools_ui::get_tool_summary_with_budget(&tool, 50, Some(34));
@@ -457,6 +461,7 @@ fn test_tool_summary_bash_truncation_keeps_start_and_end() {
             "command": "cargo test --package jcode --lib tui::ui::tests::render_tool_message_batch_flat_subcall_params_include_read_details -- --nocapture"
         }),
         intent: None,
+        thought_signature: None,
     };
 
     let summary = tools_ui::get_tool_summary_with_budget(&tool, 32, Some(34));
@@ -479,6 +484,7 @@ fn test_tool_summary_bash_keeps_full_command_when_width_fits() {
             "command": "cargo test --package jcode --lib tui::ui::tests::render_tool_message_batch_rows_do_not_soft_wrap_on_narrow_width -- --nocapture"
         }),
         intent: None,
+        thought_signature: None,
     };
 
     let summary = tools_ui::get_tool_summary_with_budget(&tool, 32, Some(160));
@@ -499,6 +505,7 @@ fn test_render_batch_subcall_line_keeps_full_bash_summary_when_row_fits() {
             "command": "cargo test --package jcode --lib tui::ui::tests::render_tool_message_batch_rows_do_not_soft_wrap_on_narrow_width -- --nocapture"
         }),
         intent: None,
+        thought_signature: None,
     };
 
     let line =
@@ -523,6 +530,7 @@ fn test_agentgrep_summary_uses_default_grep_mode_query() {
             "path": "src/tui"
         }),
         intent: None,
+        thought_signature: None,
     };
 
     let summary = tools_ui::get_tool_summary_with_budget(&tool, 50, Some(120));
@@ -540,6 +548,7 @@ fn test_render_batch_subcall_line_shows_first_subcall_token_badge() {
             "path": "src/tui"
         }),
         intent: None,
+        thought_signature: None,
     };
 
     let line = tools_ui::render_batch_subcall_line(
@@ -572,6 +581,7 @@ fn test_common_tool_summaries_keep_full_text_when_row_budget_fits() {
                     "limit": 40
                 }),
                 intent: None,
+                thought_signature: None,
             },
             "src/tui/ui_messages.rs:120-160",
         ),
@@ -584,6 +594,7 @@ fn test_common_tool_summaries_keep_full_text_when_row_budget_fits() {
                     "path": "src/tui"
                 }),
                 intent: None,
+                thought_signature: None,
             },
             "'render_batch_subcall_line' in src/tui",
         ),
@@ -595,6 +606,7 @@ fn test_common_tool_summaries_keep_full_text_when_row_budget_fits() {
                     "pattern": "src/tui/**/*.rs"
                 }),
                 intent: None,
+                thought_signature: None,
             },
             "'src/tui/**/*.rs'",
         ),
@@ -606,6 +618,7 @@ fn test_common_tool_summaries_keep_full_text_when_row_budget_fits() {
                     "url": "https://example.com/docs/api/reference"
                 }),
                 intent: None,
+                thought_signature: None,
             },
             "https://example.com/docs/api/reference",
         ),
@@ -618,6 +631,7 @@ fn test_common_tool_summaries_keep_full_text_when_row_budget_fits() {
                     "target": "src/tui/ui.rs"
                 }),
                 intent: None,
+                thought_signature: None,
             },
             "open src/tui/ui.rs",
         ),
@@ -630,6 +644,7 @@ fn test_common_tool_summaries_keep_full_text_when_row_budget_fits() {
                     "query": "tool summary truncation"
                 }),
                 intent: None,
+                thought_signature: None,
             },
             "recall 'tool summary truncation'",
         ),
@@ -641,6 +656,7 @@ fn test_common_tool_summaries_keep_full_text_when_row_budget_fits() {
                     "query": "rust unicode width truncation examples"
                 }),
                 intent: None,
+                thought_signature: None,
             },
             "'rust unicode width truncation examples'",
         ),
@@ -652,6 +668,7 @@ fn test_common_tool_summaries_keep_full_text_when_row_budget_fits() {
                     "command": "tester:list"
                 }),
                 intent: None,
+                thought_signature: None,
             },
             "tester:list",
         ),
@@ -671,6 +688,7 @@ fn test_debug_socket_summary_hides_transient_missing_input() {
         name: "debug_socket".to_string(),
         input: serde_json::Value::Null,
         intent: None,
+        thought_signature: None,
     };
 
     let summary = tools_ui::get_tool_summary_with_budget(&tool, 50, Some(200));
@@ -687,6 +705,7 @@ fn test_tool_summary_browser_open_shows_url() {
             "url": "https://example.com/docs/reference/browser-tool"
         }),
         intent: None,
+        thought_signature: None,
     };
 
     let summary = tools_ui::get_tool_summary_with_budget(&tool, 50, Some(200));
@@ -707,6 +726,7 @@ fn test_tool_summary_browser_type_hides_typed_text() {
             "text": "super-secret-value"
         }),
         intent: None,
+        thought_signature: None,
     };
 
     let summary = tools_ui::get_tool_summary_with_budget(&tool, 50, Some(200));
@@ -727,6 +747,7 @@ fn test_tool_summary_browser_type_without_selector_still_hides_text() {
             "text": "secret-token-123"
         }),
         intent: None,
+        thought_signature: None,
     };
 
     let summary = tools_ui::get_tool_summary_with_budget(&tool, 50, Some(200));
@@ -744,6 +765,7 @@ fn test_tool_summary_browser_eval_truncates_script() {
             "script": "return window.__APP_STATE__?.reallyLongNestedValue?.items?.map(item => item.name).join(', ')"
         }),
         intent: None,
+        thought_signature: None,
     };
 
     let summary = tools_ui::get_tool_summary_with_budget(&tool, 50, Some(34));
@@ -762,6 +784,7 @@ fn test_tool_summary_agentgrep_smart_uses_terms_subject_relation() {
             "terms": ["subject:agentgrep", "relation:build_args", "path:src/tool"]
         }),
         intent: None,
+        thought_signature: None,
     };
 
     let summary = tools_ui::get_tool_summary_with_budget(&tool, 50, Some(200));
@@ -778,6 +801,7 @@ fn test_tool_summary_agentgrep_smart_uses_query_subject_relation() {
             "query": "subject:agentgrep relation:build_args path:src/tool"
         }),
         intent: None,
+        thought_signature: None,
     };
 
     let summary = tools_ui::get_tool_summary_with_budget(&tool, 50, Some(200));
@@ -794,6 +818,7 @@ fn test_tool_summary_bg_infers_wait_from_intent_when_action_missing() {
             "latest": true
         }),
         intent: Some("Wait for library tests".to_string()),
+        thought_signature: None,
     };
 
     let summary = tools_ui::get_tool_summary_with_budget(&tool, 50, Some(200));
@@ -822,6 +847,7 @@ fn test_render_tool_message_batch_rows_do_not_soft_wrap_on_narrow_width() {
                 ]
             }),
             intent: None,
+            thought_signature: None,
         }),
     };
 
@@ -855,6 +881,7 @@ fn test_render_tool_message_keeps_token_badge_when_intent_is_truncated() {
                 "Inspect and validate the extremely long wrapping behavior for tool rows"
                     .to_string(),
             ),
+            thought_signature: None,
         }),
     };
 
@@ -882,6 +909,7 @@ fn test_render_tool_message_keeps_bash_command_visible_when_row_is_narrow() {
                 "command": "grep -rn \"unwrap()\" src/ --include=\"*.rs\" | wc -l"
             }),
             intent: None,
+            thought_signature: None,
         }),
     };
 
@@ -922,6 +950,7 @@ fn test_action_tools_hide_missing_placeholder_for_streaming_input() {
                 name: name.to_string(),
                 input: input.clone(),
                 intent: None,
+                thought_signature: None,
             };
 
             let summary = tools_ui::get_tool_summary_with_budget(&tool, 50, Some(200));
@@ -955,6 +984,7 @@ fn test_action_tools_degrade_to_tool_name_when_action_absent() {
             name: name.to_string(),
             input,
             intent: None,
+            thought_signature: None,
         };
 
         let summary = tools_ui::get_tool_summary_with_budget(&tool, 50, Some(200));

@@ -1163,6 +1163,60 @@ impl App {
             ));
         }
 
+        // Always-on structured summary of what the picker actually presented.
+        // Pairs with `model_routes_summary` (catalog side) so a shared log shows
+        // both how many routes were built and how many survived into the picker
+        // UI, plus the per-provider breakdown the user sees. This is the key
+        // evidence for "configured provider missing from /model" reports.
+        {
+            use std::collections::BTreeMap;
+            let mut by_provider: BTreeMap<String, usize> = BTreeMap::new();
+            let mut available_entries = 0usize;
+            for entry in &entries {
+                if let Some(route) = entry.active_option() {
+                    if route.available {
+                        available_entries += 1;
+                    }
+                    let key = route.provider.trim().to_ascii_lowercase().replace(' ', "_");
+                    let key = if key.is_empty() {
+                        "unknown".to_string()
+                    } else {
+                        key
+                    };
+                    *by_provider.entry(key).or_insert(0) += 1;
+                }
+            }
+            let per_provider = by_provider
+                .into_iter()
+                .map(|(provider, count)| format!("{provider}:{count}"))
+                .collect::<Vec<_>>()
+                .join(",");
+            crate::logging::event_info(
+                "model_picker_open",
+                vec![
+                    ("remote", self.is_remote.to_string()),
+                    (
+                        "simplified",
+                        crate::perf::tui_policy()
+                            .simplified_model_picker
+                            .to_string(),
+                    ),
+                    ("routes_in", routes.len().to_string()),
+                    ("models", model_order.len().to_string()),
+                    ("entries", entries.len().to_string()),
+                    ("entries_available", available_entries.to_string()),
+                    ("current_model", current_model.clone()),
+                    ("current_provider", current_provider.clone()),
+                    (
+                        "recent_auth_provider",
+                        recent_auth_provider.unwrap_or("none").to_string(),
+                    ),
+                    ("by_provider", per_provider),
+                    ("total_ms", total_ms.to_string()),
+                ],
+            );
+        }
+
         let previous_picker = self.inline_interactive_state.as_ref().and_then(|picker| {
             if picker.kind == PickerKind::Model {
                 Some((
@@ -1584,6 +1638,34 @@ impl App {
         });
     }
 
+    /// Rebuild the picker overlay from a freshly loaded session list, applying
+    /// the filter for the active picker mode. Returns true when the overlay was
+    /// (re)built so the caller can request a redraw.
+    fn apply_loaded_session_picker(
+        &mut self,
+        server_groups: Vec<session_picker::ServerGroup>,
+        orphan_sessions: Vec<session_picker::SessionInfo>,
+    ) -> bool {
+        match self.session_picker_mode {
+            SessionPickerMode::Resume => {
+                let picker = SessionPicker::new_grouped(server_groups, orphan_sessions);
+                self.session_picker_overlay = Some(RefCell::new(picker));
+                self.set_status_notice("Sessions loaded");
+                true
+            }
+            SessionPickerMode::CatchUp => {
+                let mut picker = SessionPicker::new_grouped(server_groups, orphan_sessions);
+                picker.activate_catchup_filter();
+                self.session_picker_overlay = Some(RefCell::new(picker));
+                self.set_status_notice("Catch Up sessions loaded");
+                true
+            }
+            // Onboarding loads its scoped transcript list synchronously, so it
+            // never flows through this async path.
+            SessionPickerMode::Onboarding { .. } => false,
+        }
+    }
+
     pub(super) fn poll_session_picker_load(&mut self) -> bool {
         let recv_result = {
             let Some(pending) = self.pending_session_picker_load.as_ref() else {
@@ -1592,24 +1674,23 @@ impl App {
             pending.receiver.try_recv()
         };
 
+        let picker_active = self.session_picker_overlay.is_some()
+            && matches!(
+                self.session_picker_mode,
+                SessionPickerMode::Resume | SessionPickerMode::CatchUp
+            );
+
         match recv_result {
             Ok(Ok((server_groups, orphan_sessions))) => {
                 self.pending_session_picker_load = None;
-                if self.session_picker_overlay.is_some()
-                    && self.session_picker_mode == SessionPickerMode::Resume
-                {
-                    let picker = SessionPicker::new_grouped(server_groups, orphan_sessions);
-                    self.session_picker_overlay = Some(RefCell::new(picker));
-                    self.set_status_notice("Sessions loaded");
-                    return true;
+                if picker_active {
+                    return self.apply_loaded_session_picker(server_groups, orphan_sessions);
                 }
                 false
             }
             Ok(Err(e)) => {
                 self.pending_session_picker_load = None;
-                if self.session_picker_overlay.is_some()
-                    && self.session_picker_mode == SessionPickerMode::Resume
-                {
+                if picker_active {
                     self.session_picker_overlay = None;
                     self.push_display_message(DisplayMessage::error(format!(
                         "Failed to load sessions: {}",
@@ -1623,9 +1704,7 @@ impl App {
             Err(std::sync::mpsc::TryRecvError::Empty) => false,
             Err(std::sync::mpsc::TryRecvError::Disconnected) => {
                 self.pending_session_picker_load = None;
-                if self.session_picker_overlay.is_some()
-                    && self.session_picker_mode == SessionPickerMode::Resume
-                {
+                if picker_active {
                     self.session_picker_overlay = None;
                     self.push_display_message(DisplayMessage::error(
                         "Session loading stopped before returning a result.".to_string(),
@@ -1648,20 +1727,26 @@ impl App {
             return;
         }
 
-        match session_picker::load_sessions_grouped() {
-            Ok((server_groups, orphan_sessions)) => {
-                let mut picker = SessionPicker::new_grouped(server_groups, orphan_sessions);
-                picker.activate_catchup_filter();
-                self.session_picker_overlay = Some(RefCell::new(picker));
-                self.session_picker_mode = SessionPickerMode::CatchUp;
-            }
-            Err(e) => {
-                self.push_display_message(DisplayMessage::error(format!(
-                    "Failed to load catch-up sessions: {}",
-                    e
-                )));
-            }
-        }
+        // Show the picker overlay immediately (using the cached list when
+        // available) and load the full session list off-thread. This keeps the
+        // live TUI responsive instead of blocking on a multi-hundred-ms scan of
+        // every historical session.
+        let mut picker = if let Some((server_groups, orphan_sessions)) =
+            session_picker::load_cached_sessions_grouped()
+        {
+            let mut picker = SessionPicker::new_grouped(server_groups, orphan_sessions);
+            picker.activate_catchup_filter();
+            picker
+        } else {
+            SessionPicker::loading()
+        };
+        // Ensure the filter is applied even on the loading placeholder so the
+        // refreshed list lands in the catch-up view.
+        picker.activate_catchup_filter();
+        self.session_picker_overlay = Some(RefCell::new(picker));
+        self.session_picker_mode = SessionPickerMode::CatchUp;
+        self.set_status_notice("Loading Catch Up sessions...");
+        self.start_session_picker_load();
     }
 
     pub(super) fn handle_session_picker_selection(&mut self, targets: &[ResumeTarget]) {
@@ -1771,10 +1856,9 @@ impl App {
                     provider_slug,
                     session_id,
                     ..
-                } => crate::casr_adapter::imported_session_id_for_provider(
-                    &provider_slug,
-                    session_id,
-                ),
+                } => {
+                    crate::casr_adapter::imported_session_id_for_provider(provider_slug, session_id)
+                }
             };
 
             match spawn_resume_target_in_new_terminal(target, &cwd, socket.as_deref()) {
@@ -1892,7 +1976,7 @@ impl App {
                 provider_slug,
                 session_id,
                 ..
-            } => crate::casr_adapter::imported_session_id_for_provider(&provider_slug, session_id),
+            } => crate::casr_adapter::imported_session_id_for_provider(provider_slug, session_id),
         };
 
         // The resolved target is a jcode session id (either native for
@@ -2528,6 +2612,29 @@ impl App {
                         );
                         let route_detail = route.detail.trim().to_string();
 
+                        // Record exactly which model spec + route the user chose
+                        // and how it will be applied. Pairs with the server-side
+                        // model-switch logs so we can trace a `/model` choice all
+                        // the way to the provider endpoint that ends up serving it
+                        // (issues #292/#278: switch routes to wrong endpoint).
+                        crate::logging::event_info(
+                            "model_picker_select",
+                            vec![
+                                ("entry", entry.name.clone()),
+                                ("spec", spec.clone()),
+                                ("provider", route.provider.clone()),
+                                ("api_method", route.api_method.clone()),
+                                ("route_provider", route_selection.provider_label.clone()),
+                                ("route_model", route_selection.model.clone()),
+                                ("route_api_method", route_selection.api_method.clone()),
+                                (
+                                    "effort",
+                                    effort.clone().unwrap_or_else(|| "none".to_string()),
+                                ),
+                                ("remote", self.is_remote.to_string()),
+                            ],
+                        );
+
                         if self.is_remote {
                             self.inline_interactive_state = None;
                             self.upstream_provider = None;
@@ -2550,12 +2657,30 @@ impl App {
                                         self.provider.name(),
                                         self.session.provider_key.as_deref(),
                                     );
-                                    self.session.model = Some(active_model);
+                                    self.session.model = Some(active_model.clone());
                                     self.session.route_api_method =
                                         Some(route_selection.api_method.clone());
                                     let _ = self.session.save();
+                                    crate::logging::event_info(
+                                        "model_picker_select_applied",
+                                        vec![
+                                            ("spec", spec.clone()),
+                                            ("active_model", active_model),
+                                            ("provider", self.provider.name().to_string()),
+                                            ("api_method", route_selection.api_method.clone()),
+                                        ],
+                                    );
                                 }
                                 Err(error) => {
+                                    crate::logging::event_error(
+                                        "model_picker_select_failed",
+                                        vec![
+                                            ("spec", spec.clone()),
+                                            ("provider", route.provider.clone()),
+                                            ("api_method", route_selection.api_method.clone()),
+                                            ("error", error.to_string()),
+                                        ],
+                                    );
                                     self.push_display_message(DisplayMessage::error(
                                         crate::tui::app::model_context::model_switch_failure_message(
                                             &error.to_string(),
@@ -2607,11 +2732,22 @@ impl App {
     }
 
     pub(super) fn picker_fuzzy_score(pattern: &str, text: &str) -> Option<i32> {
-        let pat: Vec<char> = pattern
+        let pat = Self::picker_fuzzy_pattern(pattern);
+        Self::picker_fuzzy_score_with_pattern(&pat, text)
+    }
+
+    /// Normalize a fuzzy-match pattern (lowercase, drop whitespace) into chars.
+    /// Hoist this out of per-entry scoring so a filter pass over N entries
+    /// normalizes the pattern once instead of N times per keystroke.
+    pub(super) fn picker_fuzzy_pattern(pattern: &str) -> Vec<char> {
+        pattern
             .to_lowercase()
             .chars()
             .filter(|c| !c.is_whitespace())
-            .collect();
+            .collect()
+    }
+
+    pub(super) fn picker_fuzzy_score_with_pattern(pat: &[char], text: &str) -> Option<i32> {
         let txt: Vec<char> = text.to_lowercase().chars().collect();
         if pat.is_empty() {
             return Some(0);
@@ -2657,13 +2793,16 @@ impl App {
         if picker.filter.is_empty() {
             picker.filtered = (0..picker.entries.len()).collect();
         } else {
+            // Normalize the filter pattern once per keystroke instead of once per
+            // entry inside picker_fuzzy_score.
+            let pat = Self::picker_fuzzy_pattern(&picker.filter);
             let mut scored: Vec<(usize, i32)> = picker
                 .entries
                 .iter()
                 .enumerate()
                 .filter_map(|(i, m)| {
                     let filter_text = picker.filter_text(m);
-                    Self::picker_fuzzy_score(&picker.filter, &filter_text).map(|s| {
+                    Self::picker_fuzzy_score_with_pattern(&pat, &filter_text).map(|s| {
                         let usage_bonus = m.usage_score.min(i32::MAX as u32) as i32;
                         let bonus = usage_bonus + if m.recommended { 5 } else { 0 };
                         (i, s + bonus)

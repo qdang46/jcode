@@ -8,7 +8,7 @@ async fn handle_clear_session_replaces_runtime_handles_and_updates_shutdown_regi
 
     let old_session_id = "session_before_clear";
     let provider: Arc<dyn Provider> = Arc::new(MockProvider);
-    let registry = Registry::new(provider.clone()).await;
+    let registry = Registry::new(provider.clone(), None).await;
     let agent = Arc::new(Mutex::new(build_test_agent_with_id(
         provider.clone(),
         registry.clone(),

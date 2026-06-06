@@ -208,6 +208,7 @@ impl App {
                             "new_string": new_string,
                         }),
                         intent: None,
+                        thought_signature: None,
                     },
                 ),
             ];

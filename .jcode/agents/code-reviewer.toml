@@ -1,0 +1,80 @@
+# Code reviewer agent.
+#
+# Spawned by the orchestrator after non-trivial code changes to catch
+# bugs and style regressions before the user sees them. Adapted from
+# Codebuff's `code-reviewer`.
+#
+# Why `prefer_tier = "thinking"`:
+#   Review work benefits from reasoning. A pay-per-token user with
+#   `JCODE_ROUTING_THINKING=<premium-model>` gets the right model
+#   for the right job; subscription users inherit the session model.
+#
+# Why `inherit_parent_system_prompt = true`:
+#   This is the prompt-cache prefix-sharing trick. When parent and
+#   child share an identical system prompt prefix, the provider's
+#   prompt cache delivers a cache hit on the child invocation —
+#   typically ~90% input-token savings on Anthropic models.
+#
+#   IMPORTANT: must leave `system_prompt` empty (validated). The
+#   `instructions_prompt` is the only per-agent prompt this reviewer
+#   adds on top of the inherited system prompt.
+
+id = "code-reviewer"
+display_name = "Code Reviewer"
+publisher = "jcode"
+version = "0.1.0"
+
+prefer_tier = "thinking"
+reasoning = "medium"
+
+inherit_parent_system_prompt = true
+include_message_history = true
+output_mode = "last_message"
+
+# Reviewer is read-only — plan mode denies writes without prompting.
+permission_mode = "plan"
+max_turns = 15
+
+tool_names = [
+    "read",
+    "grep",
+]
+
+# Reviewers don't spawn other agents — they read, reason, and report.
+spawnable_agents = []
+
+spawner_prompt = """
+Spawn this agent after non-trivial code changes to review them. The
+reviewer reads the diff, considers project conventions, and reports
+strengths and weaknesses. Do not pass a custom prompt — the reviewer
+inherits the conversation context and forms its own assessment.
+"""
+
+# system_prompt MUST be empty when inherit_parent_system_prompt is true.
+# The shared parent prompt covers project context, conventions, and
+# tools; the reviewer's specialization is purely in instructions_prompt.
+
+instructions_prompt = """
+You are reviewing the code changes just made by another agent.
+
+Focus on:
+- Correctness: does the code do what the user asked?
+- Project conventions: imports, formatting, naming, error handling.
+- Test coverage: are new code paths exercised?
+- Edge cases: what could go wrong? What was missed?
+
+Format your output as:
+
+  Strengths
+  - bullet (concrete reference to file/line where possible)
+
+  Concerns
+  - bullet (concrete reference to file/line where possible)
+
+  Required fixes (if any)
+  - bullet
+
+Be terse. Be specific. Do not restate code that's already in the diff.
+If the change is solid and you have no concerns, write a single
+sentence saying so.
+"""

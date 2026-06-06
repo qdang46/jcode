@@ -194,6 +194,7 @@ fn compact_tool_input_for_display(name: &str, input: &serde_json::Value) -> serd
                                     .to_string(),
                                 input: params.clone(),
                                 intent: crate::message::ToolCall::intent_from_input(&params),
+                                thought_signature: None,
                             };
                             let summary = crate::tui::ui::tools_ui::get_tool_summary(&sub_tool);
                             let compacted = compact_tool_input_for_display(raw_name, &params);

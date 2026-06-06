@@ -592,6 +592,7 @@ pub(super) async fn handle_subscribe(
         }
         drop(agent_guard);
         registry.register_selfdev_tools().await;
+        registry.register_experimental_tools().await;
     }
 
     let mcp_register_ms = if register_mcp_tools {
@@ -1039,6 +1040,7 @@ pub(super) async fn handle_resume_session(
         if is_canary {
             *client_selfdev = true;
             registry.register_selfdev_tools().await;
+            registry.register_experimental_tools().await;
         }
 
         *client_session_id = session_id.clone();
@@ -1233,6 +1235,7 @@ pub(super) async fn handle_resume_session(
     if result.is_ok() && is_canary {
         *client_selfdev = true;
         registry.register_selfdev_tools().await;
+        registry.register_experimental_tools().await;
     }
 
     match result {

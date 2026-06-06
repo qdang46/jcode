@@ -408,6 +408,105 @@ pub const XIAOMI_MIMO_PROFILE: OpenAiCompatibleProfile = OpenAiCompatibleProfile
     requires_api_key: true,
 };
 
+pub const COHERE_PROFILE: OpenAiCompatibleProfile = OpenAiCompatibleProfile {
+    id: "cohere",
+    display_name: "Cohere",
+    api_base: "https://api.cohere.com/compatibility/v1",
+    api_key_env: "COHERE_API_KEY",
+    env_file: "cohere.env",
+    setup_url: "https://cohere.com/docs",
+    default_model: Some("command-a-03-2025"),
+    requires_api_key: true,
+};
+
+pub const SILICONFLOW_PROFILE: OpenAiCompatibleProfile = OpenAiCompatibleProfile {
+    id: "siliconflow",
+    display_name: "SiliconFlow",
+    api_base: "https://api.siliconflow.cn/v1",
+    api_key_env: "SILICONFLOW_API_KEY",
+    env_file: "siliconflow.env",
+    setup_url: "https://docs.siliconflow.cn/en/api-reference",
+    default_model: Some("deepseek-ai/DeepSeek-V3"),
+    requires_api_key: true,
+};
+
+pub const HYPERBOLIC_PROFILE: OpenAiCompatibleProfile = OpenAiCompatibleProfile {
+    id: "hyperbolic",
+    display_name: "Hyperbolic",
+    api_base: "https://api.hyperbolic.xyz/v1",
+    api_key_env: "HYPERBOLIC_API_KEY",
+    env_file: "hyperbolic.env",
+    setup_url: "https://docs.hyperbolic.xyz",
+    default_model: Some("meta-llama/Meta-Llama-3.1-70B-Instruct"),
+    requires_api_key: true,
+};
+
+pub const GLM_PROFILE: OpenAiCompatibleProfile = OpenAiCompatibleProfile {
+    id: "glm",
+    display_name: "GLM (Zhipu)",
+    api_base: "https://open.bigmodel.cn/api/paas/v4",
+    api_key_env: "GLM_API_KEY",
+    env_file: "glm.env",
+    setup_url: "https://open.bigmodel.cn",
+    default_model: Some("glm-4-flash"),
+    requires_api_key: true,
+};
+
+pub const VOLCENGINE_ARK_PROFILE: OpenAiCompatibleProfile = OpenAiCompatibleProfile {
+    id: "volcengine-ark",
+    display_name: "Volcengine Ark",
+    api_base: "https://ark.cn-beijing.volces.com/api/v3",
+    api_key_env: "VOLCENGINE_API_KEY",
+    env_file: "volcengine-ark.env",
+    setup_url: "https://www.volcengine.com/docs/82379",
+    default_model: Some("doubao-seed-1.6"),
+    requires_api_key: true,
+};
+
+pub const BYTEPLUS_PROFILE: OpenAiCompatibleProfile = OpenAiCompatibleProfile {
+    id: "byteplus",
+    display_name: "BytePlus",
+    api_base: "https://ark.ap-southeast.bytepluses.com/api/v3",
+    api_key_env: "BYTEPLUS_API_KEY",
+    env_file: "byteplus.env",
+    setup_url: "https://docs.byteplus.com/en/docs/Ark",
+    default_model: Some("doubao-seed-1.6"),
+    requires_api_key: true,
+};
+
+pub const CLOUDFLARE_AI_PROFILE: OpenAiCompatibleProfile = OpenAiCompatibleProfile {
+    id: "cloudflare-ai",
+    display_name: "Cloudflare Workers AI",
+    api_base: "https://api.cloudflare.com/client/v4/ai/v1",
+    api_key_env: "CLOUDFLARE_AI_TOKEN",
+    env_file: "cloudflare-ai.env",
+    setup_url: "https://developers.cloudflare.com/workers-ai/",
+    default_model: Some("@cf/meta/llama-3.1-8b-instruct"),
+    requires_api_key: true,
+};
+
+pub const VERCEL_AI_GATEWAY_PROFILE: OpenAiCompatibleProfile = OpenAiCompatibleProfile {
+    id: "vercel-ai-gateway",
+    display_name: "Vercel AI Gateway",
+    api_base: "https://ai-gateway.vercel.sh/v1",
+    api_key_env: "VERCEL_AI_GATEWAY_KEY",
+    env_file: "vercel-ai-gateway.env",
+    setup_url: "https://vercel.com/docs/ai-gateway",
+    default_model: None,
+    requires_api_key: true,
+};
+
+pub const XIAOMI_TOKEN_PLAN_PROFILE: OpenAiCompatibleProfile = OpenAiCompatibleProfile {
+    id: "xiaomi-token-plan",
+    display_name: "Xiaomi MiMo Token Plan",
+    api_base: "https://token-plan-sgp.xiaomimimo.com/v1",
+    api_key_env: "XIAOMI_MIMO_TOKEN_PLAN_API_KEY",
+    env_file: "xiaomi-token-plan.env",
+    setup_url: "https://platform.xiaomimimo.com/token-plan",
+    default_model: Some("mimo-v2.5"),
+    requires_api_key: true,
+};
+
 pub const OPENAI_COMPAT_PROFILE: OpenAiCompatibleProfile = OpenAiCompatibleProfile {
     id: "openai-compatible",
     display_name: "OpenAI-compatible",
@@ -419,7 +518,7 @@ pub const OPENAI_COMPAT_PROFILE: OpenAiCompatibleProfile = OpenAiCompatibleProfi
     requires_api_key: true,
 };
 
-pub(crate) const OPENAI_COMPAT_PROFILES: [OpenAiCompatibleProfile; 36] = [
+pub(crate) const OPENAI_COMPAT_PROFILES: [OpenAiCompatibleProfile; 45] = [
     OPENCODE_PROFILE,
     OPENCODE_GO_PROFILE,
     ZAI_PROFILE,
@@ -453,6 +552,15 @@ pub(crate) const OPENAI_COMPAT_PROFILES: [OpenAiCompatibleProfile; 36] = [
     XAI_PROFILE,
     NVIDIA_NIM_PROFILE,
     XIAOMI_MIMO_PROFILE,
+    COHERE_PROFILE,
+    SILICONFLOW_PROFILE,
+    HYPERBOLIC_PROFILE,
+    GLM_PROFILE,
+    VOLCENGINE_ARK_PROFILE,
+    BYTEPLUS_PROFILE,
+    CLOUDFLARE_AI_PROFILE,
+    VERCEL_AI_GATEWAY_PROFILE,
+    XIAOMI_TOKEN_PLAN_PROFILE,
     LMSTUDIO_PROFILE,
     OLLAMA_PROFILE,
     OPENAI_COMPAT_PROFILE,
@@ -1072,6 +1180,123 @@ pub const XIAOMI_MIMO_LOGIN_PROVIDER: LoginProviderDescriptor = LoginProviderDes
     order: LoginProviderSurfaceOrder::new(Some(37), Some(37), Some(37), Some(37), Some(37)),
 };
 
+pub const COHERE_LOGIN_PROVIDER: LoginProviderDescriptor = LoginProviderDescriptor {
+    id: "cohere",
+    display_name: "Cohere",
+    auth_kind: LoginProviderAuthKind::ApiKey,
+    auth_state_key: LoginProviderAuthStateKey::OpenRouterLike,
+    auth_status_method: "API key",
+    aliases: &["command-a", "command-r"],
+    menu_detail: "API key, Cohere Command models",
+    recommended: false,
+    target: LoginProviderTarget::OpenAiCompatible(COHERE_PROFILE),
+    order: LoginProviderSurfaceOrder::new(Some(39), Some(39), Some(39), Some(39), Some(39)),
+};
+
+pub const SILICONFLOW_LOGIN_PROVIDER: LoginProviderDescriptor = LoginProviderDescriptor {
+    id: "siliconflow",
+    display_name: "SiliconFlow",
+    auth_kind: LoginProviderAuthKind::ApiKey,
+    auth_state_key: LoginProviderAuthStateKey::OpenRouterLike,
+    auth_status_method: "API key",
+    aliases: &["silicon-flow"],
+    menu_detail: "API key, Chinese AI inference platform",
+    recommended: false,
+    target: LoginProviderTarget::OpenAiCompatible(SILICONFLOW_PROFILE),
+    order: LoginProviderSurfaceOrder::new(Some(39), Some(39), Some(39), Some(39), Some(39)),
+};
+
+pub const HYPERBOLIC_LOGIN_PROVIDER: LoginProviderDescriptor = LoginProviderDescriptor {
+    id: "hyperbolic",
+    display_name: "Hyperbolic",
+    auth_kind: LoginProviderAuthKind::ApiKey,
+    auth_state_key: LoginProviderAuthStateKey::OpenRouterLike,
+    auth_status_method: "API key",
+    aliases: &[],
+    menu_detail: "API key, GPU cloud inference",
+    recommended: false,
+    target: LoginProviderTarget::OpenAiCompatible(HYPERBOLIC_PROFILE),
+    order: LoginProviderSurfaceOrder::new(Some(39), Some(39), Some(39), Some(39), Some(39)),
+};
+
+pub const GLM_LOGIN_PROVIDER: LoginProviderDescriptor = LoginProviderDescriptor {
+    id: "glm",
+    display_name: "GLM (Zhipu)",
+    auth_kind: LoginProviderAuthKind::ApiKey,
+    auth_state_key: LoginProviderAuthStateKey::OpenRouterLike,
+    auth_status_method: "API key",
+    aliases: &["zhipu-glm", "chatglm"],
+    menu_detail: "API key, Zhipu GLM models",
+    recommended: false,
+    target: LoginProviderTarget::OpenAiCompatible(GLM_PROFILE),
+    order: LoginProviderSurfaceOrder::new(Some(39), Some(39), Some(39), Some(39), Some(39)),
+};
+
+pub const VOLCENGINE_ARK_LOGIN_PROVIDER: LoginProviderDescriptor = LoginProviderDescriptor {
+    id: "volcengine-ark",
+    display_name: "Volcengine Ark",
+    auth_kind: LoginProviderAuthKind::ApiKey,
+    auth_state_key: LoginProviderAuthStateKey::OpenRouterLike,
+    auth_status_method: "API key",
+    aliases: &["volcengine", "doubao"],
+    menu_detail: "API key, ByteDance Volcengine Ark",
+    recommended: false,
+    target: LoginProviderTarget::OpenAiCompatible(VOLCENGINE_ARK_PROFILE),
+    order: LoginProviderSurfaceOrder::new(Some(39), Some(39), Some(39), Some(39), Some(39)),
+};
+
+pub const BYTEPLUS_LOGIN_PROVIDER: LoginProviderDescriptor = LoginProviderDescriptor {
+    id: "byteplus",
+    display_name: "BytePlus",
+    auth_kind: LoginProviderAuthKind::ApiKey,
+    auth_state_key: LoginProviderAuthStateKey::OpenRouterLike,
+    auth_status_method: "API key",
+    aliases: &[],
+    menu_detail: "API key, ByteDance international platform",
+    recommended: false,
+    target: LoginProviderTarget::OpenAiCompatible(BYTEPLUS_PROFILE),
+    order: LoginProviderSurfaceOrder::new(Some(39), Some(39), Some(39), Some(39), Some(39)),
+};
+
+pub const CLOUDFLARE_AI_LOGIN_PROVIDER: LoginProviderDescriptor = LoginProviderDescriptor {
+    id: "cloudflare-ai",
+    display_name: "Cloudflare Workers AI",
+    auth_kind: LoginProviderAuthKind::ApiKey,
+    auth_state_key: LoginProviderAuthStateKey::OpenRouterLike,
+    auth_status_method: "API token",
+    aliases: &["cloudflare", "workers-ai", "cf-ai"],
+    menu_detail: "API token, Cloudflare Workers AI",
+    recommended: false,
+    target: LoginProviderTarget::OpenAiCompatible(CLOUDFLARE_AI_PROFILE),
+    order: LoginProviderSurfaceOrder::new(Some(39), Some(39), Some(39), Some(39), Some(39)),
+};
+
+pub const VERCEL_AI_GATEWAY_LOGIN_PROVIDER: LoginProviderDescriptor = LoginProviderDescriptor {
+    id: "vercel-ai-gateway",
+    display_name: "Vercel AI Gateway",
+    auth_kind: LoginProviderAuthKind::ApiKey,
+    auth_state_key: LoginProviderAuthStateKey::OpenRouterLike,
+    auth_status_method: "API key",
+    aliases: &["vercel-ai", "ai-gateway"],
+    menu_detail: "API key, Vercel AI Gateway",
+    recommended: false,
+    target: LoginProviderTarget::OpenAiCompatible(VERCEL_AI_GATEWAY_PROFILE),
+    order: LoginProviderSurfaceOrder::new(Some(39), Some(39), Some(39), Some(39), Some(39)),
+};
+
+pub const XIAOMI_TOKEN_PLAN_LOGIN_PROVIDER: LoginProviderDescriptor = LoginProviderDescriptor {
+    id: "xiaomi-token-plan",
+    display_name: "Xiaomi MiMo Token Plan",
+    auth_kind: LoginProviderAuthKind::ApiKey,
+    auth_state_key: LoginProviderAuthStateKey::OpenRouterLike,
+    auth_status_method: "API key",
+    aliases: &["xiaomi-tokenplan", "mimo-tokenplan"],
+    menu_detail: "API key (tp- prefix), subscription-based Xiaomi MiMo",
+    recommended: false,
+    target: LoginProviderTarget::OpenAiCompatible(XIAOMI_TOKEN_PLAN_PROFILE),
+    order: LoginProviderSurfaceOrder::new(Some(39), Some(39), Some(39), Some(39), Some(39)),
+};
+
 pub const GOOGLE_LOGIN_PROVIDER: LoginProviderDescriptor = LoginProviderDescriptor {
     id: "google",
     display_name: "Google/Gmail",
@@ -1085,7 +1310,7 @@ pub const GOOGLE_LOGIN_PROVIDER: LoginProviderDescriptor = LoginProviderDescript
     order: LoginProviderSurfaceOrder::new(Some(13), None, None, None, None),
 };
 
-pub(crate) const LOGIN_PROVIDERS: [LoginProviderDescriptor; 47] = [
+pub(crate) const LOGIN_PROVIDERS: [LoginProviderDescriptor; 56] = [
     AUTO_IMPORT_LOGIN_PROVIDER,
     CLAUDE_LOGIN_PROVIDER,
     ANTHROPIC_API_LOGIN_PROVIDER,
@@ -1124,6 +1349,15 @@ pub(crate) const LOGIN_PROVIDERS: [LoginProviderDescriptor; 47] = [
     XAI_LOGIN_PROVIDER,
     NVIDIA_NIM_LOGIN_PROVIDER,
     XIAOMI_MIMO_LOGIN_PROVIDER,
+    COHERE_LOGIN_PROVIDER,
+    SILICONFLOW_LOGIN_PROVIDER,
+    HYPERBOLIC_LOGIN_PROVIDER,
+    GLM_LOGIN_PROVIDER,
+    VOLCENGINE_ARK_LOGIN_PROVIDER,
+    BYTEPLUS_LOGIN_PROVIDER,
+    CLOUDFLARE_AI_LOGIN_PROVIDER,
+    VERCEL_AI_GATEWAY_LOGIN_PROVIDER,
+    XIAOMI_TOKEN_PLAN_LOGIN_PROVIDER,
     LMSTUDIO_LOGIN_PROVIDER,
     OLLAMA_LOGIN_PROVIDER,
     OPENAI_COMPAT_LOGIN_PROVIDER,

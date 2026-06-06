@@ -1,6 +1,6 @@
 [package]
 name = "jcode"
-version = "0.19.0"
+version = "0.23.0"
 description = "Possibly the greatest coding agent ever built — blazing-fast TUI, multi-model, swarm coordination, 30+ tools"
 edition = "2024"
 autobins = false
@@ -12,6 +12,7 @@ edition = "2024"
 members = [
     ".",
     "crates/jcode-agent-runtime",
+    "crates/jcode-experiment-flags",
     "crates/jcode-app-core",
     "crates/jcode-base",
     "crates/jcode-tui",
@@ -32,6 +33,7 @@ members = [
     "crates/jcode-message-types",
     "crates/jcode-overnight-core",
     "crates/jcode-plan",
+    "crates/jcode-productivity-core",
     "crates/jcode-swarm-core",
     "crates/jcode-protocol",
     "crates/jcode-selfdev-types",
@@ -54,6 +56,7 @@ members = [
     "crates/jcode-tool-core",
     "crates/jcode-tool-types",
     "crates/jcode-tui-account-picker",
+    "crates/jcode-tui-anim",
     "crates/jcode-tui-render",
     "crates/jcode-tui-session-picker",
     "crates/jcode-tui-style",
@@ -68,6 +71,9 @@ members = [
     "crates/jcode-desktop",
     "crates/jcode-plugin-core",
     "crates/jcode-plugin-runtime",
+    "crates/jcode-mempalace-adapter",
+    "crates/jcode-render-core",
+    "evals/jbench",
 ]
 
 # Local override: build against the fast_file_search main branch which
@@ -77,6 +83,7 @@ members = [
 [workspace.dependencies]
 ffs-search = { git = "https://github.com/quangdang46/fast_file_search", rev = "4cd7f27" }
 ffs-engine = { git = "https://github.com/quangdang46/fast_file_search", rev = "4cd7f27" }
+strum = { version = "0.26", features = ["derive"] }
 
 [lib]
 name = "jcode"
@@ -136,7 +143,7 @@ futures = "0.3"
 async-trait = "0.1"
 
 # HTTP client
-reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "blocking", "charset", "http2", "system-proxy", "rustls-tls"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "blocking", "charset", "http2", "system-proxy", "rustls-tls", "rustls-tls-native-roots"] }
 rustls = { version = "0.23", default-features = false, features = ["aws_lc_rs"] }
 tokio-tungstenite = { version = "0.24", default-features = false, features = ["connect", "rustls-tls-native-roots"] }
 
@@ -253,6 +260,7 @@ jcode-task-types = { path = "crates/jcode-task-types" }
 jcode-tool-core = { path = "crates/jcode-tool-core" }
 jcode-tool-types = { path = "crates/jcode-tool-types" }
 jcode-side-panel-types = { path = "crates/jcode-side-panel-types" }
+jcode-experiment-flags = { path = "crates/jcode-experiment-flags" }
 
 # Archive extraction (for auto-update)
 flate2 = "1"
@@ -324,6 +332,74 @@ incremental = true
 
 [profile.dev.package."*"]
 opt-level = 0
+
+# Keep the idle-animation math kernels fully optimized even in debug-style
+# builds. This crate is pure, dependency-free numeric code (the trig-heavy 3D
+# samplers that otherwise dominate idle CPU). Pinning it to opt-level = 3 here
+# means the optimized object is compiled once and reused across iterative
+# dev/selfdev rebuilds, since it only recompiles when the animation code itself
+# changes. The "*" glob above sets the default for dependencies; these explicit
+# package entries take precedence for this one crate in each profile.
+[profile.dev.package."jcode-tui-anim"]
+opt-level = 3
+
+[profile.selfdev.package."jcode-tui-anim"]
+opt-level = 3
+
+[profile.test.package."jcode-tui-anim"]
+opt-level = 3
+
+# Keep the text-shaping stack optimized even in dev/selfdev/test builds.
+#
+# cosmic-text + rustybuzz + ttf-parser + swash + yazi do all of the desktop
+# transcript glyph shaping. At opt-level = 0 they are 15-40x slower, which made
+# scrolling real (emoji/markdown-heavy) transcripts janky in dev/selfdev builds
+# even though the production release build was smooth. These are stable
+# third-party crates that almost never recompile, so pinning them to opt-level =
+# 3 costs a one-time compile and is then reused across every iterative jcode
+# rebuild (same rationale as jcode-tui-anim above). It does NOT slow down
+# recompiles of jcode's own crates.
+[profile.dev.package.cosmic-text]
+opt-level = 3
+[profile.selfdev.package.cosmic-text]
+opt-level = 3
+[profile.test.package.cosmic-text]
+opt-level = 3
+
+[profile.dev.package.rustybuzz]
+opt-level = 3
+[profile.selfdev.package.rustybuzz]
+opt-level = 3
+[profile.test.package.rustybuzz]
+opt-level = 3
+
+[profile.dev.package.ttf-parser]
+opt-level = 3
+[profile.selfdev.package.ttf-parser]
+opt-level = 3
+[profile.test.package.ttf-parser]
+opt-level = 3
+
+[profile.dev.package.swash]
+opt-level = 3
+[profile.selfdev.package.swash]
+opt-level = 3
+[profile.test.package.swash]
+opt-level = 3
+
+[profile.dev.package.yazi]
+opt-level = 3
+[profile.selfdev.package.yazi]
+opt-level = 3
+[profile.test.package.yazi]
+opt-level = 3
+
+[profile.dev.package.fontdb]
+opt-level = 3
+[profile.selfdev.package.fontdb]
+opt-level = 3
+[profile.test.package.fontdb]
+opt-level = 3
 
 [profile.test]
 debug = 0

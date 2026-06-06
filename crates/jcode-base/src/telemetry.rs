@@ -258,6 +258,10 @@ enum DeliveryMode {
 }
 
 pub fn is_enabled() -> bool {
+    if crate::disable::DisableRegistry::global().disabled(crate::disable::DisableFlag::Telemetry) {
+        logging::debug("telemetry disabled by JCODE_DISABLE_TELEMETRY");
+        return false;
+    }
     if std::env::var("JCODE_NO_TELEMETRY").is_ok() || std::env::var("DO_NOT_TRACK").is_ok() {
         logging::debug("telemetry disabled by environment");
         return false;
@@ -330,6 +334,9 @@ fn share_content_marker_path() -> Option<std::path::PathBuf> {
 /// Always false when base telemetry is disabled.
 pub fn content_sharing_enabled() -> bool {
     if !is_enabled() {
+        return false;
+    }
+    if crate::disable::DisableRegistry::global().disabled(crate::disable::DisableFlag::Telemetry) {
         return false;
     }
     if std::env::var("JCODE_NO_TELEMETRY").is_ok() || std::env::var("DO_NOT_TRACK").is_ok() {
@@ -1239,6 +1246,17 @@ fn emit_session_start_for_state(id: String, state: &SessionTelemetry, mode: Deli
 
 pub fn record_install_if_first_run() {
     if !is_enabled() {
+        return;
+    }
+    // Skip install/onboarding emission under CI. Ephemeral runners start with a
+    // fresh ~/.jcode (so a new telemetry_id) on every job, which would otherwise
+    // look like a brand-new install and user, inflating install/active counts,
+    // the onboarding funnel, and depressing retention. Session/turn/lifecycle
+    // events are still emitted (tagged is_ci) so CI crash/error signal stays
+    // queryable; product dashboards filter is_ci out of the headline metrics.
+    if is_ci() {
+        logging::debug("skipping telemetry install/onboarding under CI");
+        mark_current_version_recorded();
         return;
     }
     let first_run = is_first_run();

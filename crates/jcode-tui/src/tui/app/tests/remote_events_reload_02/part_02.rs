@@ -71,8 +71,7 @@ fn test_replace_latest_tool_display_message_updates_latest_match_and_bumps_versi
         id: "tool-1".to_string(),
         name: "read".to_string(),
         input: serde_json::json!({"file_path": "src/main.rs"}),
-        intent: None,
-    };
+        intent: None, thought_signature: None, };
 
     app.push_display_message(DisplayMessage {
         role: "tool".to_string(),
@@ -168,6 +167,67 @@ fn test_remove_display_message_bumps_version() {
     assert_eq!(removed.content, "temporary reconnect status");
     assert!(app.display_messages.is_empty());
     assert_ne!(app.display_messages_version, before);
+}
+
+#[test]
+fn test_incremental_display_message_counts_match_full_recompute() {
+    let mut app = create_test_app();
+
+    // Interleave user, assistant, and edit-tool messages via the public append
+    // path, which now maintains the counters incrementally instead of
+    // rescanning the whole transcript.
+    for i in 0..50 {
+        app.push_display_message(DisplayMessage::user(format!("prompt {i}")));
+        app.push_display_message(DisplayMessage::assistant(format!("reply {i}")));
+        if i % 3 == 0 {
+            app.push_display_message(DisplayMessage {
+                role: "tool".to_string(),
+                content: format!("edited file {i}"),
+                tool_calls: vec![],
+                duration_secs: None,
+                title: None,
+                tool_data: Some(crate::message::ToolCall {
+                    id: format!("edit-{i}"),
+                    name: "edit".to_string(),
+                    input: serde_json::json!({"file_path": format!("src/file_{i}.rs")}),
+                    intent: None,
+                    thought_signature: None,
+                }),
+            });
+        }
+    }
+
+    // Remove a few messages to exercise the decrement path.
+    app.remove_display_message(0);
+    app.remove_display_message(5);
+
+    let incremental_user = app.display_user_message_count;
+    let incremental_edit = app.display_edit_tool_message_count;
+
+    let expected_user = app
+        .display_messages
+        .iter()
+        .filter(|m| m.effective_role() == "user")
+        .count();
+    let expected_edit = app
+        .display_messages
+        .iter()
+        .filter(|m| {
+            m.tool_data
+                .as_ref()
+                .map(|tool| crate::tui::ui::tools_ui::is_edit_tool_name(&tool.name))
+                .unwrap_or(false)
+        })
+        .count();
+
+    assert_eq!(
+        incremental_user, expected_user,
+        "incrementally-maintained user count should match a full recompute"
+    );
+    assert_eq!(
+        incremental_edit, expected_edit,
+        "incrementally-maintained edit-tool count should match a full recompute"
+    );
 }
 
 #[test]

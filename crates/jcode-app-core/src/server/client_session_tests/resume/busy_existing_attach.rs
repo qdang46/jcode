@@ -20,7 +20,7 @@ async fn handle_resume_session_allows_live_attach_when_existing_agent_is_busy() 
     };
 
     let provider: Arc<dyn Provider> = Arc::new(MockProvider);
-    let existing_registry = Registry::new(provider.clone()).await;
+    let existing_registry = Registry::new(provider.clone(), None).await;
     let existing_agent = Arc::new(Mutex::new(build_test_agent_with_id(
         provider.clone(),
         existing_registry,
@@ -28,7 +28,7 @@ async fn handle_resume_session_allows_live_attach_when_existing_agent_is_busy() 
         vec![persisted_message],
     )));
 
-    let new_registry = Registry::new(provider.clone()).await;
+    let new_registry = Registry::new(provider.clone(), None).await;
     let new_agent = Arc::new(Mutex::new(build_test_agent_with_id(
         provider.clone(),
         new_registry.clone(),

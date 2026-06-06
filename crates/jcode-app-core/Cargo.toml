@@ -25,7 +25,7 @@ futures = "0.3"
 async-trait = "0.1"
 
 # HTTP client
-reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "blocking", "charset", "http2", "system-proxy", "rustls-tls"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "blocking", "charset", "http2", "system-proxy", "rustls-tls", "rustls-tls-native-roots"] }
 rustls = { version = "0.23", default-features = false, features = ["aws_lc_rs"] }
 tokio-tungstenite = { version = "0.24", default-features = false, features = ["connect", "rustls-tls-native-roots"] }
 
@@ -120,6 +120,7 @@ jcode-build-meta = { path = "../jcode-build-meta" }
 # Re-exported via `pub use jcode_base::*` in lib.rs. default-features=false so
 # this crate controls jcode-base's optional features (see [features] below).
 jcode-base = { path = "../jcode-base", default-features = false }
+jcode-experiment-flags = { path = "../jcode-experiment-flags" }
 jcode-compaction-core = { path = "../jcode-compaction-core" }
 jcode-config-types = { path = "../jcode-config-types" }
 jcode-core = { path = "../jcode-core" }
@@ -138,6 +139,7 @@ jcode-task-types = { path = "../jcode-task-types" }
 jcode-tool-core = { path = "../jcode-tool-core" }
 jcode-tool-types = { path = "../jcode-tool-types" }
 jcode-side-panel-types = { path = "../jcode-side-panel-types" }
+jcode-mempalace-adapter = { path = "../jcode-mempalace-adapter", optional = true }
 
 # Archive extraction (for auto-update)
 flate2 = "1"
@@ -172,6 +174,8 @@ dcp = ["dep:dynamic_context_pruning"]
 # jcode-base's `test-support` so downstream crates' test targets can reach the
 # whole stack's helpers. Never enabled in normal (non-test) builds.
 test-support = ["jcode-base/test-support"]
+# mempalace backend: enables MempalaceAdapter for MemoryTool dispatch (#357).
+mempalace-backend = ["dep:jcode-mempalace-adapter", "jcode-mempalace-adapter/backend"]
 
 [dev-dependencies]
 # Used by async streaming tests (ambient/runner_tests, server/client_actions_tests).

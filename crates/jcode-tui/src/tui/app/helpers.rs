@@ -400,7 +400,7 @@ pub(super) fn write_osc52_clipboard_to(bytes: &[u8], mut writer: impl Write) -> 
 pub(super) fn effort_display_label(effort: &str) -> &str {
     match effort {
         "max" => "Max",
-        "xhigh" => "Max",
+        "xhigh" => "xHigh (Max)",
         "high" => "High",
         "medium" => "Medium",
         "low" => "Low",
@@ -414,7 +414,7 @@ pub(super) fn effort_display_label(effort: &str) -> &str {
 /// Examples:
 ///   `gpt-5.5`            -> `GPT-5.5`
 ///   `claude-opus-4-8`    -> `Claude Opus 4.8`
-///   `claude-opus-4-8[1m]`-> `Claude Opus 4.8 (1M)`
+///   `claude-opus-4-6[1m]`-> `Claude Opus 4.6 (1M)`
 ///   `gemini-2.5-pro`     -> `Gemini 2.5 Pro`
 /// Unknown shapes are returned mostly as-is so we never hide the real id.
 pub(super) fn pretty_model_display_name(model: &str) -> String {
@@ -708,7 +708,7 @@ pub(super) fn build_resume_command(
         } => {
             let exe = launch_client_executable();
             let imported_id =
-                crate::casr_adapter::imported_session_id_for_provider(&provider_slug, session_id);
+                crate::casr_adapter::imported_session_id_for_provider(provider_slug, session_id);
             let args = resume_invocation_args(&imported_id, socket);
             let title = format!(
                 "💾 {provider_slug} {}",

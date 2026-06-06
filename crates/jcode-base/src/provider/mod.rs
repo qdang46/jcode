@@ -48,6 +48,7 @@ pub use catalog_routes::{
     remote_model_routes_lightweight_fallback, remote_model_should_offer_copilot_route,
     remote_openai_compatible_route_for_model, simplified_model_routes_for_picker,
 };
+pub use jcode_provider_core::cli_provider_arg_for_session_key;
 pub use jcode_provider_core::{
     ALL_CLAUDE_MODELS, ALL_OPENAI_MODELS, CHEAPNESS_REFERENCE_INPUT_TOKENS,
     CHEAPNESS_REFERENCE_OUTPUT_TOKENS, DEFAULT_CONTEXT_LIMIT, EventStream, JCODE_USER_AGENT,
@@ -1041,6 +1042,19 @@ impl Provider for MultiProvider {
         }
     }
 
+    fn display_name(&self) -> String {
+        // The OpenRouter slot multiplexes the public aggregator and every
+        // direct OpenAI-compatible profile (NVIDIA NIM, DeepSeek, ...). Ask the
+        // active execution runtime for its own label so the UI reflects the
+        // profile selected at runtime rather than the fixed "OpenRouter" name.
+        if matches!(self.active_provider(), ActiveProvider::OpenRouter)
+            && let Some(execution) = self.active_openrouter_execution_provider()
+        {
+            return execution.runtime_display_name();
+        }
+        self.name().to_string()
+    }
+
     fn model(&self) -> String {
         match self.active_provider() {
             ActiveProvider::Claude => {
@@ -1084,20 +1098,21 @@ impl Provider for MultiProvider {
         }
     }
 
-    fn active_auth_method_label(&self) -> Option<&'static str> {
+    fn active_resolved_credential(&self) -> Option<jcode_provider_core::ResolvedCredential> {
+        use jcode_provider_core::ResolvedCredential;
         match self.active_provider() {
             ActiveProvider::Claude => {
                 let anthropic = self.anthropic_provider()?;
                 Some(match anthropic.credential_mode_snapshot() {
-                    anthropic::AnthropicCredentialMode::OAuth => "OAuth",
-                    anthropic::AnthropicCredentialMode::ApiKey => "API key",
+                    anthropic::AnthropicCredentialMode::OAuth => ResolvedCredential::Oauth,
+                    anthropic::AnthropicCredentialMode::ApiKey => ResolvedCredential::ApiKey,
                     // Auto prefers OAuth (Claude subscription) when available,
                     // otherwise falls back to the API key. Mirror that exactly.
                     anthropic::AnthropicCredentialMode::Auto => {
                         if crate::auth::claude::load_credentials().is_ok() {
-                            "OAuth"
+                            ResolvedCredential::Oauth
                         } else {
-                            "API key"
+                            ResolvedCredential::ApiKey
                         }
                     }
                 })
@@ -1105,14 +1120,14 @@ impl Provider for MultiProvider {
             ActiveProvider::OpenAI => {
                 let openai = self.openai_provider()?;
                 Some(match openai.credential_mode_snapshot() {
-                    openai::OpenAICredentialMode::OAuth => "OAuth",
-                    openai::OpenAICredentialMode::ApiKey => "API key",
+                    openai::OpenAICredentialMode::OAuth => ResolvedCredential::Oauth,
+                    openai::OpenAICredentialMode::ApiKey => ResolvedCredential::ApiKey,
                     // Auto resolves to OAuth first when available, otherwise API key.
                     openai::OpenAICredentialMode::Auto => {
                         if crate::auth::codex::load_oauth_credentials().is_ok() {
-                            "OAuth"
+                            ResolvedCredential::Oauth
                         } else {
-                            "API key"
+                            ResolvedCredential::ApiKey
                         }
                     }
                 })

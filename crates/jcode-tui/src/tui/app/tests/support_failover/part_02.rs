@@ -117,7 +117,7 @@ fn create_switchable_test_app(initial_provider: &str) -> (App, StdArc<StdMutex<S
         active_provider: active_provider.clone(),
     });
     let rt = tokio::runtime::Runtime::new().unwrap();
-    let registry = rt.block_on(crate::tool::Registry::new(provider.clone()));
+    let registry = rt.block_on(crate::tool::Registry::new(provider.clone(), None));
     let mut app = App::new_for_test_harness(provider, registry);
     app.queue_mode = false;
     app.diff_mode = crate::config::DiffDisplayMode::Inline;
@@ -248,7 +248,7 @@ fn create_auth_refresh_test_app() -> App {
         logged_in: StdArc::new(StdMutex::new(false)),
     });
     let rt = tokio::runtime::Runtime::new().unwrap();
-    let registry = rt.block_on(crate::tool::Registry::new(provider.clone()));
+    let registry = rt.block_on(crate::tool::Registry::new(provider.clone(), None));
     let mut app = App::new_for_test_harness(provider, registry);
     app.queue_mode = false;
     app.diff_mode = crate::config::DiffDisplayMode::Inline;
@@ -331,7 +331,7 @@ fn create_antigravity_picker_test_app() -> App {
         model: StdArc::new(StdMutex::new("default".to_string())),
     });
     let rt = tokio::runtime::Runtime::new().unwrap();
-    let registry = rt.block_on(crate::tool::Registry::new(provider.clone()));
+    let registry = rt.block_on(crate::tool::Registry::new(provider.clone(), None));
     let mut app = App::new_for_test_harness(provider, registry);
     app.queue_mode = false;
     app.diff_mode = crate::config::DiffDisplayMode::Inline;
@@ -455,7 +455,7 @@ fn create_login_smoke_model_app() -> App {
 
     let provider: Arc<dyn Provider> = Arc::new(LoginSmokeModelProvider);
     let rt = tokio::runtime::Runtime::new().unwrap();
-    let registry = rt.block_on(crate::tool::Registry::new(provider.clone()));
+    let registry = rt.block_on(crate::tool::Registry::new(provider.clone(), None));
     let mut app = App::new_for_test_harness(provider, registry);
     app.queue_mode = false;
     app.diff_mode = crate::config::DiffDisplayMode::Inline;
@@ -512,7 +512,7 @@ fn create_failing_model_switch_test_app() -> App {
 
     let provider: Arc<dyn Provider> = Arc::new(FailingModelSwitchProvider);
     let rt = tokio::runtime::Runtime::new().unwrap();
-    let registry = rt.block_on(crate::tool::Registry::new(provider.clone()));
+    let registry = rt.block_on(crate::tool::Registry::new(provider.clone(), None));
     let mut app = App::new_for_test_harness(provider, registry);
     app.queue_mode = false;
     app.diff_mode = crate::config::DiffDisplayMode::Inline;
@@ -537,7 +537,7 @@ fn create_fast_test_app() -> App {
         service_tier: StdArc::new(StdMutex::new(None)),
     });
     let rt = tokio::runtime::Runtime::new().unwrap();
-    let registry = rt.block_on(crate::tool::Registry::new(provider.clone()));
+    let registry = rt.block_on(crate::tool::Registry::new(provider.clone(), None));
     let mut app = App::new_for_test_harness(provider, registry);
     app.queue_mode = false;
     app.diff_mode = crate::config::DiffDisplayMode::Inline;
@@ -574,7 +574,7 @@ fn create_gemini_test_app() -> App {
 
     let provider: Arc<dyn Provider> = Arc::new(GeminiMockProvider);
     let rt = tokio::runtime::Runtime::new().unwrap();
-    let registry = rt.block_on(crate::tool::Registry::new(provider.clone()));
+    let registry = rt.block_on(crate::tool::Registry::new(provider.clone(), None));
     let mut app = App::new_for_test_harness(provider, registry);
     app.queue_mode = false;
     app.diff_mode = crate::config::DiffDisplayMode::Inline;

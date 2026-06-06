@@ -655,7 +655,7 @@ mod tests {
         );
         assert_eq!(
             resolve_login_selection("6", &providers).map(|provider| provider.id),
-            Some("bedrock")
+            Some("openrouter")
         );
         assert_eq!(
             resolve_login_selection("compat", &providers).map(|provider| provider.id),
@@ -673,22 +673,26 @@ mod tests {
         );
         assert_eq!(
             resolve_login_selection("4", &providers).map(|provider| provider.id),
-            Some("jcode")
+            Some("openai")
         );
         assert_eq!(
             resolve_login_selection("5", &providers).map(|provider| provider.id),
-            Some("copilot")
+            Some("jcode")
         );
         assert_eq!(
             resolve_login_selection("6", &providers).map(|provider| provider.id),
-            Some("openrouter")
+            Some("copilot")
         );
         assert_eq!(
             resolve_login_selection("7", &providers).map(|provider| provider.id),
-            Some("bedrock")
+            Some("openrouter")
         );
         assert_eq!(
             resolve_login_selection("8", &providers).map(|provider| provider.id),
+            Some("bedrock")
+        );
+        assert_eq!(
+            resolve_login_selection("9", &providers).map(|provider| provider.id),
             Some("azure")
         );
         assert_eq!(

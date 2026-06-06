@@ -385,9 +385,11 @@ impl AmbientRunnerHandle {
     ) -> anyhow::Result<()> {
         let session = Session::load(session_id)?;
         let cycle_provider = provider.fork();
-        let registry = tool::Registry::new(cycle_provider.clone()).await;
+        let registry =
+            tool::Registry::new(cycle_provider.clone(), tool::shared_agent_registry()).await;
         if session.is_canary {
             registry.register_selfdev_tools().await;
+            registry.register_experimental_tools().await;
         }
         // Issue #89: ambient cycles previously skipped MCP registration, so
         // user-installed MCP tools were invisible to the cycle agent —
@@ -433,6 +435,7 @@ impl AmbientRunnerHandle {
                 child.replace_messages(parent.messages.clone());
                 child.compaction = parent.compaction.clone();
                 child.provider_key = parent.provider_key.clone();
+                child.route_api_method = parent.route_api_method.clone();
                 child.model = parent.model.clone();
                 child.subagent_model = parent.subagent_model.clone();
                 child.improve_mode = parent.improve_mode;
@@ -470,9 +473,11 @@ impl AmbientRunnerHandle {
         let child_is_canary = child.is_canary;
         let child_is_debug = child.is_debug;
         let cycle_provider = provider.fork();
-        let registry = tool::Registry::new(cycle_provider.clone()).await;
+        let registry =
+            tool::Registry::new(cycle_provider.clone(), tool::shared_agent_registry()).await;
         if child_is_canary {
             registry.register_selfdev_tools().await;
+            registry.register_experimental_tools().await;
         }
         // Issue #89: register MCP tools for ambient cycles (same as main session).
         registry
@@ -928,7 +933,8 @@ impl AmbientRunnerHandle {
         self.set_running_detail("setting up tools").await;
 
         let cycle_provider = provider.fork();
-        let registry = tool::Registry::new(cycle_provider.clone()).await;
+        let registry =
+            tool::Registry::new(cycle_provider.clone(), tool::shared_agent_registry()).await;
         registry.register_ambient_tools().await;
         // Issue #89: register MCP tools so user-installed MCP servers are
         // available to the ambient agent — without this, the cycle agent

@@ -464,7 +464,7 @@ fn matrix_tui_login_selection_supports_numbers_and_names() {
     );
     assert_eq!(
         resolve_login_selection("6", &providers).map(|provider| provider.id),
-        Some("bedrock")
+        Some("openrouter")
     );
     assert_eq!(
         resolve_login_selection("compat", &providers).map(|provider| provider.id),
@@ -481,7 +481,7 @@ fn matrix_tui_login_selection_supports_numbers_and_names() {
     assert!(
         providers
             .iter()
-            .take(6)
+            .take(8)
             .any(|provider| provider.id == "bedrock")
     );
     assert!(resolve_login_selection("google", &providers).is_none());
@@ -496,22 +496,26 @@ fn matrix_cli_login_selection_preserves_existing_order() {
     );
     assert_eq!(
         resolve_login_selection("4", &providers).map(|provider| provider.id),
-        Some("jcode")
+        Some("openai")
     );
     assert_eq!(
         resolve_login_selection("5", &providers).map(|provider| provider.id),
-        Some("copilot")
+        Some("jcode")
     );
     assert_eq!(
         resolve_login_selection("6", &providers).map(|provider| provider.id),
-        Some("openrouter")
+        Some("copilot")
     );
     assert_eq!(
         resolve_login_selection("7", &providers).map(|provider| provider.id),
-        Some("bedrock")
+        Some("openrouter")
     );
     assert_eq!(
         resolve_login_selection("8", &providers).map(|provider| provider.id),
+        Some("bedrock")
+    );
+    assert_eq!(
+        resolve_login_selection("9", &providers).map(|provider| provider.id),
         Some("azure")
     );
     assert_eq!(

@@ -422,7 +422,6 @@ const DEFAULT_MAX_TOKENS: u32 = 32_768;
 /// Available models
 pub const AVAILABLE_MODELS: &[&str] = &[
     "claude-opus-4-8",
-    "claude-opus-4-8[1m]",
     "claude-opus-4-6",
     "claude-opus-4-6[1m]",
     "claude-sonnet-4-6",
@@ -489,6 +488,63 @@ impl AnthropicProvider {
     fn is_usage_exhausted() -> bool {
         let usage = crate::usage::get_sync();
         usage.five_hour >= 0.99 && usage.seven_day >= 0.99
+    }
+
+    /// Resolve a usable access token (OAuth or API key) and whether it is OAuth.
+    ///
+    /// Exposed for the provider-doctor's native Claude driver so it can validate
+    /// the credential and fetch the live model catalog through the exact same
+    /// resolution path the runtime uses. Returns the bearer token and an
+    /// `is_oauth` flag so callers can pick the matching catalog endpoint.
+    pub async fn resolve_access_token_for_doctor(&self) -> Result<(String, bool)> {
+        self.get_access_token().await
+    }
+
+    /// Pin the credential mode (OAuth vs API key) for a provider-doctor run.
+    ///
+    /// The `claude` login provider is specifically the OAuth/subscription path,
+    /// while `claude-api` is the API-key path. The doctor must test the path
+    /// implied by the provider id under test, regardless of what
+    /// `JCODE_RUNTIME_PROVIDER` happens to be in the current process (e.g. a
+    /// self-dev session may have it set to `claude-api`). This also updates
+    /// `JCODE_RUNTIME_PROVIDER` so any provider instances the probes build
+    /// afterwards inherit the same mode. Errors if the requested credential is
+    /// not available, so the doctor can record a clear AUTH failure.
+    pub fn pin_credential_mode_for_doctor(&self, oauth: bool) -> Result<()> {
+        let mode = if oauth {
+            AnthropicCredentialMode::OAuth
+        } else {
+            AnthropicCredentialMode::ApiKey
+        };
+        self.set_credential_mode(mode)
+    }
+
+    /// Fetch the live Anthropic model catalog using the resolved credential.
+    ///
+    /// Mirrors [`Provider::prefetch_models`] but returns the model ids to the
+    /// caller (rather than only persisting them) so the doctor can assert the
+    /// live `GET /v1/models` endpoint works and that the model under test is in
+    /// the live catalog.
+    pub async fn fetch_live_model_ids_for_doctor(&self) -> Result<Vec<String>> {
+        let (token, is_oauth) = self.get_access_token().await?;
+        if token.trim().is_empty() {
+            anyhow::bail!("resolved an empty Anthropic access token");
+        }
+        let catalog = if is_oauth {
+            crate::provider::fetch_anthropic_model_catalog_oauth(&token).await?
+        } else {
+            crate::provider::fetch_anthropic_model_catalog(&token).await?
+        };
+        // Persist so the rest of the process benefits from the warm catalog,
+        // exactly like the runtime's own prefetch.
+        crate::provider::persist_anthropic_model_catalog(&catalog);
+        if !catalog.context_limits.is_empty() {
+            crate::provider::populate_context_limits(catalog.context_limits.clone());
+        }
+        if !catalog.available_models.is_empty() {
+            crate::provider::populate_anthropic_models(catalog.available_models.clone());
+        }
+        Ok(catalog.available_models)
     }
 
     pub fn new() -> Self {
@@ -647,6 +703,19 @@ impl AnthropicProvider {
         model: &str,
         is_oauth: bool,
     ) -> (Option<ApiThinking>, Option<ApiOutputConfig>, Option<f32>) {
+        // `display.show_thinking` is a request to *see* the model's reasoning.
+        // Anthropic only streams thinking summaries when a thinking request is
+        // present, so opting into the display must also opt into generating it.
+        let show_thinking = crate::config::config().display.show_thinking;
+        self.build_reasoning_request_parts_inner(model, is_oauth, show_thinking)
+    }
+
+    fn build_reasoning_request_parts_inner(
+        &self,
+        model: &str,
+        is_oauth: bool,
+        show_thinking: bool,
+    ) -> (Option<ApiThinking>, Option<ApiOutputConfig>, Option<f32>) {
         let effort = self.reasoning_effort();
         let effort = effort.as_deref().filter(|effort| *effort != "none");
 
@@ -656,18 +725,24 @@ impl AnthropicProvider {
                 effort: Self::actual_effort_for_model(model, effort),
             });
 
-        let thinking = effort.and_then(|effort| {
-            if Self::model_supports_adaptive_thinking(model) {
-                Some(ApiThinking::Adaptive {
-                    display: Some("summarized"),
-                })
-            } else if Self::model_supports_manual_thinking(model) {
-                Self::manual_thinking_budget(effort, self.max_tokens)
-                    .map(|budget_tokens| ApiThinking::Enabled { budget_tokens })
-            } else {
-                None
-            }
-        });
+        // When only the display toggle is on (no explicit effort), request
+        // thinking without forcing `output_config`, so the model keeps its
+        // default reasoning strength and only the thinking *display* is enabled.
+        let thinking = if Self::model_supports_adaptive_thinking(model) {
+            (effort.is_some() || show_thinking).then_some(ApiThinking::Adaptive {
+                display: Some("summarized"),
+            })
+        } else if Self::model_supports_manual_thinking(model) {
+            // Manual-thinking models need a concrete budget. Use the configured
+            // effort, or fall back to a minimal budget when only the display
+            // toggle is on.
+            effort
+                .or(show_thinking.then_some("low"))
+                .and_then(|effort| Self::manual_thinking_budget(effort, self.max_tokens))
+                .map(|budget_tokens| ApiThinking::Enabled { budget_tokens })
+        } else {
+            None
+        };
 
         // Extended/adaptive thinking is incompatible with temperature. OAuth path
         // normally mirrors Claude Code's temperature=1.0, so omit it when thinking is active.
@@ -1025,7 +1100,9 @@ impl AnthropicProvider {
                         signature: signature.clone(),
                     });
                 }
-                ContentBlock::ToolUse { id, name, input } => {
+                ContentBlock::ToolUse {
+                    id, name, input, ..
+                } => {
                     result.push(ApiContentBlock::ToolUse {
                         id: crate::message::sanitize_tool_id(id),
                         name: if is_oauth {
@@ -1325,6 +1402,19 @@ impl Provider for AnthropicProvider {
     }
 
     fn set_model(&self, model: &str) -> Result<()> {
+        // Native-1M models (Opus 4.8/4.7) no longer carry a redundant `[1m]`
+        // alias. Gracefully migrate a stale `<model>[1m]` id (from old config or
+        // a restored session) to its canonical form, since the suffix is a no-op
+        // for these models.
+        let model: &str = if is_1m_model(model)
+            && matches!(
+                jcode_provider_core::anthropic_context_mode(model),
+                jcode_provider_core::AnthropicContextMode::Native1M
+            ) {
+            strip_1m_suffix(model)
+        } else {
+            model
+        };
         if !crate::provider::known_anthropic_model_ids()
             .iter()
             .any(|known| known == model)

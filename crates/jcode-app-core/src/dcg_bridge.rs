@@ -32,10 +32,12 @@
 //!   `Default`, `Auto`, `BypassPermissions`; **deny under `Plan`** (which is
 //!   read-only); prompt under `DontAsk` only if explicitly allow-listed.
 
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{LazyLock, Mutex};
 
 use dcg_core::{Decision, Effect, Engine, EngineConfig, Mode, Session, ToolCall};
+use jcode_agent_runtime::permission::PermissionMode;
 
 pub use crate::yolo_classifier::YoloClassifier;
 
@@ -82,6 +84,32 @@ fn default_protected_paths() -> Vec<String> {
     ]
 }
 
+/// Convert a [`PermissionMode`] (from `jcode-agent-runtime`) into the
+/// corresponding [`dcg_core::Mode`]. The two enums mirror each other
+/// exactly; this function is the canonical bridge.
+///
+/// We cannot implement `From<PermissionMode> for Mode` due to the orphan
+/// rule (both types live in foreign crates). This free function serves
+/// the same purpose.
+#[must_use]
+pub fn permission_mode_to_dcg(pm: PermissionMode) -> Mode {
+    match pm {
+        PermissionMode::Default => Mode::Default,
+        PermissionMode::AcceptEdits => Mode::AcceptEdits,
+        PermissionMode::Plan => Mode::Plan,
+        PermissionMode::DontAsk => Mode::DontAsk,
+        PermissionMode::BypassPermissions => Mode::BypassPermissions,
+        PermissionMode::Auto => Mode::Auto,
+    }
+}
+
+/// Per-session permission mode overrides. When a subagent is spawned with
+/// a specific `permission_mode` from its `AgentDefinition`, it is stored
+/// here keyed by the child session id. `classify_for_agent` checks this
+/// map before falling back to the global mode.
+static SESSION_MODES: LazyLock<Mutex<HashMap<String, Mode>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
+
 /// Set the global permission mode. Called from the CLI / config layer at
 /// process startup. Subsequent `classify` calls observe the new mode.
 pub fn set_mode(mode: Mode) {
@@ -97,6 +125,92 @@ pub fn current_mode() -> Mode {
         .lock()
         .map(|guard| *guard)
         .unwrap_or(Mode::Default)
+}
+
+/// Store a per-session permission mode override. Called when a subagent
+/// is spawned with an explicit `permission_mode` from its agent
+/// definition.
+pub fn set_session_mode(session_id: &str, mode: Mode) {
+    if let Ok(mut guard) = SESSION_MODES.lock() {
+        guard.insert(session_id.to_string(), mode);
+    }
+}
+
+/// Remove the per-session permission mode override for a session that
+/// has finished. Prevents unbounded growth of the map.
+pub fn clear_session_mode(session_id: &str) {
+    if let Ok(mut guard) = SESSION_MODES.lock() {
+        guard.remove(session_id);
+    }
+}
+
+/// Return the per-session mode override, if any.
+#[must_use]
+pub fn session_mode(session_id: &str) -> Option<Mode> {
+    SESSION_MODES
+        .lock()
+        .ok()
+        .and_then(|guard| guard.get(session_id).copied())
+}
+
+/// RAII guard that clears a per-session permission mode on drop.
+///
+/// Use this instead of manual `set_session_mode` / `clear_session_mode`
+/// pairs to guarantee cleanup even when the subagent exits via early
+/// return or error path.
+pub struct SessionModeGuard {
+    session_id: String,
+}
+
+impl SessionModeGuard {
+    /// Set the per-session mode and return a guard that will clear it on
+    /// drop. If `mode` is `None`, no override is set and the guard is a
+    /// no-op on drop (but still safe to hold).
+    #[must_use]
+    pub fn new(session_id: &str, mode: Option<Mode>) -> Self {
+        if let Some(mode) = mode {
+            set_session_mode(session_id, mode);
+        }
+        Self {
+            session_id: session_id.to_string(),
+        }
+    }
+}
+
+impl Drop for SessionModeGuard {
+    fn drop(&mut self) {
+        clear_session_mode(&self.session_id);
+    }
+}
+
+/// Classify an action using the agent-specific permission mode when
+/// provided, falling back to the global mode otherwise.
+///
+/// This is the entry point that respects per-agent permission overrides.
+/// Call sites that know the agent's `PermissionMode` (e.g. subagent tool
+/// execution) should use this instead of [`classify`].
+#[must_use]
+pub fn classify_for_agent(
+    action: &str,
+    agent_permission_mode: Option<PermissionMode>,
+) -> BridgeDecision {
+    let mode = agent_permission_mode
+        .map(permission_mode_to_dcg)
+        .unwrap_or_else(current_mode);
+    classify_with_mode(action, mode)
+}
+
+/// Classify an action using the per-session mode override when one exists
+/// for `session_id`, falling back to the global mode otherwise.
+///
+/// This is the session-aware variant of [`classify`]. Call sites that
+/// know the session id (e.g. tool execution within a subagent) should
+/// prefer this over the global [`classify`] so that per-session
+/// permission overrides set via [`set_session_mode`] are honoured.
+#[must_use]
+pub fn classify_for_session(action: &str, session_id: &str) -> BridgeDecision {
+    let mode = session_mode(session_id).unwrap_or_else(current_mode);
+    classify_with_mode(action, mode)
 }
 
 /// Three-state outcome from the bridge. jcode's `SafetySystem` collapses
@@ -390,5 +504,59 @@ mod tests {
         assert_eq!(current_mode(), Mode::Plan);
         // Restore so other tests aren't affected by ordering.
         set_mode(original);
+    }
+
+    #[test]
+    fn permission_mode_converts_to_dcg_mode() {
+        use jcode_agent_runtime::permission::PermissionMode as PM;
+
+        assert_eq!(permission_mode_to_dcg(PM::Default), Mode::Default);
+        assert_eq!(permission_mode_to_dcg(PM::AcceptEdits), Mode::AcceptEdits);
+        assert_eq!(permission_mode_to_dcg(PM::Plan), Mode::Plan);
+        assert_eq!(permission_mode_to_dcg(PM::DontAsk), Mode::DontAsk);
+        assert_eq!(
+            permission_mode_to_dcg(PM::BypassPermissions),
+            Mode::BypassPermissions
+        );
+        assert_eq!(permission_mode_to_dcg(PM::Auto), Mode::Auto);
+    }
+
+    #[test]
+    fn classify_for_agent_uses_agent_mode_when_set() {
+        use jcode_agent_runtime::permission::PermissionMode as PM;
+
+        // todowrite auto-allows in AcceptEdits but denies in Plan
+        assert_eq!(
+            classify_for_agent("todowrite", Some(PM::AcceptEdits)),
+            BridgeDecision::Allow,
+            "todowrite must allow in AcceptEdits"
+        );
+        assert_eq!(
+            classify_for_agent("todowrite", Some(PM::Plan)),
+            BridgeDecision::Deny,
+            "todowrite must deny in Plan"
+        );
+    }
+
+    #[test]
+    fn classify_for_agent_falls_back_to_global_when_none() {
+        let original = current_mode();
+        set_mode(Mode::BypassPermissions);
+        assert_eq!(
+            classify_for_agent("made_up_tool", None),
+            BridgeDecision::Allow,
+            "falls back to global BypassPermissions mode"
+        );
+        set_mode(original);
+    }
+
+    #[test]
+    fn session_mode_set_and_clear() {
+        let sid = "test_session_mode_123";
+        assert!(session_mode(sid).is_none());
+        set_session_mode(sid, Mode::Plan);
+        assert_eq!(session_mode(sid), Some(Mode::Plan));
+        clear_session_mode(sid);
+        assert!(session_mode(sid).is_none());
     }
 }

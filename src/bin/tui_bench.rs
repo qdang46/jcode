@@ -403,6 +403,7 @@ impl BenchState {
                         "new_string": format!("target line {} updated", idx),
                     }),
                     intent: None,
+                    thought_signature: None,
                 };
                 let tool_output = format!(
                     "{line}- target line {idx}\n{line}+ target line {idx} updated",
@@ -619,7 +620,9 @@ fn stored_message_visible_text(message: &jcode::session::StoredMessage) -> Strin
     let mut parts = Vec::new();
     for block in &message.content {
         match block {
-            ContentBlock::Text { text, .. } | ContentBlock::Reasoning { text } => {
+            ContentBlock::Text { text, .. }
+            | ContentBlock::Reasoning { text }
+            | ContentBlock::ReasoningTrace { text } => {
                 if !text.trim().is_empty() {
                     parts.push(text.trim().to_string());
                 }

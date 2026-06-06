@@ -10,8 +10,11 @@ mod ambient;
 mod binary_integration;
 mod burst_spawn;
 mod provider_behavior;
+mod reload_multiclient;
 mod safety;
 mod session_flow;
 mod transport;
+#[cfg(feature = "dcp")]
+mod dcp_integration;
 #[cfg(windows)]
 mod windows_lifecycle;
