@@ -103,10 +103,7 @@ static SHARED_AGENT_REGISTRY: LazyLock<Option<Arc<jcode_agent_runtime::AgentRegi
         let home = dirs::home_dir();
         let cwd = std::env::current_dir().ok();
         let mut registry = jcode_agent_runtime::AgentRegistry::new();
-        registry.discover_standard_paths(
-            home.as_deref(),
-            cwd.as_deref(),
-        );
+        registry.discover_standard_paths(home.as_deref(), cwd.as_deref());
         if registry.is_empty() {
             None
         } else {
@@ -385,16 +382,8 @@ impl Registry {
             Some("1") | Some("true") | Some("yes") | Some("on")
         );
         if experimental_tools_enabled && !no_builtin {
-            Self::insert_tool(
-                &mut tools_map,
-                "team_create",
-                team::TeamCreateTool::new(),
-            );
-            Self::insert_tool(
-                &mut tools_map,
-                "team_delete",
-                team::TeamDeleteTool::new(),
-            );
+            Self::insert_tool(&mut tools_map, "team_create", team::TeamCreateTool::new());
+            Self::insert_tool(&mut tools_map, "team_delete", team::TeamDeleteTool::new());
             Self::insert_tool(
                 &mut tools_map,
                 "task_create",

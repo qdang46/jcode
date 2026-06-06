@@ -63,7 +63,6 @@ pub fn update_modes(detections: &[DetectedKeyword], working_dir: Option<&Path>) 
     {
         state.active_modes.clear();
         state.updated_at = Some(Utc::now().to_rfc3339());
-        save_state(&state, working_dir);
         return state;
     }
 
@@ -94,20 +93,35 @@ pub fn update_modes(detections: &[DetectedKeyword], working_dir: Option<&Path>) 
     }
 
     state.updated_at = Some(Utc::now().to_rfc3339());
-    save_state(&state, working_dir);
     state
 }
 
 /// Load mode state from disk.
 pub fn load_state(working_dir: Option<&Path>) -> ModeState {
     let path = state_path(working_dir);
-    if path.exists() {
-        std::fs::read_to_string(&path)
-            .ok()
-            .and_then(|content| toml::from_str(&content).ok())
-            .unwrap_or_default()
-    } else {
-        ModeState::default()
+    if !path.exists() {
+        return ModeState::default();
+    }
+    match std::fs::read_to_string(&path) {
+        Ok(content) => match toml::from_str(&content) {
+            Ok(state) => state,
+            Err(e) => {
+                eprintln!(
+                    "[jcode-keywords] failed to parse mode state at {}: {} — using default",
+                    path.display(),
+                    e,
+                );
+                ModeState::default()
+            }
+        },
+        Err(e) => {
+            eprintln!(
+                "[jcode-keywords] failed to read mode state at {}: {} — using default",
+                path.display(),
+                e,
+            );
+            ModeState::default()
+        }
     }
 }
 

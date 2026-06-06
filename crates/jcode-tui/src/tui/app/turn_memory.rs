@@ -27,13 +27,62 @@ impl App {
                 description: s.description.clone(),
             })
             .collect();
+        // Run the same keyword pipeline as the agent runtime so TUI users see
+        // workflow prompts and have their mode state persisted. (See issue #391.)
+        let keyword_prompt = {
+            let latest_input = self
+                .session
+                .messages
+                .iter()
+                .rev()
+                .find(|m| {
+                    use crate::message::Role;
+                    matches!(m.role, Role::User)
+                })
+                .and_then(|m| {
+                    m.content.iter().find_map(|b| match b {
+                        crate::message::ContentBlock::Text { text, .. } => Some(text.as_str()),
+                        _ => None,
+                    })
+                })
+                .unwrap_or("");
+            let last_assistant = self
+                .session
+                .messages
+                .iter()
+                .rev()
+                .find(|m| {
+                    use crate::message::Role;
+                    matches!(m.role, Role::Assistant)
+                })
+                .and_then(|m| {
+                    m.content.iter().find_map(|b| match b {
+                        crate::message::ContentBlock::Text { text, .. } => Some(text.as_str()),
+                        _ => None,
+                    })
+                });
+            let result = jcode_keywords::process_turn(
+                latest_input,
+                last_assistant,
+                self.session
+                    .working_dir
+                    .as_deref()
+                    .map(std::path::Path::new),
+                &self.session.id,
+            );
+            for conflict in &result.conflicts {
+                crate::logging::warn(&jcode_keywords::conflict::format_warning(conflict));
+            }
+            result.keyword_prompt
+        };
+
         let (mut split, context_info) = crate::prompt::build_system_prompt_split(
             skill_prompt.as_deref(),
             &available_skills,
             self.session.is_canary,
             memory_prompt,
             None,
-            None, // keyword_prompt — TODO: wire keyword detection for TUI path
+            keyword_prompt,
         );
         self.append_current_turn_system_reminder(&mut split);
         self.context_info = context_info;

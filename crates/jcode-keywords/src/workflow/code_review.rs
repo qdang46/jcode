@@ -2,7 +2,7 @@
 //!
 //! Tier 2: Sub-agent spawning. Spawns a reviewer agent.
 
-use super::{sanitize_user_input, WorkflowAction, WorkflowContext, WorkflowHandler};
+use super::{WorkflowAction, WorkflowContext, WorkflowHandler, sanitize_user_input};
 use crate::registry::WorkflowKind;
 
 pub struct CodeReviewHandler;

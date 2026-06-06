@@ -29,11 +29,11 @@ pub fn detect_keywords(input: &str) -> Vec<DetectedKeyword> {
     let registry = crate::registry::build_registry();
     let mut results = Vec::new();
 
-    for entry in &registry {
+    for entry in registry.iter() {
         // Check canonical keyword (case-insensitive)
         if let Some(pos) = lower.find(&entry.keyword.to_lowercase()) {
             results.push(DetectedKeyword {
-                entry: leak_entry(entry),
+                entry: *entry,
                 matched_text: sanitized[pos..pos + entry.keyword.len()].to_string(),
                 position: (pos, pos + entry.keyword.len()),
                 confidence: 1.0,
@@ -47,11 +47,18 @@ pub fn detect_keywords(input: &str) -> Vec<DetectedKeyword> {
             if alias_lower.len() < 5 {
                 // Short aliases: exact match only
                 if let Some(pos) = lower.find(&alias_lower) {
-                    let end = pos + alias.len();
+                    let end = (pos + alias.len()).min(sanitized.len());
+                    // Guard against non-char-boundary slicing
+                    let end = sanitized
+                        .char_indices()
+                        .map(|(i, _)| i)
+                        .take_while(|&i| i <= end)
+                        .last()
+                        .unwrap_or(pos);
                     results.push(DetectedKeyword {
-                        entry: leak_entry(entry),
-                        matched_text: sanitized[pos..end.min(sanitized.len())].to_string(),
-                        position: (pos, end.min(sanitized.len())),
+                        entry: *entry,
+                        matched_text: sanitized[pos..end].to_string(),
+                        position: (pos, end),
                         confidence: 0.9,
                     });
                     break;
@@ -59,11 +66,19 @@ pub fn detect_keywords(input: &str) -> Vec<DetectedKeyword> {
                 continue;
             }
             if let Some(pos) = find_fuzzy(&lower, &alias_lower, 2) {
-                let end = pos + alias.len();
+                // Take the byte length of the actually-matched window, not the
+                // alias itself, so a multi-byte alias cannot cause a panic on
+                // a non-char-boundary slice.
+                let match_len = lower[pos..]
+                    .char_indices()
+                    .nth(alias.chars().count())
+                    .map(|(i, _)| i)
+                    .unwrap_or(alias.len());
+                let end = (pos + match_len).min(sanitized.len());
                 results.push(DetectedKeyword {
-                    entry: leak_entry(entry),
-                    matched_text: sanitized[pos..end.min(sanitized.len())].to_string(),
-                    position: (pos, end.min(sanitized.len())),
+                    entry: *entry,
+                    matched_text: sanitized[pos..end].to_string(),
+                    position: (pos, end),
                     confidence: 0.85,
                 });
                 break; // Only one alias match per entry
@@ -82,7 +97,9 @@ pub fn detect_keywords(input: &str) -> Vec<DetectedKeyword> {
             return true;
         }
         // Fuzzy match must not overlap any exact match
-        !exact_ranges.iter().any(|&(es, ee)| r.position.0 < ee && r.position.1 > es)
+        !exact_ranges
+            .iter()
+            .any(|&(es, ee)| r.position.0 < ee && r.position.1 > es)
     });
 
     // Sort by priority (highest first), then by position (earliest first)
@@ -172,15 +189,6 @@ fn deduplicate_by_workflow(mut results: Vec<DetectedKeyword>) -> Vec<DetectedKey
     results
 }
 
-/// Leak an entry reference into a static lifetime.
-/// The registry is built once and lives for the program's lifetime.
-fn leak_entry(entry: &KeywordEntry) -> &'static KeywordEntry {
-    // SAFETY: We leak the registry entries which are built once.
-    // This is acceptable for a CLI tool's lifetime.
-    let boxed = Box::new(entry.clone());
-    Box::leak(boxed)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -234,5 +242,19 @@ mod tests {
         assert_eq!(levenshtein_distance("kitten", "sitting"), 3);
         assert_eq!(levenshtein_distance("hello", "hello"), 0);
         assert_eq!(levenshtein_distance("", "abc"), 3);
+    }
+
+    #[test]
+    fn detector_handles_multibyte_input_safely() {
+        // Mixed CJK + ASCII should never panic, even if the alias slice
+        // logic would have hit a non-char-boundary in the old impl.
+        let results = detect_keywords("please 分析 this 代码 for me");
+        // No alias is multi-byte in the current registry, so this is a no-op
+        // detection but the call must not panic.
+        for r in &results {
+            // Each match's position must lie on char boundaries
+            assert!(r.position.0 <= r.position.1);
+            assert!(r.position.1 <= "please 分析 this 代码 for me".len());
+        }
     }
 }

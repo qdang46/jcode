@@ -2,7 +2,7 @@
 //!
 //! Tier 2: Sub-agent spawning. Spawns parallel search agents with different strategies.
 
-use super::{sanitize_user_input, SpawnSpec, WorkflowAction, WorkflowContext, WorkflowHandler};
+use super::{SpawnSpec, WorkflowAction, WorkflowContext, WorkflowHandler, sanitize_user_input};
 use crate::registry::WorkflowKind;
 use std::collections::HashMap;
 

@@ -45,33 +45,25 @@ impl WorkflowHandler for RalplanHandler {
                  Say `[PHASE:PLAN_DONE]` when done.",
                 ctx.user_input
             ),
-            "review" => {
-                "## Ralplan — Phase: REVIEW\n\n\
+            "review" => "## Ralplan — Phase: REVIEW\n\n\
                  Self-review the plan:\n\
                  - What could go wrong?\n\
                  - What assumptions are we making?\n\
                  - What's missing?\n\
                  Say `[PHASE:REVIEW_DONE]` when done."
-                    .to_string()
-            }
-            "revise" => {
-                "## Ralplan — Phase: REVISE\n\n\
+                .to_string(),
+            "revise" => "## Ralplan — Phase: REVISE\n\n\
                  Revise the plan addressing review issues.\n\
                  Say `[PHASE:REVISED]` when done."
-                    .to_string()
-            }
-            "approve" => {
-                "## Ralplan — Phase: APPROVE\n\n\
+                .to_string(),
+            "approve" => "## Ralplan — Phase: APPROVE\n\n\
                  Present the final plan. Wait for user approval.\n\
                  Say `[PHASE:APPROVED]` when user confirms."
-                    .to_string()
-            }
-            "execute" => {
-                "## Ralplan — Phase: EXECUTE\n\n\
+                .to_string(),
+            "execute" => "## Ralplan — Phase: EXECUTE\n\n\
                  Execute the approved plan step by step.\n\
                  Say `[PHASE:EXECUTED]` when done."
-                    .to_string()
-            }
+                .to_string(),
             _ => "Continue planning.".to_string(),
         };
 
@@ -81,10 +73,7 @@ impl WorkflowHandler for RalplanHandler {
             metadata.insert("ralplan_phase".to_string(), "plan".to_string());
         }
 
-        WorkflowAction::ContinueWithMetadata {
-            reminder,
-            metadata,
-        }
+        WorkflowAction::ContinueWithMetadata { reminder, metadata }
     }
 
     fn on_turn_complete(
@@ -103,9 +92,7 @@ impl WorkflowHandler for RalplanHandler {
             "revise" if response.contains("[PHASE:REVISED]") => Some("approve"),
             "approve" if response.contains("[PHASE:APPROVED]") => Some("execute"),
             "execute" if response.contains("[PHASE:EXECUTED]") => {
-                return WorkflowAction::Complete(
-                    "Plan executed successfully.".to_string(),
-                );
+                return WorkflowAction::Complete("Plan executed successfully.".to_string());
             }
             _ => None,
         };

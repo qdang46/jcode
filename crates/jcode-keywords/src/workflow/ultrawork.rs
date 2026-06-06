@@ -2,7 +2,7 @@
 //!
 //! Tier 2: Sub-agent spawning. Spawns parallel sub-agents for independent subtasks.
 
-use super::{sanitize_user_input, SpawnSpec, WorkflowAction, WorkflowContext, WorkflowHandler};
+use super::{SpawnSpec, WorkflowAction, WorkflowContext, WorkflowHandler, sanitize_user_input};
 use crate::registry::WorkflowKind;
 use std::collections::HashMap;
 
@@ -35,19 +35,23 @@ impl WorkflowHandler for UltraworkHandler {
             SpawnSpec {
                 description: "Analysis subtask".to_string(),
                 prompt: format!("Analyze the following task:\n{}", safe_input),
-                system_prompt: "You are an analysis sub-agent. Identify key components and dependencies.".to_string(),
+                system_prompt:
+                    "You are an analysis sub-agent. Identify key components and dependencies."
+                        .to_string(),
                 max_turns: 5,
             },
             SpawnSpec {
                 description: "Implementation subtask".to_string(),
                 prompt: format!("Implement the core functionality for:\n{}", safe_input),
-                system_prompt: "You are an implementation sub-agent. Write clean, working code.".to_string(),
+                system_prompt: "You are an implementation sub-agent. Write clean, working code."
+                    .to_string(),
                 max_turns: 10,
             },
             SpawnSpec {
                 description: "Testing subtask".to_string(),
                 prompt: format!("Write tests for:\n{}", safe_input),
-                system_prompt: "You are a testing sub-agent. Ensure comprehensive test coverage.".to_string(),
+                system_prompt: "You are a testing sub-agent. Ensure comprehensive test coverage."
+                    .to_string(),
                 max_turns: 5,
             },
         ];

@@ -45,16 +45,11 @@ impl WorkflowHandler for DeepInterviewHandler {
             .unwrap_or(5);
 
         if round >= MAX_ROUNDS {
-            return WorkflowAction::Complete(format!(
-                "Interview complete after {} rounds.",
-                round
-            ));
+            return WorkflowAction::Complete(format!("Interview complete after {} rounds.", round));
         }
 
         if ambiguity < AMBIGUITY_THRESHOLD {
-            return WorkflowAction::Complete(
-                "Requirements are clear. Proceeding.".to_string(),
-            );
+            return WorkflowAction::Complete("Requirements are clear. Proceeding.".to_string());
         }
 
         let reminder = if round == 0 {
@@ -86,10 +81,7 @@ impl WorkflowHandler for DeepInterviewHandler {
             metadata.insert("ambiguity_score".to_string(), "5".to_string());
         }
 
-        WorkflowAction::ContinueWithMetadata {
-            reminder,
-            metadata,
-        }
+        WorkflowAction::ContinueWithMetadata { reminder, metadata }
     }
 
     fn on_turn_complete(
@@ -99,9 +91,7 @@ impl WorkflowHandler for DeepInterviewHandler {
     ) -> WorkflowAction {
         // Check for explicit completion marker
         if response.contains("[INTERVIEW:COMPLETE]") {
-            return WorkflowAction::Complete(
-                "Requirements gathered.".to_string(),
-            );
+            return WorkflowAction::Complete("Requirements gathered.".to_string());
         }
 
         let round: u32 = metadata
@@ -181,7 +171,10 @@ mod tests {
     #[test]
     fn extract_score_from_n_over_10() {
         assert_eq!(extract_ambiguity_score("Ambiguity: 7/10"), Some(7));
-        assert_eq!(extract_ambiguity_score("The ambiguity is about 3/10"), Some(3));
+        assert_eq!(
+            extract_ambiguity_score("The ambiguity is about 3/10"),
+            Some(3)
+        );
     }
 
     #[test]

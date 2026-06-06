@@ -70,7 +70,9 @@ mod tests {
     #[test]
     fn medium_task() {
         assert_eq!(
-            classify("Please refactor the authentication module to use JWT tokens instead of sessions"),
+            classify(
+                "Please refactor the authentication module to use JWT tokens instead of sessions"
+            ),
             TaskSize::Medium
         );
         assert_eq!(classify("```\nfn main() {}\n```"), TaskSize::Medium);

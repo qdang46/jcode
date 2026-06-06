@@ -45,18 +45,14 @@ impl WorkflowHandler for TddHandler {
                  The test must fail. Say `[PHASE:RED_DONE]` when done.",
                 ctx.user_input
             ),
-            "green" => {
-                "## TDD — Phase: GREEN\n\n\
+            "green" => "## TDD — Phase: GREEN\n\n\
                  Write MINIMAL code to make the failing test pass.\n\
                  Say `[PHASE:GREEN_DONE]` when done."
-                    .to_string()
-            }
-            "refactor" => {
-                "## TDD — Phase: REFACTOR\n\n\
+                .to_string(),
+            "refactor" => "## TDD — Phase: REFACTOR\n\n\
                  Clean up the code. Keep all tests green.\n\
                  Say `[PHASE:REFACTORED]` when done."
-                    .to_string()
-            }
+                .to_string(),
             _ => "Continue TDD cycle.".to_string(),
         };
 
@@ -66,10 +62,7 @@ impl WorkflowHandler for TddHandler {
             metadata.insert("tdd_phase".to_string(), "red".to_string());
         }
 
-        WorkflowAction::ContinueWithMetadata {
-            reminder,
-            metadata,
-        }
+        WorkflowAction::ContinueWithMetadata { reminder, metadata }
     }
 
     fn on_turn_complete(

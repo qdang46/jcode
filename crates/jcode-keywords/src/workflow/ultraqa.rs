@@ -59,18 +59,14 @@ impl WorkflowHandler for UltraqaHandler {
                 MAX_ITERATIONS,
                 ctx.user_input
             ),
-            "test" => {
-                "## QA Cycle — Phase: TEST\n\n\
+            "test" => "## QA Cycle — Phase: TEST\n\n\
                  Run all tests. Report results.\n\
                  If all pass, say `[PHASE:TESTS_PASS]`."
-                    .to_string()
-            }
-            "fix" => {
-                "## QA Cycle — Phase: FIX\n\n\
+                .to_string(),
+            "fix" => "## QA Cycle — Phase: FIX\n\n\
                  Fix test failures. Re-run tests.\n\
                  Say `[PHASE:FIX_DONE]` when done."
-                    .to_string()
-            }
+                .to_string(),
             _ => "Continue QA cycle.".to_string(),
         };
 
@@ -83,10 +79,7 @@ impl WorkflowHandler for UltraqaHandler {
             metadata.insert("qa_iteration".to_string(), "0".to_string());
         }
 
-        WorkflowAction::ContinueWithMetadata {
-            reminder,
-            metadata,
-        }
+        WorkflowAction::ContinueWithMetadata { reminder, metadata }
     }
 
     fn on_turn_complete(

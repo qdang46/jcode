@@ -35,5 +35,9 @@ pub use detector::{DetectedKeyword, detect_keywords};
 pub use registry::{KeywordEntry, WorkflowKind};
 pub use state::ModeState;
 pub use visual::KeywordHighlight;
+pub use workflow::executor::DeferredSpawn;
+pub use workflow::executor::{
+    apply_actions, build_workflow_prompt, execute_active_workflows, process_turn,
+    process_turn_response,
+};
 pub use workflow::{WorkflowAction, WorkflowContext, WorkflowHandler};
-pub use workflow::executor::{execute_active_workflows, process_turn_response, apply_actions, build_workflow_prompt};

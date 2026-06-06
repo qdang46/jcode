@@ -61,10 +61,7 @@ impl WorkflowHandler for UltragoalHandler {
             metadata.insert("goal_progress".to_string(), "0".to_string());
         }
 
-        WorkflowAction::ContinueWithMetadata {
-            reminder,
-            metadata,
-        }
+        WorkflowAction::ContinueWithMetadata { reminder, metadata }
     }
 
     fn on_turn_complete(

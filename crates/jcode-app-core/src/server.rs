@@ -636,7 +636,9 @@ impl Server {
 
             let previous_status = session.status.clone();
             let provider = self.provider.fork();
-            let registry = crate::tool::Registry::new(provider.clone(), crate::tool::shared_agent_registry()).await;
+            let registry =
+                crate::tool::Registry::new(provider.clone(), crate::tool::shared_agent_registry())
+                    .await;
             if session.is_canary {
                 registry.register_selfdev_tools().await;
                 registry.register_experimental_tools().await;

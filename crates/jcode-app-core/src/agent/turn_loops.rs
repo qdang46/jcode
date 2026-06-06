@@ -25,10 +25,7 @@ impl Agent {
                         max
                     ));
                     if final_text.is_empty() {
-                        final_text = format!(
-                            "[agent stopped: reached max_turns limit of {}]",
-                            max
-                        );
+                        final_text = format!("[agent stopped: reached max_turns limit of {}]", max);
                     }
                     break;
                 }

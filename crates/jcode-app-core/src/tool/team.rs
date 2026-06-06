@@ -52,7 +52,10 @@ fn validate_team_name(name: &str) -> Result<()> {
             name
         );
     }
-    if !name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-') {
+    if !name
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+    {
         anyhow::bail!(
             "Team name '{}' is invalid: only alphanumeric, hyphen, and underscore allowed",
             name
