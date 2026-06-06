@@ -29,3 +29,23 @@ use anyhow::Result;
 pub async fn run() -> Result<()> {
     cli::startup::run().await
 }
+
+/// Fast-path for `--help` / `--version`: let clap print and exit before any
+/// heavy initialisation (crypto provider, tokio runtime, logging, telemetry).
+///
+/// Returns immediately for normal invocations so the caller can proceed with
+/// the full startup sequence.
+pub fn early_exit_on_help_or_version() {
+    use clap::Parser;
+    match cli::args::Args::try_parse() {
+        Ok(_) => {}               // normal invocation — caller continues
+        Err(e) => match e.kind() {
+            clap::error::ErrorKind::DisplayHelp
+            | clap::error::ErrorKind::DisplayVersion => {
+                let _ = e.print();
+                std::process::exit(0);
+            }
+            _ => {} // parse error (missing args etc.) — real parse happens later
+        },
+    }
+}

@@ -215,6 +215,10 @@ pub struct TurnResult {
     /// Mode conflicts (TDD + ultrawork, etc.) detected among the now-active
     /// modes. Callers are expected to surface these to logs/UI.
     pub conflicts: Vec<crate::conflict::Conflict>,
+    /// Spawn actions deferred to the caller because `SubagentTool` lives
+    /// outside `jcode-keywords`. Non-empty means the agent runtime should
+    /// dispatch these via `SubagentTool.execute`.
+    pub deferred_spawns: Vec<DeferredSpawn>,
 }
 
 /// One-shot keyword processing for a turn.
@@ -237,17 +241,20 @@ pub fn process_turn(
         return TurnResult {
             keyword_prompt: None,
             conflicts: Vec::new(),
+            deferred_spawns: Vec::new(),
         };
     }
 
     let detections = crate::detector::detect_keywords(latest_input);
     let mut mode_state = crate::state::update_modes(&detections, working_dir);
+    let mut deferred_spawns: Vec<DeferredSpawn> = Vec::new();
 
     // Process PREVIOUS turn's LLM response (phase transitions, completion)
     if let Some(prev) = last_assistant {
         let response_actions = process_turn_response(&mode_state, prev);
         if !response_actions.is_empty() {
-            let _ = apply_actions(&mut mode_state, &response_actions);
+            let (_, ds) = apply_actions(&mut mode_state, &response_actions);
+            deferred_spawns.extend(ds);
         }
     }
 
@@ -261,7 +268,8 @@ pub fn process_turn(
         task_size,
     );
     if !actions.is_empty() {
-        let _ = apply_actions(&mut mode_state, &actions);
+        let (_, ds) = apply_actions(&mut mode_state, &actions);
+        deferred_spawns.extend(ds);
     }
 
     // Detect conflicts among the now-active modes (TDD + ultrawork, etc.)
@@ -280,6 +288,7 @@ pub fn process_turn(
             Some(prompt)
         },
         conflicts,
+        deferred_spawns,
     }
 }
 
