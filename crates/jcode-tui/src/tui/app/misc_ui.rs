@@ -168,10 +168,8 @@ impl App {
             jcode_provider_core::DualAuthProvider::OpenAI,
             runtime_provider.as_deref(),
         );
-        let is_explicit_anthropic_api = matches!(
-            pinned_anthropic,
-            Some(jcode_provider_core::AuthMode::ApiKey)
-        );
+        let is_explicit_anthropic_api =
+            matches!(pinned_anthropic, Some(jcode_provider_core::AuthMode::ApiKey));
         let is_explicit_anthropic_oauth =
             matches!(pinned_anthropic, Some(jcode_provider_core::AuthMode::Oauth));
         let is_explicit_openai_api =
