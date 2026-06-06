@@ -34,11 +34,26 @@ fn build_100_message_session() -> Vec<Message> {
     // File contents that will be read multiple times (triggers dedup/stale-file-reads).
     // Larger files = more token savings when DCP prunes the duplicate reads.
     let file_contents = [
-        ("src/auth/login.rs", "pub async fn login(user: &str, pass: &str) -> Result<Session> {\n    let u = db::find_user(user).await?;\n    if !verify(pass, &u.hash) {\n        tracing::warn!(\"failed login attempt for user={}\", user);\n        return Err(AuthError::BadCreds);\n    }\n    let token = gen_jwt(&u)?;\n    tracing::info!(\"user={} logged in successfully\", user);\n    Ok(Session { user_id: u.id, token, created_at: Utc::now() })\n}\n\npub async fn logout(session: &Session) -> Result<()> {\n    db::invalidate_session(session.user_id).await?;\n    tracing::info!(\"user={} logged out\", session.user_id);\n    Ok(())\n}\n\npub async fn refresh_token(session: &Session) -> Result<String> {\n    let user = db::find_user_by_id(session.user_id).await?;\n    let new_token = gen_jwt(&user)?;\n    Ok(new_token)\n}"),
-        ("src/auth/middleware.rs", "pub async fn auth(req: Request, next: Next) -> Response {\n    let tok = req.header(\"Authorization\")\n        .and_then(|v| v.to_str().ok())\n        .ok_or(AuthError::NoToken)?;\n    let claims = verify_jwt(tok).map_err(|e| {\n        tracing::warn!(\"invalid JWT: {}\", e);\n        AuthError::InvalidToken\n    })?;\n    req.extensions_mut().insert(claims.clone());\n    let start = Instant::now();\n    let response = next.run(req).await;\n    let elapsed = start.elapsed();\n    tracing::debug!(\"request processed in {:?} for user={}\", elapsed, claims.sub);\n    response\n}\n\npub fn require_role(role: &str) -> impl Fn(Request, Next) -> Response {\n    move |req, next| {\n        let claims: Claims = req.extensions().get::<Claims>().cloned().unwrap();\n        if claims.role != role {\n            return Response::forbidden();\n        }\n        next.run(req)\n    }\n}"),
-        ("src/db/queries.rs", "pub async fn find_user(name: &str) -> Result<User> {\n    sqlx::query_as!(User, \"SELECT * FROM users WHERE name=$1\", name)\n        .fetch_one(&pool)\n        .await\n        .map_err(|e| {\n            tracing::error!(\"db query failed for user={}: {}\", name, e);\n            DbError::Query(e.to_string())\n        })\n}\n\npub async fn create_user(name: &str, email: &str, hash: &str) -> Result<User> {\n    sqlx::query_as!(User,\n        \"INSERT INTO users (name, email, password_hash) VALUES ($1, $2, $3) RETURNING *\",\n        name, email, hash\n    )\n    .fetch_one(&pool)\n    .await\n    .map_err(|e| DbError::Query(e.to_string()))\n}\n\npub async fn update_last_login(user_id: i64) -> Result<()> {\n    sqlx::query!(\"UPDATE users SET last_login=NOW() WHERE id=$1\", user_id)\n        .execute(&pool)\n        .await\n        .map_err(|e| DbError::Query(e.to_string()))?;\n    Ok(())\n}"),
-        ("src/api/routes.rs", "pub fn routes() -> Router {\n    Router::new()\n        .route(\"/api/v1/login\", post(login_handler))\n        .route(\"/api/v1/logout\", post(logout_handler))\n        .route(\"/api/v1/me\", get(me_handler))\n        .route(\"/api/v1/users\", get(list_users).post(create_user_handler))\n        .route(\"/api/v1/users/:id\", get(get_user).put(update_user).delete(delete_user))\n        .route(\"/api/v1/health\", get(health_check))\n        .layer(auth_middleware())\n        .layer(cors_middleware())\n        .layer(rate_limit_middleware(100, Duration::from_secs(60)))\n}\n\nasync fn health_check() -> Json<serde_json::Value> {\n    Json(serde_json::json!({ \"status\": \"ok\", \"version\": env!(\"CARGO_PKG_VERSION\") }))\n}"),
-        ("src/config.rs", "pub struct Config {\n    pub db_url: String,\n    pub jwt_secret: String,\n    pub jwt_expiry_hours: u32,\n    pub port: u16,\n    pub log_level: String,\n    pub cors_origins: Vec<String>,\n    pub rate_limit_rpm: u32,\n    pub max_connections: u32,\n}\n\nimpl Config {\n    pub fn from_env() -> Result<Self> {\n        Ok(Self {\n            db_url: std::env::var(\"DATABASE_URL\")?,\n            jwt_secret: std::env::var(\"JWT_SECRET\")?,\n            jwt_expiry_hours: std::env::var(\"JWT_EXPIRY_HOURS\")\n                .unwrap_or(\"24\".into()).parse()?,\n            port: std::env::var(\"PORT\").unwrap_or(\"8080\".into()).parse()?,\n            log_level: std::env::var(\"LOG_LEVEL\").unwrap_or(\"info\".into()),\n            cors_origins: std::env::var(\"CORS_ORIGINS\")\n                .unwrap_or(\"*\".into()).split(',').map(String::from).collect(),\n            rate_limit_rpm: std::env::var(\"RATE_LIMIT_RPM\")\n                .unwrap_or(\"100\".into()).parse()?,\n            max_connections: std::env::var(\"MAX_CONNECTIONS\")\n                .unwrap_or(\"10\".into()).parse()?,\n        })\n    }\n}"),
+        (
+            "src/auth/login.rs",
+            "pub async fn login(user: &str, pass: &str) -> Result<Session> {\n    let u = db::find_user(user).await?;\n    if !verify(pass, &u.hash) {\n        tracing::warn!(\"failed login attempt for user={}\", user);\n        return Err(AuthError::BadCreds);\n    }\n    let token = gen_jwt(&u)?;\n    tracing::info!(\"user={} logged in successfully\", user);\n    Ok(Session { user_id: u.id, token, created_at: Utc::now() })\n}\n\npub async fn logout(session: &Session) -> Result<()> {\n    db::invalidate_session(session.user_id).await?;\n    tracing::info!(\"user={} logged out\", session.user_id);\n    Ok(())\n}\n\npub async fn refresh_token(session: &Session) -> Result<String> {\n    let user = db::find_user_by_id(session.user_id).await?;\n    let new_token = gen_jwt(&user)?;\n    Ok(new_token)\n}",
+        ),
+        (
+            "src/auth/middleware.rs",
+            "pub async fn auth(req: Request, next: Next) -> Response {\n    let tok = req.header(\"Authorization\")\n        .and_then(|v| v.to_str().ok())\n        .ok_or(AuthError::NoToken)?;\n    let claims = verify_jwt(tok).map_err(|e| {\n        tracing::warn!(\"invalid JWT: {}\", e);\n        AuthError::InvalidToken\n    })?;\n    req.extensions_mut().insert(claims.clone());\n    let start = Instant::now();\n    let response = next.run(req).await;\n    let elapsed = start.elapsed();\n    tracing::debug!(\"request processed in {:?} for user={}\", elapsed, claims.sub);\n    response\n}\n\npub fn require_role(role: &str) -> impl Fn(Request, Next) -> Response {\n    move |req, next| {\n        let claims: Claims = req.extensions().get::<Claims>().cloned().unwrap();\n        if claims.role != role {\n            return Response::forbidden();\n        }\n        next.run(req)\n    }\n}",
+        ),
+        (
+            "src/db/queries.rs",
+            "pub async fn find_user(name: &str) -> Result<User> {\n    sqlx::query_as!(User, \"SELECT * FROM users WHERE name=$1\", name)\n        .fetch_one(&pool)\n        .await\n        .map_err(|e| {\n            tracing::error!(\"db query failed for user={}: {}\", name, e);\n            DbError::Query(e.to_string())\n        })\n}\n\npub async fn create_user(name: &str, email: &str, hash: &str) -> Result<User> {\n    sqlx::query_as!(User,\n        \"INSERT INTO users (name, email, password_hash) VALUES ($1, $2, $3) RETURNING *\",\n        name, email, hash\n    )\n    .fetch_one(&pool)\n    .await\n    .map_err(|e| DbError::Query(e.to_string()))\n}\n\npub async fn update_last_login(user_id: i64) -> Result<()> {\n    sqlx::query!(\"UPDATE users SET last_login=NOW() WHERE id=$1\", user_id)\n        .execute(&pool)\n        .await\n        .map_err(|e| DbError::Query(e.to_string()))?;\n    Ok(())\n}",
+        ),
+        (
+            "src/api/routes.rs",
+            "pub fn routes() -> Router {\n    Router::new()\n        .route(\"/api/v1/login\", post(login_handler))\n        .route(\"/api/v1/logout\", post(logout_handler))\n        .route(\"/api/v1/me\", get(me_handler))\n        .route(\"/api/v1/users\", get(list_users).post(create_user_handler))\n        .route(\"/api/v1/users/:id\", get(get_user).put(update_user).delete(delete_user))\n        .route(\"/api/v1/health\", get(health_check))\n        .layer(auth_middleware())\n        .layer(cors_middleware())\n        .layer(rate_limit_middleware(100, Duration::from_secs(60)))\n}\n\nasync fn health_check() -> Json<serde_json::Value> {\n    Json(serde_json::json!({ \"status\": \"ok\", \"version\": env!(\"CARGO_PKG_VERSION\") }))\n}",
+        ),
+        (
+            "src/config.rs",
+            "pub struct Config {\n    pub db_url: String,\n    pub jwt_secret: String,\n    pub jwt_expiry_hours: u32,\n    pub port: u16,\n    pub log_level: String,\n    pub cors_origins: Vec<String>,\n    pub rate_limit_rpm: u32,\n    pub max_connections: u32,\n}\n\nimpl Config {\n    pub fn from_env() -> Result<Self> {\n        Ok(Self {\n            db_url: std::env::var(\"DATABASE_URL\")?,\n            jwt_secret: std::env::var(\"JWT_SECRET\")?,\n            jwt_expiry_hours: std::env::var(\"JWT_EXPIRY_HOURS\")\n                .unwrap_or(\"24\".into()).parse()?,\n            port: std::env::var(\"PORT\").unwrap_or(\"8080\".into()).parse()?,\n            log_level: std::env::var(\"LOG_LEVEL\").unwrap_or(\"info\".into()),\n            cors_origins: std::env::var(\"CORS_ORIGINS\")\n                .unwrap_or(\"*\".into()).split(',').map(String::from).collect(),\n            rate_limit_rpm: std::env::var(\"RATE_LIMIT_RPM\")\n                .unwrap_or(\"100\".into()).parse()?,\n            max_connections: std::env::var(\"MAX_CONNECTIONS\")\n                .unwrap_or(\"10\".into()).parse()?,\n        })\n    }\n}",
+        ),
     ];
 
     // Error messages that get resolved (triggers purge_errors)
@@ -77,7 +92,9 @@ fn build_100_message_session() -> Vec<Message> {
             role: Role::Assistant,
             content: vec![
                 ContentBlock::Text {
-                    text: format!("Let me read {file_path} to understand the {topic} implementation."),
+                    text: format!(
+                        "Let me read {file_path} to understand the {topic} implementation."
+                    ),
                     cache_control: None,
                 },
                 ContentBlock::ToolUse {
@@ -122,7 +139,11 @@ fn build_100_message_session() -> Vec<Message> {
 #[test]
 fn dcp_100_message_session_reduces_tokens() {
     let jcode_messages = build_100_message_session();
-    assert_eq!(jcode_messages.len(), 100, "should have exactly 100 messages");
+    assert_eq!(
+        jcode_messages.len(),
+        100,
+        "should have exactly 100 messages"
+    );
 
     // Use aggressive mode so pruning strategies always apply
     let mut plugin = DcpPlugin::new_aggressive().expect("DcpPlugin::new_aggressive should succeed");
@@ -149,7 +170,11 @@ fn dcp_100_message_session_reduces_tokens() {
 
     // Log the results
     eprintln!("DCP integration test results:");
-    eprintln!("  Messages: {} -> {}", jcode_messages.len(), output.messages.len());
+    eprintln!(
+        "  Messages: {} -> {}",
+        jcode_messages.len(),
+        output.messages.len()
+    );
     eprintln!("  Tokens: {} -> {}", tokens_before, tokens_after);
     eprintln!("  Tokens saved (DCP reported): {}", output.tokens_saved);
     eprintln!("  Removed count: {}", output.removed_count);
@@ -172,7 +197,10 @@ fn dcp_100_message_session_reduces_tokens() {
     );
 
     // Verify output is valid
-    assert!(!output.messages.is_empty(), "transform should not produce empty output");
+    assert!(
+        !output.messages.is_empty(),
+        "transform should not produce empty output"
+    );
     assert!(
         output.messages.len() <= jcode_messages.len(),
         "transform should not invent new messages"
@@ -180,7 +208,11 @@ fn dcp_100_message_session_reduces_tokens() {
 
     // Verify the bridge round-trip on output
     let roundtrip = dcp_bridge::dcp_to_jcode(dcp_bridge::jcode_to_dcp(&output.messages));
-    assert_eq!(roundtrip.len(), output.messages.len(), "round-trip should preserve count");
+    assert_eq!(
+        roundtrip.len(),
+        output.messages.len(),
+        "round-trip should preserve count"
+    );
 
     // Verify token reduction
     if tokens_before > 0 && tokens_after < tokens_before {
@@ -195,7 +227,9 @@ fn dcp_100_message_session_reduces_tokens() {
             reduction_pct
         );
     } else {
-        eprintln!("  No token reduction — strategies may not have found prunable content in single-shot mode");
+        eprintln!(
+            "  No token reduction — strategies may not have found prunable content in single-shot mode"
+        );
         // Even without token reduction, the pipeline ran successfully
     }
 }
@@ -222,7 +256,11 @@ fn dcp_plugin_transform_default_mode() {
         .expect("DcpPlugin::transform should succeed");
 
     eprintln!("DcpPlugin default mode results:");
-    eprintln!("  Messages: {} -> {}", jcode_messages.len(), output.messages.len());
+    eprintln!(
+        "  Messages: {} -> {}",
+        jcode_messages.len(),
+        output.messages.len()
+    );
     eprintln!("  Tokens saved: {}", output.tokens_saved);
     eprintln!("  Changed: {}", output.changed);
 
