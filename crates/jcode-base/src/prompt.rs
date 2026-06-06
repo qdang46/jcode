@@ -209,6 +209,7 @@ pub fn build_system_prompt_with_context_and_memory(
         is_selfdev,
         memory_prompt,
         None,
+        None,
     )
 }
 
@@ -219,6 +220,7 @@ pub fn build_system_prompt_full(
     is_selfdev: bool,
     memory_prompt: Option<&str>,
     working_dir: Option<&Path>,
+    keyword_prompt: Option<String>,
 ) -> (String, ContextInfo) {
     // Resolve the effective system-prompt root: CLI/env > .jcode/SYSTEM.md
     // (closest to cwd, walking up to ~/.jcode/agent) > config > built-in default.
@@ -281,6 +283,13 @@ pub fn build_system_prompt_full(
         parts.push(memory.to_string());
     }
 
+    // Keyword mode prompt (changes per turn based on detected keywords)
+    if let Some(kw) = keyword_prompt {
+        if !kw.is_empty() {
+            parts.push(kw);
+        }
+    }
+
     // Add available skills list
     if !available_skills.is_empty() {
         let mut skills_section = "# Available Skills\n\nYou have access to the following skills that the user can invoke with `/skillname`:\n".to_string();
@@ -313,6 +322,7 @@ pub fn build_system_prompt_split(
     is_selfdev: bool,
     memory_prompt: Option<&str>,
     working_dir: Option<&Path>,
+    keyword_prompt: Option<String>,
 ) -> (SplitSystemPrompt, ContextInfo) {
     // Resolve effective system-prompt root (issue #22).
     let system_root = resolve_system_prompt_override(working_dir)
@@ -388,6 +398,13 @@ pub fn build_system_prompt_split(
     if let Some(memory) = memory_prompt {
         info.memory_chars = memory.len();
         dynamic_parts.push(memory.to_string());
+    }
+
+    // Keyword mode prompt (changes per turn based on detected keywords)
+    if let Some(kw) = keyword_prompt {
+        if !kw.is_empty() {
+            dynamic_parts.push(kw);
+        }
     }
 
     // Active skill prompt (changes per skill invocation)

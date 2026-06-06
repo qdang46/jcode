@@ -33,6 +33,7 @@ impl App {
             self.session.is_canary,
             memory_prompt,
             None,
+            None, // keyword_prompt — TODO: wire keyword detection for TUI path
         );
         self.append_current_turn_system_reminder(&mut split);
         self.context_info = context_info;

@@ -1,0 +1,18 @@
+[package]
+name = "jcode-keywords"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+description = "Magic keyword system — NL trigger detection, mode state, prompt injection, workflow dispatch"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1" }
+toml = { version = "0.8" }
+strum = { workspace = true, features = ["derive"] }
+chrono = { version = "0.4", features = ["serde"] }
+dirs = "6"
+
+[dev-dependencies]
+tempfile = "3"

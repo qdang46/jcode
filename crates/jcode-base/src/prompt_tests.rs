@@ -82,7 +82,7 @@ fn test_session_context_includes_time_timezone_and_system_info() {
 
 #[test]
 fn test_split_prompt_does_not_inject_session_context_per_turn() {
-    let (split, _info) = build_system_prompt_split(None, &[], false, None, None);
+    let (split, _info) = build_system_prompt_split(None, &[], false, None, None, None);
     assert!(!split.dynamic_part.contains("# Session Context"));
     assert!(!split.dynamic_part.contains("Time: "));
     assert!(!split.dynamic_part.contains("Timezone: UTC"));
@@ -122,7 +122,7 @@ fn test_prompt_overlay_files_are_loaded_from_project_and_global_jcode_dirs() {
         "expected global prompt overlay content"
     );
 
-    let (prompt, info) = build_system_prompt_full(None, &[], false, None, Some(project_dir.path()));
+    let (prompt, info) = build_system_prompt_full(None, &[], false, None, Some(project_dir.path()), None);
     assert!(prompt.contains("project prompt overlay instructions"));
     assert!(prompt.contains("global prompt overlay instructions"));
     assert!(info.prompt_overlay_chars > 0);
@@ -176,13 +176,13 @@ fn test_preferred_tools_files_are_loaded_from_project_and_global_jcode_dirs() {
         "expected global preferred tools content"
     );
 
-    let (prompt, info) = build_system_prompt_full(None, &[], false, None, Some(project_dir.path()));
+    let (prompt, info) = build_system_prompt_full(None, &[], false, None, Some(project_dir.path()), None);
     assert!(prompt.contains("project preferred tools instructions"));
     assert!(prompt.contains("global preferred tools instructions"));
     assert!(info.preferred_tools_chars > 0);
 
     let (split, split_info) =
-        build_system_prompt_split(None, &[], false, None, Some(project_dir.path()));
+        build_system_prompt_split(None, &[], false, None, Some(project_dir.path()), None);
     assert!(
         split
             .static_part
@@ -223,7 +223,7 @@ fn test_selfdev_prompt_uses_full_selfdev_instructions() {
 #[test]
 fn test_selfdev_prompt_uses_desktop_focus_for_desktop_working_dir() {
     let desktop_dir = std::path::Path::new("/tmp/jcode/crates/jcode-desktop/src");
-    let (prompt, _info) = build_system_prompt_full(None, &[], true, None, Some(desktop_dir));
+    let (prompt, _info) = build_system_prompt_full(None, &[], true, None, Some(desktop_dir), None);
     assert!(prompt.contains("launched from the desktop app context"));
     assert!(prompt.contains("selfdev build target=desktop"));
     assert!(!prompt.contains("launched from the TUI/root jcode context"));
@@ -232,7 +232,7 @@ fn test_selfdev_prompt_uses_desktop_focus_for_desktop_working_dir() {
 #[test]
 fn test_split_selfdev_prompt_defaults_to_tui_focus_for_repo_root() {
     let repo_dir = std::path::Path::new("/tmp/jcode");
-    let (split, _info) = build_system_prompt_split(None, &[], true, None, Some(repo_dir));
+    let (split, _info) = build_system_prompt_split(None, &[], true, None, Some(repo_dir), None);
     assert!(
         split
             .static_part
@@ -266,7 +266,7 @@ fn test_selfdev_prompt_template_placeholders_are_resolved() {
 
 #[test]
 fn split_prompt_estimated_tokens_is_positive_when_populated() {
-    let (split, _info) = build_system_prompt_split(None, &[], false, None, None);
+    let (split, _info) = build_system_prompt_split(None, &[], false, None, None, None);
     assert!(split.chars() > 0);
     assert!(split.estimated_tokens() > 0);
 }
@@ -370,7 +370,7 @@ fn build_system_prompt_full_uses_jcode_system_md_root() {
     std::fs::create_dir_all(&dot).unwrap();
     std::fs::write(dot.join("SYSTEM.md"), "MY_OVERRIDDEN_ROOT").unwrap();
 
-    let (prompt, info) = build_system_prompt_full(None, &[], false, None, Some(temp.path()));
+    let (prompt, info) = build_system_prompt_full(None, &[], false, None, Some(temp.path()), None);
 
     if let Some(prev) = prev_env {
         crate::env::set_var("JCODE_SYSTEM_PROMPT", prev);

@@ -113,12 +113,31 @@ impl Agent {
             .as_ref()
             .map(std::path::PathBuf::from);
 
+        // Detect keywords in the latest user message for prompt injection
+        let keyword_prompt = {
+            let latest_input = self.session.messages.iter().rev()
+                .find(|m| matches!(m.role, crate::message::Role::User))
+                .and_then(|m| m.content.iter().find_map(|b| match b {
+                    crate::message::ContentBlock::Text { text, .. } => Some(text.as_str()),
+                    _ => None,
+                }))
+                .unwrap_or("");
+            let detections = jcode_keywords::detect_keywords(latest_input);
+            let mode_state = jcode_keywords::state::update_modes(
+                &detections,
+                working_dir.as_deref(),
+            );
+            let prompt = jcode_keywords::prompt_builder::build_keyword_prompt(&mode_state);
+            if prompt.is_empty() { None } else { Some(prompt) }
+        };
+
         let (mut split, _context_info) = crate::prompt::build_system_prompt_split(
             skill_prompt.as_deref(),
             &available_skills,
             self.session.is_canary,
             memory_prompt,
             working_dir.as_deref(),
+            keyword_prompt,
         );
 
         self.append_current_turn_system_reminder(&mut split);
