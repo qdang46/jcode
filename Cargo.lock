@@ -6000,7 +6000,6 @@ dependencies = [
  "jcode-app-core",
  "jcode-build-meta",
  "jcode-core",
- "jcode-experiment-flags",
  "jcode-keywords",
  "jcode-logging",
  "jcode-productivity-core",
