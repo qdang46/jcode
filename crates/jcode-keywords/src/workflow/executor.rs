@@ -7,6 +7,19 @@ use super::{WorkflowAction, WorkflowContext};
 use crate::registry::WorkflowKind;
 use crate::state::ModeState;
 
+/// Truncate a string to `max_chars` characters, respecting UTF-8 boundaries.
+fn truncate_str(s: &str, max_chars: usize) -> &str {
+    if s.len() <= max_chars {
+        return s;
+    }
+    // Find the last valid char boundary at or before max_chars
+    let mut end = max_chars;
+    while end > 0 && !s.is_char_boundary(end) {
+        end -= 1;
+    }
+    &s[..end]
+}
+
 /// Execute all active workflows for the current turn.
 ///
 /// Returns actions paired with the index of the active mode that produced them.
@@ -88,7 +101,7 @@ pub fn apply_actions(
                     for (k, v) in metadata {
                         mode.metadata.insert(k.clone(), v.clone());
                     }
-                    summaries.push(format!("{}: updated metadata, reminder: {}", kind, &reminder[..reminder.len().min(50)]));
+                    summaries.push(format!("{}: updated metadata, reminder: {}", kind, truncate_str(reminder, 50)));
                 }
             }
             WorkflowAction::Complete(msg) => {
@@ -100,16 +113,22 @@ pub fn apply_actions(
                 summaries.push(format!("{}: error — {}", kind, msg));
             }
             WorkflowAction::InjectReminder(r) => {
-                summaries.push(format!("{}: inject reminder — {}", kind, &r[..r.len().min(50)]));
+                summaries.push(format!("{}: inject reminder — {}", kind, truncate_str(r, 50)));
             }
             WorkflowAction::SpawnAgent { description, .. } => {
+                if let Some(mode) = mode_state.active_modes.get_mut(*idx) {
+                    mode.metadata.insert(format!("{}_spawned", kind), "true".to_string());
+                }
                 summaries.push(format!("{}: spawn agent — {}", kind, description));
             }
             WorkflowAction::SpawnParallel(specs) => {
+                if let Some(mode) = mode_state.active_modes.get_mut(*idx) {
+                    mode.metadata.insert(format!("{}_spawned", kind), "true".to_string());
+                }
                 summaries.push(format!("{}: spawn {} agents", kind, specs.len()));
             }
             WorkflowAction::AskUser(q) => {
-                summaries.push(format!("{}: ask user — {}", kind, &q[..q.len().min(50)]));
+                summaries.push(format!("{}: ask user — {}", kind, truncate_str(q, 50)));
             }
             WorkflowAction::Continue => {}
         }

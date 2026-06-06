@@ -77,18 +77,24 @@ impl WorkflowHandler for UltragoalHandler {
             return WorkflowAction::Complete("Goal achieved!".to_string());
         }
 
-        let new_progress = extract_progress(response).unwrap_or(10.0);
-
         let mut updated = metadata.clone();
-        updated.insert("goal_progress".to_string(), new_progress.to_string());
 
-        if new_progress >= 100.0 {
-            WorkflowAction::Complete("Goal achieved!".to_string())
-        } else {
-            WorkflowAction::ContinueWithMetadata {
-                reminder: format!("Progress: {:.0}%", new_progress),
-                metadata: updated,
+        // Only update progress if LLM actually reported it
+        if let Some(new_progress) = extract_progress(response) {
+            updated.insert("goal_progress".to_string(), new_progress.to_string());
+            if new_progress >= 100.0 {
+                return WorkflowAction::Complete("Goal achieved!".to_string());
             }
+        }
+
+        let current_progress: f32 = updated
+            .get("goal_progress")
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(0.0);
+
+        WorkflowAction::ContinueWithMetadata {
+            reminder: format!("Progress: {:.0}%", current_progress),
+            metadata: updated,
         }
     }
 }

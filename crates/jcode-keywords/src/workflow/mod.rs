@@ -132,6 +132,8 @@ pub fn get_handler(kind: WorkflowKind) -> Option<&'static dyn WorkflowHandler> {
 }
 
 /// Wrap user input in delimiters to prevent prompt injection in sub-agent prompts.
+/// Escapes the closing delimiter within the input to prevent breakout attacks.
 pub fn sanitize_user_input(input: &str) -> String {
-    format!("<user_request>\n{}\n</user_request>", input)
+    let escaped = input.replace("</user_request>", "<\\/user_request>");
+    format!("<user_request>\n{}\n</user_request>", escaped)
 }

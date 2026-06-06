@@ -128,16 +128,42 @@ impl Agent {
                 working_dir.as_deref(),
             );
 
-            // Execute active workflows and persist metadata
+            // Process PREVIOUS turn's LLM response (phase transitions, completion)
+            // This runs at the START of the current turn, using last turn's response
+            if let Some(last_assistant) = self.session.messages.iter().rev()
+                .find(|m| matches!(m.role, crate::message::Role::Assistant))
+                .and_then(|m| m.content.iter().find_map(|b| match b {
+                    crate::message::ContentBlock::Text { text, .. } => Some(text.as_str()),
+                    _ => None,
+                }))
+            {
+                let response_actions = jcode_keywords::process_turn_response(
+                    &mode_state,
+                    last_assistant,
+                );
+                if !response_actions.is_empty() {
+                    let _ = jcode_keywords::apply_actions(&mut mode_state, &response_actions);
+                }
+            }
+
+            // Execute active workflows for THIS turn
             let actions = jcode_keywords::execute_active_workflows(
                 &mode_state,
                 latest_input,
                 working_dir.as_deref(),
                 &self.session.id,
             );
-            let _summaries = jcode_keywords::apply_actions(&mut mode_state, &actions);
+            if !actions.is_empty() {
+                let summaries = jcode_keywords::apply_actions(&mut mode_state, &actions);
+                for s in &summaries {
+                    crate::logging::info(&format!("Keyword workflow: {}", s));
+                }
+            }
 
-            // Build workflow prompt (replaces old build_keyword_prompt)
+            // Persist metadata to disk
+            jcode_keywords::state::save_state(&mode_state, working_dir.as_deref());
+
+            // Build workflow prompt
             let prompt = jcode_keywords::build_workflow_prompt(&mode_state);
             if prompt.is_empty() { None } else { Some(prompt) }
         };
