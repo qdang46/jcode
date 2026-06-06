@@ -2701,6 +2701,10 @@ pub(super) fn handle_global_control_shortcuts(
 }
 
 pub(super) fn handle_enter(app: &mut App) -> bool {
+    if app.pending_login.is_some() && !app.input.is_empty() {
+        app.submit_input();
+        return true;
+    }
     if app.activate_picker_from_preview() {
         return true;
     }
@@ -3622,6 +3626,41 @@ impl App {
 
     /// Submit input - just sets up message and flags, processing happens in next loop iteration
     pub(super) fn submit_input(&mut self) {
+        // Check pending login BEFORE picker preview activation.
+        // When a login picker is in preview mode and the user pastes an API key,
+        // activate_picker_from_preview() would clear the input (destroying the key)
+        // and forward Enter to the picker — never reaching the login handler.
+        if self.pending_login.is_some() {
+            let mut raw_input = std::mem::take(&mut self.input);
+            let input = self.expand_paste_placeholders(&raw_input);
+            if let Some(notice) = input_exceeds_submit_limit(&input) {
+                self.input = raw_input;
+                self.cursor_pos = self.input.len();
+                self.set_status_notice(notice.clone());
+                self.push_display_message(DisplayMessage::system(notice));
+                return;
+            }
+            self.pasted_contents.clear();
+            self.cursor_pos = 0;
+            self.clear_input_undo_history();
+            self.reset_input_history_browse();
+            self.follow_chat_bottom();
+            self.commit_pending_streaming_assistant_message();
+            // Also close any picker that might be in preview mode
+            if self
+                .inline_interactive_state
+                .as_ref()
+                .map(|p| p.preview)
+                .unwrap_or(false)
+            {
+                self.inline_interactive_state = None;
+            }
+            if let Some(pending) = self.pending_login.take() {
+                self.handle_login_input(pending, input);
+            }
+            return;
+        }
+
         if self.activate_picker_from_preview() {
             return;
         }
