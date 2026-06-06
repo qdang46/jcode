@@ -118,7 +118,10 @@ fn extract_progress(response: &str) -> Option<f32> {
                 .into_iter()
                 .rev()
                 .collect();
-            if let Ok(num) = num_str.parse::<f32>() && num.is_finite() && num <= 100.0 {
+            if let Ok(num) = num_str.parse::<f32>()
+                && num.is_finite()
+                && num <= 100.0
+            {
                 return Some(num);
             }
         }

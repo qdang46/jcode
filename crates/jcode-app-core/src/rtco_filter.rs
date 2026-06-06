@@ -99,8 +99,8 @@ pub fn filter_tool_output(
 pub fn format_rtco_summary(stats: &[RtcoFilterResult]) -> String {
     let total_original: usize = stats.iter().map(|s| s.original_chars).sum();
     let total_filtered: usize = stats.iter().map(|s| s.filtered_chars).sum();
-    let avg_savings: f64 = stats.iter().map(|s| s.savings_percent).sum::<f64>()
-        / stats.len().max(1) as f64;
+    let avg_savings: f64 =
+        stats.iter().map(|s| s.savings_percent).sum::<f64>() / stats.len().max(1) as f64;
 
     if total_original == 0 {
         return String::new();

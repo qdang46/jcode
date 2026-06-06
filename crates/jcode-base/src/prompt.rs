@@ -284,7 +284,9 @@ pub fn build_system_prompt_full(
     }
 
     // Keyword mode prompt (changes per turn based on detected keywords)
-    if let Some(kw) = keyword_prompt && !kw.is_empty() {
+    if let Some(kw) = keyword_prompt
+        && !kw.is_empty()
+    {
         parts.push(kw);
     }
 
@@ -399,7 +401,9 @@ pub fn build_system_prompt_split(
     }
 
     // Keyword mode prompt (changes per turn based on detected keywords)
-    if let Some(kw) = keyword_prompt && !kw.is_empty() {
+    if let Some(kw) = keyword_prompt
+        && !kw.is_empty()
+    {
         dynamic_parts.push(kw);
     }
 
