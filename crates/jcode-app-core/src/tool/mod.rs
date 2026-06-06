@@ -734,6 +734,22 @@ impl Registry {
             }
         };
 
+        // RTCO pre-filter: compress tool output before it enters context
+        #[cfg(feature = "rtco")]
+        if output.output.len() > 512 {
+            use crate::rtco_filter::filter_tool_output;
+            if let Some(filtered) = filter_tool_output(resolved_name, &output.output, 30.0) {
+                crate::logging::info(&format!(
+                    "rtco: {} saved {:.1}% ({} -> {} chars)",
+                    resolved_name,
+                    filtered.savings_percent,
+                    filtered.original_chars,
+                    filtered.filtered_chars,
+                ));
+                output.output = filtered.text;
+            }
+        }
+
         // Context overflow guard: check if this output would push us over the limit
         output = self.guard_context_overflow(name, output).await;
 

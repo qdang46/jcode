@@ -13,8 +13,6 @@
 //!
 //! RTCO is opt-in via the `rtco` feature flag (off by default).
 
-use anyhow::Result;
-
 /// Result of filtering a tool output through RTCO.
 #[derive(Debug, Clone)]
 pub struct RtcoFilterResult {
