@@ -33,8 +33,6 @@ pub(super) struct SessionJournalMeta {
     pub(super) is_debug: bool,
     pub(super) saved: bool,
     pub(super) save_label: Option<String>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub(super) children: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -93,5 +91,4 @@ pub(super) fn metadata_requires_snapshot(
         || prev.is_debug != current.is_debug
         || prev.saved != current.saved
         || prev.save_label != current.save_label
-        || prev.children != current.children
 }

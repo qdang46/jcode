@@ -138,7 +138,7 @@ async fn test_simple_response() -> Result<()> {
     ]);
 
     let provider: Arc<dyn jcode::provider::Provider> = Arc::new(provider);
-    let registry = Registry::new(provider.clone(), None).await;
+    let registry = Registry::new(provider.clone()).await;
     let mut agent = Agent::new(provider, registry);
 
     let response = agent.run_once_capture("Say hello").await?;
@@ -154,7 +154,7 @@ async fn test_agent_clear_preserves_debug_flag() -> Result<()> {
     let _env = setup_test_env()?;
     let provider = MockProvider::new();
     let provider: Arc<dyn jcode::provider::Provider> = Arc::new(provider);
-    let registry = Registry::new(provider.clone(), None).await;
+    let registry = Registry::new(provider.clone()).await;
     let mut agent = Agent::new(provider, registry);
     agent.set_debug(true);
     let old_session_id = agent.session_id().to_string();

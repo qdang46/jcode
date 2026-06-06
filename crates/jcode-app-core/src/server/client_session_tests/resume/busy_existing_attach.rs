@@ -20,7 +20,7 @@ async fn handle_resume_session_allows_live_attach_when_existing_agent_is_busy() 
     };
 
     let provider: Arc<dyn Provider> = Arc::new(MockProvider);
-    let existing_registry = Registry::new(provider.clone(), None).await;
+    let existing_registry = Registry::new(provider.clone()).await;
     let existing_agent = Arc::new(Mutex::new(build_test_agent_with_id(
         provider.clone(),
         existing_registry,
@@ -28,7 +28,7 @@ async fn handle_resume_session_allows_live_attach_when_existing_agent_is_busy() 
         vec![persisted_message],
     )));
 
-    let new_registry = Registry::new(provider.clone(), None).await;
+    let new_registry = Registry::new(provider.clone()).await;
     let new_agent = Arc::new(Mutex::new(build_test_agent_with_id(
         provider.clone(),
         new_registry.clone(),
@@ -75,9 +75,7 @@ async fn handle_resume_session_allows_live_attach_when_existing_agent_is_busy() 
     ])));
     let swarm_members = Arc::new(RwLock::new(HashMap::<String, SwarmMember>::new()));
     let swarms_by_id = Arc::new(RwLock::new(HashMap::<String, HashSet<String>>::new()));
-    let file_touches = Arc::new(RwLock::new(HashMap::<PathBuf, Vec<FileAccess>>::new()));
-    let files_touched_by_session =
-        Arc::new(RwLock::new(HashMap::<String, HashSet<PathBuf>>::new()));
+    let file_touch = FileTouchService::new();
     let channel_subscriptions = Arc::new(RwLock::new(HashMap::<
         String,
         HashMap<String, HashSet<String>>,
@@ -119,8 +117,7 @@ async fn handle_resume_session_allows_live_attach_when_existing_agent_is_busy() 
         &Arc::new(RwLock::new(ClientDebugState::default())),
         &swarm_members,
         &swarms_by_id,
-        &file_touches,
-        &files_touched_by_session,
+        &file_touch,
         &channel_subscriptions,
         &channel_subscriptions_by_session,
         &swarm_plans,

@@ -185,14 +185,15 @@ async fn resolve_coordinator_spawn_identity(
     if let Some(agent) = {
         let agent_sessions = sessions.read().await;
         agent_sessions.get(req_session_id).cloned()
-    } && let Ok(agent_guard) = agent.try_lock()
-    {
-        return CoordinatorSpawnIdentity {
-            model: Some(agent_guard.provider_model()),
-            provider_key: agent_guard.session_provider_key(),
-            route_api_method: agent_guard.session_route_api_method(),
-            is_canary: agent_guard.is_canary(),
-        };
+    } {
+        if let Ok(agent_guard) = agent.try_lock() {
+            return CoordinatorSpawnIdentity {
+                model: Some(agent_guard.provider_model()),
+                provider_key: agent_guard.session_provider_key(),
+                route_api_method: agent_guard.session_route_api_method(),
+                is_canary: agent_guard.is_canary(),
+            };
+        }
     }
 
     // Agent busy (mid-turn) or not resident: read the authoritative persisted
@@ -245,16 +246,12 @@ fn explicit_route_for_configured_model(model: &str) -> Option<SwarmSpawnSelectio
     if bare.is_empty() {
         return None;
     }
-    // Stable route ids that `ModelRouteApiMethod::parse` round-trips back into
-    // the exact auth method when the spawned session is restored (see
-    // `MultiProvider::model_switch_request_for_session_route`).
-    let route_id = match prefix {
-        "openai-api:" => "openai-api-key",
-        "openai-oauth:" => "openai-oauth",
-        "claude-api:" => "anthropic-api-key",
-        "claude-oauth:" => "claude-oauth",
-        _ => return None,
-    };
+    // Only the dual-auth (Anthropic/OpenAI OAuth-vs-API) prefixes carry an
+    // explicit credential decision worth pinning. The canonical parser maps the
+    // prefix to its stable route id, which `ModelRouteApiMethod::parse` round-
+    // trips back to the exact auth method when the spawned session is restored.
+    let route_id = jcode_provider_core::AuthRoute::parse_explicit_credential_prefix(prefix)?
+        .route_api_method();
     Some(SwarmSpawnSelection {
         model: Some(bare.to_string()),
         provider_key: Some(route_id.to_string()),

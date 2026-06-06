@@ -1,5 +1,4 @@
 use super::*;
-use crate::tui::compat::line_from_spans;
 mod ui_pinned_table;
 use ui_pinned_table::is_rendered_table_line;
 
@@ -992,7 +991,7 @@ pub(super) fn draw_pinned_content_cached(
                         .extension()
                         .and_then(|e| e.to_str());
 
-                    text_lines.push(line_from_spans(vec![
+                    text_lines.push(Line::from(vec![
                         Span::styled("── ", Style::default().fg(dim_color())),
                         Span::styled(
                             short_path,
@@ -1049,7 +1048,7 @@ pub(super) fn draw_pinned_content_cached(
                     let group = image_group_for(source);
                     if last_image_group != Some(group) {
                         let (group_label, group_color) = image_group_heading(group);
-                        text_lines.push(line_from_spans(vec![
+                        text_lines.push(Line::from(vec![
                             Span::styled("   ", Style::default().fg(dim_color())),
                             Span::styled(
                                 group_label.to_uppercase(),
@@ -1074,7 +1073,7 @@ pub(super) fn draw_pinned_content_cached(
                         metadata_parts.push(format!("{ratio} ratio"));
                     }
 
-                    text_lines.push(line_from_spans(vec![
+                    text_lines.push(Line::from(vec![
                         Span::styled("── 🖼 ", Style::default().fg(dim_color())),
                         Span::styled(
                             short_label,

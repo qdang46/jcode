@@ -1,5 +1,4 @@
 const LINUX_PROCESS_TITLE_LIMIT: usize = 15;
-#[allow(dead_code)]
 const KILLALL_PROCESS_NAME: &str = "jcode";
 
 pub fn compact_process_title(prefix: &str, name: Option<&str>) -> String {

@@ -1,6 +1,5 @@
 pub mod account_picker;
 pub(crate) mod app;
-pub mod compat;
 
 #[derive(Clone)]
 pub struct ContextSnapshot {
@@ -17,7 +16,6 @@ mod core;
 // so existing `crate::tui::image` / `crate::tui::image_metadata` paths keep working.
 pub use jcode_terminal_image::display as image;
 use jcode_terminal_image::metadata as image_metadata;
-pub mod experiment_popup;
 pub mod info_widget;
 mod info_widget_layout;
 mod info_widget_overview;
@@ -28,7 +26,6 @@ pub mod markdown;
 mod memory_profile;
 pub mod mermaid;
 pub mod permissions;
-pub(crate) mod plugin_integration;
 mod remote_diff;
 pub mod screenshot;
 pub mod session_picker;
@@ -115,7 +112,15 @@ pub fn disable_keyboard_enhancement() {
 }
 
 /// Trait for TUI state consumed by the shared renderer.
+///
+/// This is a wide (114-method) presentation interface: the read-only surface the
+/// renderer needs from `App`. The methods are grouped into the domain sections
+/// below (transcript, input, scroll, stream/status, provider, session/server,
+/// workspace, diagram pane, diff pane, side panel, inline, overlay, copy
+/// selection, onboarding, misc). See `docs/TUISTATE_TRAIT_DECOMPOSITION.md` for
+/// the incremental plan to split these into composable sub-traits.
 pub trait TuiState {
+    // ---- Transcript ----
     fn display_messages(&self) -> &[DisplayMessage];
     fn display_user_message_count(&self) -> usize;
     /// Number of user prompts hidden before the first visible message because of
@@ -128,6 +133,8 @@ pub trait TuiState {
     /// Version counter for display_messages (monotonic, increments on mutation)
     fn display_messages_version(&self) -> u64;
     fn streaming_text(&self) -> &str;
+
+    // ---- Input ----
     fn input(&self) -> &str;
     fn cursor_pos(&self) -> usize;
     fn is_processing(&self) -> bool;
@@ -135,6 +142,8 @@ pub trait TuiState {
     fn interleave_message(&self) -> Option<&str>;
     /// Messages sent as soft interrupt but not yet injected (shown in queue preview)
     fn pending_soft_interrupts(&self) -> &[String];
+
+    // ---- Scroll ----
     fn scroll_offset(&self) -> usize;
     /// Whether auto-scroll to bottom is paused (user scrolled up during streaming)
     fn auto_scroll_paused(&self) -> bool;
@@ -151,6 +160,8 @@ pub trait TuiState {
     fn copy_selection_edge_autoscroll_active(&self) -> bool {
         false
     }
+
+    // ---- Provider ----
     fn provider_name(&self) -> String;
     fn provider_model(&self) -> String;
     /// Upstream provider (e.g., which provider OpenRouter routed to)
@@ -161,14 +172,8 @@ pub trait TuiState {
     fn status_detail(&self) -> Option<String>;
     fn mcp_servers(&self) -> Vec<(String, usize)>;
     fn available_skills(&self) -> Vec<String>;
-    /// Registered slash-command metadata (name + description) for input highlighting.
-    fn registered_commands(&self) -> &[crate::tui::app::state_ui_input_helpers::RegisteredCommand] {
-        crate::tui::app::state_ui_input_helpers::REGISTERED_COMMANDS
-    }
-    /// Names of currently available skills (for input highlighting).
-    fn known_skill_names(&self) -> Vec<String> {
-        self.available_skills()
-    }
+
+    // ---- Stream / status ----
     fn streaming_tokens(&self) -> (u64, u64);
     fn streaming_cache_tokens(&self) -> (Option<u64>, Option<u64>);
     /// Output tokens per second during streaming (for status bar)
@@ -197,6 +202,8 @@ pub trait TuiState {
         0
     }
     /// Whether running in remote (client-server) mode
+
+    // ---- Session / server ----
     fn is_remote_mode(&self) -> bool;
     /// Whether running in canary/self-dev mode
     fn is_canary(&self) -> bool;
@@ -228,11 +235,6 @@ pub trait TuiState {
     fn has_pending_mouse_scroll_animation(&self) -> bool {
         false
     }
-    /// Whether a "current reasoning collapses away" animation is in progress and
-    /// the redraw loop must keep ticking to advance it.
-    fn reasoning_collapse_animating(&self) -> bool {
-        false
-    }
     /// Optional configured keybinding label for external dictation.
     fn dictation_key_label(&self) -> Option<String>;
     /// Time since app started (for startup animations)
@@ -247,10 +249,6 @@ pub trait TuiState {
     }
     /// Whether there is a stashed input (saved via Ctrl+S)
     fn has_stashed_input(&self) -> bool;
-    /// Returns `Some((current, total))` if the user is browsing input history.
-    fn input_history_browse_status(&self) -> Option<(usize, usize)> {
-        None
-    }
     /// Context info (what's loaded in context window - static + dynamic)
     fn context_info(&self) -> crate::prompt::ContextInfo;
     /// Authoritative, freshness-tagged context snapshot used by widgets.
@@ -271,6 +269,8 @@ pub trait TuiState {
     /// Get info widget data (todos, client count, etc.)
     fn info_widget_data(&self) -> info_widget::InfoWidgetData;
     /// Whether workspace mode is enabled for this client.
+
+    // ---- Workspace ----
     fn workspace_mode_enabled(&self) -> bool {
         false
     }
@@ -292,6 +292,7 @@ pub trait TuiState {
     /// Update cost calculation based on token usage (for API-key providers)
     fn update_cost(&mut self);
     /// Diagram display mode (none/margin/pinned)
+    // ---- Diagram pane ----
     fn diagram_mode(&self) -> crate::config::DiagramDisplayMode;
     /// Whether the diagram pane is focused (pinned mode)
     fn diagram_focus(&self) -> bool;
@@ -312,6 +313,7 @@ pub trait TuiState {
     /// Diagram zoom percentage (100 = normal)
     fn diagram_zoom(&self) -> u8;
     /// Scroll offset for pinned diff pane (line index)
+    // ---- Diff pane ----
     fn diff_pane_scroll(&self) -> usize;
     /// Horizontal pan offset for the shared right pane (side-panel diagrams)
     fn diff_pane_scroll_x(&self) -> i32;
@@ -320,6 +322,7 @@ pub trait TuiState {
     /// Whether the pinned diff pane is focused
     fn diff_pane_focus(&self) -> bool;
     /// Session-scoped side panel state managed by the side_panel tool
+    // ---- Side panel ----
     fn side_panel(&self) -> &crate::side_panel::SidePanelSnapshot;
     /// Whether to pin read images to a side pane
     fn pin_images(&self) -> bool;
@@ -334,6 +337,7 @@ pub trait TuiState {
     /// Whether to wrap lines in the pinned diff pane
     fn diff_line_wrap(&self) -> bool;
     /// Interactive inline UI state (picker-like flows shown above input)
+    // ---- Inline ----
     fn inline_interactive_state(&self) -> Option<&InlineInteractiveState>;
     /// Passive inline UI state (informational views shown above input)
     fn inline_view_state(&self) -> Option<&InlineViewState> {
@@ -346,6 +350,7 @@ pub trait TuiState {
             .or_else(|| self.inline_view_state().map(InlineUiStateRef::View))
     }
     /// Changelog overlay scroll offset (None = not showing)
+    // ---- Overlay ----
     fn changelog_scroll(&self) -> Option<usize>;
     /// Help overlay scroll offset (None = not showing)
     fn help_scroll(&self) -> Option<usize>;
@@ -361,17 +366,13 @@ pub trait TuiState {
     fn account_picker_overlay(&self) -> Option<&std::cell::RefCell<account_picker::AccountPicker>>;
     /// Usage overlay for /usage command
     fn usage_overlay(&self) -> Option<&std::cell::RefCell<usage_overlay::UsageOverlay>>;
-    /// Experiment flags popup for /experimental command
-    fn experiment_popup(
-        &self,
-    ) -> Option<&std::cell::RefCell<experiment_popup::ExperimentPopupState>> {
-        None
-    }
     /// Working directory for this session
+    // ---- Misc ----
     fn working_dir(&self) -> Option<String>;
     /// Monotonic clock for viewport animations
     fn now_millis(&self) -> u64;
     /// UI state for live copy badge highlighting / feedback
+    // ---- Copy selection ----
     fn copy_badge_ui(&self) -> crate::tui::CopyBadgeUiState;
     /// Whether modal in-app copy selection mode is active.
     fn copy_selection_mode(&self) -> bool;
@@ -380,6 +381,7 @@ pub trait TuiState {
     /// Persistent status for in-app copy selection mode.
     fn copy_selection_status(&self) -> Option<CopySelectionStatus>;
     /// Whether the first-run onboarding empty state is being previewed in this session.
+    // ---- Onboarding ----
     fn onboarding_preview_mode(&self) -> bool {
         false
     }
@@ -427,12 +429,6 @@ pub trait TuiState {
             }
         }
         false
-    }
-
-    /// Access the plugin bridge for TUI plugin integration.
-    /// Returns `None` when the plugin system has not been initialized.
-    fn plugin_bridge(&self) -> Option<&plugin_integration::PluginTuiBridge> {
-        None
     }
 }
 
@@ -1314,7 +1310,6 @@ pub(crate) fn redraw_interval_with_policy(
         || !state.streaming_text().is_empty()
         || state.status_notice().is_some()
         || state.has_pending_mouse_scroll_animation()
-        || state.reasoning_collapse_animating()
         || state.copy_selection_edge_autoscroll_active()
         || state.has_notification()
         || rate_limit_countdown_redraw_active(state)
@@ -1374,7 +1369,6 @@ pub(crate) fn periodic_redraw_required(state: &dyn TuiState) -> bool {
         || !state.streaming_text().is_empty()
         || state.status_notice().is_some()
         || state.has_pending_mouse_scroll_animation()
-        || state.reasoning_collapse_animating()
         || state.copy_selection_edge_autoscroll_active()
         || state.chat_overscroll_active()
         || state.has_notification()

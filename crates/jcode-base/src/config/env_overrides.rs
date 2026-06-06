@@ -7,26 +7,6 @@ impl Config {
         reason = "Environment override parsing is intentionally explicit and grouped by config area"
     )]
     pub(crate) fn apply_env_overrides(&mut self) {
-        // Deprecated env vars — still supported but log warning.
-        #[cfg(not(test))]
-        {
-            if std::env::var("JCODE_DISABLED_TOOLS").is_ok() {
-                crate::logging::warn(
-                    "JCODE_DISABLED_TOOLS is deprecated, use JCODE_DISABLE_TOOL=... instead",
-                );
-            }
-            if std::env::var("JCODE_DISABLE_BASE_TOOLS").is_ok() {
-                crate::logging::warn(
-                    "JCODE_DISABLE_BASE_TOOLS is deprecated, use JCODE_DISABLE_TOOL=base instead",
-                );
-            }
-            if std::env::var("JCODE_DISABLED_ANIMATIONS").is_ok() {
-                crate::logging::warn(
-                    "JCODE_DISABLED_ANIMATIONS is deprecated, use JCODE_DISABLE_ANIMATION=... instead",
-                );
-            }
-        }
-
         // Keybindings
         if let Ok(v) = std::env::var("JCODE_SCROLL_UP_KEY") {
             self.keybindings.scroll_up = v;
@@ -129,30 +109,12 @@ impl Config {
         if let Ok(v) = std::env::var("JCODE_TOOLS") {
             self.tools.enabled = parse_env_list(&v);
         }
-        // Disable-related vars are now centralized in DisableRegistry.
-        // Populate Config fields from the registry for backward compat.
-        {
-            let registry = crate::disable::DisableRegistry::global();
-            let tools: Vec<String> = registry.all_disabled_tools().iter().cloned().collect();
-            if !tools.is_empty() {
-                self.tools.disabled = tools;
-            }
-            self.tools.disable_base_tools = registry.base_tools_disabled();
-        }
-        // Backward compat: also read deprecated env vars directly.
         if let Ok(v) = std::env::var("JCODE_DISABLED_TOOLS") {
-            let parsed = parse_env_list(&v);
-            for tool in parsed {
-                if !self.tools.disabled.contains(&tool) {
-                    self.tools.disabled.push(tool);
-                }
-            }
+            self.tools.disabled = parse_env_list(&v);
         }
         if let Ok(v) = std::env::var("JCODE_DISABLE_BASE_TOOLS")
             && let Some(parsed) = parse_env_bool(&v)
         {
-            // Explicit boolean assignment preserves backward compat:
-            // `=false` overrides registry to re-enable base tools.
             self.tools.disable_base_tools = parsed;
         }
 
@@ -256,21 +218,8 @@ impl Config {
                 self.display.prompt_entry_animation = parsed;
             }
         }
-        // Animations: populate from DisableRegistry, then merge deprecated env var.
-        {
-            let registry = crate::disable::DisableRegistry::global();
-            let anims: Vec<String> = registry.all_disabled_animations().iter().cloned().collect();
-            if !anims.is_empty() {
-                self.display.disabled_animations = anims;
-            }
-        }
         if let Ok(v) = std::env::var("JCODE_DISABLED_ANIMATIONS") {
-            let parsed = parse_env_list(&v);
-            for anim in parsed {
-                if !self.display.disabled_animations.contains(&anim) {
-                    self.display.disabled_animations.push(anim);
-                }
-            }
+            self.display.disabled_animations = parse_env_list(&v);
         }
         if let Ok(v) = std::env::var("JCODE_PERFORMANCE") {
             let trimmed = v.trim().to_lowercase();
@@ -311,7 +260,6 @@ impl Config {
         if let Ok(v) = std::env::var("JCODE_SWARM_ENABLED") {
             if let Some(parsed) = parse_env_bool(&v) {
                 self.features.swarm = parsed;
-                self.experiments.entries.insert("swarm".to_string(), parsed);
             }
         }
         if let Ok(v) = std::env::var("JCODE_MESSAGE_TIMESTAMPS") {
@@ -322,9 +270,6 @@ impl Config {
         if let Ok(v) = std::env::var("JCODE_PERSIST_MEMORY_INJECTIONS") {
             if let Some(parsed) = parse_env_bool(&v) {
                 self.features.persist_memory_injections = parsed;
-                self.experiments
-                    .entries
-                    .insert("persist_memory_injections".to_string(), parsed);
             }
         }
         if let Ok(v) = std::env::var("JCODE_UPDATE_CHANNEL") {
@@ -590,15 +535,6 @@ impl Config {
             }
         }
 
-        // Terminal (issue #260 follow-up): JCODE_SHELL overrides
-        // the bash tool's default shell selection.
-        if let Ok(v) = std::env::var("JCODE_SHELL") {
-            let trimmed = v.trim().to_string();
-            if !trimmed.is_empty() {
-                self.terminal.shell = Some(trimmed);
-            }
-        }
-
         // Provider
         if let Ok(v) = std::env::var("JCODE_MODEL") {
             self.provider.default_model = Some(v);
@@ -665,31 +601,6 @@ impl Config {
             if let Ok(parsed) = v.trim().parse::<u64>() {
                 if parsed > 0 {
                     self.provider.stream_idle_timeout_secs = parsed;
-                }
-            }
-        }
-
-        // Experiment flags: JCODE_EXPERIMENTS overrides config
-        // Format: comma-separated key=value pairs
-        if let Ok(raw) = std::env::var("JCODE_EXPERIMENTS") {
-            for pair in raw.split(',') {
-                let pair = pair.trim();
-                if let Some((key, value)) = pair.split_once('=') {
-                    let key = key.trim().to_string();
-                    if let Some(val) = parse_env_bool(value.trim()) {
-                        self.experiments.entries.insert(key, val);
-                    }
-                }
-            }
-        }
-
-        // Individual experiment flag env vars (higher priority than JCODE_EXPERIMENTS)
-        // JCODE_DCP_ENABLED, JCODE_SWARM, JCODE_HOOKS_V2, etc.
-        for spec in jcode_experiment_flags::EXPERIMENT_FLAGS {
-            let env_key = format!("JCODE_{}", spec.key.to_uppercase());
-            if let Ok(raw) = std::env::var(&env_key) {
-                if let Some(val) = parse_env_bool(&raw) {
-                    self.experiments.entries.insert(spec.key.to_string(), val);
                 }
             }
         }

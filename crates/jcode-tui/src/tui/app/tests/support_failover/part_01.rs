@@ -182,7 +182,7 @@ fn create_test_app() -> App {
 
     let provider: Arc<dyn Provider> = Arc::new(MockProvider);
     let rt = tokio::runtime::Runtime::new().unwrap();
-    let registry = rt.block_on(crate::tool::Registry::new(provider.clone(), None));
+    let registry = rt.block_on(crate::tool::Registry::new(provider.clone()));
     let mut app = App::new_for_test_harness(provider, registry);
     app.queue_mode = false;
     app.diff_mode = crate::config::DiffDisplayMode::Inline;
@@ -196,7 +196,7 @@ fn create_named_provider_test_app(name: &'static str, model: &'static str) -> Ap
 
     let provider: Arc<dyn Provider> = Arc::new(NamedMockProvider { name, model });
     let rt = tokio::runtime::Runtime::new().unwrap();
-    let registry = rt.block_on(crate::tool::Registry::new(provider.clone(), None));
+    let registry = rt.block_on(crate::tool::Registry::new(provider.clone()));
     let mut app = App::new_for_test_harness(provider, registry);
     app.queue_mode = false;
     app.diff_mode = crate::config::DiffDisplayMode::Inline;
@@ -222,7 +222,7 @@ fn create_refresh_summary_test_app(summary: crate::provider::ModelCatalogRefresh
 
     let provider: Arc<dyn Provider> = Arc::new(RefreshSummaryProvider { summary });
     let rt = tokio::runtime::Runtime::new().unwrap();
-    let registry = rt.block_on(crate::tool::Registry::new(provider.clone(), None));
+    let registry = rt.block_on(crate::tool::Registry::new(provider.clone()));
     let mut app = App::new_for_test_harness(provider, registry);
     app.queue_mode = false;
     app.diff_mode = crate::config::DiffDisplayMode::Inline;
@@ -239,7 +239,7 @@ fn create_openrouter_spec_capture_test_app() -> (App, StdArc<StdMutex<Vec<String
         set_model_calls: set_model_calls.clone(),
     });
     let rt = tokio::runtime::Runtime::new().unwrap();
-    let registry = rt.block_on(crate::tool::Registry::new(provider.clone(), None));
+    let registry = rt.block_on(crate::tool::Registry::new(provider.clone()));
     let mut app = App::new_for_test_harness(provider, registry);
     app.queue_mode = false;
     app.diff_mode = crate::config::DiffDisplayMode::Inline;

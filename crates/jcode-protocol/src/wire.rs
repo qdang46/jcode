@@ -573,14 +573,6 @@ pub enum Request {
         #[serde(default)]
         timeout_secs: Option<u64>,
     },
-
-    /// Request the current experiment flag states from the server
-    #[serde(rename = "experiment_list")]
-    ExperimentList { id: u64 },
-
-    /// Enable or disable an experiment flag on the server
-    #[serde(rename = "experiment_set")]
-    ExperimentSet { id: u64, key: String, enabled: bool },
 }
 
 /// Server event sent to client
@@ -1247,37 +1239,4 @@ pub enum ServerEvent {
         /// Tool call ID this is associated with
         tool_call_id: String,
     },
-
-    // === Plugin system events ===
-    /// Plugin system notification
-    #[serde(rename = "plugin_notification")]
-    PluginNotification {
-        plugin_id: String,
-        event_type: String,
-        data: serde_json::Value,
-    },
-
-    /// Plugin permission request for IDE-side approval
-    #[serde(rename = "plugin_permission_request")]
-    PluginPermissionRequest {
-        plugin_id: String,
-        action: String,
-        resource: String,
-        request_id: String,
-        timestamp: chrono::DateTime<chrono::Utc>,
-    },
-
-    /// Current experiment flag states (response to ExperimentList)
-    #[serde(rename = "experiment_flags")]
-    ExperimentFlags { flags: Vec<ExperimentFlagWire> },
-}
-
-/// Typed wire representation of a single experiment flag state.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ExperimentFlagWire {
-    pub flag: String,
-    pub key: String,
-    pub stage: String,
-    pub enabled: bool,
-    pub default_enabled: bool,
 }

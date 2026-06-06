@@ -6,13 +6,11 @@
 pub use jcode_config_types::{
     AgentsConfig, AmbientConfig, AuthConfig, AutoJudgeConfig, AutoReviewConfig, CompactionConfig,
     CompactionMode, CrossProviderFailoverMode, DiagramDisplayMode, DiagramPanePosition,
-    DiffDisplayMode, DisplayConfig, ExperimentConfig, FeatureConfig, GatewayConfig,
-    KeybindingsConfig, MarkdownSpacingMode, NamedProviderAuth, NamedProviderConfig,
-    NamedProviderModelConfig, NamedProviderType, NativeScrollbarConfig, ProviderConfig,
-    ReasoningDisplayMode, SafetyConfig, SessionPickerResumeAction, SwarmSpawnMode, TerminalConfig,
-    UpdateChannel, WebSearchConfig, WebSearchEngine,
+    DiffDisplayMode, DisplayConfig, FeatureConfig, GatewayConfig, KeybindingsConfig,
+    MarkdownSpacingMode, NamedProviderAuth, NamedProviderConfig, NamedProviderModelConfig,
+    NamedProviderType, NativeScrollbarConfig, ProviderConfig, ReasoningDisplayMode, SafetyConfig,
+    SessionPickerResumeAction, SwarmSpawnMode, UpdateChannel, WebSearchConfig, WebSearchEngine,
 };
-pub use jcode_plugin_core::PluginConfig;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::hash::{Hash, Hasher};
@@ -126,7 +124,6 @@ const CONFIG_ENV_KEYS: &[&str] = &[
     "JCODE_SCROLL_UP_FALLBACK_KEY",
     "JCODE_SCROLL_UP_KEY",
     "JCODE_SEARXNG_URL",
-    "JCODE_SHELL",
     "JCODE_SHOW_DIFFS",
     "JCODE_SHOW_THINKING",
     "JCODE_SIDE_PANEL_TOGGLE_KEY",
@@ -362,8 +359,7 @@ fn notify_config_reloaded() {
 /// subsystems (auth cache, event bus) on reload, those subsystems register a
 /// reaction here at startup. This keeps config free of upward dependencies and
 /// breaks the config -> auth / config -> bus cycle edges.
-type ReloadListener = fn();
-static CONFIG_RELOAD_LISTENERS: LazyLock<RwLock<Vec<ReloadListener>>> =
+static CONFIG_RELOAD_LISTENERS: LazyLock<RwLock<Vec<fn()>>> =
     LazyLock::new(|| RwLock::new(Vec::new()));
 
 /// Register a callback to run after the config cache reloads.
@@ -393,10 +389,6 @@ pub struct Config {
 
     /// Feature toggles
     pub features: FeatureConfig,
-
-    /// Experiment flags section
-    #[serde(default)]
-    pub experiments: ExperimentConfig,
 
     /// Web search tool configuration
     pub websearch: WebSearchConfig,
@@ -442,12 +434,6 @@ pub struct Config {
 
     /// Auto-judge configuration
     pub autojudge: AutoJudgeConfig,
-
-    /// Terminal / shell execution configuration (issue #260)
-    pub terminal: TerminalConfig,
-
-    /// Plugin system configuration
-    pub plugins: PluginConfig,
 }
 
 /// Agent Client Protocol adapter configuration.
@@ -639,35 +625,6 @@ impl Default for DictationConfig {
             timeout_secs: 90,
         }
     }
-}
-
-/// Issue #163: respect a provider-disable list so disabled providers do not
-/// leak into auth surfaces, model routing, or failover.
-///
-/// Reads `JCODE_DISABLED_PROVIDERS` (comma- or whitespace-separated list of
-/// provider ids; case-insensitive). Returns true when the named provider
-/// should be treated as if it isn't configured at all.
-///
-/// Examples:
-///   JCODE_DISABLED_PROVIDERS=anthropic            # disable Anthropic
-///   JCODE_DISABLED_PROVIDERS="openai, gemini"     # disable two
-///   JCODE_DISABLED_PROVIDERS=zai,bigmodel         # alias-aware
-///
-/// Returns false when the env var is unset, empty, or doesn't list the
-/// provider.
-pub fn is_provider_disabled(provider: &str) -> bool {
-    let target = provider.trim().to_ascii_lowercase();
-    if target.is_empty() {
-        return false;
-    }
-    let list = match std::env::var("JCODE_DISABLED_PROVIDERS") {
-        Ok(v) => v,
-        Err(_) => return false,
-    };
-    list.split([',', ' ', '\t', '\n'])
-        .map(|s| s.trim().to_ascii_lowercase())
-        .filter(|s| !s.is_empty())
-        .any(|entry| entry == target)
 }
 
 mod config_file;

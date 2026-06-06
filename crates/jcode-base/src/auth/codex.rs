@@ -353,15 +353,17 @@ fn load_oauth_credentials_internal(return_expired: bool) -> Result<CodexCredenti
         expired_candidates.push(("jcode", creds));
     }
 
-    if legacy_allowed && let Ok(creds) = load_legacy_oauth_credentials() {
-        if creds
-            .expires_at
-            .map(|expires_at| expires_at > now_ms)
-            .unwrap_or(true)
-        {
-            return Ok(creds);
+    if legacy_allowed {
+        if let Ok(creds) = load_legacy_oauth_credentials() {
+            if creds
+                .expires_at
+                .map(|expires_at| expires_at > now_ms)
+                .unwrap_or(true)
+            {
+                return Ok(creds);
+            }
+            expired_candidates.push(("legacy", creds));
         }
-        expired_candidates.push(("legacy", creds));
     }
 
     if let Some(tokens) = crate::auth::external::load_openai_oauth_tokens() {

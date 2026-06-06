@@ -304,9 +304,6 @@ impl crate::tui::TuiState for TestState {
     fn has_stashed_input(&self) -> bool {
         false
     }
-    fn input_history_browse_status(&self) -> Option<(usize, usize)> {
-        None
-    }
     fn context_info(&self) -> crate::prompt::ContextInfo {
         Default::default()
     }

@@ -1073,8 +1073,10 @@ fn test_anthropic_auth_mode_prefixed_model_switch_changes_credentials() {
         assert_eq!(
             rt.block_on(anthropic.test_access_token_and_oauth_mode())
                 .expect("default token"),
-            ("sk-ant-test-api-key".to_string(), false),
-            "default Anthropic credentials should keep existing API-key-first behavior"
+            ("oauth-access-token".to_string(), true),
+            "default (Auto) Anthropic credentials prefer OAuth/subscription when an \
+             OAuth account is available, matching the canonical OAuth-first Auto \
+             behavior shared with the OpenAI provider and resolve_dual_credential_auth"
         );
 
         provider
@@ -1405,17 +1407,6 @@ fn test_context_limit_gpt_5_4() {
     assert_eq!(context_limit_for_model("gpt-5.4"), Some(1_000_000));
     assert_eq!(context_limit_for_model("gpt-5.4-pro"), Some(1_000_000));
     assert_eq!(context_limit_for_model("gpt-5.4[1m]"), Some(1_000_000));
-}
-
-#[test]
-fn test_context_limit_deepseek() {
-    // Issue #81 / upstream PR #92: DeepSeek family defaults to 1M.
-    assert_eq!(
-        context_limit_for_model("deepseek-v4-flash"),
-        Some(1_000_000)
-    );
-    assert_eq!(context_limit_for_model("deepseek-chat"), Some(1_000_000));
-    assert_eq!(context_limit_for_model("deepseek-coder"), Some(1_000_000));
 }
 
 #[test]

@@ -394,7 +394,7 @@ pub fn run_setup_hotkey(_listen_macos_hotkey: bool) -> Result<()> {
                     "  Press \x1b[1mCmd+;\x1b[0m anywhere, system-wide, to launch a new jcode in {}.",
                     installed_terminal.label()
                 );
-                Ok(())
+                return Ok(());
             }
             Err(e) => {
                 eprintln!("  \x1b[31m✗\x1b[0m Failed: {}", e);
@@ -671,7 +671,7 @@ pub fn maybe_show_setup_hints() -> Option<StartupHints> {
 
     #[cfg(target_os = "macos")]
     {
-        if !state.launch_count.is_multiple_of(3) {
+        if state.launch_count % 3 != 0 {
             return startup_hints;
         }
 
@@ -690,7 +690,7 @@ pub fn maybe_show_setup_hints() -> Option<StartupHints> {
             return nudge_macos_ghostty(&mut state);
         }
 
-        startup_hints
+        return startup_hints;
     }
 
     #[cfg(windows)]
@@ -726,7 +726,7 @@ pub fn run_setup_launcher() -> Result<()> {
                 );
                 eprintln!();
                 eprintln!("  Tip: pin Jcode.app to your Dock or launch it with Cmd+Space.");
-                Ok(())
+                return Ok(());
             }
             Err(e) => {
                 eprintln!("  \x1b[31m✗\x1b[0m Failed: {}", e);
@@ -737,14 +737,8 @@ pub fn run_setup_launcher() -> Result<()> {
 
     #[cfg(not(target_os = "macos"))]
     {
-        // `setup-launcher` is a macOS-only command today (it installs a
-        // `jcode.app` bundle so Spotlight/Launchpad/Dock can launch jcode).
-        // Bail with a non-zero exit so scripted wrappers (installers, CI,
-        // shell aliases) can detect the no-op instead of treating the
-        // diagnostic eprintln as a successful install.
-        anyhow::bail!(
-            "`jcode setup-launcher` is currently only supported on macOS. On Windows use `Start Menu > jcode` after running scripts/install.ps1; on Linux create a .desktop file under ~/.local/share/applications/."
-        );
+        eprintln!("Launcher setup is currently only supported on macOS.");
+        Ok(())
     }
 }
 

@@ -71,7 +71,7 @@ fn member(
 
 async fn test_agent_with_working_dir(session_id: &str, working_dir: &str) -> Arc<Mutex<Agent>> {
     let provider: Arc<dyn Provider> = Arc::new(MockProvider);
-    let registry = Registry::new(provider.clone(), None).await;
+    let registry = Registry::new(provider.clone()).await;
     let mut session = crate::session::Session::create_with_id(session_id.to_string(), None, None);
     session.model = Some("mock".to_string());
     session.working_dir = Some(working_dir.to_string());

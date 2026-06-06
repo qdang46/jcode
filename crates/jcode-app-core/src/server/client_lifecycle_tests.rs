@@ -23,7 +23,7 @@ async fn session_control_handle_does_not_wait_for_busy_agent_lock() {
     let provider: Arc<dyn Provider> = Arc::new(PanicOnForkProvider {
         forked: Arc::new(AtomicBool::new(false)),
     });
-    let registry = Registry::new(Arc::clone(&provider), None).await;
+    let registry = Registry::new(Arc::clone(&provider)).await;
     let agent = Arc::new(Mutex::new(Agent::new(provider, registry)));
 
     let queue = Arc::new(std::sync::Mutex::new(Vec::new()));
@@ -61,7 +61,7 @@ async fn refreshed_session_control_handle_does_not_wait_for_busy_agent_lock() {
     let provider: Arc<dyn Provider> = Arc::new(PanicOnForkProvider {
         forked: Arc::new(AtomicBool::new(false)),
     });
-    let registry = Registry::new(Arc::clone(&provider), None).await;
+    let registry = Registry::new(Arc::clone(&provider)).await;
     let mut session = crate::session::Session::create_with_id(
         "session_busy_control_refresh".to_string(),
         None,
@@ -106,7 +106,7 @@ async fn busy_agent_request_rejection_does_not_wait_for_agent_lock() {
     let provider: Arc<dyn Provider> = Arc::new(PanicOnForkProvider {
         forked: Arc::new(AtomicBool::new(false)),
     });
-    let registry = Registry::new(Arc::clone(&provider), None).await;
+    let registry = Registry::new(Arc::clone(&provider)).await;
     let agent = Arc::new(Mutex::new(Agent::new(provider, registry)));
     let (client_event_tx, mut client_event_rx) = mpsc::unbounded_channel::<ServerEvent>();
 
@@ -356,7 +356,7 @@ fn reload_starting_rejects_new_turn_without_spawning_processing_task() {
         let provider: Arc<dyn Provider> = Arc::new(PanicOnForkProvider {
             forked: Arc::clone(&forked),
         });
-        let registry = Registry::new(Arc::clone(&provider), None).await;
+        let registry = Registry::new(Arc::clone(&provider)).await;
         let mut session =
             crate::session::Session::create_with_id("session_guard".to_string(), None, None);
         session.model = Some("panic-on-fork".to_string());
@@ -448,7 +448,7 @@ fn accepted_reload_recovery_continuation_marks_intent_delivered() -> anyhow::Res
     let rt = tokio::runtime::Runtime::new().expect("runtime");
     rt.block_on(async {
         let provider: Arc<dyn Provider> = Arc::new(CompleteImmediatelyProvider);
-        let registry = Registry::new(Arc::clone(&provider), None).await;
+        let registry = Registry::new(Arc::clone(&provider)).await;
         let mut session =
             crate::session::Session::create_with_id(session_id.to_string(), None, None);
         session.model = Some("complete-immediately".to_string());
@@ -537,7 +537,7 @@ fn reload_starting_rejects_new_turns_for_multiple_sessions() {
         let provider: Arc<dyn Provider> = Arc::new(PanicOnForkProvider {
             forked: Arc::clone(&forked),
         });
-        let registry = Registry::new(Arc::clone(&provider), None).await;
+        let registry = Registry::new(Arc::clone(&provider)).await;
         let swarm_members = Arc::new(RwLock::new(HashMap::new()));
         let swarms_by_id = Arc::new(RwLock::new(HashMap::new()));
         let event_history = Arc::new(RwLock::new(std::collections::VecDeque::new()));
@@ -645,8 +645,7 @@ async fn lightweight_comm_request_skips_full_session_initialization() {
     let shared_context = Arc::new(RwLock::new(HashMap::new()));
     let swarm_plans = Arc::new(RwLock::new(HashMap::new()));
     let swarm_coordinators = Arc::new(RwLock::new(HashMap::new()));
-    let file_touches = Arc::new(RwLock::new(HashMap::new()));
-    let files_touched_by_session = Arc::new(RwLock::new(HashMap::new()));
+    let file_touch = FileTouchService::new();
     let channel_subscriptions = Arc::new(RwLock::new(HashMap::new()));
     let channel_subscriptions_by_session = Arc::new(RwLock::new(HashMap::new()));
     let client_debug_state = Arc::new(RwLock::new(ClientDebugState::default()));
@@ -674,8 +673,7 @@ async fn lightweight_comm_request_skips_full_session_initialization() {
         shared_context,
         swarm_plans,
         swarm_coordinators,
-        file_touches,
-        files_touched_by_session,
+        file_touch,
         channel_subscriptions,
         channel_subscriptions_by_session,
         client_debug_state,

@@ -289,48 +289,22 @@ impl App {
             compacted_history_lazy: CompactedHistoryLazyState::default(),
             input: String::new(),
             command_candidates_cache: RefCell::new(None),
-            at_picker: RefCell::new(crate::tui::app::at_picker::AtPickerSlot::Pending),
             cursor_pos: 0,
             scroll_offset: 0,
             auto_scroll_paused: false,
             active_skill: None,
-            plan_mode: false,
-            permission_mode: crate::dcg_bridge::current_mode(),
             is_processing: false,
-            streaming_text: String::new(),
+            streaming: StreamingProgress::default(),
             should_quit: false,
             queued_messages: Vec::new(),
             hidden_queued_system_messages: Vec::new(),
             current_turn_system_reminder: None,
-            streaming_input_tokens: 0,
-            streaming_output_tokens: 0,
-            streaming_cache_read_tokens: None,
-            streaming_cache_creation_tokens: None,
             upstream_provider: None,
             connection_type: None,
             status_detail: None,
-            total_input_tokens: 0,
-            total_output_tokens: 0,
-            total_cache_reported_input_tokens: 0,
-            total_cache_read_tokens: 0,
-            total_cache_creation_tokens: 0,
-            total_cache_optimal_input_tokens: 0,
-            last_cache_reported_input_tokens: None,
-            last_cache_read_tokens: None,
-            last_cache_creation_tokens: None,
-            last_cache_optimal_input_tokens: None,
-            cache_next_optimal_input_tokens: None,
-            kv_cache_baseline: None,
-            pending_kv_cache_request: None,
-            current_api_usage_recorded: false,
-            kv_cache_turn_number: None,
-            kv_cache_turn_call_index: 0,
-            kv_cache_miss_samples: Vec::new(),
-            total_cost: 0.0,
-            cached_prompt_price: None,
-            cached_completion_price: None,
-            cached_cache_read_price: None,
-            cached_price_model: None,
+            token_accounting: TokenAccounting::default(),
+            kv_cache: KvCacheState::default(),
+            cost: CostState::default(),
             context_limit,
             context_warning_shown: false,
             context_info: crate::prompt::ContextInfo::default(),
@@ -339,12 +313,6 @@ impl App {
             stream_message_ended: false,
             remote_resume_activity: None,
             pending_reload_reconnect_status: None,
-            streaming_tps_start: None,
-            streaming_tps_elapsed: Duration::ZERO,
-            streaming_tps_collect_output: false,
-            streaming_total_output_tokens: 0,
-            streaming_tps_observed_output_tokens: 0,
-            streaming_tps_observed_elapsed: Duration::ZERO,
             status: ProcessingStatus::default(),
             subagent_status: None,
             batch_progress: None,
@@ -375,8 +343,6 @@ impl App {
             reasoning_pending_line: String::new(),
             reasoning_partial_len: 0,
             reasoning_block_start: None,
-            reasoning_block_started_at: None,
-            reasoning_collapse: None,
             reload_requested: None,
             rebuild_requested: None,
             update_requested: None,
@@ -532,8 +498,6 @@ impl App {
             scroll_bookmark: None,
             typing_scroll_lock: false,
             stashed_input: None,
-            input_history: App::load_input_history(),
-            input_history_index: None,
             input_undo_stack: Vec::new(),
             status_notice: None,
             experimental_feature_warnings_seen: HashSet::new(),
@@ -593,11 +557,10 @@ impl App {
             login_picker_overlay: None,
             account_picker_overlay: None,
             usage_overlay: None,
-            experiment_popup: None,
             usage_report_refreshing: false,
             productivity_refreshing: false,
             last_overnight_card_refresh: None,
-            plugin_bridge: None,
+            workspace_client: crate::tui::workspace_client::WorkspaceClientState::default(),
         };
 
         for notice in app.provider.drain_startup_notices() {
@@ -699,48 +662,22 @@ impl App {
             compacted_history_lazy: CompactedHistoryLazyState::default(),
             input: String::new(),
             command_candidates_cache: RefCell::new(None),
-            at_picker: RefCell::new(crate::tui::app::at_picker::AtPickerSlot::Pending),
             cursor_pos: 0,
             scroll_offset: 0,
             auto_scroll_paused: false,
             active_skill: None,
-            plan_mode: false,
-            permission_mode: crate::dcg_bridge::current_mode(),
             is_processing: false,
-            streaming_text: String::new(),
+            streaming: StreamingProgress::default(),
             should_quit: false,
             queued_messages: Vec::new(),
             hidden_queued_system_messages: Vec::new(),
             current_turn_system_reminder: None,
-            streaming_input_tokens: 0,
-            streaming_output_tokens: 0,
-            streaming_cache_read_tokens: None,
-            streaming_cache_creation_tokens: None,
             upstream_provider: None,
             connection_type: None,
             status_detail: None,
-            total_input_tokens: 0,
-            total_output_tokens: 0,
-            total_cache_reported_input_tokens: 0,
-            total_cache_read_tokens: 0,
-            total_cache_creation_tokens: 0,
-            total_cache_optimal_input_tokens: 0,
-            last_cache_reported_input_tokens: None,
-            last_cache_read_tokens: None,
-            last_cache_creation_tokens: None,
-            last_cache_optimal_input_tokens: None,
-            cache_next_optimal_input_tokens: None,
-            kv_cache_baseline: None,
-            pending_kv_cache_request: None,
-            current_api_usage_recorded: false,
-            kv_cache_turn_number: None,
-            kv_cache_turn_call_index: 0,
-            kv_cache_miss_samples: Vec::new(),
-            total_cost: 0.0,
-            cached_prompt_price: None,
-            cached_completion_price: None,
-            cached_cache_read_price: None,
-            cached_price_model: None,
+            token_accounting: TokenAccounting::default(),
+            kv_cache: KvCacheState::default(),
+            cost: CostState::default(),
             context_limit,
             context_warning_shown: false,
             context_info,
@@ -749,12 +686,6 @@ impl App {
             stream_message_ended: false,
             remote_resume_activity: None,
             pending_reload_reconnect_status: None,
-            streaming_tps_start: None,
-            streaming_tps_elapsed: Duration::ZERO,
-            streaming_tps_collect_output: false,
-            streaming_total_output_tokens: 0,
-            streaming_tps_observed_output_tokens: 0,
-            streaming_tps_observed_elapsed: Duration::ZERO,
             status: ProcessingStatus::default(),
             subagent_status: None,
             batch_progress: None,
@@ -785,8 +716,6 @@ impl App {
             reasoning_pending_line: String::new(),
             reasoning_partial_len: 0,
             reasoning_block_start: None,
-            reasoning_block_started_at: None,
-            reasoning_collapse: None,
             reload_requested: None,
             rebuild_requested: None,
             update_requested: None,
@@ -942,8 +871,6 @@ impl App {
             scroll_bookmark: None,
             typing_scroll_lock: false,
             stashed_input: None,
-            input_history: App::load_input_history(),
-            input_history_index: None,
             input_undo_stack: Vec::new(),
             status_notice: None,
             experimental_feature_warnings_seen: HashSet::new(),
@@ -1003,11 +930,10 @@ impl App {
             login_picker_overlay: None,
             account_picker_overlay: None,
             usage_overlay: None,
-            experiment_popup: None,
             usage_report_refreshing: false,
             productivity_refreshing: false,
             last_overnight_card_refresh: None,
-            plugin_bridge: None,
+            workspace_client: crate::tui::workspace_client::WorkspaceClientState::default(),
         };
 
         for notice in app.provider.drain_startup_notices() {
@@ -1022,8 +948,6 @@ impl App {
         app.runtime_mode = AppRuntimeMode::TestHarness;
         app.is_remote = false;
         app.is_replay = false;
-        app.input_history.clear();
-        app.input_history_index = None;
         app
     }
 
@@ -1142,22 +1066,5 @@ impl App {
         self.server_spawning = true;
         self.remote_startup_phase = Some(super::RemoteStartupPhase::StartingServer);
         self.remote_startup_phase_started = Some(Instant::now());
-    }
-
-    /// Initialize the TUI plugin system. Should be called once at startup
-    /// from an async context (i.e. inside the `run` / `run_remote` event loop
-    /// before entering the main select loop).
-    pub(crate) async fn init_plugin_bridge(&mut self) {
-        if self.plugin_bridge.is_some() {
-            return;
-        }
-        let bridge = crate::tui::plugin_integration::PluginTuiBridge::new().await;
-        if bridge.plugin_count() > 0 {
-            crate::logging::info(&format!(
-                "TUI plugin bridge ready ({} plugin(s))",
-                bridge.plugin_count()
-            ));
-        }
-        self.plugin_bridge = Some(bridge);
     }
 }

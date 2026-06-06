@@ -1,5 +1,4 @@
 use super::*;
-use crate::tui::compat::line_from_spans;
 #[path = "ui_messages_cache.rs"]
 mod cache_support;
 use crate::message::{
@@ -658,7 +657,7 @@ fn render_overnight_progress_line(
     let filled = ((percent / 100.0) * bar_width as f32).round() as usize;
     let filled = filled.min(bar_width);
     let empty = bar_width.saturating_sub(filled);
-    let line = line_from_spans(vec![
+    let line = Line::from(vec![
         Span::styled("█".repeat(filled), filled_style),
         Span::styled("░".repeat(empty), empty_style),
         Span::styled(" ", label_style),
@@ -687,7 +686,7 @@ fn push_overnight_kv_line(
     for (idx, chunk) in chunks.into_iter().enumerate() {
         if idx == 0 {
             content.push(super::truncate_line_with_ellipsis_to_width(
-                &line_from_spans(vec![
+                &Line::from(vec![
                     Span::styled(prefix.clone(), label_style),
                     Span::styled(chunk, value_style),
                 ]),
@@ -695,7 +694,7 @@ fn push_overnight_kv_line(
             ));
         } else {
             content.push(super::truncate_line_with_ellipsis_to_width(
-                &line_from_spans(vec![
+                &Line::from(vec![
                     Span::styled(" ".repeat(prefix_width), label_style),
                     Span::styled(chunk, value_style),
                 ]),
@@ -935,9 +934,8 @@ fn parse_scheduled_tool_message(msg: &DisplayMessage) -> Option<ParsedScheduledT
         } else {
             (when_part.trim().to_string(), None)
         }
-    } else if let Some(rest) = first_line.strip_prefix("Scheduled ambient task ")
-        && let Some((id, when)) = rest.split_once(" for ")
-    {
+    } else if let Some(rest) = first_line.strip_prefix("Scheduled ambient task ") {
+        let (id, when) = rest.split_once(" for ")?;
         (when.trim().to_string(), Some(id.trim().to_string()))
     } else {
         return None;
@@ -1195,7 +1193,7 @@ fn render_connection_system_message(msg: &DisplayMessage, width: u16) -> Vec<Lin
 
     if let Some(detail) = detail.filter(|detail| !detail.is_empty()) {
         let detail = truncate_connection_line(&detail.replace('\n', " "), inner_width);
-        box_content.push(line_from_spans(vec![
+        box_content.push(Line::from(vec![
             Span::styled("Detail ", label_style),
             Span::styled(detail, body_style),
         ]));
@@ -1203,7 +1201,7 @@ fn render_connection_system_message(msg: &DisplayMessage, width: u16) -> Vec<Lin
 
     if let Some(hint) = hint.filter(|hint| !hint.is_empty()) {
         let hint = truncate_connection_line(&hint.replace('\n', " "), inner_width);
-        box_content.push(line_from_spans(vec![
+        box_content.push(Line::from(vec![
             Span::styled("Resume ", label_style),
             Span::styled(hint, hint_style),
         ]));
@@ -1272,7 +1270,7 @@ pub(crate) fn render_background_task_message(
     .max(16);
     let inner_width = max_box_width.saturating_sub(4).max(1);
 
-    let mut box_content: Vec<Line<'static>> = vec![line_from_spans(vec![
+    let mut box_content: Vec<Line<'static>> = vec![Line::from(vec![
         Span::styled(parsed.exit_label.clone(), status_style),
         Span::styled(" · ", label_style),
         Span::styled(parsed.duration.clone(), label_style),
@@ -1377,7 +1375,7 @@ fn render_compact_progress_line(
     let filled = filled.min(bar_width);
     let empty = bar_width.saturating_sub(filled);
 
-    let line = line_from_spans(vec![
+    let line = Line::from(vec![
         Span::styled("█".repeat(filled), filled_style),
         Span::styled("░".repeat(empty), empty_style),
         Span::styled(" ", label_style),
@@ -1486,7 +1484,7 @@ pub(crate) fn render_swarm_message(
     .max(1);
 
     let mut lines = Vec::new();
-    lines.push(line_from_spans(vec![
+    lines.push(Line::from(vec![
         Span::styled("│ ", rail_style),
         Span::styled(format!("{} {}", icon, title), header_style),
     ]));
@@ -1787,7 +1785,7 @@ pub(crate) fn render_tool_message(
         ));
         tool_line.push(Span::styled(")", Style::default().fg(dim_color())));
     }
-    let token_suffix = line_from_spans(vec![
+    let token_suffix = Line::from(vec![
         Span::styled(" · ", Style::default().fg(dim_color())),
         Span::styled(token_badge.label, Style::default().fg(token_badge.color)),
     ]);
@@ -1807,7 +1805,7 @@ pub(crate) fn render_tool_message(
         let detail_width = row_width.saturating_sub(4).max(1);
         let command_detail = tools_ui::get_tool_summary_with_budget(tc, 80, Some(detail_width));
         if !command_detail.trim().is_empty() {
-            let detail_line = line_from_spans(vec![
+            let detail_line = Line::from(vec![
                 Span::raw("    "),
                 Span::styled(command_detail, Style::default().fg(dim_color())),
             ]);
@@ -1817,7 +1815,7 @@ pub(crate) fn render_tool_message(
             ));
         } else if !command.trim().is_empty() {
             let fallback = format!("$ {}", command.trim());
-            let detail_line = line_from_spans(vec![
+            let detail_line = Line::from(vec![
                 Span::raw("    "),
                 Span::styled(fallback, Style::default().fg(dim_color())),
             ]);

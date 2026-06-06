@@ -13,9 +13,10 @@ use crate::storage;
 use anyhow::Result;
 use async_trait::async_trait;
 use chrono::{DateTime, NaiveDate, Utc};
-use jcode_base::casr_adapter::{
-    ExternalMessageRecord, ExternalSessionRecord, list_claude_code_sessions, list_codex_sessions,
-    list_opencode_sessions, list_pi_sessions, load_external_session,
+use jcode_import_core::{
+    ExternalMessageRecord, ExternalSessionRecord, ImportCoreResult, collect_recent_files_recursive,
+    load_claude_external_messages, load_codex_external_session, load_opencode_external_session,
+    load_pi_external_session,
 };
 use jcode_session_types::{
     SessionSearchContextLine as ResultContextLine, SessionSearchQueryProfile as QueryProfile,
@@ -28,6 +29,7 @@ use jcode_session_types::{
     session_search_format_datetime as format_datetime,
     session_search_path_matches_query as path_matches_query,
     session_search_raw_matches_query as raw_matches_query,
+    session_search_truncate_title_text as truncate_title_text,
     session_search_working_dir_matches as working_dir_matches,
 };
 use serde::{Deserialize, Serialize};
@@ -1045,61 +1047,72 @@ fn search_external_sessions(query: &QueryProfile, options: &SearchOptions) -> Se
     let mut report = SearchReport::default();
     let mut records = Vec::new();
 
-    if let Ok(sessions) = list_claude_code_sessions() {
-        collect_external_casr_source(
-            &mut records,
-            &mut report,
-            "claude",
-            "claude-code",
-            sessions,
-            query,
-            options,
-        );
-    } else {
-        report.parse_errors += 1;
+    if source_matches_filter("claude", options)
+        && let Ok(sessions) =
+            crate::import::list_claude_code_sessions_lazy(options.max_scan_sessions)
+    {
+        report.external_sources.push("claude");
+        for session in sessions.into_iter().take(options.max_scan_sessions) {
+            let path = PathBuf::from(&session.full_path);
+            if !external_path_or_raw_matches_query(&path, query)
+                && !external_text_matches_query(&session.session_id, query)
+                && !external_text_matches_query(&session.first_prompt, query)
+                && !session
+                    .summary
+                    .as_deref()
+                    .is_some_and(|summary| external_text_matches_query(summary, query))
+                && !session
+                    .project_path
+                    .as_deref()
+                    .is_some_and(|project| external_text_matches_query(project, query))
+            {
+                continue;
+            }
+            let messages = load_claude_external_messages(&path, options.include_tools);
+            let created_at = session.created.unwrap_or_else(Utc::now);
+            let updated_at = session.modified.or(session.created).unwrap_or(created_at);
+            let title = session
+                .summary
+                .filter(|summary| !summary.trim().is_empty())
+                .unwrap_or_else(|| truncate_title_text(&session.first_prompt, 72));
+            records.push(ExternalSessionRecord {
+                source: "claude",
+                session_id: session.session_id.clone(),
+                short_name: Some(format!(
+                    "claude {}",
+                    &session.session_id[..session.session_id.len().min(8)]
+                )),
+                title: Some(title),
+                working_dir: session.project_path,
+                provider_key: Some("claude-code".to_string()),
+                model: None,
+                created_at,
+                updated_at,
+                path,
+                messages,
+            });
+        }
     }
 
-    if let Ok(sessions) = list_codex_sessions() {
-        collect_external_casr_source(
-            &mut records,
-            &mut report,
-            "codex",
-            "codex",
-            sessions,
-            query,
-            options,
-        );
-    } else {
-        report.parse_errors += 1;
-    }
-
-    if let Ok(sessions) = list_pi_sessions() {
-        collect_external_casr_source(
-            &mut records,
-            &mut report,
-            "pi",
-            "pi-agent",
-            sessions,
-            query,
-            options,
-        );
-    } else {
-        report.parse_errors += 1;
-    }
-
-    if let Ok(sessions) = list_opencode_sessions() {
-        collect_external_casr_source(
-            &mut records,
-            &mut report,
-            "opencode",
-            "opencode",
-            sessions,
-            query,
-            options,
-        );
-    } else {
-        report.parse_errors += 1;
-    }
+    collect_external_jsonl_source(
+        &mut records,
+        &mut report,
+        "codex",
+        ".codex/sessions",
+        query,
+        options,
+        load_codex_external_session,
+    );
+    collect_external_jsonl_source(
+        &mut records,
+        &mut report,
+        "pi",
+        ".pi/agent/sessions",
+        query,
+        options,
+        load_pi_external_session,
+    );
+    collect_opencode_external_sessions(&mut records, &mut report, options);
 
     if records.len() > options.max_scan_sessions.saturating_mul(5) {
         records.truncate(options.max_scan_sessions.saturating_mul(5));
@@ -1115,41 +1128,32 @@ fn search_external_sessions(query: &QueryProfile, options: &SearchOptions) -> Se
     report
 }
 
-fn collect_external_casr_source(
+fn collect_external_jsonl_source(
     records: &mut Vec<ExternalSessionRecord>,
     report: &mut SearchReport,
     source: &'static str,
-    provider_key: &'static str,
-    sessions: Vec<crate::casr_adapter::ClaudeCodeSessionInfo>,
+    root_relative: &str,
     query: &QueryProfile,
     options: &SearchOptions,
+    loader: fn(&Path, bool) -> ImportCoreResult<Option<ExternalSessionRecord>>,
 ) {
     if !source_matches_filter(source, options) {
         return;
     }
-    if sessions.is_empty() {
+    let Ok(root) = crate::storage::user_home_path(root_relative) else {
+        return;
+    };
+    if !root.exists() {
         return;
     }
     report.external_sources.push(source);
-    for session in sessions.into_iter().take(options.max_scan_sessions) {
-        let path = PathBuf::from(&session.full_path);
-        if !external_path_or_raw_matches_query(&path, query)
-            && !external_text_matches_query(&session.session_id, query)
-            && !external_text_matches_query(&session.first_prompt, query)
-            && !session
-                .summary
-                .as_deref()
-                .is_some_and(|summary| external_text_matches_query(summary, query))
-            && !session
-                .project_path
-                .as_deref()
-                .is_some_and(|project| external_text_matches_query(project, query))
-        {
+    for path in collect_recent_files_recursive(&root, "jsonl", options.max_scan_sessions) {
+        if !external_path_or_raw_matches_query(&path, query) {
             continue;
         }
-        // Read the full session via CASR to populate messages.
-        match load_external_session(source, provider_key, &path) {
-            Ok(record) => records.push(record),
+        match loader(&path, options.include_tools) {
+            Ok(Some(record)) => records.push(record),
+            Ok(None) => {}
             Err(_) => report.parse_errors += 1,
         }
     }
@@ -1166,6 +1170,39 @@ fn external_path_or_raw_matches_query(path: &Path, query: &QueryProfile) -> bool
 
 fn external_text_matches_query(text: &str, query: &QueryProfile) -> bool {
     jcode_session_types::normalized_session_search_text_matches(&text.to_lowercase(), query)
+}
+
+fn collect_opencode_external_sessions(
+    records: &mut Vec<ExternalSessionRecord>,
+    report: &mut SearchReport,
+    options: &SearchOptions,
+) {
+    if !source_matches_filter("opencode", options) {
+        return;
+    }
+    let Ok(root) = crate::storage::user_home_path(".local/share/opencode/storage/session") else {
+        return;
+    };
+    if !root.exists() {
+        return;
+    }
+    report.external_sources.push("opencode");
+    let Ok(messages_base) = crate::storage::user_home_path(".local/share/opencode/storage/message")
+    else {
+        return;
+    };
+    for path in collect_recent_files_recursive(&root, "json", options.max_scan_sessions) {
+        match load_opencode_external_session(
+            &path,
+            &messages_base,
+            options.include_tools,
+            options.max_scan_sessions,
+        ) {
+            Ok(Some(record)) => records.push(record),
+            Ok(None) => {}
+            Err(_) => report.parse_errors += 1,
+        }
+    }
 }
 
 fn append_external_session_results(

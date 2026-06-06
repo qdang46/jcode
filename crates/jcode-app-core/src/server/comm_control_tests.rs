@@ -124,7 +124,7 @@ impl Provider for TestProvider {
 
 async fn test_agent() -> Arc<Mutex<Agent>> {
     let provider: Arc<dyn Provider> = Arc::new(TestProvider);
-    let registry = Registry::new(provider.clone(), None).await;
+    let registry = Registry::new(provider.clone()).await;
     Arc::new(Mutex::new(Agent::new(provider, registry)))
 }
 

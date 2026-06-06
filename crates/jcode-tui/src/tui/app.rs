@@ -49,7 +49,6 @@ pub enum AppRuntimeMode {
     TestHarness,
 }
 
-mod at_picker;
 mod auth;
 mod auth_account_picker_saved_accounts;
 mod catchup;
@@ -83,7 +82,7 @@ pub(crate) mod run_shell;
 mod runtime_memory;
 mod split_view;
 mod state_ui;
-pub mod state_ui_input_helpers;
+mod state_ui_input_helpers;
 mod state_ui_maintenance;
 mod state_ui_messages;
 mod state_ui_runtime;
@@ -341,28 +340,6 @@ pub enum ProcessingStatus {
     RunningTool(String),
 }
 
-/// Live "collapse the current reasoning" animation state.
-///
-/// In `current` reasoning-display mode the model's reasoning streams live as
-/// dim+italic lines, then must disappear once the answer commits or a tool runs.
-/// Instead of deleting every reasoning line in a single frame (a jarring upward
-/// jump), the closed reasoning block is moved into a dedicated `"reasoning"`
-/// display message that height-collapses toward a one-line summary over a short
-/// ease-out, leaving a `▸ thought for Xs` trace behind.
-#[derive(Clone, Debug)]
-pub(crate) struct ReasoningCollapse {
-    /// Index into `display_messages` of the `"reasoning"` message being collapsed.
-    pub(crate) msg_index: usize,
-    /// One-line dim summary the block collapses down to (markup for
-    /// "▸ thought for Xs"), always shown at the top of the message.
-    pub(crate) summary_markup: String,
-    /// Per-line dim+italic markup for each reasoning line, in order. The block
-    /// shrinks by dropping leading lines until only `summary_markup` remains.
-    pub(crate) line_markups: Vec<String>,
-    /// When the collapse animation started.
-    pub(crate) started_at: Instant,
-}
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum RemoteStartupPhase {
     StartingServer,
@@ -567,58 +544,13 @@ struct CommandCandidatesCache {
     candidates: Vec<(String, &'static str)>,
 }
 
-/// State for an in-progress OAuth/API-key login flow triggered by `/login`.
-/// TUI Application state
-pub struct App {
-    provider: Arc<dyn Provider>,
-    registry: Registry,
-    skills: Arc<SkillRegistry>,
-    mcp_manager: Arc<RwLock<McpManager>>,
-    messages: Vec<Message>,
-    session: Session,
-    display_messages: Vec<DisplayMessage>,
-    display_messages_version: u64,
-    display_user_message_count: usize,
-    display_edit_tool_message_count: usize,
-    compacted_history_lazy: CompactedHistoryLazyState,
-    input: String,
-    command_candidates_cache: RefCell<Option<CommandCandidatesCache>>,
-    /// Lazy-initialized `@<path>` picker. Created on first @-keystroke when
-    /// `session.working_dir` is set. `RefCell` because creation needs to
-    /// happen behind `&self` calls (e.g. `command_suggestions`).
-    at_picker: RefCell<crate::tui::app::at_picker::AtPickerSlot>,
-    cursor_pos: usize,
-    scroll_offset: usize,
-    /// Pauses auto-scroll when user scrolls up during streaming
-    auto_scroll_paused: bool,
-    active_skill: Option<String>,
-    /// Issue #85: Plan Mode (read-only). When `true`, the next slash
-    /// command tap on `/plan` re-enables write tools. While active,
-    /// write-class tools (write/edit/bash/etc.) are gated off and a
-    /// reminder is injected so the model produces a plan instead of
-    /// executing.
-    plan_mode: bool,
-    /// Current permission mode for tool-call gating (Shift+Tab cycling).
-    /// Synced with `dcg_bridge::GLOBAL_MODE` at startup and on every cycle.
-    permission_mode: dcg_core::Mode,
-    is_processing: bool,
-    streaming_text: String,
-    should_quit: bool,
-    // Message queueing
-    queued_messages: Vec<String>,
-    hidden_queued_system_messages: Vec<String>,
-    current_turn_system_reminder: Option<String>,
-    // Live token usage (per turn)
-    streaming_input_tokens: u64,
-    streaming_output_tokens: u64,
-    streaming_cache_read_tokens: Option<u64>,
-    streaming_cache_creation_tokens: Option<u64>,
-    // Upstream provider (e.g., which provider OpenRouter routed to)
-    upstream_provider: Option<String>,
-    // Active stream connection type (websocket/https/etc.)
-    connection_type: Option<String>,
-    // Provider-supplied human-readable transport detail for the current stream
-    status_detail: Option<String>,
+/// Session-wide token and cache accounting accumulated across all turns.
+///
+/// Grouped out of [`App`] to keep the cohesive token/cache totals together. The
+/// `total_*` fields accumulate over the whole session; the `last_*` fields hold
+/// the most recently reported per-turn values used for cache TTL display.
+#[derive(Clone, Debug, Default)]
+struct TokenAccounting {
     // Total session token usage (accumulated across all turns)
     total_input_tokens: u64,
     total_output_tokens: u64,
@@ -632,37 +564,36 @@ pub struct App {
     last_cache_creation_tokens: Option<u64>,
     last_cache_optimal_input_tokens: Option<u64>,
     cache_next_optimal_input_tokens: Option<u64>,
+}
+
+/// KV cache baseline tracking and per-turn cache-miss attribution.
+///
+/// Grouped out of [`App`]. The baseline and pending-request fields drive cache
+/// telemetry recording; the turn/call indices and miss samples feed the cache
+/// hit/miss attribution surfaced in the info widget.
+#[derive(Clone, Debug, Default)]
+struct KvCacheState {
     kv_cache_baseline: Option<KvCacheBaseline>,
     pending_kv_cache_request: Option<PendingKvCacheRequest>,
     current_api_usage_recorded: bool,
     kv_cache_turn_number: Option<usize>,
     kv_cache_turn_call_index: u16,
     kv_cache_miss_samples: Vec<KvCacheMissSample>,
-    // Total cost in USD (for API-key providers)
-    total_cost: f32,
-    // Cached pricing (input $/1M tokens, output $/1M tokens)
-    cached_prompt_price: Option<f32>,
-    cached_completion_price: Option<f32>,
-    // Cached cache-read pricing ($/1M tokens), when known for the active model.
-    cached_cache_read_price: Option<f32>,
-    // Model the cached_*_price values were resolved for, so we re-resolve on switch.
-    cached_price_model: Option<String>,
-    // Context limit tracking (for compaction warning)
-    context_limit: u64,
-    context_warning_shown: bool,
-    // Context info (what's loaded in system prompt)
-    context_info: crate::prompt::ContextInfo,
-    // Monotonic revision for prompt/context-affecting state. Info widgets use this to avoid stale
-    // cached context after compaction, prompt rebuilds, tool-definition refreshes, or message edits.
-    context_revision: u64,
-    // Track last streaming activity for "stale" detection
-    last_stream_activity: Option<Instant>,
-    // Provider has emitted MessageEnd, but the turn is still finalizing bookkeeping.
-    stream_message_ended: bool,
-    // Server-reported processing snapshot captured from resume/history before live events arrive.
-    remote_resume_activity: Option<RemoteResumeActivity>,
-    // Reload reconnect is waiting for server history before deciding whether to continue.
-    pending_reload_reconnect_status: Option<PendingReloadReconnectStatus>,
+}
+
+/// Live streaming/turn progress: streamed text, per-turn token counts, and the
+/// tokens-per-second tracking state.
+///
+/// Grouped out of [`App`]. These fields are reset/updated as a unit each turn,
+/// so keeping them together clarifies the streaming lifecycle.
+#[derive(Clone, Debug, Default)]
+struct StreamingProgress {
+    streaming_text: String,
+    // Live token usage (per turn)
+    streaming_input_tokens: u64,
+    streaming_output_tokens: u64,
+    streaming_cache_read_tokens: Option<u64>,
+    streaming_cache_creation_tokens: Option<u64>,
     // Accurate TPS tracking: counts model output generation time, not tool execution.
     /// Set while the provider is generating output tokens (text, reasoning, or tool-call JSON).
     streaming_tps_start: Option<Instant>,
@@ -686,6 +617,83 @@ pub struct App {
     streaming_tps_observed_output_tokens: u64,
     /// Streaming-only elapsed time corresponding to streaming_tps_observed_output_tokens.
     streaming_tps_observed_elapsed: Duration,
+}
+
+/// Accumulated session cost and cached per-model pricing.
+///
+/// Grouped out of [`App`]. `total_cost` accrues across the session; the cached
+/// price fields memoize the active model's pricing so they are re-resolved only
+/// when `cached_price_model` no longer matches the current model.
+#[derive(Clone, Debug, Default)]
+struct CostState {
+    // Total cost in USD (for API-key providers)
+    total_cost: f32,
+    // Cached pricing (input $/1M tokens, output $/1M tokens)
+    cached_prompt_price: Option<f32>,
+    cached_completion_price: Option<f32>,
+    // Cached cache-read pricing ($/1M tokens), when known for the active model.
+    cached_cache_read_price: Option<f32>,
+    // Model the cached_*_price values were resolved for, so we re-resolve on switch.
+    cached_price_model: Option<String>,
+}
+
+/// State for an in-progress OAuth/API-key login flow triggered by `/login`.
+/// TUI Application state
+pub struct App {
+    provider: Arc<dyn Provider>,
+    registry: Registry,
+    skills: Arc<SkillRegistry>,
+    mcp_manager: Arc<RwLock<McpManager>>,
+    messages: Vec<Message>,
+    session: Session,
+    display_messages: Vec<DisplayMessage>,
+    display_messages_version: u64,
+    display_user_message_count: usize,
+    display_edit_tool_message_count: usize,
+    compacted_history_lazy: CompactedHistoryLazyState,
+    input: String,
+    command_candidates_cache: RefCell<Option<CommandCandidatesCache>>,
+    cursor_pos: usize,
+    scroll_offset: usize,
+    /// Pauses auto-scroll when user scrolls up during streaming
+    auto_scroll_paused: bool,
+    active_skill: Option<String>,
+    is_processing: bool,
+    // Live streaming/turn progress (text, per-turn tokens, TPS tracking).
+    streaming: StreamingProgress,
+    should_quit: bool,
+    // Message queueing
+    queued_messages: Vec<String>,
+    hidden_queued_system_messages: Vec<String>,
+    current_turn_system_reminder: Option<String>,
+    // Upstream provider (e.g., which provider OpenRouter routed to)
+    upstream_provider: Option<String>,
+    // Active stream connection type (websocket/https/etc.)
+    connection_type: Option<String>,
+    // Provider-supplied human-readable transport detail for the current stream
+    status_detail: Option<String>,
+    // Session-wide token + cache accounting (accumulated across all turns).
+    token_accounting: TokenAccounting,
+    // KV cache baseline tracking + per-turn miss attribution.
+    kv_cache: KvCacheState,
+    // Accumulated session cost + cached per-model pricing.
+    cost: CostState,
+    // Context limit tracking (for compaction warning)
+    context_limit: u64,
+    context_warning_shown: bool,
+    // Context info (what's loaded in system prompt)
+    context_info: crate::prompt::ContextInfo,
+    // Monotonic revision for prompt/context-affecting state. Info widgets use this to avoid stale
+    // cached context after compaction, prompt rebuilds, tool-definition refreshes, or message edits.
+    context_revision: u64,
+    // Track last streaming activity for "stale" detection
+    last_stream_activity: Option<Instant>,
+    // Provider has emitted MessageEnd, but the turn is still finalizing bookkeeping.
+    stream_message_ended: bool,
+    // Server-reported processing snapshot captured from resume/history before live events arrive.
+    remote_resume_activity: Option<RemoteResumeActivity>,
+    // Reload reconnect is waiting for server history before deciding whether to continue.
+    pending_reload_reconnect_status: Option<PendingReloadReconnectStatus>,
     // Current status
     status: ProcessingStatus,
     // Subagent status (shown during Task tool execution)
@@ -750,16 +758,9 @@ pub struct App {
     reasoning_partial_len: usize,
     // Byte offset in `streaming_text` where the current reasoning block began
     // (recorded by `open_reasoning_region`). Used in `current` mode to slice the
-    // closed reasoning block out of the stream and hand it to the collapse
-    // animation while keeping any answer text that preceded it in order.
+    // closed reasoning block back out of the stream in place, keeping any answer
+    // text that preceded it in order.
     reasoning_block_start: Option<usize>,
-    // Wall-clock instant the current reasoning region opened, used to label the
-    // collapsed summary ("▸ thought for Xs").
-    reasoning_block_started_at: Option<Instant>,
-    // Active "collapse the current reasoning" animation (current mode only). While
-    // set, a `"reasoning"` display message height-collapses toward its one-line
-    // summary; the redraw loop advances it each frame and finalizes on completion.
-    reasoning_collapse: Option<ReasoningCollapse>,
     // Hot-reload: if set, exec into new binary with this session ID (no rebuild)
     reload_requested: Option<String>,
     // Hot-rebuild: if set, do full git pull + cargo build + tests then exec
@@ -1060,10 +1061,6 @@ pub struct App {
     scroll_bookmark: Option<usize>,
     // Stashed input: saved via Ctrl+S for later retrieval
     stashed_input: Option<(String, usize)>,
-    // Input history for recall (ring buffer, newest at the end)
-    input_history: Vec<String>,
-    // Index into `input_history` while browsing; None when not browsing
-    input_history_index: Option<usize>,
     // Undo history for in-progress input editing (Ctrl+Z)
     input_undo_stack: Vec<(String, usize)>,
     // Short-lived notice for status feedback (model switch, cycle diff mode, etc.)
@@ -1177,16 +1174,15 @@ pub struct App {
     account_picker_overlay: Option<RefCell<super::account_picker::AccountPicker>>,
     /// Usage overlay (None = not visible)
     usage_overlay: Option<RefCell<super::usage_overlay::UsageOverlay>>,
-    /// Experiment flags popup overlay (None = not visible)
-    experiment_popup: Option<RefCell<super::experiment_popup::ExperimentPopupState>>,
     /// Whether a usage refresh request is currently in flight.
     usage_report_refreshing: bool,
     /// Whether a `/productivity` report generation is currently in flight.
     productivity_refreshing: bool,
     /// Last time the passive overnight progress card polled its run files.
     last_overnight_card_refresh: Option<Instant>,
-    /// Plugin system bridge for TUI plugin integration.
-    plugin_bridge: Option<super::plugin_integration::PluginTuiBridge>,
+    /// Per-client Niri-style workspace navigation state. Previously a process
+    /// global; now owned per App instance.
+    workspace_client: super::workspace_client::WorkspaceClientState,
 }
 
 /// Inert provider used by runtime modes whose output is supplied by another source.
@@ -1247,40 +1243,6 @@ impl App {
     const KV_CACHE_MIN_MISSED_TOKENS: u64 = 1_024;
     const KV_CACHE_MAX_MISS_SAMPLES: usize = 12;
 
-    /// Cycle to the next permission mode in the standard order.
-    /// Order: Default → AcceptEdits → Plan → Auto → DontAsk → BypassPermissions → Default
-    pub(super) fn cycle_permission_mode(&mut self) {
-        use dcg_core::Mode;
-        let next = match self.permission_mode {
-            Mode::Default => Mode::AcceptEdits,
-            Mode::AcceptEdits => Mode::Plan,
-            Mode::Plan => Mode::Auto,
-            Mode::Auto => Mode::DontAsk,
-            Mode::DontAsk => Mode::BypassPermissions,
-            Mode::BypassPermissions => Mode::Default,
-        };
-        self.permission_mode = next;
-        crate::dcg_bridge::set_mode(next);
-    }
-
-    /// Set the permission mode explicitly (from `/permission-mode` slash command).
-    pub(super) fn set_permission_mode(&mut self, mode: dcg_core::Mode) {
-        self.permission_mode = mode;
-        crate::dcg_bridge::set_mode(mode);
-    }
-
-    /// Human-readable label for the current permission mode.
-    pub(super) fn permission_mode_label(&self) -> &'static str {
-        match self.permission_mode {
-            dcg_core::Mode::Default => "default",
-            dcg_core::Mode::AcceptEdits => "acceptEdits",
-            dcg_core::Mode::Plan => "plan",
-            dcg_core::Mode::Auto => "auto",
-            dcg_core::Mode::DontAsk => "dontAsk",
-            dcg_core::Mode::BypassPermissions => "bypassPermissions",
-        }
-    }
-
     pub(super) fn begin_kv_cache_request(
         &mut self,
         messages: &[Message],
@@ -1294,11 +1256,15 @@ impl App {
             .filter(|message| message.role == "user")
             .count()
             .max(1);
-        if self.kv_cache_turn_number == Some(turn_number) {
-            self.kv_cache_turn_call_index = self.kv_cache_turn_call_index.saturating_add(1).max(1);
+        if self.kv_cache.kv_cache_turn_number == Some(turn_number) {
+            self.kv_cache.kv_cache_turn_call_index = self
+                .kv_cache
+                .kv_cache_turn_call_index
+                .saturating_add(1)
+                .max(1);
         } else {
-            self.kv_cache_turn_number = Some(turn_number);
-            self.kv_cache_turn_call_index = 1;
+            self.kv_cache.kv_cache_turn_number = Some(turn_number);
+            self.kv_cache.kv_cache_turn_call_index = 1;
         }
 
         let baseline = self.kv_cache_baseline_for_current_session();
@@ -1311,15 +1277,15 @@ impl App {
 
         self.maybe_push_cold_cache_warning(
             turn_number,
-            self.kv_cache_turn_call_index,
+            self.kv_cache.kv_cache_turn_call_index,
             baseline.as_ref(),
         );
         self.pause_streaming_tps(false);
-        self.current_api_usage_recorded = false;
+        self.kv_cache.current_api_usage_recorded = false;
 
-        self.pending_kv_cache_request = Some(PendingKvCacheRequest {
+        self.kv_cache.pending_kv_cache_request = Some(PendingKvCacheRequest {
             turn_number,
-            call_index: self.kv_cache_turn_call_index,
+            call_index: self.kv_cache.kv_cache_turn_call_index,
             provider: self.kv_cache_provider_name(),
             model: self.kv_cache_provider_model(),
             upstream_provider: self.upstream_provider.clone(),
@@ -1339,11 +1305,15 @@ impl App {
             .filter(|message| message.role == "user")
             .count()
             .max(1);
-        if self.kv_cache_turn_number == Some(turn_number) {
-            self.kv_cache_turn_call_index = self.kv_cache_turn_call_index.saturating_add(1).max(1);
+        if self.kv_cache.kv_cache_turn_number == Some(turn_number) {
+            self.kv_cache.kv_cache_turn_call_index = self
+                .kv_cache
+                .kv_cache_turn_call_index
+                .saturating_add(1)
+                .max(1);
         } else {
-            self.kv_cache_turn_number = Some(turn_number);
-            self.kv_cache_turn_call_index = 1;
+            self.kv_cache.kv_cache_turn_number = Some(turn_number);
+            self.kv_cache.kv_cache_turn_call_index = 1;
         }
 
         let baseline = self.kv_cache_baseline_for_current_session();
@@ -1353,14 +1323,14 @@ impl App {
             .map(|previous| Self::kv_cache_signatures_prefix_match(&signature, previous));
         self.maybe_push_cold_cache_warning(
             turn_number,
-            self.kv_cache_turn_call_index,
+            self.kv_cache.kv_cache_turn_call_index,
             baseline.as_ref(),
         );
         self.pause_streaming_tps(false);
-        self.current_api_usage_recorded = false;
-        self.pending_kv_cache_request = Some(PendingKvCacheRequest {
+        self.kv_cache.current_api_usage_recorded = false;
+        self.kv_cache.pending_kv_cache_request = Some(PendingKvCacheRequest {
             turn_number,
-            call_index: self.kv_cache_turn_call_index,
+            call_index: self.kv_cache.kv_cache_turn_call_index,
             provider: self.kv_cache_provider_name(),
             model: self.kv_cache_provider_model(),
             upstream_provider: self.upstream_provider.clone(),
@@ -1390,7 +1360,7 @@ impl App {
     /// emits a spurious `harness:_prefix_changed` miss. Treat a foreign baseline
     /// as absent (warmup) instead.
     fn kv_cache_baseline_for_current_session(&self) -> Option<KvCacheBaseline> {
-        let baseline = self.kv_cache_baseline.clone()?;
+        let baseline = self.kv_cache.kv_cache_baseline.clone()?;
         let current = self.kv_cache_session_id();
         if baseline.session_id == current {
             Some(baseline)
@@ -1437,41 +1407,42 @@ impl App {
     }
 
     pub(super) fn record_completed_stream_cache_usage(&mut self) -> bool {
-        let has_cache_telemetry = self.streaming_cache_read_tokens.is_some()
-            || self.streaming_cache_creation_tokens.is_some();
-        if self.current_api_usage_recorded {
+        let has_cache_telemetry = self.streaming.streaming_cache_read_tokens.is_some()
+            || self.streaming.streaming_cache_creation_tokens.is_some();
+        if self.kv_cache.current_api_usage_recorded {
             return false;
         }
-        if self.streaming_input_tokens == 0 {
+        if self.streaming.streaming_input_tokens == 0 {
             return false;
         }
 
-        let optimal_input_tokens = self.cache_next_optimal_input_tokens;
+        let optimal_input_tokens = self.token_accounting.cache_next_optimal_input_tokens;
         // Stash the *effective* prompt size for this request so the next request's
         // cache-read can be compared against everything that just became cacheable.
         // For split-accounting providers (Anthropic) bare `input` is only the
         // uncached remainder, so the reusable prefix is input + read + creation.
-        self.cache_next_optimal_input_tokens =
+        self.token_accounting.cache_next_optimal_input_tokens =
             Some(crate::tui::info_widget::effective_prompt_tokens(
-                self.streaming_input_tokens,
-                self.streaming_cache_read_tokens.unwrap_or(0),
-                self.streaming_cache_creation_tokens.unwrap_or(0),
+                self.streaming.streaming_input_tokens,
+                self.streaming.streaming_cache_read_tokens.unwrap_or(0),
+                self.streaming.streaming_cache_creation_tokens.unwrap_or(0),
             ));
 
         let request = self
+            .kv_cache
             .pending_kv_cache_request
             .take()
             .unwrap_or_else(|| self.fallback_pending_kv_cache_request());
-        self.current_api_usage_recorded = true;
+        self.kv_cache.current_api_usage_recorded = true;
 
         self.record_kv_cache_miss_sample(&request);
 
         let baseline_session_id = self.kv_cache_session_id();
 
         if !has_cache_telemetry {
-            self.kv_cache_baseline = Some(KvCacheBaseline {
+            self.kv_cache.kv_cache_baseline = Some(KvCacheBaseline {
                 session_id: baseline_session_id,
-                input_tokens: self.streaming_input_tokens,
+                input_tokens: self.streaming.streaming_input_tokens,
                 completed_at: Instant::now(),
                 provider: request.provider,
                 model: request.model,
@@ -1481,30 +1452,37 @@ impl App {
             return true;
         }
 
-        self.total_cache_reported_input_tokens = self
+        self.token_accounting.total_cache_reported_input_tokens = self
+            .token_accounting
             .total_cache_reported_input_tokens
-            .saturating_add(self.streaming_input_tokens);
+            .saturating_add(self.streaming.streaming_input_tokens);
         if let Some(optimal) = optimal_input_tokens {
-            self.total_cache_optimal_input_tokens = self
+            self.token_accounting.total_cache_optimal_input_tokens = self
+                .token_accounting
                 .total_cache_optimal_input_tokens
                 .saturating_add(optimal);
         }
-        self.total_cache_read_tokens = self
+        self.token_accounting.total_cache_read_tokens = self
+            .token_accounting
             .total_cache_read_tokens
-            .saturating_add(self.streaming_cache_read_tokens.unwrap_or(0));
-        self.total_cache_creation_tokens = self
+            .saturating_add(self.streaming.streaming_cache_read_tokens.unwrap_or(0));
+        self.token_accounting.total_cache_creation_tokens = self
+            .token_accounting
             .total_cache_creation_tokens
-            .saturating_add(self.streaming_cache_creation_tokens.unwrap_or(0));
-        self.last_cache_reported_input_tokens = Some(self.streaming_input_tokens);
-        self.last_cache_read_tokens = Some(self.streaming_cache_read_tokens.unwrap_or(0));
-        self.last_cache_creation_tokens = Some(self.streaming_cache_creation_tokens.unwrap_or(0));
-        self.last_cache_optimal_input_tokens = optimal_input_tokens;
+            .saturating_add(self.streaming.streaming_cache_creation_tokens.unwrap_or(0));
+        self.token_accounting.last_cache_reported_input_tokens =
+            Some(self.streaming.streaming_input_tokens);
+        self.token_accounting.last_cache_read_tokens =
+            Some(self.streaming.streaming_cache_read_tokens.unwrap_or(0));
+        self.token_accounting.last_cache_creation_tokens =
+            Some(self.streaming.streaming_cache_creation_tokens.unwrap_or(0));
+        self.token_accounting.last_cache_optimal_input_tokens = optimal_input_tokens;
 
         self.log_kv_cache_usage_summary(&request, optimal_input_tokens);
 
-        self.kv_cache_baseline = Some(KvCacheBaseline {
+        self.kv_cache.kv_cache_baseline = Some(KvCacheBaseline {
             session_id: baseline_session_id,
-            input_tokens: self.streaming_input_tokens,
+            input_tokens: self.streaming.streaming_input_tokens,
             completed_at: Instant::now(),
             provider: request.provider,
             model: request.model,
@@ -1519,25 +1497,27 @@ impl App {
         request: &PendingKvCacheRequest,
         optimal_input_tokens: Option<u64>,
     ) {
-        let input_tokens = self.streaming_input_tokens;
-        let read_tokens = self.streaming_cache_read_tokens.unwrap_or(0);
-        let creation_tokens = self.streaming_cache_creation_tokens.unwrap_or(0);
+        let input_tokens = self.streaming.streaming_input_tokens;
+        let read_tokens = self.streaming.streaming_cache_read_tokens.unwrap_or(0);
+        let creation_tokens = self.streaming.streaming_cache_creation_tokens.unwrap_or(0);
         let read_pct = ratio_pct(read_tokens, input_tokens);
         let creation_pct = ratio_pct(creation_tokens, input_tokens);
         let optimal_read_pct = optimal_input_tokens.map(|optimal| ratio_pct(read_tokens, optimal));
         let session_read_pct = ratio_pct(
-            self.total_cache_read_tokens,
-            self.total_cache_reported_input_tokens,
+            self.token_accounting.total_cache_read_tokens,
+            self.token_accounting.total_cache_reported_input_tokens,
         );
-        let session_optimal_read_pct = if self.total_cache_optimal_input_tokens > 0 {
+        let session_optimal_read_pct = if self.token_accounting.total_cache_optimal_input_tokens > 0
+        {
             Some(ratio_pct(
-                self.total_cache_read_tokens,
-                self.total_cache_optimal_input_tokens,
+                self.token_accounting.total_cache_read_tokens,
+                self.token_accounting.total_cache_optimal_input_tokens,
             ))
         } else {
             None
         };
         let miss = self
+            .kv_cache
             .kv_cache_miss_samples
             .last()
             .filter(|sample| {
@@ -1656,11 +1636,11 @@ impl App {
             optimal_read_pct,
             missed_tokens,
             miss,
-            self.total_cache_reported_input_tokens,
-            self.total_cache_read_tokens,
-            self.total_cache_creation_tokens,
+            self.token_accounting.total_cache_reported_input_tokens,
+            self.token_accounting.total_cache_read_tokens,
+            self.token_accounting.total_cache_creation_tokens,
             session_read_pct,
-            self.total_cache_optimal_input_tokens,
+            self.token_accounting.total_cache_optimal_input_tokens,
             session_optimal_read_pct,
             baseline_input_tokens,
             baseline_age_secs,
@@ -1722,7 +1702,7 @@ impl App {
             return;
         }
 
-        let read_tokens = self.streaming_cache_read_tokens.unwrap_or(0);
+        let read_tokens = self.streaming.streaming_cache_read_tokens.unwrap_or(0);
         let missed_tokens = expected_tokens.saturating_sub(read_tokens);
         if missed_tokens < Self::KV_CACHE_MIN_MISSED_TOKENS {
             return;
@@ -1746,15 +1726,16 @@ impl App {
             return;
         }
 
-        self.kv_cache_miss_samples.push(KvCacheMissSample {
+        self.kv_cache.kv_cache_miss_samples.push(KvCacheMissSample {
             turn_number: request.turn_number,
             call_index: request.call_index,
             missed_tokens,
             reason,
         });
-        if self.kv_cache_miss_samples.len() > Self::KV_CACHE_MAX_MISS_SAMPLES {
-            let overflow = self.kv_cache_miss_samples.len() - Self::KV_CACHE_MAX_MISS_SAMPLES;
-            self.kv_cache_miss_samples.drain(0..overflow);
+        if self.kv_cache.kv_cache_miss_samples.len() > Self::KV_CACHE_MAX_MISS_SAMPLES {
+            let overflow =
+                self.kv_cache.kv_cache_miss_samples.len() - Self::KV_CACHE_MAX_MISS_SAMPLES;
+            self.kv_cache.kv_cache_miss_samples.drain(0..overflow);
         }
     }
 
@@ -1800,7 +1781,7 @@ impl App {
             return KvCacheMissReason::HarnessPrefixChanged;
         }
 
-        if self.streaming_cache_read_tokens.is_none() {
+        if self.streaming.streaming_cache_read_tokens.is_none() {
             return KvCacheMissReason::Unknown;
         }
         if read_tokens == 0 {

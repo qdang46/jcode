@@ -31,9 +31,6 @@ pub(super) use key_handling::reload_stale_remote_server_before_update;
 use queue_recovery::{recover_local_interleave_to_queue, recover_stranded_soft_interrupts};
 // Re-export for sibling modules and tests that access reconnect state and helpers
 // through `super::remote::*` without reaching into private submodules directly.
-// `#[allow(unused_imports)]` is required because rustc flags re-exports as unused
-// when none of the names are referenced within *this* module; they are consumed by
-// sibling modules and the compiler does not look across module boundaries here.
 #[allow(unused_imports)]
 pub(super) use reconnect::{
     ConnectOutcome, PostConnectOutcome, ReloadReconnectHints, RemoteRunState, connect_with_retry,
@@ -49,8 +46,6 @@ use workspace::{handle_workspace_command, handle_workspace_navigation_key};
 
 // Re-export the remote input dispatch helpers for sibling modules/tests that go
 // through the `remote` facade instead of private submodule paths.
-// Same rationale as above: `#[allow(unused_imports)]` silences the false-positive
-// lint for re-exports that are only consumed outside this module.
 #[allow(unused_imports)]
 pub(super) use input_dispatch::{
     apply_remote_transcript_event, apply_transcript_event, begin_remote_send,
@@ -80,7 +75,6 @@ pub(super) async fn handle_tick(app: &mut App, remote: &mut RemoteConnection) ->
             .is_some_and(|state| state.kind == crate::tui::PickerKind::Model),
     });
     let mut needs_redraw = crate::tui::periodic_redraw_required(app);
-    needs_redraw |= app.advance_reasoning_collapse();
     app.maybe_capture_runtime_memory_heartbeat();
     needs_redraw |= app.progress_copy_selection_edge_autoscroll();
     app.progress_mouse_scroll_animation();
@@ -129,7 +123,7 @@ pub(super) async fn handle_tick(app: &mut App, remote: &mut RemoteConnection) ->
             }
         }
 
-        if let Some(target_session) = crate::tui::workspace_client::take_pending_resume_session() {
+        if let Some(target_session) = app.workspace_client.take_pending_resume_session() {
             match remote.resume_session(&target_session).await {
                 Ok(()) => {
                     let label = crate::id::extract_session_name(&target_session)
@@ -742,7 +736,7 @@ pub(super) fn handle_disconnect(
     if let Some(chunk) = app.stream_buffer.flush() {
         app.append_streaming_text(&chunk);
     }
-    if !app.streaming_text.is_empty() {
+    if !app.streaming.streaming_text.is_empty() {
         let content = app.take_streaming_text();
         let content = app.collapse_reasoning_for_commit(content);
         if !content.trim().is_empty() {
@@ -1255,7 +1249,7 @@ async fn detect_and_cancel_stall(app: &mut App, remote: &mut RemoteConnection) {
             app.current_message_id = None;
             app.processing_started = None;
             app.last_stream_activity = None;
-            if !app.streaming_text.is_empty() {
+            if !app.streaming.streaming_text.is_empty() {
                 let content = app.take_streaming_text();
                 let content = app.collapse_reasoning_for_commit(content);
                 if !content.trim().is_empty() {

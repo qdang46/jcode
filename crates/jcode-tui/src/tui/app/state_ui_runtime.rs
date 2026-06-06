@@ -23,7 +23,7 @@ impl App {
     }
 
     pub fn streaming_text(&self) -> &str {
-        &self.streaming_text
+        &self.streaming.streaming_text
     }
 
     pub fn active_skill(&self) -> Option<&str> {
@@ -44,7 +44,10 @@ impl App {
     }
 
     pub fn streaming_tokens(&self) -> (u64, u64) {
-        (self.streaming_input_tokens, self.streaming_output_tokens)
+        (
+            self.streaming.streaming_input_tokens,
+            self.streaming.streaming_output_tokens,
+        )
     }
 
     pub(super) fn build_turn_footer(&self, duration: Option<f32>) -> Option<String> {
@@ -56,16 +59,16 @@ impl App {
         if let Some(tps) = self.compute_streaming_tps() {
             parts.push(format!("{:.1} tps", tps));
         }
-        if self.streaming_input_tokens > 0 || self.streaming_output_tokens > 0 {
+        if self.streaming.streaming_input_tokens > 0 || self.streaming.streaming_output_tokens > 0 {
             parts.push(format!(
                 "↑{} ↓{}",
-                format_tokens(self.streaming_input_tokens),
-                format_tokens(self.streaming_output_tokens)
+                format_tokens(self.streaming.streaming_input_tokens),
+                format_tokens(self.streaming.streaming_output_tokens)
             ));
         }
         if let Some(cache) = format_cache_footer(
-            self.streaming_cache_read_tokens,
-            self.streaming_cache_creation_tokens,
+            self.streaming.streaming_cache_read_tokens,
+            self.streaming.streaming_cache_creation_tokens,
         ) {
             parts.push(cache);
         }
@@ -78,10 +81,10 @@ impl App {
     }
 
     pub(super) fn has_streaming_footer_stats(&self) -> bool {
-        self.streaming_input_tokens > 0
-            || self.streaming_output_tokens > 0
-            || self.streaming_cache_read_tokens.is_some()
-            || self.streaming_cache_creation_tokens.is_some()
+        self.streaming.streaming_input_tokens > 0
+            || self.streaming.streaming_output_tokens > 0
+            || self.streaming.streaming_cache_read_tokens.is_some()
+            || self.streaming.streaming_cache_creation_tokens.is_some()
             || self.compute_streaming_tps().is_some()
     }
 
@@ -93,7 +96,7 @@ impl App {
         self.last_api_completed_provider = Some(<Self as TuiState>::provider_name(self));
         self.last_api_completed_model = Some(<Self as TuiState>::provider_model(self));
         self.last_turn_input_tokens = {
-            let input = self.streaming_input_tokens;
+            let input = self.streaming.streaming_input_tokens;
             if input > 0 { Some(input) } else { None }
         };
 
@@ -124,9 +127,9 @@ impl App {
             &provider,
             upstream_provider,
             user_turn_count,
-            self.streaming_input_tokens,
-            self.streaming_cache_read_tokens,
-            self.streaming_cache_creation_tokens,
+            self.streaming.streaming_input_tokens,
+            self.streaming.streaming_cache_read_tokens,
+            self.streaming.streaming_cache_creation_tokens,
             cache_ttl.as_ref(),
         );
 
@@ -134,12 +137,13 @@ impl App {
             // Collect context for debugging
             let session_id = self.session_id().to_string();
             let model = <Self as TuiState>::provider_model(self);
-            let input_tokens = self.streaming_input_tokens;
-            let output_tokens = self.streaming_output_tokens;
+            let input_tokens = self.streaming.streaming_input_tokens;
+            let output_tokens = self.streaming.streaming_output_tokens;
 
             // Format as Option to distinguish None vs Some(0)
-            let cache_creation_dbg = format!("{:?}", self.streaming_cache_creation_tokens);
-            let cache_read_dbg = format!("{:?}", self.streaming_cache_read_tokens);
+            let cache_creation_dbg =
+                format!("{:?}", self.streaming.streaming_cache_creation_tokens);
+            let cache_read_dbg = format!("{:?}", self.streaming.streaming_cache_read_tokens);
 
             // Count message types in conversation
             let mut user_msgs = 0;
@@ -370,7 +374,6 @@ impl App {
     }
 
     pub(super) fn toggle_input_stash(&mut self) {
-        self.reset_input_history_browse(); // Prevent stash from interacting with history browsing
         if let Some((stashed, stashed_cursor)) = self.stashed_input.take() {
             let current_input = std::mem::replace(&mut self.input, stashed);
             let current_cursor = std::mem::replace(&mut self.cursor_pos, stashed_cursor);
@@ -386,137 +389,5 @@ impl App {
             self.stashed_input = Some((input, cursor));
             self.set_status_notice("📋 Input stashed");
         }
-    }
-
-    /// Maximum number of entries kept in input history.
-    const INPUT_HISTORY_MAX: usize = 100;
-
-    /// Push a submitted input into history (called from `submit_input`).
-    pub(super) fn push_input_history(&mut self, text: String) {
-        let trimmed = text.trim().to_string();
-        if trimmed.is_empty() {
-            return;
-        }
-        // Avoid consecutive duplicates
-        if self.input_history.last() == Some(&trimmed) {
-            return;
-        }
-        // Dedup: if the same text already exists, remove it first so the latest
-        // position wins (most-recently-used ordering).
-        if let Some(existing) = self.input_history.iter().position(|e| e == &trimmed) {
-            self.input_history.remove(existing);
-        }
-        self.input_history.push(trimmed);
-        if self.input_history.len() > Self::INPUT_HISTORY_MAX {
-            self.input_history.remove(0);
-        }
-        self.save_input_history();
-    }
-
-    /// Navigate up (older) in input history. Returns `true` if the input was modified.
-    pub(super) fn input_history_up(&mut self) -> bool {
-        if self.input_history.is_empty() {
-            return false;
-        }
-        let new_idx = match self.input_history_index {
-            Some(idx) => idx.saturating_sub(1),
-            None => self.input_history.len() - 1,
-        };
-        self.input_history_index = Some(new_idx);
-        self.input = self.input_history[new_idx].clone();
-        self.cursor_pos = self.input.len();
-        true
-    }
-
-    /// Navigate down (newer) in input history. Returns `true` if the input was modified.
-    pub(super) fn input_history_down(&mut self) -> bool {
-        let Some(idx) = self.input_history_index else {
-            return false;
-        };
-        let next = idx + 1;
-        if next < self.input_history.len() {
-            self.input_history_index = Some(next);
-            self.input = self.input_history[next].clone();
-            self.cursor_pos = self.input.len();
-        } else {
-            // Past the end: clear input and exit history browsing
-            self.input_history_index = None;
-            self.input.clear();
-            self.cursor_pos = 0;
-        }
-        true
-    }
-
-    /// Reset history browsing state (call when the user manually edits input).
-    pub(super) fn reset_input_history_browse(&mut self) {
-        self.input_history_index = None;
-    }
-
-    /// Clear all input history entries.
-    pub(super) fn clear_input_history(&mut self) {
-        self.input_history.clear();
-        self.reset_input_history_browse();
-        self.save_input_history();
-    }
-
-    /// Delete a single input history entry by 0-based index.
-    pub(super) fn delete_input_history_entry(&mut self, idx: usize) -> bool {
-        if idx >= self.input_history.len() {
-            return false;
-        }
-        self.input_history.remove(idx);
-        // Reset browse if we deleted the entry being browsed or one before it
-        if let Some(browse_idx) = self.input_history_index {
-            if browse_idx == idx {
-                self.reset_input_history_browse();
-            } else if browse_idx > idx {
-                self.input_history_index = Some(browse_idx - 1);
-            }
-        }
-        self.save_input_history();
-        true
-    }
-
-    /// Path to the global input-history file.
-    fn input_history_path() -> Option<std::path::PathBuf> {
-        crate::storage::jcode_dir()
-            .ok()
-            .map(|dir| dir.join("input-history.json"))
-    }
-
-    /// Save input history to disk (global, not session-specific).
-    pub(super) fn save_input_history(&self) {
-        if let Some(path) = Self::input_history_path() {
-            if self.input_history.is_empty() {
-                // Remove the file so cleared history doesn't reappear on restart.
-                let _ = std::fs::remove_file(&path);
-                return;
-            }
-            let data = serde_json::json!({
-                "history": self.input_history,
-                "version": 1,
-            });
-            let _ = std::fs::write(&path, data.to_string());
-        }
-    }
-
-    /// Load input history from disk. Returns entries if available.
-    pub(super) fn load_input_history() -> Vec<String> {
-        let Some(path) = Self::input_history_path() else {
-            return Vec::new();
-        };
-        let Ok(contents) = std::fs::read_to_string(&path) else {
-            return Vec::new();
-        };
-        let Ok(value) = serde_json::from_str::<serde_json::Value>(&contents) else {
-            return Vec::new();
-        };
-        let Some(arr) = value.get("history").and_then(|v| v.as_array()) else {
-            return Vec::new();
-        };
-        arr.iter()
-            .filter_map(|v| v.as_str().map(|s| s.to_string()))
-            .take(Self::INPUT_HISTORY_MAX)
-            .collect()
     }
 }

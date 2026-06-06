@@ -118,16 +118,16 @@ impl SessionPicker {
     }
 
     pub(super) fn session_is_claude_code(session: &SessionInfo) -> bool {
-        jcode_tui_session_picker::session_is_claude_code(&session.source, &session.id)
+        jcode_tui_session_picker::session_is_claude_code(session.source, &session.id)
     }
 
     pub(super) fn session_is_codex(session: &SessionInfo) -> bool {
-        jcode_tui_session_picker::session_is_codex(&session.source, session.model.as_deref())
+        jcode_tui_session_picker::session_is_codex(session.source, session.model.as_deref())
     }
 
     pub(super) fn session_is_pi(session: &SessionInfo) -> bool {
         jcode_tui_session_picker::session_is_pi(
-            &session.source,
+            session.source,
             session.provider_key.as_deref(),
             session.model.as_deref(),
         )
@@ -135,7 +135,7 @@ impl SessionPicker {
 
     pub(super) fn session_is_open_code(session: &SessionInfo) -> bool {
         jcode_tui_session_picker::session_is_open_code(
-            &session.source,
+            session.source,
             session.provider_key.as_deref(),
         )
     }

@@ -142,6 +142,17 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
+      # Pre-download rust-src so two concurrent rustup processes don't race
+      # on the same temporary file (a known runner infrastructure issue).
+      - name: Pre-download rust-src
+        shell: bash
+        run: |
+          for i in 1 2 3 4 5; do
+            rustup component add rust-src 2>/dev/null && break
+            sleep 10
+          done
+        continue-on-error: true
+
       - name: Setup sccache
         uses: mozilla-actions/sccache-action@v0.0.7
         continue-on-error: true

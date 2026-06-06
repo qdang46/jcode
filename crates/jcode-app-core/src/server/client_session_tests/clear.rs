@@ -8,7 +8,7 @@ async fn handle_clear_session_replaces_runtime_handles_and_updates_shutdown_regi
 
     let old_session_id = "session_before_clear";
     let provider: Arc<dyn Provider> = Arc::new(MockProvider);
-    let registry = Registry::new(provider.clone(), None).await;
+    let registry = Registry::new(provider.clone()).await;
     let agent = Arc::new(Mutex::new(build_test_agent_with_id(
         provider.clone(),
         registry.clone(),
@@ -58,9 +58,7 @@ async fn handle_clear_session_replaces_runtime_handles_and_updates_shutdown_regi
     )])));
     let swarm_members = Arc::new(RwLock::new(HashMap::<String, SwarmMember>::new()));
     let swarms_by_id = Arc::new(RwLock::new(HashMap::<String, HashSet<String>>::new()));
-    let file_touches = Arc::new(RwLock::new(HashMap::<PathBuf, Vec<FileAccess>>::new()));
-    let files_touched_by_session =
-        Arc::new(RwLock::new(HashMap::<String, HashSet<PathBuf>>::new()));
+    let file_touch = FileTouchService::new();
     let channel_subscriptions = Arc::new(RwLock::new(HashMap::<
         String,
         HashMap<String, HashSet<String>>,
@@ -90,8 +88,7 @@ async fn handle_clear_session_replaces_runtime_handles_and_updates_shutdown_regi
         &client_connections,
         &swarm_members,
         &swarms_by_id,
-        &file_touches,
-        &files_touched_by_session,
+        &file_touch,
         &channel_subscriptions,
         &channel_subscriptions_by_session,
         &swarm_plans,

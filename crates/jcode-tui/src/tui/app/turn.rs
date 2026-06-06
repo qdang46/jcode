@@ -268,8 +268,6 @@ impl App {
                         if let Some(chunk) = self.stream_buffer.flush_smooth_frame() {
                             self.append_streaming_text(&chunk);
                         }
-                        // Advance the "current reasoning collapses away" animation.
-                        self.advance_reasoning_collapse();
                         // Poll for background compaction completion during streaming
                         self.poll_compaction_completion();
                         status_spinner_renderer.draw_full(self, terminal)?;
@@ -342,7 +340,7 @@ impl App {
                                             if let Some(chunk) = self.stream_buffer.flush() {
                                                 self.append_streaming_text(&chunk);
                                             }
-                                            if !self.streaming_text.is_empty() {
+                                            if !self.streaming.streaming_text.is_empty() {
                                                 let content = self.take_streaming_text();
                                                 let content = self.collapse_reasoning_for_commit(content);
                                                 if !content.trim().is_empty() {
@@ -406,7 +404,7 @@ impl App {
                                                 });
                                             }
                                             // Add display message for partial response
-                                            if !self.streaming_text.is_empty() {
+                                            if !self.streaming.streaming_text.is_empty() {
                                                 let content = self.take_streaming_text();
                                                 let content = self.collapse_reasoning_for_commit(content);
                                                 if !content.trim().is_empty() {
@@ -606,22 +604,22 @@ impl App {
                                     } => {
                                         let mut usage_changed = false;
                                         if let Some(input) = input_tokens {
-                                            self.streaming_input_tokens = input;
+                                            self.streaming.streaming_input_tokens = input;
                                             usage_changed = true;
                                         }
                                         if let Some(output) = output_tokens {
-                                            self.streaming_output_tokens = output;
+                                            self.streaming.streaming_output_tokens = output;
                                             self.accumulate_streaming_output_tokens(
                                                 output,
                                                 &mut call_output_tokens_seen,
                                             );
                                         }
                                         if cache_read_input_tokens.is_some() {
-                                            self.streaming_cache_read_tokens = cache_read_input_tokens;
+                                            self.streaming.streaming_cache_read_tokens = cache_read_input_tokens;
                                             usage_changed = true;
                                         }
                                         if cache_creation_input_tokens.is_some() {
-                                            self.streaming_cache_creation_tokens =
+                                            self.streaming.streaming_cache_creation_tokens =
                                                 cache_creation_input_tokens;
                                             usage_changed = true;
                                         }
@@ -632,11 +630,11 @@ impl App {
                                             }
                                         }
                                         self.broadcast_debug(crate::tui::backend::DebugEvent::TokenUsage {
-                                            input_tokens: self.streaming_input_tokens,
-                                            output_tokens: self.streaming_output_tokens,
-                                            cache_read_input_tokens: self.streaming_cache_read_tokens,
+                                            input_tokens: self.streaming.streaming_input_tokens,
+                                            output_tokens: self.streaming.streaming_output_tokens,
+                                            cache_read_input_tokens: self.streaming.streaming_cache_read_tokens,
                                             cache_creation_input_tokens: self
-                                                .streaming_cache_creation_tokens,
+                                                .streaming.streaming_cache_creation_tokens,
                                         });
                                     }
                                     StreamEvent::ConnectionType { connection } => {
@@ -677,7 +675,7 @@ impl App {
                                         let no_partial_output = text_content.is_empty()
                                             && tool_calls.is_empty()
                                             && current_tool.is_none()
-                                            && self.streaming_text.is_empty()
+                                            && self.streaming.streaming_text.is_empty()
                                             && !saw_message_end;
                                         if no_partial_output
                                             && let Some(reason) = crate::network_retry::classify_message(&message)
@@ -719,6 +717,17 @@ impl App {
                                     }
                                     StreamEvent::ThinkingDelta(thinking_text) => {
                                         self.resume_streaming_tps();
+                                        // Reflect active reasoning in the status line even when the
+                                        // provider streams reasoning deltas without an explicit
+                                        // ThinkingStart (e.g. OpenRouter, Bedrock) or when the
+                                        // reasoning text itself is hidden by config.
+                                        let thinking_start =
+                                            *self.thinking_start.get_or_insert_with(Instant::now);
+                                        let entered_thinking =
+                                            !matches!(self.status, ProcessingStatus::Thinking(_));
+                                        if entered_thinking {
+                                            self.status = ProcessingStatus::Thinking(thinking_start);
+                                        }
                                         // Buffer thinking content for status/debug accounting.
                                         self.thinking_buffer.push_str(&thinking_text);
                                         // Flush any pending real output before reasoning text.
@@ -734,6 +743,12 @@ impl App {
                                         // persisted as a history-only trace, regardless
                                         // of provider replay support.
                                         reasoning_content.push_str(&thinking_text);
+                                        // When reasoning text is hidden, the status flip to
+                                        // "thinking…" is the only visible signal, so repaint
+                                        // promptly on the first delta.
+                                        if entered_thinking && eager_stream_redraw {
+                                            status_spinner_renderer.draw_full(self, terminal)?;
+                                        }
                                     }
                                     StreamEvent::ThinkingEnd => {
                                         self.pause_streaming_tps(true);
@@ -908,7 +923,6 @@ impl App {
                                             message_id: self.session_id().to_string(),
                                             tool_call_id: request_id.clone(),
                                             working_dir: self.session.working_dir.as_deref().map(PathBuf::from),
-                                            sandbox_root: crate::sandbox::current_sandbox_root(),
                                             stdin_request_tx: None,
                                             graceful_shutdown_signal: None,
                                             execution_mode: crate::tool::ToolExecutionMode::AgentTurn,
@@ -939,7 +953,7 @@ impl App {
                                 let no_partial_output = text_content.is_empty()
                                     && tool_calls.is_empty()
                                     && current_tool.is_none()
-                                    && self.streaming_text.is_empty()
+                                    && self.streaming.streaming_text.is_empty()
                                     && !saw_message_end;
                                 if no_partial_output
                                     && let Some(reason) = crate::network_retry::classify_network_interruption(e.as_ref())
@@ -965,7 +979,7 @@ impl App {
                                 let no_partial_output = text_content.is_empty()
                                     && tool_calls.is_empty()
                                     && current_tool.is_none()
-                                    && self.streaming_text.is_empty()
+                                    && self.streaming.streaming_text.is_empty()
                                     && !saw_message_end;
                                 if no_partial_output {
                                     let plan = crate::network_retry::wait_plan();
@@ -1069,8 +1083,9 @@ impl App {
             } else {
                 // Had tool calls - only display text that came AFTER the last tool
                 // (text before each tool was already committed in ToolUseEnd handler)
-                if !self.streaming_text.is_empty() {
-                    let content = self.collapse_reasoning_for_commit(self.streaming_text.clone());
+                if !self.streaming.streaming_text.is_empty() {
+                    let content =
+                        self.collapse_reasoning_for_commit(self.streaming.streaming_text.clone());
                     if !content.trim().is_empty() {
                         self.push_display_message(DisplayMessage {
                             role: "assistant".to_string(),
@@ -1183,7 +1198,6 @@ impl App {
                     message_id: message_id.clone(),
                     tool_call_id: tc.id.clone(),
                     working_dir: self.session.working_dir.as_deref().map(PathBuf::from),
-                    sandbox_root: crate::sandbox::current_sandbox_root(),
                     stdin_request_tx: None,
                     graceful_shutdown_signal: None,
                     execution_mode: crate::tool::ToolExecutionMode::AgentTurn,
@@ -1233,7 +1247,7 @@ impl App {
                                             if let Some(chunk) = self.stream_buffer.flush() {
                                                 self.append_streaming_text(&chunk);
                                             }
-                                            if !self.streaming_text.is_empty() {
+                                            if !self.streaming.streaming_text.is_empty() {
                                                 let content = self.take_streaming_text();
                                                 let content = self.collapse_reasoning_for_commit(content);
                                                 if !content.trim().is_empty() {

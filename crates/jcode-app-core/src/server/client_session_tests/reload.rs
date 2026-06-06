@@ -303,7 +303,7 @@ fn handle_reload_queues_signal_for_canary_session() -> Result<()> {
     rt.block_on(async {
         let mut rx = crate::server::subscribe_reload_signal_for_tests();
         let provider: Arc<dyn Provider> = Arc::new(MockProvider);
-        let registry = Registry::new(provider.clone(), None).await;
+        let registry = Registry::new(provider.clone()).await;
         let mut agent = build_test_agent(provider, registry, Vec::new());
         agent.set_canary("self-dev");
         let agent = Arc::new(Mutex::new(agent));
@@ -407,7 +407,7 @@ async fn handle_reload_does_not_wait_for_busy_agent_lock() -> Result<()> {
     let mut rx = crate::server::subscribe_reload_signal_for_tests();
 
     let provider: Arc<dyn Provider> = Arc::new(MockProvider);
-    let registry = Registry::new(provider.clone(), None).await;
+    let registry = Registry::new(provider.clone()).await;
     let agent = build_test_agent(provider, registry, Vec::new());
     let agent = Arc::new(Mutex::new(agent));
     let busy_agent_lock = agent.lock().await;

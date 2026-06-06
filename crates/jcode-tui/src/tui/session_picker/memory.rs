@@ -96,11 +96,6 @@ fn estimate_resume_target_bytes(value: &ResumeTarget) -> usize {
             session_path,
         } => session_id.capacity() + session_path.capacity(),
         ResumeTarget::PiSession { session_path } => session_path.capacity(),
-        ResumeTarget::ForeignSession {
-            session_id,
-            session_path,
-            ..
-        } => session_id.capacity() + session_path.as_ref().map_or(0, |s| s.capacity()),
     }
 }
 

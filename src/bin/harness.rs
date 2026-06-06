@@ -73,7 +73,7 @@ async fn main() -> Result<()> {
     eprintln!("Harness workspace: {}", workspace.display());
 
     let provider: Arc<dyn Provider> = Arc::new(NoopProvider);
-    let registry = Registry::new(provider, None).await;
+    let registry = Registry::new(provider).await;
 
     let session_id = new_id("harness");
     let base_ctx = ToolContext {
@@ -81,7 +81,6 @@ async fn main() -> Result<()> {
         message_id: session_id.clone(),
         tool_call_id: String::new(),
         working_dir: Some(workspace.clone()),
-        sandbox_root: jcode::sandbox::current_sandbox_root(),
         stdin_request_tx: None,
         graceful_shutdown_signal: None,
         execution_mode: ToolExecutionMode::Direct,

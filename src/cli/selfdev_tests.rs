@@ -130,7 +130,7 @@ async fn test_selfdev_tool_registration() {
     assert!(session.is_canary, "Session should be marked as canary");
 
     let provider = Arc::new(TestProvider) as Arc<dyn provider::Provider>;
-    let registry = tool::Registry::new(provider, None).await;
+    let registry = tool::Registry::new(provider).await;
 
     let tools_before: Vec<String> = registry.tool_names().await;
     let has_selfdev_before = tools_before.contains(&"selfdev".to_string());
@@ -167,7 +167,7 @@ async fn test_selfdev_session_and_registry() {
     assert!(loaded.is_canary, "Loaded session should be canary");
 
     let provider = Arc::new(TestProvider) as Arc<dyn provider::Provider>;
-    let registry = tool::Registry::new(provider.clone(), None).await;
+    let registry = tool::Registry::new(provider.clone()).await;
 
     let tools_before = registry.tool_names().await;
     assert!(
@@ -188,7 +188,6 @@ async fn test_selfdev_session_and_registry() {
         message_id: "test".to_string(),
         tool_call_id: "test".to_string(),
         working_dir: None,
-        sandbox_root: None,
         stdin_request_tx: None,
         graceful_shutdown_signal: None,
         execution_mode: tool::ToolExecutionMode::Direct,

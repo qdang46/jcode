@@ -22,7 +22,6 @@ pub fn is_waiting_for_stdin(pid: u32) -> StdinState {
 #[cfg(target_os = "linux")]
 pub mod linux {
     use super::*;
-    use std::collections::{HashMap, HashSet};
 
     pub fn check(pid: u32) -> StdinState {
         check_inner(pid, false)
@@ -94,54 +93,32 @@ pub mod linux {
             .ok()
             .map(|p| p.to_string_lossy().to_string());
 
-        // Build a parent -> children graph from /proc so we can walk through
-        // chains like  bash -> sh -> cat  where only the grandchild reads
-        // stdin. Without this, single-layer wrappers were detected but nested
-        // wrappers fell through. See issue #86 / upstream PR #101.
-        let mut children_by_parent: HashMap<u32, Vec<u32>> = HashMap::new();
+        // Check child processes
         if let Ok(entries) = std::fs::read_dir("/proc") {
             for entry in entries.flatten() {
                 if let Ok(name) = entry.file_name().into_string()
-                    && let Ok(proc_pid) = name.parse::<u32>()
+                    && let Ok(child_pid) = name.parse::<u32>()
                     && let Ok(status) =
-                        std::fs::read_to_string(format!("/proc/{}/status", proc_pid))
+                        std::fs::read_to_string(format!("/proc/{}/status", child_pid))
                 {
                     for line in status.lines() {
                         if let Some(ppid_str) = line.strip_prefix("PPid:\t")
-                            && let Ok(ppid) = ppid_str.trim().parse::<u32>()
+                            && ppid_str.trim().parse::<u32>().ok() == Some(pid)
                         {
-                            children_by_parent.entry(ppid).or_default().push(proc_pid);
-                            break;
+                            if let Some(ref parent_link) = parent_stdin_link {
+                                let child_link =
+                                    std::fs::read_link(format!("/proc/{}/fd/0", child_pid))
+                                        .ok()
+                                        .map(|p| p.to_string_lossy().to_string());
+                                if child_link.as_deref() != Some(parent_link) {
+                                    continue;
+                                }
+                            }
+                            let child_result = check_inner(child_pid, true);
+                            if child_result == StdinState::Reading {
+                                return StdinState::Reading;
+                            }
                         }
-                    }
-                }
-            }
-        }
-
-        // DFS through descendants. Cycle-safe via `visited`. For each child we
-        // also gate on the parent stdin link match so we don't accidentally
-        // report unrelated descendants that happen to be reading their own
-        // stdin.
-        let mut stack = vec![pid];
-        let mut visited = HashSet::new();
-        while let Some(current) = stack.pop() {
-            if !visited.insert(current) {
-                continue;
-            }
-            if let Some(children) = children_by_parent.get(&current) {
-                for &child_pid in children {
-                    stack.push(child_pid);
-                    if let Some(ref parent_link) = parent_stdin_link {
-                        let child_link = std::fs::read_link(format!("/proc/{}/fd/0", child_pid))
-                            .ok()
-                            .map(|p| p.to_string_lossy().to_string());
-                        if child_link.as_deref() != Some(parent_link) {
-                            continue;
-                        }
-                    }
-                    let child_result = check_inner(child_pid, true);
-                    if child_result == StdinState::Reading {
-                        return StdinState::Reading;
                     }
                 }
             }
@@ -165,7 +142,6 @@ mod macos {
             buffer: *mut libc::c_void,
             buffersize: i32,
         ) -> i32;
-        #[allow(dead_code)]
         fn proc_pidfdinfo(
             pid: i32,
             fd: i32,
@@ -176,11 +152,8 @@ mod macos {
     }
 
     const PROC_PIDLISTFDS: i32 = 1;
-    #[allow(dead_code)]
     const PROC_PIDFDVNODEPATHINFO: i32 = 2;
-    #[allow(dead_code)]
     const PROC_PIDFDSOCKETINFO: i32 = 3;
-    #[allow(dead_code)]
     const PROC_PIDFDPIPEINFO: i32 = 6;
 
     #[repr(C)]
@@ -281,13 +254,13 @@ mod macos {
         let num_threads = ret as usize / mem::size_of::<u64>();
 
         // Check each thread's state
-        for &tid in &thread_ids[..num_threads] {
+        for i in 0..num_threads {
             let mut tinfo: proc_threadinfo = unsafe { mem::zeroed() };
             let ret = unsafe {
                 proc_pidinfo(
                     pid,
                     PROC_PIDTHREADINFO,
-                    tid,
+                    thread_ids[i],
                     &mut tinfo as *mut _ as *mut libc::c_void,
                     mem::size_of::<proc_threadinfo>() as i32,
                 )

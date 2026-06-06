@@ -20,16 +20,13 @@
 pub mod auth;
 pub mod background;
 pub mod browser;
-pub mod build;
 pub mod bus;
 pub mod cache_tracker;
-pub mod casr_adapter;
 pub mod client_input;
 pub mod compaction;
 pub mod config;
 pub mod copilot_usage;
 pub mod dictation;
-pub mod disable;
 #[cfg(feature = "embeddings")]
 pub mod embedding;
 #[cfg(not(feature = "embeddings"))]
@@ -40,6 +37,7 @@ pub mod generated_image;
 pub mod gmail;
 pub mod goal;
 pub mod id;
+pub mod import;
 pub mod live_tests;
 pub mod logging;
 pub mod login_qr;

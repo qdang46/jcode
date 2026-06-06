@@ -64,7 +64,7 @@ pub(super) fn status_spinner_only_symbol(app: &App) -> Option<&'static str> {
     // When decorative animations are off it advances at the smooth liveness
     // rate; otherwise it uses the full-rate spinner clock.
     if !app.is_processing
-        || !app.streaming_text.is_empty()
+        || !app.streaming.streaming_text.is_empty()
         || app.centered_mode()
         || app.has_pending_mouse_scroll_animation()
         || app.remote_startup_phase_active()
@@ -147,8 +147,8 @@ impl StatusSpinnerRenderer {
             });
         let total_cells = Some(completed.buffer.content.len());
         let completed_buffer = completed.buffer.clone();
-        // `completed` borrows the terminal; the borrow is released when `completed`
-        // goes out of scope at the end of this block, before we access the backend.
+        // `completed` borrows the terminal; drop it before touching the backend again.
+        drop(completed);
         if sync {
             let _ = crossterm::execute!(terminal.backend_mut(), EndSynchronizedUpdate);
         }
@@ -234,9 +234,6 @@ impl App {
     /// Run the TUI application
     /// Returns Some(session_id) if hot-reload was requested
     pub async fn run(mut self, mut terminal: DefaultTerminal) -> Result<RunResult> {
-        // Initialize the TUI plugin system before entering the main loop.
-        self.init_plugin_bridge().await;
-
         let mut event_stream = EventStream::new();
         let mut redraw_period = crate::tui::redraw_interval(&self);
         let mut redraw_interval = interval(redraw_period);
@@ -338,9 +335,6 @@ impl App {
 
     /// Run the TUI in remote mode, connecting to a server
     pub async fn run_remote(mut self, mut terminal: DefaultTerminal) -> Result<RunResult> {
-        // Initialize the TUI plugin system before entering the main loop.
-        self.init_plugin_bridge().await;
-
         let mut event_stream = EventStream::new();
         let mut redraw_period = crate::tui::redraw_interval(&self);
         let mut redraw_interval = interval(redraw_period);

@@ -365,8 +365,8 @@ pub fn cursor_auth_file_path() -> Result<PathBuf> {
 
     #[cfg(target_os = "macos")]
     {
-        crate::storage::user_home_path(".cursor/auth.json")
-            .context("No home directory found for Cursor auth.json")
+        return crate::storage::user_home_path(".cursor/auth.json")
+            .context("No home directory found for Cursor auth.json");
     }
 
     #[cfg(not(any(target_os = "windows", target_os = "macos")))]

@@ -193,7 +193,7 @@ pub(super) fn render_kitty_virtual_viewport(
             for x in 0..area.width {
                 if let Some(cell) = buf.cell_mut((area.left() + x, y)) {
                     cell.set_symbol(" ");
-                    cell.set_diff_option(ratatui::buffer::CellDiffOption::None);
+                    cell.set_skip(false);
                 }
             }
             continue;
@@ -216,10 +216,10 @@ pub(super) fn render_kitty_virtual_viewport(
             if let Some(cell) = buf.cell_mut((area.left() + x, y)) {
                 if x < visible_width {
                     symbol.push('\u{10EEEE}');
-                    cell.set_diff_option(ratatui::buffer::CellDiffOption::Skip);
+                    cell.set_skip(true);
                 } else {
                     cell.set_symbol(" ");
-                    cell.set_diff_option(ratatui::buffer::CellDiffOption::None);
+                    cell.set_skip(false);
                 }
             }
         }

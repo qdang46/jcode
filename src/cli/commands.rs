@@ -1,6 +1,6 @@
 #![cfg_attr(test, allow(clippy::await_holding_lock))]
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 use std::io::{Read, Write};
@@ -160,16 +160,18 @@ fn run_cloud_sessions_command(action: CloudSessionsSubcommand) -> Result<()> {
             user_id,
             helper,
             clear,
-        } => run_cloud_sessions_configure(
-            api_base,
-            api_token,
-            api_token_env,
-            api_token_id,
-            user_id,
-            helper,
-            clear,
-        ),
-        CloudSessionsSubcommand::Status { json } => run_cloud_sessions_status(json),
+        } => {
+            return run_cloud_sessions_configure(
+                api_base,
+                api_token,
+                api_token_env,
+                api_token_id,
+                user_id,
+                helper,
+                clear,
+            );
+        }
+        CloudSessionsSubcommand::Status { json } => return run_cloud_sessions_status(json),
         CloudSessionsSubcommand::Dashboard {
             limit,
             output,
@@ -179,16 +181,18 @@ fn run_cloud_sessions_command(action: CloudSessionsSubcommand) -> Result<()> {
             profile,
             region,
             helper,
-        } => run_cloud_sessions_dashboard(CloudSessionsDashboardRequest {
-            limit,
-            output,
-            open,
-            with_view,
-            user_id,
-            profile,
-            region,
-            helper,
-        }),
+        } => {
+            return run_cloud_sessions_dashboard(CloudSessionsDashboardRequest {
+                limit,
+                output,
+                open,
+                with_view,
+                user_id,
+                profile,
+                region,
+                helper,
+            });
+        }
         CloudSessionsSubcommand::Sync {
             sessions_dir,
             since_days,
@@ -203,21 +207,23 @@ fn run_cloud_sessions_command(action: CloudSessionsSubcommand) -> Result<()> {
             profile,
             region,
             helper,
-        } => run_cloud_sessions_sync(CloudSessionsSyncRequest {
-            sessions_dir,
-            since_days,
-            all,
-            max,
-            min_interval_mins,
-            raw,
-            dry_run,
-            force,
-            json,
-            user_id,
-            profile,
-            region,
-            helper,
-        }),
+        } => {
+            return run_cloud_sessions_sync(CloudSessionsSyncRequest {
+                sessions_dir,
+                since_days,
+                all,
+                max,
+                min_interval_mins,
+                raw,
+                dry_run,
+                force,
+                json,
+                user_id,
+                profile,
+                region,
+                helper,
+            });
+        }
         other => run_cloud_sessions_helper_command(other),
     }
 }
@@ -1396,158 +1402,6 @@ fn is_executable_file(path: &Path) -> bool {
     path.is_file()
 }
 
-pub fn run_plugin_list_command() -> Result<()> {
-    let system = crate::plugin::plugin_system()
-        .ok_or_else(|| anyhow::anyhow!("Plugin system not initialized"))?;
-    let rt = tokio::runtime::Handle::current();
-    let plugins = rt.block_on(system.list_plugins());
-    if plugins.is_empty() {
-        println!("No plugins installed.");
-    } else {
-        println!("Installed plugins:");
-        for (id, state) in &plugins {
-            println!("  {id} [{state}]");
-        }
-    }
-    Ok(())
-}
-
-pub async fn run_plugin_install_command(source: &str) -> Result<()> {
-    let system = crate::plugin::plugin_system()
-        .ok_or_else(|| anyhow::anyhow!("Plugin system not initialized"))?;
-    system.install(source).await?;
-    println!("Plugin installed successfully: {source}");
-    Ok(())
-}
-
-pub async fn run_plugin_uninstall_command(id: &str) -> Result<()> {
-    let system = crate::plugin::plugin_system()
-        .ok_or_else(|| anyhow::anyhow!("Plugin system not initialized"))?;
-    system.uninstall(id).await?;
-    println!("Plugin uninstalled: {id}");
-    Ok(())
-}
-
-pub fn run_plugin_info_command(id: &str) -> Result<()> {
-    let system = crate::plugin::plugin_system()
-        .ok_or_else(|| anyhow::anyhow!("Plugin system not initialized"))?;
-    let rt = tokio::runtime::Handle::current();
-    let plugins = rt.block_on(system.list_plugins());
-    let plugin = plugins
-        .into_iter()
-        .find(|(pid, _)| pid.as_str() == id)
-        .ok_or_else(|| anyhow::anyhow!("Plugin not found: {id}"))?;
-    println!("Plugin: {}", plugin.0);
-    println!("State:  {}", plugin.1);
-    Ok(())
-}
-
-/// Enable a previously disabled plugin.
-pub fn run_plugin_enable_command(id: &str) -> Result<()> {
-    let system = crate::plugin::plugin_system()
-        .ok_or_else(|| anyhow::anyhow!("Plugin system not initialized"))?;
-    let rt = tokio::runtime::Handle::current();
-    rt.block_on(system.enable_plugin(id))?;
-    println!("✅ Plugin '{id}' enabled");
-    Ok(())
-}
-
-/// Disable an active plugin.
-pub fn run_plugin_disable_command(id: &str) -> Result<()> {
-    let system = crate::plugin::plugin_system()
-        .ok_or_else(|| anyhow::anyhow!("Plugin system not initialized"))?;
-    let rt = tokio::runtime::Handle::current();
-    rt.block_on(system.disable_plugin(id))?;
-    println!("⏸  Plugin '{id}' disabled");
-    Ok(())
-}
-
-/// Show the plugin audit trail.
-pub fn run_plugin_audit_command(recent: usize, json: bool) -> Result<()> {
-    let system = crate::plugin::plugin_system()
-        .ok_or_else(|| anyhow::anyhow!("Plugin system not initialized"))?;
-    let entries = system.audit_trail().get_recent(recent);
-    if json {
-        println!("{}", serde_json::to_string_pretty(&entries)?);
-    } else {
-        if entries.is_empty() {
-            println!("No audit entries recorded yet.");
-            return Ok(());
-        }
-        for e in &entries {
-            println!(
-                "{} | {} | {} | {} | {}",
-                e.timestamp.format("%Y-%m-%d %H:%M:%S"),
-                e.plugin_id,
-                e.action,
-                e.resource,
-                e.decision
-            );
-        }
-    }
-    Ok(())
-}
-
-/// Diagnose plugin system issues.
-pub fn run_plugin_doctor_command(fix: bool) -> Result<()> {
-    use crate::plugin::{DISABLE_ALL_PLUGINS, FORCE_DENY, SKIP_HOOKS, check_kill_switches};
-
-    let mut issues = Vec::new();
-    let mut fixes_applied = Vec::new();
-
-    check_kill_switches();
-    if DISABLE_ALL_PLUGINS.load(std::sync::atomic::Ordering::SeqCst) {
-        issues.push("Plugins are disabled via JCODE_DISABLE_PLUGINS=1".to_string());
-    }
-    if SKIP_HOOKS.load(std::sync::atomic::Ordering::SeqCst) {
-        issues.push("Plugin hooks are skipped via JCODE_SKIP_PLUGINS=1".to_string());
-    }
-    if FORCE_DENY.load(std::sync::atomic::Ordering::SeqCst) {
-        issues.push("Force-deny is active via JCODE_TEAM_WORKER=1".to_string());
-    }
-
-    if fix && DISABLE_ALL_PLUGINS.load(std::sync::atomic::Ordering::SeqCst) {
-        DISABLE_ALL_PLUGINS.store(false, std::sync::atomic::Ordering::SeqCst);
-        fixes_applied.push("Cleared JCODE_DISABLE_PLUGINS kill switch".to_string());
-    }
-    if fix && SKIP_HOOKS.load(std::sync::atomic::Ordering::SeqCst) {
-        SKIP_HOOKS.store(false, std::sync::atomic::Ordering::SeqCst);
-        fixes_applied.push("Cleared JCODE_SKIP_PLUGINS kill switch".to_string());
-    }
-    if fix && FORCE_DENY.load(std::sync::atomic::Ordering::SeqCst) {
-        FORCE_DENY.store(false, std::sync::atomic::Ordering::SeqCst);
-        fixes_applied.push("Cleared JCODE_TEAM_WORKER force-deny".to_string());
-    }
-
-    if let Some(sys) = crate::plugin::plugin_system() {
-        let handler_count = sys.dispatcher.handler_count();
-        let plugin_count = sys.dispatcher.plugin_count();
-        println!("Plugin system status:");
-        println!("  Active plugins: {plugin_count}");
-        println!("  Registered handlers: {handler_count}");
-        println!("  Audit trail entries: {}", sys.audit_trail().len());
-    } else {
-        issues.push("Plugin system not initialized".to_string());
-    }
-
-    if !issues.is_empty() {
-        println!("\n⚠️  Issues found:");
-        for issue in &issues {
-            println!("  - {issue}");
-        }
-    }
-    if !fixes_applied.is_empty() {
-        println!("\n🔧 Fixes applied:");
-        for fix in &fixes_applied {
-            println!("  - {fix}");
-        }
-    }
-    if issues.is_empty() && fixes_applied.is_empty() {
-        println!("\n✅ Plugin system is healthy");
-    }
-    Ok(())
-}
-
 pub async fn run_ambient_command(cmd: AmbientSubcommand) -> Result<()> {
     if let AmbientSubcommand::RunVisible = cmd {
         return run_ambient_visible().await;
@@ -1656,208 +1510,6 @@ pub fn run_session_rename_command(
         );
     }
 
-    Ok(())
-}
-
-#[derive(Serialize)]
-struct SessionDeleteOutput {
-    session_id: String,
-    display_name: String,
-    title: Option<String>,
-    deleted: Vec<String>,
-    cancelled: bool,
-}
-
-pub fn run_session_delete_command(session_ref: &str, force: bool, json: bool) -> Result<()> {
-    use std::io::IsTerminal;
-
-    let resolved_id = session::find_session_by_name_or_id(session_ref)?;
-    let session = session::Session::load(&resolved_id)?;
-    let display_name = session.display_name().to_string();
-    let title = session.display_title().map(ToOwned::to_owned);
-
-    if !force {
-        // Honor the `--json` contract: never prompt when machine output is
-        // requested, and never prompt when stdin/stderr aren't a TTY (e.g. CI).
-        if json {
-            anyhow::bail!(
-                "Refusing to delete session {} ({}) without --force. Pass --force to confirm in JSON mode.",
-                display_name,
-                resolved_id
-            );
-        }
-        if !std::io::stdin().is_terminal() {
-            anyhow::bail!(
-                "Refusing to delete session {} ({}) non-interactively. Pass --force to confirm.",
-                display_name,
-                resolved_id
-            );
-        }
-        eprint!(
-            "Delete session {} ({})? Type 'yes' to confirm: ",
-            display_name, resolved_id
-        );
-        std::io::stderr().flush().ok();
-        let mut answer = String::new();
-        std::io::stdin().read_line(&mut answer)?;
-        if answer.trim() != "yes" {
-            let output = SessionDeleteOutput {
-                session_id: resolved_id.clone(),
-                display_name,
-                title,
-                deleted: Vec::new(),
-                cancelled: true,
-            };
-            if json {
-                println!("{}", serde_json::to_string_pretty(&output)?);
-            } else {
-                println!("Cancelled. No files were deleted.");
-            }
-            return Ok(());
-        }
-    }
-
-    let snapshot_path = session::session_path(&resolved_id)?;
-    let journal_path = session::session_journal_path(&resolved_id)?;
-    let mut deleted = Vec::new();
-
-    for path in [&snapshot_path, &journal_path] {
-        if path.exists() {
-            std::fs::remove_file(path)
-                .with_context(|| format!("failed to delete session file {}", path.display()))?;
-            deleted.push(path.display().to_string());
-        }
-    }
-
-    // Clean up any sibling sidecars (e.g. *.json.tmp, *.journal.jsonl.tmp,
-    // *.swarm.json) that share the snapshot's stem. This mirrors the
-    // session-write side of session::persistence which produces tmp files
-    // and the swarm sidecar.
-    if let (Some(parent), Some(stem)) = (
-        snapshot_path.parent(),
-        snapshot_path.file_stem().and_then(|s| s.to_str()),
-    ) && let Ok(entries) = std::fs::read_dir(parent)
-    {
-        for entry in entries.flatten() {
-            let entry_path = entry.path();
-            let Some(name) = entry_path.file_name().and_then(|s| s.to_str()) else {
-                continue;
-            };
-            if !name.starts_with(stem) {
-                continue;
-            }
-            // Skip the canonical snapshot/journal we already deleted above.
-            if entry_path == snapshot_path || entry_path == journal_path {
-                continue;
-            }
-            // Only remove things that look like jcode-managed sidecars.
-            let suffix_ok = name.ends_with(".tmp")
-                || name.ends_with(".swarm.json")
-                || name.ends_with(".json.bak")
-                || name.ends_with(".journal.jsonl");
-            if !suffix_ok {
-                continue;
-            }
-            if std::fs::remove_file(&entry_path).is_ok() {
-                deleted.push(entry_path.display().to_string());
-            }
-        }
-    }
-
-    crate::tui::session_picker::invalidate_session_list_cache();
-
-    let output = SessionDeleteOutput {
-        session_id: resolved_id.clone(),
-        display_name: display_name.clone(),
-        title,
-        deleted,
-        cancelled: false,
-    };
-
-    if json {
-        println!("{}", serde_json::to_string_pretty(&output)?);
-    } else {
-        println!(
-            "Deleted session {} ({}). Removed {} file(s).",
-            output.display_name,
-            output.session_id,
-            output.deleted.len()
-        );
-    }
-
-    Ok(())
-}
-
-#[derive(Serialize)]
-struct McpTrustEntryReport {
-    path: String,
-    sha256: String,
-}
-
-#[derive(Serialize)]
-struct McpTrustListReport {
-    gate_enabled: bool,
-    entries: Vec<McpTrustEntryReport>,
-}
-
-pub fn run_mcp_trust_command(path: &std::path::Path) -> Result<()> {
-    let mut store = crate::mcp::trust::McpTrustStore::load();
-    let hash = store.mark_trusted(path)?;
-    store.save()?;
-    println!(
-        "Trusted MCP config: {} (sha256={})",
-        path.display(),
-        &hash[..16]
-    );
-    Ok(())
-}
-
-pub fn run_mcp_revoke_command(path: &std::path::Path) -> Result<()> {
-    let mut store = crate::mcp::trust::McpTrustStore::load();
-    let removed = store.revoke(path);
-    store.save()?;
-    if removed.is_some() {
-        println!("Revoked MCP config trust: {}", path.display());
-    } else {
-        println!("No trust entry for: {} (nothing to revoke)", path.display());
-    }
-    Ok(())
-}
-
-pub fn run_mcp_list_command(json: bool) -> Result<()> {
-    let store = crate::mcp::trust::McpTrustStore::load();
-    let gate_enabled = crate::mcp::trust::trust_gate_enabled();
-    if json {
-        let report = McpTrustListReport {
-            gate_enabled,
-            entries: store
-                .entries
-                .iter()
-                .map(|(path, sha)| McpTrustEntryReport {
-                    path: path.clone(),
-                    sha256: sha.clone(),
-                })
-                .collect(),
-        };
-        println!("{}", serde_json::to_string_pretty(&report)?);
-        return Ok(());
-    }
-    println!(
-        "MCP project-local trust gate: {}",
-        if gate_enabled {
-            "ENABLED (JCODE_REQUIRE_MCP_TRUST=1)"
-        } else {
-            "disabled (set JCODE_REQUIRE_MCP_TRUST=1 to enforce)"
-        }
-    );
-    if store.entries.is_empty() {
-        println!("(no trusted entries)");
-        return Ok(());
-    }
-    println!("Trusted entries ({}):", store.entries.len());
-    for (path, sha) in &store.entries {
-        println!("  {}  (sha256={})", path, &sha[..16]);
-    }
     Ok(())
 }
 
@@ -2775,8 +2427,7 @@ pub async fn run_single_message_command(
     } else {
         super::provider_init::init_provider_for_validation(choice, model).await?
     };
-    let registry =
-        crate::tool::Registry::new(provider.clone(), crate::tool::shared_agent_registry()).await;
+    let registry = crate::tool::Registry::new(provider.clone()).await;
     let mut agent = crate::agent::Agent::new(provider.clone(), registry);
     restore_agent_session_if_requested(&mut agent, resume_session)?;
 
@@ -3601,250 +3252,6 @@ fn filter_cli_model_routes_for_choice(
         filtered
     }
 }
-/// Issue #38: explicit `jcode logout --provider <name>` to clear jcode's
-/// local credential cache for a provider. Without this, users who deleted
-/// the upstream provider's auth file (e.g. `~/.claude/.credentials.json`)
-/// were surprised that jcode kept working — silently using the imported
-/// copy in `~/.jcode/auth.json`.
-///
-/// Behavior:
-/// - `--provider claude` clears Anthropic accounts from `~/.jcode/auth.json`
-/// - `--provider openai` clears OpenAI accounts from `~/.jcode/openai-auth.json`
-/// - Other providers: clears `~/.config/jcode/<provider>.env` (the env file
-///   that stores their API key)
-/// - `--all`: clears every known cached credential file
-///
-/// Confirmation is required unless `--yes` is passed.
-pub fn run_logout_command(provider: Option<&str>, all: bool, yes: bool) -> Result<()> {
-    use std::io::Write as _;
-
-    if !all && provider.is_none() {
-        anyhow::bail!("logout: must pass either --provider <name> or --all");
-    }
-
-    let targets: Vec<String> = if all {
-        vec![
-            "claude".to_string(),
-            "openai".to_string(),
-            "gemini".to_string(),
-            "copilot".to_string(),
-            "antigravity".to_string(),
-            "zai".to_string(),
-            "minimax".to_string(),
-            "deepseek".to_string(),
-            "groq".to_string(),
-            "cohere".to_string(),
-            "mistral".to_string(),
-            "fireworks".to_string(),
-            "xai".to_string(),
-            "openai-compatible".to_string(),
-        ]
-    } else {
-        vec![provider.unwrap().to_string()]
-    };
-
-    if !yes {
-        eprint!("This will clear jcode's local credential cache for: ");
-        eprintln!("{}", targets.join(", "));
-        eprint!("Continue? [y/N] ");
-        let _ = std::io::stderr().flush();
-        let mut answer = String::new();
-        if std::io::stdin().read_line(&mut answer).is_err()
-            || !matches!(answer.trim().to_ascii_lowercase().as_str(), "y" | "yes")
-        {
-            eprintln!("Aborted.");
-            return Ok(());
-        }
-    }
-
-    let mut cleared: Vec<String> = Vec::new();
-    let mut not_present: Vec<String> = Vec::new();
-    for target in &targets {
-        match logout_one_provider(target)? {
-            LogoutOutcome::Cleared(detail) => cleared.push(format!("{target}: {detail}")),
-            LogoutOutcome::NotPresent => not_present.push(target.clone()),
-        }
-    }
-
-    if !cleared.is_empty() {
-        println!("Cleared:");
-        for line in &cleared {
-            println!("  {line}");
-        }
-    }
-    if !not_present.is_empty() {
-        println!("Already empty / no cache: {}", not_present.join(", "));
-    }
-    if cleared.is_empty() && not_present.is_empty() {
-        println!("Nothing to log out of.");
-    }
-    Ok(())
-}
-
-enum LogoutOutcome {
-    Cleared(String),
-    NotPresent,
-}
-
-fn logout_one_provider(provider: &str) -> Result<LogoutOutcome> {
-    match provider {
-        // Anthropic — clear from ~/.jcode/auth.json (multi-account file)
-        "claude" | "anthropic" => {
-            let path = crate::auth::claude::jcode_path()?;
-            if !path.exists() {
-                return Ok(LogoutOutcome::NotPresent);
-            }
-            let mut auth =
-                crate::auth::claude::load_auth_file().context("logout: load_auth_file")?;
-            let count = auth.anthropic_accounts.len();
-            auth.anthropic_accounts.clear();
-            auth.active_anthropic_account = None;
-            crate::auth::claude::save_auth_file(&auth).context("logout: save_auth_file")?;
-            if count == 0 {
-                Ok(LogoutOutcome::NotPresent)
-            } else {
-                Ok(LogoutOutcome::Cleared(format!(
-                    "removed {count} account(s) from {}",
-                    path.display()
-                )))
-            }
-        }
-        // For OpenAI / Codex, similar pattern via openai-auth.json. We
-        // delegate to a clear_all helper below — but if that doesn't
-        // exist yet, fall through to the env-file scrub.
-        _ => {
-            // Generic env-file scrub: ~/.config/jcode/<provider>.env
-            let env_file = crate::storage::app_config_dir()?.join(format!("{provider}.env"));
-            if env_file.exists() {
-                std::fs::remove_file(&env_file)
-                    .with_context(|| format!("logout: remove {}", env_file.display()))?;
-                return Ok(LogoutOutcome::Cleared(format!(
-                    "removed {}",
-                    env_file.display()
-                )));
-            }
-            Ok(LogoutOutcome::NotPresent)
-        }
-    }
-}
-
-/// `jcode skills list` — list discovered skills with source labels.
-///
-/// Reads from the standard skill discovery path
-/// (`~/.jcode/skills/`, `<repo>/.jcode/skills/`, `<cwd>/.jcode/skills/`,
-/// `<cwd>/.claude/skills/`) per `SkillRegistry::load_for_working_dir`.
-pub fn run_skills_list(json: bool) -> Result<()> {
-    let working_dir = std::env::current_dir().ok();
-    let registry = crate::skill::SkillRegistry::load_for_working_dir(working_dir.as_deref())
-        .context("load skill registry")?;
-    let skills = registry.list();
-    let disabled = crate::skill_disable::load().unwrap_or_default();
-
-    if json {
-        let entries: Vec<_> = skills
-            .iter()
-            .map(|s| {
-                serde_json::json!({
-                    "name": s.name,
-                    "description": s.description,
-                    "path": s.path.display().to_string(),
-                    "disabled": disabled.contains(&s.name),
-                })
-            })
-            .collect();
-        println!("{}", serde_json::to_string_pretty(&entries)?);
-        return Ok(());
-    }
-
-    if skills.is_empty() {
-        println!("No skills installed.");
-        println!();
-        println!("Drop SKILL.md files into:");
-        println!("  ~/.jcode/skills/<name>/SKILL.md      (user-level)");
-        println!("  <repo>/.jcode/skills/<name>/SKILL.md (repo-level)");
-        println!("  <cwd>/.jcode/skills/<name>/SKILL.md  (project-level)");
-        return Ok(());
-    }
-
-    let active_count = skills
-        .iter()
-        .filter(|s| !disabled.contains(&s.name))
-        .count();
-    let disabled_count = skills.len() - active_count;
-    if disabled_count > 0 {
-        println!(
-            "{} skill(s) discovered ({} active, {} disabled):",
-            skills.len(),
-            active_count,
-            disabled_count
-        );
-    } else {
-        println!("{} skill(s) discovered:", skills.len());
-    }
-    for skill in &skills {
-        let marker = if disabled.contains(&skill.name) {
-            "  [disabled] "
-        } else {
-            "             "
-        };
-        println!("{}${:<24} {}", marker, skill.name, skill.description);
-    }
-    println!();
-    println!("Activate via `$<name>` in TUI or use `jcode skills show <name>` to read full body.");
-    Ok(())
-}
-
-/// `jcode skills show <name>` — print the full SKILL.md body of one skill.
-pub fn run_skills_show(name: &str) -> Result<()> {
-    let working_dir = std::env::current_dir().ok();
-    let registry = crate::skill::SkillRegistry::load_for_working_dir(working_dir.as_deref())
-        .context("load skill registry")?;
-    let skill = registry.get(name).with_context(|| {
-        format!("skill '{name}' not found (use `jcode skills list` to discover)")
-    })?;
-    eprintln!("# ${}  [{}]", skill.name, skill.path.display());
-    eprintln!("# {}", skill.description);
-    eprintln!();
-    println!("{}", skill.content.trim_end());
-    Ok(())
-}
-
-/// `jcode skills disable <name>` — add to the persistent disable list
-/// at `<JCODE_HOME>/disabled_skills.toml`. Subsequent activation
-/// (slash command, embedding hit) will skip this skill.
-pub fn run_skills_disable(name: &str) -> Result<()> {
-    // Confirm the skill exists before disabling, so users don't end
-    // up with disabled entries pointing at typos.
-    let working_dir = std::env::current_dir().ok();
-    let registry = crate::skill::SkillRegistry::load_for_working_dir(working_dir.as_deref())
-        .context("load skill registry")?;
-    if registry.get(name).is_none() {
-        eprintln!(
-            "warning: skill '{name}' not found in registry. Disabling anyway — run \
-             `jcode skills list` to see available names."
-        );
-    }
-    let changed = crate::skill_disable::disable(name).context("persist disable_skills.toml")?;
-    if changed {
-        println!("Disabled skill '{name}'.");
-    } else {
-        println!("Skill '{name}' was already disabled.");
-    }
-    Ok(())
-}
-
-/// `jcode skills enable <name>` — remove from the persistent disable
-/// list. No-op when the name wasn't disabled.
-pub fn run_skills_enable(name: &str) -> Result<()> {
-    let changed = crate::skill_disable::enable(name).context("persist disable_skills.toml")?;
-    if changed {
-        println!("Re-enabled skill '{name}'.");
-    } else {
-        println!("Skill '{name}' was not disabled (nothing to do).");
-    }
-    Ok(())
-}
-
 #[cfg(test)]
 #[path = "commands_tests.rs"]
 mod tests;

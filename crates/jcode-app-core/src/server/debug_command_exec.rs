@@ -697,7 +697,7 @@ mod tests {
         let mut reload_rx = crate::server::subscribe_reload_signal_for_tests();
 
         let provider: Arc<dyn Provider> = Arc::new(TestProvider);
-        let registry = Registry::new(provider.clone(), None).await;
+        let registry = Registry::new(provider.clone()).await;
         registry.register_selfdev_tools().await;
 
         let mut agent = Agent::new(provider, registry);
@@ -747,7 +747,7 @@ mod tests {
     #[tokio::test]
     async fn debug_cancel_does_not_wait_for_busy_agent_lock() {
         let provider: Arc<dyn Provider> = Arc::new(TestProvider);
-        let registry = Registry::new(provider.clone(), None).await;
+        let registry = Registry::new(provider.clone()).await;
         let agent = Arc::new(AsyncMutex::new(Agent::new(provider, registry)));
         let session_id = agent.lock().await.session_id().to_string();
 

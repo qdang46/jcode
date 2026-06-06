@@ -25,7 +25,7 @@ async fn test_multi_turn_conversation() -> Result<()> {
     ]);
 
     let provider: Arc<dyn jcode::provider::Provider> = Arc::new(provider);
-    let registry = Registry::new(provider.clone(), None).await;
+    let registry = Registry::new(provider.clone()).await;
     let mut agent = Agent::new(provider, registry);
 
     // First turn
@@ -60,7 +60,7 @@ async fn test_token_usage() -> Result<()> {
     ]);
 
     let provider: Arc<dyn jcode::provider::Provider> = Arc::new(provider);
-    let registry = Registry::new(provider.clone(), None).await;
+    let registry = Registry::new(provider.clone()).await;
     let mut agent = Agent::new(provider, registry);
 
     let response = agent.run_once_capture("Test").await?;
@@ -84,7 +84,7 @@ async fn test_stream_error() -> Result<()> {
     ]);
 
     let provider: Arc<dyn jcode::provider::Provider> = Arc::new(provider);
-    let registry = Registry::new(provider.clone(), None).await;
+    let registry = Registry::new(provider.clone()).await;
     let mut agent = Agent::new(provider, registry);
 
     let result = agent.run_once_capture("Test").await;
@@ -800,7 +800,7 @@ async fn test_system_prompt_no_claude_code_identity() -> Result<()> {
     // Keep a clone of Arc<MockProvider> before converting to Arc<dyn Provider>
     let provider_for_check = provider.clone();
     let provider_dyn: Arc<dyn jcode::provider::Provider> = provider;
-    let registry = Registry::new(provider_dyn.clone(), None).await;
+    let registry = Registry::new(provider_dyn.clone()).await;
     let mut agent = Agent::new(provider_dyn, registry);
 
     // Run a simple query - we just need to trigger a complete() call

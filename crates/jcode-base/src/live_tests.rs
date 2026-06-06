@@ -591,7 +591,7 @@ impl LiveVerificationEvent {
             statuses.insert(checkpoint.clone(), LiveVerificationStageStatus::NotRun);
         }
         for stage in &self.stages {
-            statuses.insert(stage.name.clone(), stage.status);
+            statuses.insert(stage.name.clone(), stage.status.clone());
         }
         statuses
     }
@@ -794,8 +794,16 @@ impl LiveProviderModelCoveragePair {
             .any(|passed| passed == checkpoint)
         {
             Some(LiveVerificationStageStatus::Passed)
+        } else if let Some(status) = self.non_passing_checkpoints.get(checkpoint) {
+            Some(status.clone())
+        } else if self
+            .missing_checkpoints
+            .iter()
+            .any(|missing| missing == checkpoint)
+        {
+            None
         } else {
-            self.non_passing_checkpoints.get(checkpoint).copied()
+            None
         }
     }
 }
@@ -1241,7 +1249,7 @@ impl ProviderModelCoverageBuilder {
                     passed_checkpoints.push((*checkpoint).to_string());
                 }
                 Some(status) => {
-                    non_passing_checkpoints.insert((*checkpoint).to_string(), *status);
+                    non_passing_checkpoints.insert((*checkpoint).to_string(), status.clone());
                 }
                 None => missing_checkpoints.push((*checkpoint).to_string()),
             }
@@ -1283,8 +1291,8 @@ fn merge_checkpoint_status(
     }
 
     match current {
-        Some(existing) if rank(existing) >= rank(incoming) => *existing,
-        _ => *incoming,
+        Some(existing) if rank(existing) >= rank(incoming) => existing.clone(),
+        _ => incoming.clone(),
     }
 }
 
@@ -1318,8 +1326,8 @@ pub fn strict_live_provider_model_coverage_summary(
     let mut covered_pairs = Vec::new();
     let mut uncovered_pairs = Vec::new();
     let mut provider_labels = BTreeMap::new();
-    type ProviderTotals = (usize, usize, Vec<String>, usize, usize, usize);
-    let mut provider_totals: BTreeMap<String, ProviderTotals> = BTreeMap::new();
+    let mut provider_totals: BTreeMap<String, (usize, usize, Vec<String>, usize, usize, usize)> =
+        BTreeMap::new();
 
     for pair in builders
         .into_values()
@@ -1441,10 +1449,10 @@ pub fn strict_live_provider_model_coverage_summary(
 fn latest_coverage_entries_by_provider_model_test(
     coverage: &LiveVerificationCoverage,
 ) -> BTreeMap<String, &LiveVerificationCoverageEntry> {
-    type TargetAndCheckpoints = (String, String, String, Vec<String>);
-    type LatestEntryRef<'a> = (&'a String, &'a LiveVerificationCoverageEntry);
-    let mut latest_by_target_and_checkpoints: BTreeMap<TargetAndCheckpoints, LatestEntryRef> =
-        BTreeMap::new();
+    let mut latest_by_target_and_checkpoints: BTreeMap<
+        (String, String, String, Vec<String>),
+        (&String, &LiveVerificationCoverageEntry),
+    > = BTreeMap::new();
     for (key, entry) in &coverage.latest {
         let provider_identity =
             canonical_live_provider_identity(&entry.provider_id, &entry.provider_label);
@@ -2230,10 +2238,10 @@ pub fn classify_provider_test_coverage_line(line: &str) -> CoverageLineStyle {
     }
 
     // Per-pair in-progress rows lead with an `N/M` stage count.
-    if let Some(first) = t.split_whitespace().next()
-        && is_stage_fraction(first)
-    {
-        return if t.contains("failed at") { Fail } else { Warn };
+    if let Some(first) = t.split_whitespace().next() {
+        if is_stage_fraction(first) {
+            return if t.contains("failed at") { Fail } else { Warn };
+        }
     }
 
     // Provider-monitor rows end with a `ready/seen` fraction; color by status

@@ -31,14 +31,6 @@ impl ComposerMode {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct InputHighlight {
-    start: usize,
-    end: usize,
-    color: Color,
-    priority: u8,
-}
-
 fn composer_mode(input: &str, is_remote_mode: bool) -> ComposerMode {
     if app::extract_input_shell_command(input).is_some() {
         if is_remote_mode {
@@ -223,8 +215,6 @@ pub(super) fn wrapped_input_line_count(
 
     let num_str = next_prompt.to_string();
     let (prompt_char, caret_color) = input_prompt(app);
-    let skills = app.known_skill_names();
-    let highlights = find_input_highlights(app.input(), app.registered_commands(), &skills);
     let (lines, _, _) = wrap_input_text(
         app.input(),
         app.cursor_pos(),
@@ -233,7 +223,6 @@ pub(super) fn wrapped_input_line_count(
         prompt_char,
         caret_color,
         prompt_len,
-        &highlights,
     );
     lines.len().max(1)
 }
@@ -887,29 +876,10 @@ pub(super) fn draw_status(frame: &mut Frame, app: &dyn TuiState, area: Rect, pen
             Line::from("")
         }
     } else {
-        let plugin_count = crate::plugin::plugin_count();
-        let plugin_text = if plugin_count > 0 {
-            format!("[P:{}]", plugin_count)
-        } else {
-            String::new()
-        };
         if let Some(tip) =
             occasional_status_tip(area.width as usize, app.animation_elapsed() as u64)
         {
-            if plugin_count > 0 {
-                Line::from(vec![
-                    Span::styled(plugin_text, Style::default().fg(dim_color())),
-                    Span::styled(" · ", Style::default().fg(dim_color())),
-                    Span::styled(tip, Style::default().fg(dim_color())),
-                ])
-            } else {
-                Line::from(vec![Span::styled(tip, Style::default().fg(dim_color()))])
-            }
-        } else if plugin_count > 0 {
-            Line::from(vec![Span::styled(
-                plugin_text,
-                Style::default().fg(dim_color()),
-            )])
+            Line::from(vec![Span::styled(tip, Style::default().fg(dim_color()))])
         } else {
             Line::from("")
         }
@@ -1307,80 +1277,6 @@ mod tests {
             "all clear"
         );
     }
-
-    #[test]
-    fn char_slice_extracts_substring() {
-        assert_eq!(char_slice("hello world", 0, 5), "hello");
-        assert_eq!(char_slice("hello world", 6, 11), "world");
-        assert_eq!(char_slice("hello", 0, 0), "");
-    }
-
-    #[test]
-    fn find_highlights_slash_whole_input() {
-        let cmds = crate::tui::app::state_ui_input_helpers::REGISTERED_COMMANDS;
-        let highlights = find_input_highlights("/help foo", cmds, &[]);
-        assert_eq!(highlights.len(), 1);
-        assert_eq!(highlights[0].start, 0);
-        assert_eq!(highlights[0].end, 5);
-    }
-
-    #[test]
-    fn find_highlights_mid_input_slash() {
-        let cmds = crate::tui::app::state_ui_input_helpers::REGISTERED_COMMANDS;
-        let highlights = find_input_highlights("fix auth /help now", cmds, &[]);
-        assert_eq!(highlights.len(), 1);
-        assert_eq!(highlights[0].start, 9);
-        assert_eq!(highlights[0].end, 14);
-    }
-
-    #[test]
-    fn find_highlights_unknown_not_highlighted() {
-        let cmds = crate::tui::app::state_ui_input_helpers::REGISTERED_COMMANDS;
-        let highlights = find_input_highlights("/notacommand", cmds, &[]);
-        assert!(highlights.is_empty());
-    }
-
-    #[test]
-    fn find_highlights_empty_input() {
-        let highlights = find_input_highlights("", &[], &[]);
-        assert!(highlights.is_empty());
-    }
-
-    #[test]
-    fn find_highlights_bare_slash() {
-        let highlights = find_input_highlights("/", &[], &[]);
-        assert!(highlights.is_empty());
-    }
-
-    #[test]
-    fn styled_segment_no_highlights() {
-        let seg = WrappedInputSegment {
-            text: "hello".to_string(),
-            start_char: 0,
-            end_char: 5,
-            display_width: 5,
-        };
-        let spans = styled_segment_spans(&seg, &[]);
-        assert_eq!(spans.len(), 1);
-    }
-
-    #[test]
-    fn styled_segment_splits_on_highlight() {
-        let seg = WrappedInputSegment {
-            text: "hello /help world".to_string(),
-            start_char: 0,
-            end_char: 17,
-            display_width: 17,
-        };
-        let hl = vec![InputHighlight {
-            start: 6,
-            end: 11,
-            color: Color::Blue,
-            priority: 5,
-        }];
-        let spans = styled_segment_spans(&seg, &hl);
-        assert_eq!(spans.len(), 3);
-    }
 }
 
 /// Build the spans for the notification line. Returns empty vec when there is nothing to show.
@@ -1541,14 +1437,6 @@ pub(super) fn build_notification_spans(app: &dyn TuiState) -> Vec<Span<'static>>
         spans.push(Span::styled(
             "📋 stash",
             Style::default().fg(rgb(255, 193, 7)),
-        ));
-    }
-
-    if let Some((current, total)) = app.input_history_browse_status() {
-        push_sep(&mut spans);
-        spans.push(Span::styled(
-            format!("📋 history {}/{}", current, total),
-            Style::default().fg(rgb(140, 180, 255)),
         ));
     }
 
@@ -1861,8 +1749,6 @@ pub(super) fn draw_input(
         return;
     }
 
-    let skills = app.known_skill_names();
-    let highlights = find_input_highlights(input_text, app.registered_commands(), &skills);
     let (all_lines, cursor_line, cursor_col) = wrap_input_text(
         input_text,
         cursor_pos,
@@ -1871,7 +1757,6 @@ pub(super) fn draw_input(
         prompt_char,
         caret_color,
         prompt_len,
-        &highlights,
     );
 
     let mut lines: Vec<Line> = Vec::new();
@@ -2086,126 +1971,6 @@ fn cursor_col_for_segment(segment: &WrappedInputSegment, cursor_char_pos: usize)
         .sum()
 }
 
-fn char_slice(s: &str, start: usize, end: usize) -> &str {
-    let byte_start = s
-        .char_indices()
-        .nth(start)
-        .map(|(i, _)| i)
-        .unwrap_or(s.len());
-    let byte_end = s.char_indices().nth(end).map(|(i, _)| i).unwrap_or(s.len());
-    &s[byte_start..byte_end]
-}
-
-fn find_input_highlights(
-    input: &str,
-    registered_commands: &[crate::tui::app::state_ui_input_helpers::RegisteredCommand],
-    known_skills: &[String],
-) -> Vec<InputHighlight> {
-    use std::sync::OnceLock;
-    static SLASH_RE: OnceLock<regex::Regex> = OnceLock::new();
-    static DOLLAR_RE: OnceLock<regex::Regex> = OnceLock::new();
-
-    let slash_re =
-        SLASH_RE.get_or_init(|| regex::Regex::new(r"(^|\s)(/[a-zA-Z][a-zA-Z0-9:-_]*)").unwrap());
-    let dollar_re =
-        DOLLAR_RE.get_or_init(|| regex::Regex::new(r"(?:^|\s)(\$[a-zA-Z0-9_-]+)").unwrap());
-
-    let mut highlights = Vec::new();
-    let suggestion_color = rgb(100, 180, 255);
-
-    let trimmed = input.trim_start();
-    let offset = input.len() - trimmed.len();
-
-    if let Some(after_slash) = trimmed.strip_prefix('/') {
-        let cmd_end = after_slash
-            .find(|c: char| c.is_whitespace())
-            .unwrap_or(after_slash.len());
-        let cmd_name = &trimmed[..=cmd_end]; // includes the leading '/'
-        if registered_commands.iter().any(|c| c.name == cmd_name) {
-            highlights.push(InputHighlight {
-                start: offset,
-                end: offset + cmd_name.len(),
-                color: suggestion_color,
-                priority: 5,
-            });
-        }
-    } else {
-        for cap in slash_re.captures_iter(input) {
-            let preceding = cap.get(1).unwrap();
-            let cmd = cap.get(2).unwrap();
-            if registered_commands.iter().any(|c| c.name == cmd.as_str()) {
-                highlights.push(InputHighlight {
-                    start: preceding.end(),
-                    end: cmd.end(),
-                    color: suggestion_color,
-                    priority: 5,
-                });
-            }
-        }
-    }
-
-    for cap in dollar_re.captures_iter(input) {
-        let token = cap.get(1).unwrap();
-        let skill_name = &token.as_str()[1..];
-        if known_skills.iter().any(|s| s == skill_name) {
-            highlights.push(InputHighlight {
-                start: token.start(),
-                end: token.end(),
-                color: accent_color(),
-                priority: 5,
-            });
-        }
-    }
-
-    highlights
-}
-
-fn styled_segment_spans<'a>(
-    segment: &WrappedInputSegment,
-    highlights: &[InputHighlight],
-) -> Vec<Span<'a>> {
-    let seg_start = segment.start_char;
-    let seg_end = segment.end_char;
-
-    let mut overlapping: Vec<&InputHighlight> = highlights
-        .iter()
-        .filter(|h| h.end > seg_start && h.start < seg_end)
-        .collect();
-    overlapping.sort_by_key(|h| h.start);
-
-    if overlapping.is_empty() {
-        return vec![Span::raw(segment.text.clone())];
-    }
-
-    let mut spans = Vec::new();
-    let mut pos = seg_start;
-
-    for hl in &overlapping {
-        let hl_start = hl.start.max(seg_start);
-        let hl_end = hl.end.min(seg_end);
-
-        if pos < hl_start {
-            let text = char_slice(&segment.text, pos - seg_start, hl_start - seg_start);
-            spans.push(Span::raw(text.to_string()));
-        }
-
-        let text = char_slice(&segment.text, hl_start - seg_start, hl_end - seg_start);
-        spans.push(Span::styled(
-            text.to_string(),
-            Style::default().fg(hl.color),
-        ));
-
-        pos = hl_end;
-    }
-
-    if pos < seg_end {
-        let text = char_slice(&segment.text, pos - seg_start, seg_end - seg_start);
-        spans.push(Span::raw(text.to_string()));
-    }
-
-    spans
-}
-
 fn char_offset_for_clicked_column(text: &str, target_col: usize, display_width: usize) -> usize {
     use unicode_width::UnicodeWidthChar;
 
@@ -2306,7 +2071,6 @@ pub(crate) fn input_cursor_pos_from_screen(
     ))
 }
 
-#[allow(clippy::too_many_arguments)]
 pub(crate) fn wrap_input_text<'a>(
     input: &str,
     cursor_pos: usize,
@@ -2315,7 +2079,6 @@ pub(crate) fn wrap_input_text<'a>(
     prompt_char: &'a str,
     caret_color: Color,
     prompt_len: usize,
-    highlights: &[InputHighlight],
 ) -> (Vec<Line<'a>>, usize, usize) {
     let cursor_char_pos = crate::tui::core::byte_offset_to_char_index(input, cursor_pos);
     let wrapped_segments = wrap_input_segments(input, line_width);
@@ -2334,20 +2097,18 @@ pub(crate) fn wrap_input_text<'a>(
             found_cursor = true;
         }
 
-        let styled_spans = styled_segment_spans(segment, highlights);
-
         if idx == 0 {
             let num_color = rainbow_prompt_color(0);
-            let mut line_spans = vec![
+            lines.push(Line::from(vec![
                 Span::styled(num_str.to_string(), Style::default().fg(num_color)),
                 Span::styled(prompt_char.to_string(), Style::default().fg(caret_color)),
-            ];
-            line_spans.extend(styled_spans);
-            lines.push(Line::from(line_spans));
+                Span::raw(segment.text.clone()),
+            ]));
         } else {
-            let mut line_spans = vec![Span::raw(" ".repeat(prompt_len))];
-            line_spans.extend(styled_spans);
-            lines.push(Line::from(line_spans));
+            lines.push(Line::from(vec![
+                Span::raw(" ".repeat(prompt_len)),
+                Span::raw(segment.text.clone()),
+            ]));
         }
     }
 

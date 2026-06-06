@@ -1,15 +1,12 @@
 use super::{Registry, Tool, ToolContext, ToolOutput};
 use crate::agent::Agent;
 use crate::bus::{Bus, BusEvent, ToolSummary, ToolSummaryState};
-use crate::dcg_bridge;
 use crate::logging;
 use crate::protocol::HistoryMessage;
 use crate::provider::Provider;
 use crate::session::Session;
 use anyhow::Result;
 use async_trait::async_trait;
-use jcode_agent_runtime::permission::PermissionMode;
-use jcode_agent_runtime::registry::AgentRegistry;
 use serde::Deserialize;
 use serde_json::{Value, json};
 use std::collections::{HashMap, HashSet};
@@ -19,20 +16,11 @@ use tokio::sync::broadcast;
 pub struct SubagentTool {
     provider: Arc<dyn Provider>,
     registry: Registry,
-    agent_registry: Option<Arc<AgentRegistry>>,
 }
 
 impl SubagentTool {
-    pub fn new(
-        provider: Arc<dyn Provider>,
-        registry: Registry,
-        agent_registry: Option<Arc<AgentRegistry>>,
-    ) -> Self {
-        Self {
-            provider,
-            registry,
-            agent_registry,
-        }
+    pub fn new(provider: Arc<dyn Provider>, registry: Registry) -> Self {
+        Self { provider, registry }
     }
 
     fn preferred_parent_subagent_model(parent_session_id: &str) -> Option<String> {
@@ -67,11 +55,6 @@ struct SubagentInput {
     session_id: Option<String>,
     #[serde(default)]
     output_mode: SubagentOutputMode,
-    /// Optional permission mode override from the agent definition.
-    /// When set, the child session runs under this mode instead of
-    /// the session-global permission mode.
-    #[serde(default)]
-    permission_mode: Option<PermissionMode>,
     #[serde(rename = "command", default)]
     _command: Option<String>,
 }
@@ -132,11 +115,6 @@ impl Tool for SubagentTool {
                     "enum": ["answer", "compact", "full_transcript"],
                     "description": "Return mode. 'answer' returns the final answer only, 'compact' adds a user-visible transcript, and 'full_transcript' adds raw persisted messages. Defaults to 'answer'."
                 },
-                "permission_mode": {
-                    "type": "string",
-                    "enum": ["default", "accept-edits", "plan", "dont-ask", "bypass-permissions", "auto"],
-                    "description": "Permission mode override from the agent definition. When set, the child session uses this mode instead of the session-global permission mode."
-                },
                 "command": {
                     "type": "string",
                     "description": "Source command."
@@ -147,38 +125,6 @@ impl Tool for SubagentTool {
 
     async fn execute(&self, input: Value, ctx: ToolContext) -> Result<ToolOutput> {
         let params: SubagentInput = serde_json::from_value(input)?;
-
-        // Look up the agent definition from the registry (if available).
-        // When found, its fields (tool_names, system_prompt, permission_mode,
-        // output_mode, max_turns) inform how the child agent is spawned.
-        let agent_def = self
-            .agent_registry
-            .as_ref()
-            .and_then(|reg| reg.get(&params.subagent_type))
-            .map(|la| &la.definition);
-
-        // Merge permission_mode: params (LLM override) takes precedence,
-        // then agent definition, then None (inherits session default).
-        let effective_permission_mode = params
-            .permission_mode
-            .or_else(|| agent_def.and_then(|d| d.permission_mode));
-
-        // Merge output_mode: if the LLM didn't explicitly set output_mode
-        // (i.e. it's the default Answer), prefer the agent definition's value.
-        let effective_output_mode = if params.output_mode == SubagentOutputMode::Answer {
-            agent_def
-                .map(|d| subagent_output_mode_from_definition(d.output_mode))
-                .unwrap_or(params.output_mode)
-        } else {
-            params.output_mode
-        };
-
-        if agent_def.is_some() {
-            logging::info(&format!(
-                "[tool:subagent] matched agent definition for type '{}'",
-                params.subagent_type
-            ));
-        }
 
         let mut session = if let Some(session_id) = &params.session_id {
             Session::load(session_id).unwrap_or_else(|err| {
@@ -193,92 +139,23 @@ impl Tool for SubagentTool {
         };
         let parent_subagent_model = Self::preferred_parent_subagent_model(&ctx.session_id);
         let provider_model = self.provider.model();
-        // When the agent definition specifies model_override or prefer_tier,
-        // use its resolve_model() which honours those fields. Otherwise fall
-        // back to the standard resolution chain.
-        let resolved_model = if let Some(def) = agent_def {
-            if def.model_override.is_some() || def.prefer_tier.is_some() {
-                def.resolve_model(&provider_model)
-            } else {
-                Self::resolve_model(
-                    params.model.as_deref(),
-                    session.model.as_deref(),
-                    parent_subagent_model.as_deref(),
-                    &provider_model,
-                )
-            }
-        } else {
-            Self::resolve_model(
-                params.model.as_deref(),
-                session.model.as_deref(),
-                parent_subagent_model.as_deref(),
-                &provider_model,
-            )
-        };
+        let resolved_model = Self::resolve_model(
+            params.model.as_deref(),
+            session.model.as_deref(),
+            parent_subagent_model.as_deref(),
+            &provider_model,
+        );
         session.model = Some(resolved_model.clone());
 
         if let Some(ref working_dir) = ctx.working_dir {
             session.working_dir = Some(working_dir.display().to_string());
         }
 
-        // Register child in parent's session.
-        // NOTE: This load→mutate→save sequence is not atomic. Concurrent
-        // subagent spawns sharing the same parent could clobber each
-        // other's `children` entries. Acceptable for experimental Phase 0;
-        // a file-lock or in-memory session cache would fix this properly.
-        if let Ok(mut parent_session) = Session::load(&ctx.session_id) {
-            session.route_api_method = parent_session.route_api_method.clone();
-            parent_session.add_child(session.id.clone());
-            let _ = parent_session.save();
-        }
-
         session.save()?;
 
-        // Propagate the effective permission mode to the child session so
-        // that `dcg_bridge::classify_for_session` / `session_mode` observe
-        // it during the child's tool execution. The guard clears the
-        // override on drop (both success and error paths).
-        let child_session_id = session.id.clone();
-        let _mode_guard = dcg_bridge::SessionModeGuard::new(
-            &child_session_id,
-            effective_permission_mode.map(dcg_bridge::permission_mode_to_dcg),
-        );
-        if let Some(mode) = &effective_permission_mode {
-            logging::info(&format!(
-                "[tool:subagent] session {} permission mode: {} (from agent definition)",
-                child_session_id,
-                mode.as_str(),
-            ));
-        }
-
-        // Build the allowed tool set for the child agent.
-        // If the agent definition specifies `tool_names`, use that whitelist
-        // (intersected with actually-available tools) instead of "all minus
-        // blocked".  `disallowed_tools` from the definition are always removed.
-        let mut allowed: HashSet<String> = if let Some(def) = agent_def {
-            if !def.tool_names.is_empty() {
-                let available: HashSet<String> =
-                    self.registry.tool_names().await.into_iter().collect();
-                def.tool_names
-                    .iter()
-                    .filter(|t| available.contains(t.as_str()))
-                    .cloned()
-                    .collect()
-            } else {
-                self.registry.tool_names().await.into_iter().collect()
-            }
-        } else {
-            self.registry.tool_names().await.into_iter().collect()
-        };
-        // Always block self-referential / meta tools.
+        let mut allowed: HashSet<String> = self.registry.tool_names().await.into_iter().collect();
         for blocked in ["subagent", "task", "todo", "todowrite", "todoread"] {
             allowed.remove(blocked);
-        }
-        // Remove agent-definition-level disallowed tools.
-        if let Some(def) = agent_def {
-            for blocked in &def.disallowed_tools {
-                allowed.remove(blocked);
-            }
         }
         crate::config::config()
             .tools
@@ -337,48 +214,25 @@ impl Tool for SubagentTool {
             Some(allowed),
         );
 
-        // Apply agent definition's system prompt override when the definition
-        // provides one and does not request parent prompt inheritance.
-        if let Some(def) = agent_def {
-            if !def.system_prompt.is_empty() && !def.inherit_parent_system_prompt {
-                agent.set_system_prompt(&def.system_prompt);
-                logging::info(&format!(
-                    "[tool:subagent] applied system_prompt from agent definition '{}' ({} chars)",
-                    params.subagent_type,
-                    def.system_prompt.len(),
-                ));
-            }
-            if let Some(max_turns) = def.max_turns {
-                agent.set_max_turns(max_turns);
-                logging::info(&format!(
-                    "[tool:subagent] agent definition '{}' max_turns={} enforced",
-                    params.subagent_type, max_turns,
-                ));
-            }
-        }
-
         let start = std::time::Instant::now();
-        let final_text = match agent.run_once_capture(&params.prompt).await {
-            Ok(text) => text,
-            Err(err) => {
-                logging::warn(&format!(
-                    "[tool:subagent] subagent failed description={} type={} session_id={} model={} error={}",
-                    params.description,
-                    params.subagent_type,
-                    agent.session_id(),
-                    resolved_model,
-                    err
-                ));
-                return Err(err);
-            }
-        };
+        let final_text = agent.run_once_capture(&params.prompt).await.map_err(|err| {
+            logging::warn(&format!(
+                "[tool:subagent] subagent failed description={} type={} session_id={} model={} error={}",
+                params.description,
+                params.subagent_type,
+                agent.session_id(),
+                resolved_model,
+                err
+            ));
+            err
+        })?;
         let sub_session_id = agent.session_id().to_string();
-        let history = if effective_output_mode == SubagentOutputMode::Compact {
+        let history = if params.output_mode == SubagentOutputMode::Compact {
             Some(agent.get_history())
         } else {
             None
         };
-        let full_transcript = if effective_output_mode == SubagentOutputMode::FullTranscript {
+        let full_transcript = if params.output_mode == SubagentOutputMode::FullTranscript {
             let session = Session::load(&sub_session_id)?;
             Some(serde_json::to_string_pretty(&session.messages)?)
         } else {
@@ -390,8 +244,6 @@ impl Tool for SubagentTool {
             params.description,
             start.elapsed().as_secs_f64()
         ));
-
-        // _mode_guard drops here, clearing the per-session permission override.
 
         listener.abort();
 
@@ -406,7 +258,7 @@ impl Tool for SubagentTool {
         let output = format_subagent_output(
             &final_text,
             &sub_session_id,
-            effective_output_mode,
+            params.output_mode,
             history.as_deref(),
             full_transcript.as_deref(),
         );
@@ -417,7 +269,7 @@ impl Tool for SubagentTool {
                 "summary": summary,
                 "sessionId": sub_session_id,
                 "model": resolved_model,
-                "outputMode": effective_output_mode.as_str(),
+                "outputMode": params.output_mode.as_str(),
             })))
     }
 }
@@ -434,22 +286,6 @@ fn subagent_display_title(params: &SubagentInput, model: &str) -> String {
         "{} ({} · {})",
         params.description, params.subagent_type, model
     )
-}
-
-/// Map an `AgentDefinition`'s `OutputMode` to the subagent tool's internal
-/// `SubagentOutputMode`. The mapping is intentionally conservative:
-/// - `LastMessage` → `Answer` (default low-token behaviour)
-/// - `AllMessages` → `Compact` (human-readable transcript)
-/// - `StructuredOutput` → `Answer` (structured output is a separate mechanism)
-fn subagent_output_mode_from_definition(
-    def_mode: jcode_agent_runtime::output::OutputMode,
-) -> SubagentOutputMode {
-    use jcode_agent_runtime::output::OutputMode as DefOutputMode;
-    match def_mode {
-        DefOutputMode::LastMessage => SubagentOutputMode::Answer,
-        DefOutputMode::AllMessages => SubagentOutputMode::Compact,
-        DefOutputMode::StructuredOutput => SubagentOutputMode::Answer,
-    }
 }
 
 impl SubagentOutputMode {
@@ -546,7 +382,6 @@ mod tests {
             model: None,
             session_id: None,
             output_mode: SubagentOutputMode::Answer,
-            permission_mode: None,
             _command: None,
         };
 

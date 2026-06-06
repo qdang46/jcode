@@ -92,7 +92,10 @@ pub(crate) fn reload_exec_target(is_selfdev_session: bool) -> Option<(PathBuf, &
     let candidate_canonical = canonicalize_or(candidate.0.clone());
     let current_canonical = current_exe.as_ref().map(|p| canonicalize_or(p.clone()));
 
-    let current_mtime = current_exe.as_deref().and_then(binary_mtime);
+    let current_mtime = current_exe
+        .as_ref()
+        .map(|p| p.as_path())
+        .and_then(binary_mtime);
     let candidate_mtime = binary_mtime(candidate_canonical.as_path());
 
     match guarded_reload_target(

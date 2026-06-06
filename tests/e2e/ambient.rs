@@ -203,7 +203,7 @@ async fn test_ambient_end_cycle_tool() -> Result<()> {
     ]);
 
     let provider: Arc<dyn jcode::provider::Provider> = Arc::new(provider);
-    let registry = Registry::new(provider.clone(), None).await;
+    let registry = Registry::new(provider.clone()).await;
     registry.register_ambient_tools().await;
 
     let mut agent = Agent::new(provider, registry);
@@ -261,7 +261,7 @@ async fn test_ambient_request_permission_tool() -> Result<()> {
     ]);
 
     let provider: Arc<dyn jcode::provider::Provider> = Arc::new(provider);
-    let registry = Registry::new(provider.clone(), None).await;
+    let registry = Registry::new(provider.clone()).await;
     registry.register_ambient_tools().await;
 
     let mut agent = Agent::new(provider, registry);
@@ -309,7 +309,7 @@ async fn test_ambient_schedule_tool() -> Result<()> {
     ]);
 
     let provider: Arc<dyn jcode::provider::Provider> = Arc::new(provider);
-    let registry = Registry::new(provider.clone(), None).await;
+    let registry = Registry::new(provider.clone()).await;
     registry.register_ambient_tools().await;
 
     let mut agent = Agent::new(provider, registry);
@@ -585,7 +585,7 @@ async fn test_full_ambient_cycle_simulation() -> Result<()> {
     ]);
 
     let provider: Arc<dyn jcode::provider::Provider> = Arc::new(provider);
-    let registry = Registry::new(provider.clone(), None).await;
+    let registry = Registry::new(provider.clone()).await;
     registry.register_ambient_tools().await;
 
     let mut agent = Agent::new(provider.clone(), registry);

@@ -506,24 +506,35 @@ impl App {
                     self.update_selection_with_point(point, true);
                     return Some(false);
                 }
-                if let Some(point) =
-                    point.filter(|point| Some(point.pane) == self.current_copy_selection_pane())
-                {
-                    self.update_selection_with_point(point, true);
-                    // Pane hit: stop any held edge auto-scroll.
-                    self.copy_selection_edge_autoscroll = None;
-                } else if let Some(pane) = self.current_copy_selection_pane()
-                    && let Some((point, upward)) =
+                let active_pane = self.current_copy_selection_pane();
+                // Browser-style edge auto-scroll: if the drag is at the top/bottom
+                // boundary row of the active pane, keep scrolling so the selection can
+                // extend past the currently visible transcript. This takes priority
+                // over a plain in-pane update so reaching the edge pulls in more rows.
+                // We also arm a tick-driven autoscroll so it keeps going while the
+                // mouse is simply held at the edge (no further movement needed), just
+                // like dragging a selection past the edge of a browser window.
+                if let Some(pane) = active_pane {
+                    if let Some((edge_point, upward)) =
                         crate::tui::ui::copy_pane_vertical_edge_point(pane, mouse.column, mouse.row)
-                {
+                    {
+                        self.update_selection_with_point(edge_point, true);
+                        self.scroll_copy_selection_pane(pane, upward);
+                        self.copy_selection_edge_autoscroll = Some((pane, upward));
+                        return Some(false);
+                    }
+                }
+                // Left the edge: stop the continuous autoscroll.
+                self.copy_selection_edge_autoscroll = None;
+                // Resolve the drag target, clamping vertical overshoot (e.g. a
+                // drag into the blank space below the last line) to the nearest
+                // in-bounds line edge so the boundary line is fully selected,
+                // just like native terminal/browser selection.
+                let resolved = active_pane.and_then(|pane| {
+                    crate::tui::ui::copy_pane_drag_point(pane, mouse.column, mouse.row)
+                });
+                if let Some(point) = resolved.filter(|point| Some(point.pane) == active_pane) {
                     self.update_selection_with_point(point, true);
-                    self.scroll_copy_selection_pane(pane, upward);
-                    // Arm tick-driven continuous autoscroll so holding the drag at the
-                    // edge keeps pulling in more transcript (browser-style).
-                    self.copy_selection_edge_autoscroll = Some((pane, upward));
-                } else {
-                    // Left the active pane and the edge: stop the continuous autoscroll.
-                    self.copy_selection_edge_autoscroll = None;
                 }
                 Some(false)
             }
@@ -538,9 +549,11 @@ impl App {
                     };
                 }
                 self.copy_selection_dragging = false;
-                if let Some(point) =
-                    point.filter(|point| Some(point.pane) == self.current_copy_selection_pane())
-                {
+                let release_pane = self.current_copy_selection_pane();
+                let resolved = release_pane.and_then(|pane| {
+                    crate::tui::ui::copy_pane_drag_point(pane, mouse.column, mouse.row)
+                });
+                if let Some(point) = resolved.filter(|point| Some(point.pane) == release_pane) {
                     self.update_selection_with_point(point, true);
                 }
                 if self.copy_selection_mode {

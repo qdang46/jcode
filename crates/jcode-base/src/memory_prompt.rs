@@ -138,7 +138,7 @@ pub fn format_context_for_relevance(messages: &[crate::message::Message]) -> Str
 /// Format messages into a wider context string for extraction.
 /// Uses a larger window than relevance checking since extraction needs to
 /// capture learnings from a broader portion of the conversation.
-pub fn format_context_for_extraction(messages: &[crate::message::Message]) -> String {
+pub(crate) fn format_context_for_extraction(messages: &[crate::message::Message]) -> String {
     let mut chunks: Vec<String> = Vec::new();
     let mut total_chars = 0usize;
 

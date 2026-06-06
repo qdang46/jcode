@@ -8,15 +8,12 @@ mod browser;
 mod codesearch;
 mod communicate;
 mod conversation_search;
-#[cfg(feature = "mempalace-backend")]
-pub mod coordination;
 mod debug_socket;
 mod edit;
 mod glob;
 mod gmail;
 mod goal;
 mod grep;
-pub mod hashline_edit;
 mod invalid;
 mod ls;
 mod lsp;
@@ -32,15 +29,10 @@ mod session_search;
 mod side_panel;
 mod skill;
 mod task;
-pub mod task_management;
-mod team;
 mod todo;
 mod webfetch;
 mod websearch;
 mod write;
-
-#[cfg(feature = "dcp")]
-mod dcp_compress;
 
 use crate::compaction::CompactionManager;
 use crate::provider::Provider;
@@ -49,9 +41,8 @@ use anyhow::Result;
 use jcode_message_types::ToolDefinition;
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
-#[cfg(feature = "dcp")]
-use std::sync::Mutex;
-use std::sync::{Arc, LazyLock, RwLock as StdRwLock};
+use std::sync::Arc;
+use std::sync::{LazyLock, RwLock as StdRwLock};
 use tokio::sync::RwLock;
 
 pub(crate) use jcode_tool_core::intent_schema_property;
@@ -100,23 +91,6 @@ fn session_tool_policy(session_id: &str) -> Option<SessionToolPolicy> {
         .cloned()
 }
 
-static SHARED_AGENT_REGISTRY: LazyLock<Option<Arc<jcode_agent_runtime::AgentRegistry>>> =
-    LazyLock::new(|| {
-        let home = dirs::home_dir();
-        let cwd = std::env::current_dir().ok();
-        let mut registry = jcode_agent_runtime::AgentRegistry::new();
-        registry.discover_standard_paths(home.as_deref(), cwd.as_deref());
-        if registry.is_empty() {
-            None
-        } else {
-            Some(Arc::new(registry))
-        }
-    });
-
-pub fn shared_agent_registry() -> Option<Arc<jcode_agent_runtime::AgentRegistry>> {
-    SHARED_AGENT_REGISTRY.clone()
-}
-
 /// Registry of available tools (Arc-wrapped for sharing)
 ///
 /// Clone creates a fresh CompactionManager so each subagent gets independent
@@ -125,8 +99,6 @@ pub struct Registry {
     tools: Arc<RwLock<HashMap<String, Arc<dyn Tool>>>>,
     skills: Arc<RwLock<SkillRegistry>>,
     compaction: Arc<RwLock<CompactionManager>>,
-    #[cfg(feature = "dcp")]
-    dcp: Option<Arc<Mutex<crate::dcp_plugin::DcpPlugin>>>,
 }
 
 impl Clone for Registry {
@@ -137,8 +109,6 @@ impl Clone for Registry {
             // Each clone gets a fresh CompactionManager to prevent parallel
             // subagents from corrupting each other's message history
             compaction: Arc::new(RwLock::new(CompactionManager::new())),
-            #[cfg(feature = "dcp")]
-            dcp: self.dcp.clone(),
         }
     }
 }
@@ -175,8 +145,6 @@ impl Registry {
             tools: Arc::new(RwLock::new(HashMap::new())),
             skills: Arc::new(RwLock::new(SkillRegistry::default())),
             compaction: Arc::new(RwLock::new(CompactionManager::new())),
-            #[cfg(feature = "dcp")]
-            dcp: None,
         }
     }
 
@@ -204,12 +172,6 @@ impl Registry {
                 side_panel::SidePanelTool::new,
             );
             Self::insert_tool_timed(&mut m, &mut timings, "edit", edit::EditTool::new);
-            Self::insert_tool_timed(
-                &mut m,
-                &mut timings,
-                "hashline_edit",
-                hashline_edit::HashlineEditTool::new,
-            );
             Self::insert_tool_timed(
                 &mut m,
                 &mut timings,
@@ -296,10 +258,7 @@ impl Registry {
         tools
     }
 
-    pub async fn new(
-        provider: Arc<dyn Provider>,
-        agent_registry: Option<Arc<jcode_agent_runtime::AgentRegistry>>,
-    ) -> Self {
+    pub async fn new(provider: Arc<dyn Provider>) -> Self {
         let start = std::time::Instant::now();
         let skills_start = std::time::Instant::now();
         let skills = Self::shared_skills_registry();
@@ -312,96 +271,31 @@ impl Registry {
             tools: Arc::new(RwLock::new(HashMap::new())),
             skills: skills.clone(),
             compaction: compaction.clone(),
-            #[cfg(feature = "dcp")]
-            dcp: None,
         };
         let registry_struct_ms = registry_struct_start.elapsed().as_millis();
 
         let base_start = std::time::Instant::now();
-        // Issue #23: when JCODE_NO_BUILTIN_TOOLS=1 is set, skip the built-in
-        // tool registry. Extension and MCP tools (added separately) still
-        // load. This is useful for sandbox testing or when users want a
-        // strictly user-provided tool surface.
-        let no_builtin = matches!(
-            std::env::var("JCODE_NO_BUILTIN_TOOLS")
-                .ok()
-                .as_deref()
-                .map(str::trim)
-                .map(str::to_ascii_lowercase)
-                .as_deref(),
-            Some("1") | Some("true") | Some("yes") | Some("on")
-        );
-        let mut tools_map = if no_builtin {
-            crate::logging::info(
-                "JCODE_NO_BUILTIN_TOOLS=1 — skipping built-in tool registry (MCP + extension tools still load)",
-            );
-            HashMap::new()
-        } else {
-            Self::base_tools(&skills)
-        };
+        let mut tools_map = Self::base_tools(&skills);
         let base_ms = base_start.elapsed().as_millis();
 
-        // Per-session tools that need provider/registry references — also
-        // gated by the no-builtin flag so disabling really means disabling.
+        // Per-session tools that need provider/registry references
         let session_tools_start = std::time::Instant::now();
-        if !no_builtin {
-            Self::insert_tool(
-                &mut tools_map,
-                "subagent",
-                task::SubagentTool::new(provider, registry.clone(), agent_registry),
-            );
-            Self::insert_tool(
-                &mut tools_map,
-                "batch",
-                batch::BatchTool::new(registry.clone()),
-            );
-            Self::insert_tool(
-                &mut tools_map,
-                "conversation_search",
-                conversation_search::ConversationSearchTool::new(compaction),
-            );
-        }
-        let session_tools_ms = session_tools_start.elapsed().as_millis();
-
-        // Register DCP tools if feature is enabled
-        #[cfg(feature = "dcp")]
-        {
-            use dcp_compress::{DcpCompressTool, DcpDecompressTool, DcpRecompressTool};
-            Self::insert_tool(&mut tools_map, "dcp_compress", DcpCompressTool::new());
-            Self::insert_tool(&mut tools_map, "dcp_decompress", DcpDecompressTool::new());
-            Self::insert_tool(&mut tools_map, "dcp_recompress", DcpRecompressTool::new());
-        }
-
-        // Register experimental team/task tools when opted in via env var.
-        // Canary sessions register these explicitly via register_experimental_tools().
-        let experimental_tools_enabled = matches!(
-            std::env::var("JCODE_EXPERIMENTAL_TOOLS")
-                .ok()
-                .as_deref()
-                .map(str::trim)
-                .map(str::to_ascii_lowercase)
-                .as_deref(),
-            Some("1") | Some("true") | Some("yes") | Some("on")
+        Self::insert_tool(
+            &mut tools_map,
+            "subagent",
+            task::SubagentTool::new(provider, registry.clone()),
         );
-        if experimental_tools_enabled && !no_builtin {
-            Self::insert_tool(&mut tools_map, "team_create", team::TeamCreateTool::new());
-            Self::insert_tool(&mut tools_map, "team_delete", team::TeamDeleteTool::new());
-            Self::insert_tool(
-                &mut tools_map,
-                "task_create",
-                task_management::TaskCreateTool::new(),
-            );
-            Self::insert_tool(
-                &mut tools_map,
-                "task_update",
-                task_management::TaskUpdateTool::new(),
-            );
-            Self::insert_tool(
-                &mut tools_map,
-                "task_list",
-                task_management::TaskListTool::new(),
-            );
-        }
+        Self::insert_tool(
+            &mut tools_map,
+            "batch",
+            batch::BatchTool::new(registry.clone()),
+        );
+        Self::insert_tool(
+            &mut tools_map,
+            "conversation_search",
+            conversation_search::ConversationSearchTool::new(compaction),
+        );
+        let session_tools_ms = session_tools_start.elapsed().as_millis();
 
         let write_start = std::time::Instant::now();
         *registry.tools.write().await = tools_map;
@@ -629,71 +523,6 @@ impl Registry {
         let tool = match tools.get(resolved_name) {
             Some(tool) => tool.clone(),
             None => {
-                // Plugin tool dispatch: route plugin_ prefixed tools through the plugin system
-                if resolved_name.starts_with("plugin_")
-                    && let Some(system) = crate::plugin::plugin_system()
-                {
-                    drop(tools);
-                    crate::logging::event_info(
-                        "TOOL_LIFECYCLE",
-                        Self::tool_lifecycle_fields("start", name, resolved_name, &input, &ctx),
-                    );
-                    let started_at = std::time::Instant::now();
-                    match system.execute_tool(resolved_name, &input).await {
-                        Ok(output_text) => {
-                            let latency_ms = started_at.elapsed().as_millis() as u64;
-                            crate::telemetry::record_tool_execution(
-                                resolved_name,
-                                &input,
-                                true,
-                                latency_ms,
-                            );
-                            let output = ToolOutput::new(output_text);
-                            let output = self.guard_context_overflow(name, output).await;
-                            let mut fields = Self::tool_lifecycle_fields(
-                                "done",
-                                name,
-                                resolved_name,
-                                &input,
-                                &ctx,
-                            );
-                            fields.push(("elapsed_ms".to_string(), latency_ms.to_string()));
-                            fields.push((
-                                "output_bytes".to_string(),
-                                output.output.len().to_string(),
-                            ));
-                            fields.push((
-                                "output_chars".to_string(),
-                                output.output.chars().count().to_string(),
-                            ));
-                            fields
-                                .push(("image_count".to_string(), output.images.len().to_string()));
-                            crate::logging::event_info("TOOL_LIFECYCLE", fields);
-                            return Ok(output);
-                        }
-                        Err(e) => {
-                            let latency_ms = started_at.elapsed().as_millis() as u64;
-                            crate::telemetry::record_tool_execution(
-                                resolved_name,
-                                &input,
-                                false,
-                                latency_ms,
-                            );
-                            let mut fields = Self::tool_lifecycle_fields(
-                                "error",
-                                name,
-                                resolved_name,
-                                &input,
-                                &ctx,
-                            );
-                            fields.push(("elapsed_ms".to_string(), latency_ms.to_string()));
-                            fields.push(("error".to_string(), e.clone()));
-                            crate::logging::event_warn("TOOL_LIFECYCLE", fields);
-                            return Err(anyhow::anyhow!("Plugin tool error: {e}"));
-                        }
-                    }
-                }
-
                 // List available tools so the model can recover instead of
                 // spiraling through hallucinated names like "ToolSearch" (#104).
                 let mut available: Vec<&str> = tools.keys().map(|k| k.as_str()).collect();
@@ -733,22 +562,6 @@ impl Registry {
                 return Err(error);
             }
         };
-
-        // RTCO pre-filter: compress tool output before it enters context
-        #[cfg(feature = "rtco")]
-        if output.output.len() > 512 {
-            use crate::rtco_filter::filter_tool_output;
-            if let Some(filtered) = filter_tool_output(resolved_name, &output.output, 30.0) {
-                crate::logging::info(&format!(
-                    "rtco: {} saved {:.1}% ({} -> {} chars)",
-                    resolved_name,
-                    filtered.savings_percent,
-                    filtered.original_chars,
-                    filtered.filtered_chars,
-                ));
-                output.output = filtered.text;
-            }
-        }
 
         // Context overflow guard: check if this output would push us over the limit
         output = self.guard_context_overflow(name, output).await;
@@ -1020,7 +833,6 @@ impl Registry {
                 // under the current config fingerprint; prune servers that are
                 // no longer configured. (#206 Phase 2)
                 {
-                    #[allow(clippy::type_complexity)]
                     let (live_by_server, config_snapshot): (
                         std::collections::BTreeMap<String, Vec<crate::mcp::McpToolDef>>,
                         Vec<(String, crate::mcp::McpServerConfig)>,
@@ -1096,39 +908,6 @@ impl Registry {
         .await;
     }
 
-    /// Register experimental team/task tools.
-    ///
-    /// Gated behind `JCODE_EXPERIMENTAL_TOOLS=1` or canary sessions.
-    /// These tools expose team and task management primitives that are
-    /// still under active development and not yet ready for general use.
-    pub async fn register_experimental_tools(&self) {
-        self.register(
-            "team_create".to_string(),
-            Arc::new(team::TeamCreateTool::new()) as Arc<dyn Tool>,
-        )
-        .await;
-        self.register(
-            "team_delete".to_string(),
-            Arc::new(team::TeamDeleteTool::new()) as Arc<dyn Tool>,
-        )
-        .await;
-        self.register(
-            "task_create".to_string(),
-            Arc::new(task_management::TaskCreateTool::new()) as Arc<dyn Tool>,
-        )
-        .await;
-        self.register(
-            "task_update".to_string(),
-            Arc::new(task_management::TaskUpdateTool::new()) as Arc<dyn Tool>,
-        )
-        .await;
-        self.register(
-            "task_list".to_string(),
-            Arc::new(task_management::TaskListTool::new()) as Arc<dyn Tool>,
-        )
-        .await;
-    }
-
     /// Register ambient-mode tools (only for ambient sessions)
     pub async fn register_ambient_tools(&self) {
         self.register(
@@ -1184,18 +963,6 @@ impl Registry {
     /// Get shared access to the compaction manager
     pub fn compaction(&self) -> Arc<RwLock<CompactionManager>> {
         self.compaction.clone()
-    }
-
-    /// Get shared access to the DCP plugin (if enabled)
-    #[cfg(feature = "dcp")]
-    pub fn dcp(&self) -> Option<Arc<Mutex<crate::dcp_plugin::DcpPlugin>>> {
-        self.dcp.clone()
-    }
-
-    /// Set the DCP plugin (called by Agent after construction)
-    #[cfg(feature = "dcp")]
-    pub fn set_dcp(&mut self, dcp: crate::dcp_plugin::DcpPlugin) {
-        self.dcp = Some(Arc::new(Mutex::new(dcp)));
     }
 }
 

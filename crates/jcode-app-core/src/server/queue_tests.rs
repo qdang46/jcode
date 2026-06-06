@@ -41,7 +41,7 @@ impl Provider for TestProvider {
 
 async fn test_agent() -> Arc<Mutex<Agent>> {
     let provider: Arc<dyn Provider> = Arc::new(TestProvider);
-    let registry = Registry::new(provider.clone(), None).await;
+    let registry = Registry::new(provider.clone()).await;
     Arc::new(Mutex::new(Agent::new(provider, registry)))
 }
 
@@ -165,7 +165,7 @@ async fn queue_soft_interrupt_for_session_persists_when_live_queue_is_unavailabl
     assert_eq!(persisted[0].source, SoftInterruptSource::BackgroundTask);
 
     let provider: Arc<dyn Provider> = Arc::new(TestProvider);
-    let registry = Registry::new(provider.clone(), None).await;
+    let registry = Registry::new(provider.clone()).await;
     let mut restored = Agent::new(provider, registry);
     restored
         .restore_session(&session_id)

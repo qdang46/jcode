@@ -1,9 +1,4 @@
 //! Memory tool for storing and recalling information across sessions
-//!
-//! Issue #357: when `agents.memory_backend = "mempalace"` (or
-//! `JCODE_MEMORY_BACKEND=mempalace`), the tool dispatches to
-//! `MempalaceAdapter` instead of the native `MemoryManager`.
-//! The tool's external schema and 8 actions remain identical.
 
 use super::{Tool, ToolContext, ToolOutput};
 use crate::memory::{MemoryCategory, MemoryEntry, MemoryManager, MemoryScope};
@@ -12,38 +7,21 @@ use async_trait::async_trait;
 use serde::Deserialize;
 use serde_json::{Value, json};
 
-/// The active memory backend for this tool instance.
-enum Backend {
-    /// Native JSON-based MemoryManager (current default).
-    Native(MemoryManager),
-    /// mempalace Palace via MempalaceAdapter (feature-gated).
-    #[cfg(feature = "mempalace-backend")]
-    Mempalace(jcode_mempalace_adapter::MempalaceAdapter),
-}
-
 pub struct MemoryTool {
-    backend: Backend,
+    manager: MemoryManager,
 }
 
 impl MemoryTool {
     pub fn new() -> Self {
         Self {
-            backend: Backend::Native(MemoryManager::new()),
+            manager: MemoryManager::new(),
         }
     }
 
     /// Create a memory tool in test mode (isolated storage)
     pub fn new_test() -> Self {
         Self {
-            backend: Backend::Native(MemoryManager::new_test()),
-        }
-    }
-
-    /// Create a memory tool backed by a mempalace adapter (#357).
-    #[cfg(feature = "mempalace-backend")]
-    pub fn new_mempalace(adapter: jcode_mempalace_adapter::MempalaceAdapter) -> Self {
-        Self {
-            backend: Backend::Mempalace(adapter),
+            manager: MemoryManager::new_test(),
         }
     }
 
@@ -137,596 +115,317 @@ impl Tool for MemoryTool {
     }
 
     async fn execute(&self, input: Value, ctx: ToolContext) -> Result<ToolOutput> {
+        use crate::memory;
+        use crate::memory_types::{MemoryEventKind, MemoryState};
+
         let input: MemoryInput = serde_json::from_value(input)?;
         let action_label = input.action.clone();
         let session_id_for_error = ctx.session_id.clone();
 
-        // Dispatch to the native backend
-        match &self.backend {
-            Backend::Native(manager) => {
-                execute_native(manager, &input, &ctx, &action_label, &session_id_for_error).await
-            }
-            #[cfg(feature = "mempalace-backend")]
-            Backend::Mempalace(adapter) => {
-                execute_mempalace(adapter, &input, &ctx, &action_label, &session_id_for_error).await
-            }
-        }
-    }
-}
-
-/// Execute memory actions using the native MemoryManager.
-async fn execute_native(
-    manager: &MemoryManager,
-    input: &MemoryInput,
-    ctx: &ToolContext,
-    action_label: &str,
-    session_id_for_error: &str,
-) -> Result<ToolOutput> {
-    use crate::memory;
-    use crate::memory_types::{MemoryEventKind, MemoryState};
-
-    match input.action.as_str() {
-        "remember" => {
-            let content = input
-                .content
-                .as_deref()
-                .ok_or_else(|| anyhow::anyhow!("content required"))?;
-            let category: MemoryCategory = input
-                .category
-                .as_deref()
-                .unwrap_or("fact")
-                .parse()
-                .map_err(|err| anyhow::anyhow!("invalid memory category: {}", err))?;
-            let scope = input.scope.as_deref().unwrap_or("project");
-            memory::set_state(MemoryState::ToolAction {
-                action: "remember".into(),
-                detail: truncate_for_widget(content, 40),
-            });
-            let mut entry =
-                MemoryEntry::new(category.clone(), content).with_source(&ctx.session_id);
-            if let Some(tags) = &input.tags {
-                entry = entry.with_tags(tags.clone());
-            }
-            let id = if scope == "global" {
-                manager.remember_global(entry)?
-            } else {
-                manager.remember_project(entry)?
-            };
-            memory::add_event(MemoryEventKind::ToolRemembered {
-                content: truncate_for_widget(content, 60),
-                scope: scope.to_string(),
-                category: category.to_string(),
-            });
-            memory::set_state(MemoryState::Idle);
-            Ok(ToolOutput::new(format!(
-                "Remembered {} ({}): \"{}\" [id: {}]",
-                category, scope, content, id
-            )))
-        }
-        "recall" => {
-            let limit = input.limit.unwrap_or(10);
-            let scope = MemoryTool::parse_scope(input.scope.as_deref(), MemoryScope::All)?;
-            let mode = input.mode.as_deref().unwrap_or_else(|| {
-                if input.query.is_some() {
-                    "cascade"
+        match input.action.as_str() {
+            "remember" => {
+                let content = input
+                    .content
+                    .ok_or_else(|| anyhow::anyhow!("content required"))?;
+                let category: MemoryCategory = input
+                    .category
+                    .as_deref()
+                    .unwrap_or("fact")
+                    .parse()
+                    .map_err(|err| anyhow::anyhow!("invalid memory category: {}", err))?;
+                let scope = input.scope.as_deref().unwrap_or("project");
+                memory::set_state(MemoryState::ToolAction {
+                    action: "remember".into(),
+                    detail: truncate_for_widget(&content, 40),
+                });
+                let mut entry =
+                    MemoryEntry::new(category.clone(), &content).with_source(ctx.session_id);
+                if let Some(tags) = input.tags {
+                    entry = entry.with_tags(tags);
+                }
+                let id = if scope == "global" {
+                    self.manager.remember_global(entry)?
                 } else {
-                    "recent"
-                }
-            });
-
-            match mode {
-                "recent" => {
-                    memory::set_state(MemoryState::ToolAction {
-                        action: "recall".into(),
-                        detail: "recent".into(),
-                    });
-                    let result = match manager.get_prompt_memories_scoped(limit, scope) {
-                        Some(memories) => {
-                            let count =
-                                memories.lines().filter(|l| l.starts_with("- ")).count();
-                            memory::add_event(MemoryEventKind::ToolRecalled {
-                                query: "(recent)".into(),
-                                count,
-                            });
-                            Ok(ToolOutput::new(format!("Recent memories:\n{}", memories)))
-                        }
-                        None => {
-                            memory::add_event(MemoryEventKind::ToolRecalled {
-                                query: "(recent)".into(),
-                                count: 0,
-                            });
-                            Ok(ToolOutput::new("No memories stored yet."))
-                        }
-                    };
-                    memory::set_state(MemoryState::Idle);
-                    result
-                }
-                "semantic" | "cascade" => {
-                    let query = match &input.query {
-                        Some(q) => q.clone(),
-                        None => {
-                            return Err(anyhow::anyhow!(
-                                "query required for semantic/cascade mode"
-                            ));
-                        }
-                    };
-                    memory::set_state(MemoryState::ToolAction {
-                        action: "recall".into(),
-                        detail: truncate_for_widget(&query, 40),
-                    });
-
-                    let results = if mode == "cascade" {
-                        manager
-                            .find_similar_with_cascade_scoped(&query, 0.5, limit, scope)?
+                    self.manager.remember_project(entry)?
+                };
+                memory::add_event(MemoryEventKind::ToolRemembered {
+                    content: truncate_for_widget(&content, 60),
+                    scope: scope.to_string(),
+                    category: category.to_string(),
+                });
+                memory::set_state(MemoryState::Idle);
+                Ok(ToolOutput::new(format!(
+                    "Remembered {} ({}): \"{}\" [id: {}]",
+                    category, scope, content, id
+                )))
+            }
+            "recall" => {
+                let limit = input.limit.unwrap_or(10);
+                let scope = Self::parse_scope(input.scope.as_deref(), MemoryScope::All)?;
+                let mode = input.mode.as_deref().unwrap_or_else(|| {
+                    if input.query.is_some() {
+                        "cascade"
                     } else {
-                        manager.find_similar_scoped(&query, 0.5, limit, scope)?
-                    };
-
-                    memory::add_event(MemoryEventKind::ToolRecalled {
-                        query: truncate_for_widget(&query, 40),
-                        count: results.len(),
-                    });
-                    memory::set_state(MemoryState::Idle);
-
-                    if results.is_empty() {
-                        Ok(ToolOutput::new(format!(
-                            "No memories found matching '{}'. Try recall without query to see recent memories.",
-                            query
-                        )))
-                    } else {
-                        let mut out = format!(
-                            "Found {} relevant memories for '{}':\n\n",
-                            results.len(),
-                            query
-                        );
-                        for (entry, score) in results {
-                            let tags_str = if entry.tags.is_empty() {
-                                String::new()
-                            } else {
-                                format!(" [{}]", entry.tags.join(", "))
-                            };
-                            out.push_str(&format!(
-                                "- [{}] {}{}\n  id: {} (relevance: {:.0}%)\n\n",
-                                entry.category,
-                                entry.content,
-                                tags_str,
-                                entry.id,
-                                score * 100.0
-                            ));
-                        }
-                        Ok(ToolOutput::new(out))
+                        "recent"
                     }
+                });
+
+                match mode {
+                    "recent" => {
+                        memory::set_state(MemoryState::ToolAction {
+                            action: "recall".into(),
+                            detail: "recent".into(),
+                        });
+                        let result = match self.manager.get_prompt_memories_scoped(limit, scope) {
+                            Some(memories) => {
+                                let count =
+                                    memories.lines().filter(|l| l.starts_with("- ")).count();
+                                memory::add_event(MemoryEventKind::ToolRecalled {
+                                    query: "(recent)".into(),
+                                    count,
+                                });
+                                Ok(ToolOutput::new(format!("Recent memories:\n{}", memories)))
+                            }
+                            None => {
+                                memory::add_event(MemoryEventKind::ToolRecalled {
+                                    query: "(recent)".into(),
+                                    count: 0,
+                                });
+                                Ok(ToolOutput::new("No memories stored yet."))
+                            }
+                        };
+                        memory::set_state(MemoryState::Idle);
+                        result
+                    }
+                    "semantic" | "cascade" => {
+                        let query = match &input.query {
+                            Some(q) => q.clone(),
+                            None => {
+                                return Err(anyhow::anyhow!(
+                                    "query required for semantic/cascade mode"
+                                ));
+                            }
+                        };
+                        memory::set_state(MemoryState::ToolAction {
+                            action: "recall".into(),
+                            detail: truncate_for_widget(&query, 40),
+                        });
+
+                        let results = if mode == "cascade" {
+                            self.manager
+                                .find_similar_with_cascade_scoped(&query, 0.5, limit, scope)?
+                        } else {
+                            self.manager
+                                .find_similar_scoped(&query, 0.5, limit, scope)?
+                        };
+
+                        memory::add_event(MemoryEventKind::ToolRecalled {
+                            query: truncate_for_widget(&query, 40),
+                            count: results.len(),
+                        });
+                        memory::set_state(MemoryState::Idle);
+
+                        if results.is_empty() {
+                            Ok(ToolOutput::new(format!(
+                                "No memories found matching '{}'. Try recall without query to see recent memories.",
+                                query
+                            )))
+                        } else {
+                            let mut out = format!(
+                                "Found {} relevant memories for '{}':\n\n",
+                                results.len(),
+                                query
+                            );
+                            for (entry, score) in results {
+                                let tags_str = if entry.tags.is_empty() {
+                                    String::new()
+                                } else {
+                                    format!(" [{}]", entry.tags.join(", "))
+                                };
+                                out.push_str(&format!(
+                                    "- [{}] {}{}\n  id: {} (relevance: {:.0}%)\n\n",
+                                    entry.category,
+                                    entry.content,
+                                    tags_str,
+                                    entry.id,
+                                    score * 100.0
+                                ));
+                            }
+                            Ok(ToolOutput::new(out))
+                        }
+                    }
+                    other => Err(anyhow::anyhow!(
+                        "Unknown mode: {}. Use recent, semantic, or cascade",
+                        other
+                    )),
                 }
-                other => Err(anyhow::anyhow!(
-                    "Unknown mode: {}. Use recent, semantic, or cascade",
-                    other
-                )),
             }
-        }
-        "search" => {
-            let query = input
-                .query
-                .as_deref()
-                .ok_or_else(|| anyhow::anyhow!("query required"))?;
-            let scope = MemoryTool::parse_scope(input.scope.as_deref(), MemoryScope::All)?;
-            memory::set_state(MemoryState::ToolAction {
-                action: "search".into(),
-                detail: truncate_for_widget(query, 40),
-            });
-            let results = manager.search_scoped(query, scope)?;
-            memory::add_event(MemoryEventKind::ToolRecalled {
-                query: truncate_for_widget(query, 40),
-                count: results.len(),
-            });
-            memory::set_state(MemoryState::Idle);
-            if results.is_empty() {
-                Ok(ToolOutput::new(format!("No memories matching '{}'", query)))
-            } else {
-                let mut out = format!("Found {} memories:\n\n", results.len());
-                for e in results {
-                    out.push_str(&format!(
-                        "- [{}] {}\n  id: {}\n\n",
-                        e.category, e.content, e.id
-                    ));
-                }
-                Ok(ToolOutput::new(out))
-            }
-        }
-        "list" => {
-            let scope = MemoryTool::parse_scope(input.scope.as_deref(), MemoryScope::All)?;
-            memory::set_state(MemoryState::ToolAction {
-                action: "list".into(),
-                detail: String::new(),
-            });
-            let all = manager.list_all_scoped(scope)?;
-            memory::add_event(MemoryEventKind::ToolListed { count: all.len() });
-            memory::set_state(MemoryState::Idle);
-            if all.is_empty() {
-                Ok(ToolOutput::new("No memories stored."))
-            } else {
-                let mut out = format!("All memories ({}):\n\n", all.len());
-                for e in all {
-                    out.push_str(&format!(
-                        "- [{}] {}\n  id: {}\n\n",
-                        e.category, e.content, e.id
-                    ));
-                }
-                Ok(ToolOutput::new(out))
-            }
-        }
-        "forget" => {
-            let id = input
-                .id
-                .as_deref()
-                .ok_or_else(|| anyhow::anyhow!("id required"))?;
-            memory::set_state(MemoryState::ToolAction {
-                action: "forget".into(),
-                detail: truncate_for_widget(id, 30),
-            });
-            let found = manager.forget(id)?;
-            memory::add_event(MemoryEventKind::ToolForgot { id: id.to_string() });
-            memory::set_state(MemoryState::Idle);
-            if found {
-                Ok(ToolOutput::new(format!("Forgot: {}", id)))
-            } else {
-                Ok(ToolOutput::new(format!("Not found: {}", id)))
-            }
-        }
-        "tag" => {
-            let id = input
-                .id
-                .as_deref()
-                .ok_or_else(|| anyhow::anyhow!("id required"))?;
-            let tags = input
-                .tags
-                .as_deref()
-                .ok_or_else(|| anyhow::anyhow!("tags required"))?;
-
-            if tags.is_empty() {
-                return Err(anyhow::anyhow!("At least one tag required"));
-            }
-
-            memory::set_state(MemoryState::ToolAction {
-                action: "tag".into(),
-                detail: format!("{} +{}", truncate_for_widget(id, 20), tags.join(",")),
-            });
-            for tag in tags {
-                manager.tag_memory(id, tag)?;
-            }
-            let tags_str = tags.join(", ");
-            memory::add_event(MemoryEventKind::ToolTagged {
-                id: id.to_string(),
-                tags: tags_str.clone(),
-            });
-            memory::set_state(MemoryState::Idle);
-
-            Ok(ToolOutput::new(format!(
-                "Tagged memory {} with: {}",
-                id, tags_str
-            )))
-        }
-        "link" => {
-            let from_id = input
-                .from_id
-                .as_deref()
-                .ok_or_else(|| anyhow::anyhow!("from_id required"))?;
-            let to_id = input
-                .to_id
-                .as_deref()
-                .ok_or_else(|| anyhow::anyhow!("to_id required"))?;
-            let weight = input.weight.unwrap_or(0.5);
-
-            memory::set_state(MemoryState::ToolAction {
-                action: "link".into(),
-                detail: format!(
-                    "{} -> {}",
-                    truncate_for_widget(from_id, 15),
-                    truncate_for_widget(to_id, 15)
-                ),
-            });
-            manager.link_memories(from_id, to_id, weight)?;
-            memory::add_event(MemoryEventKind::ToolLinked {
-                from: from_id.to_string(),
-                to: to_id.to_string(),
-            });
-            memory::set_state(MemoryState::Idle);
-            Ok(ToolOutput::new(format!(
-                "Linked memories {} -> {} (weight {:.2})",
-                from_id, to_id, weight
-            )))
-        }
-        "related" => {
-            let id = input
-                .id
-                .as_deref()
-                .ok_or_else(|| anyhow::anyhow!("id required"))?;
-            let depth = input.depth.unwrap_or(2);
-
-            memory::set_state(MemoryState::ToolAction {
-                action: "related".into(),
-                detail: truncate_for_widget(id, 30),
-            });
-            let related = manager.get_related(id, depth)?;
-            memory::add_event(MemoryEventKind::ToolRecalled {
-                query: format!("related:{}", truncate_for_widget(id, 20)),
-                count: related.len(),
-            });
-            memory::set_state(MemoryState::Idle);
-
-            if related.is_empty() {
-                Ok(ToolOutput::new(format!(
-                    "No related memories found for {}",
-                    id
-                )))
-            } else {
-                let mut out = format!(
-                    "Found {} memories related to {} (depth {}):\n\n",
-                    related.len(),
-                    id,
-                    depth
-                );
-                for e in related {
-                    out.push_str(&format!(
-                        "- [{}] {}\n  id: {}\n\n",
-                        e.category, e.content, e.id
-                    ));
-                }
-                Ok(ToolOutput::new(out))
-            }
-        }
-        other => Err(anyhow::anyhow!("Unknown action: {}", other)),
-    }
-    .map_err(|err| {
-        crate::logging::warn(&format!(
-            "[tool:memory] action failed action={} session_id={} error={}",
-            action_label, session_id_for_error, err
-        ));
-        err
-    })
-}
-
-/// Execute memory actions using the mempalace adapter (#357).
-#[cfg(feature = "mempalace-backend")]
-async fn execute_mempalace(
-    adapter: &jcode_mempalace_adapter::MempalaceAdapter,
-    input: &MemoryInput,
-    ctx: &ToolContext,
-    action_label: &str,
-    session_id_for_error: &str,
-) -> Result<ToolOutput> {
-    use crate::memory;
-    use crate::memory_types::{MemoryEventKind, MemoryState};
-
-    let result = match input.action.as_str() {
-        "remember" => {
-            let content = input
-                .content
-                .as_deref()
-                .ok_or_else(|| anyhow::anyhow!("content required"))?;
-            let category: MemoryCategory = input
-                .category
-                .as_deref()
-                .unwrap_or("fact")
-                .parse()
-                .map_err(|err| anyhow::anyhow!("invalid memory category: {}", err))?;
-            let scope = input.scope.as_deref().unwrap_or("project");
-            let mp_scope = match scope {
-                "global" => MemoryScope::Global,
-                "all" => MemoryScope::All,
-                _ => MemoryScope::Project,
-            };
-            memory::set_state(MemoryState::ToolAction {
-                action: "remember".into(),
-                detail: truncate_for_widget(content, 40),
-            });
-            let tags = input.tags.clone().unwrap_or_default();
-            let id = adapter
-                .remember(content, &category, &tags, mp_scope, Some(&ctx.session_id))
-                .await?;
-            memory::add_event(MemoryEventKind::ToolRemembered {
-                content: truncate_for_widget(content, 60),
-                scope: scope.to_string(),
-                category: category.to_string(),
-            });
-            memory::set_state(MemoryState::Idle);
-            Ok(ToolOutput::new(format!(
-                "Remembered {} ({}): \"{}\" [id: {}]",
-                category, scope, content, id
-            )))
-        }
-        "recall" => {
-            let limit = input.limit.unwrap_or(10);
-            let scope = MemoryTool::parse_scope(input.scope.as_deref(), MemoryScope::All)?;
-            let mode = input.mode.as_deref().unwrap_or_else(|| {
-                if input.query.is_some() {
-                    "cascade"
+            "search" => {
+                let query = input
+                    .query
+                    .ok_or_else(|| anyhow::anyhow!("query required"))?;
+                let scope = Self::parse_scope(input.scope.as_deref(), MemoryScope::All)?;
+                memory::set_state(MemoryState::ToolAction {
+                    action: "search".into(),
+                    detail: truncate_for_widget(&query, 40),
+                });
+                let results = self.manager.search_scoped(&query, scope)?;
+                memory::add_event(MemoryEventKind::ToolRecalled {
+                    query: truncate_for_widget(&query, 40),
+                    count: results.len(),
+                });
+                memory::set_state(MemoryState::Idle);
+                if results.is_empty() {
+                    Ok(ToolOutput::new(format!("No memories matching '{}'", query)))
                 } else {
-                    "recent"
+                    let mut out = format!("Found {} memories:\n\n", results.len());
+                    for e in results {
+                        out.push_str(&format!(
+                            "- [{}] {}\n  id: {}\n\n",
+                            e.category, e.content, e.id
+                        ));
+                    }
+                    Ok(ToolOutput::new(out))
                 }
-            });
-            let query = input.query.as_deref().unwrap_or("");
-            memory::set_state(MemoryState::ToolAction {
-                action: "recall".into(),
-                detail: truncate_for_widget(query, 40),
-            });
-            let results = adapter.recall(query, scope, limit, mode).await?;
-            memory::add_event(MemoryEventKind::ToolRecalled {
-                query: truncate_for_widget(query, 40),
-                count: results.len(),
-            });
-            memory::set_state(MemoryState::Idle);
-            if results.is_empty() {
-                Ok(ToolOutput::new("No memories found."))
-            } else {
-                let mut out = format!("Found {} memories:\n\n", results.len());
-                for (text, score) in results {
-                    out.push_str(&format!("- {} (relevance: {:.0}%)\n", text, score * 100.0));
+            }
+            "list" => {
+                let scope = Self::parse_scope(input.scope.as_deref(), MemoryScope::All)?;
+                memory::set_state(MemoryState::ToolAction {
+                    action: "list".into(),
+                    detail: String::new(),
+                });
+                let all = self.manager.list_all_scoped(scope)?;
+                memory::add_event(MemoryEventKind::ToolListed { count: all.len() });
+                memory::set_state(MemoryState::Idle);
+                if all.is_empty() {
+                    Ok(ToolOutput::new("No memories stored."))
+                } else {
+                    let mut out = format!("All memories ({}):\n\n", all.len());
+                    for e in all {
+                        out.push_str(&format!(
+                            "- [{}] {}\n  id: {}\n\n",
+                            e.category, e.content, e.id
+                        ));
+                    }
+                    Ok(ToolOutput::new(out))
                 }
-                Ok(ToolOutput::new(out))
             }
-        }
-        "search" => {
-            let query = input
-                .query
-                .as_deref()
-                .ok_or_else(|| anyhow::anyhow!("query required"))?;
-            let scope = MemoryTool::parse_scope(input.scope.as_deref(), MemoryScope::All)?;
-            let limit = input.limit.unwrap_or(10);
-            memory::set_state(MemoryState::ToolAction {
-                action: "search".into(),
-                detail: truncate_for_widget(query, 40),
-            });
-            let results = adapter.search(query, scope, limit).await?;
-            memory::add_event(MemoryEventKind::ToolRecalled {
-                query: truncate_for_widget(query, 40),
-                count: results.len(),
-            });
-            memory::set_state(MemoryState::Idle);
-            if results.is_empty() {
-                Ok(ToolOutput::new(format!("No memories matching '{}'", query)))
-            } else {
-                let mut out = format!("Found {} memories:\n\n", results.len());
-                for (text, score) in results {
-                    out.push_str(&format!("- {} (relevance: {:.0}%)\n", text, score * 100.0));
+            "forget" => {
+                let id = input.id.ok_or_else(|| anyhow::anyhow!("id required"))?;
+                memory::set_state(MemoryState::ToolAction {
+                    action: "forget".into(),
+                    detail: truncate_for_widget(&id, 30),
+                });
+                let found = self.manager.forget(&id)?;
+                memory::add_event(MemoryEventKind::ToolForgot { id: id.clone() });
+                memory::set_state(MemoryState::Idle);
+                if found {
+                    Ok(ToolOutput::new(format!("Forgot: {}", id)))
+                } else {
+                    Ok(ToolOutput::new(format!("Not found: {}", id)))
                 }
-                Ok(ToolOutput::new(out))
             }
-        }
-        "list" => {
-            let scope = MemoryTool::parse_scope(input.scope.as_deref(), MemoryScope::All)?;
-            memory::set_state(MemoryState::ToolAction {
-                action: "list".into(),
-                detail: String::new(),
-            });
-            let all = adapter.list_all(scope).await?;
-            memory::add_event(MemoryEventKind::ToolListed { count: all.len() });
-            memory::set_state(MemoryState::Idle);
-            if all.is_empty() {
-                Ok(ToolOutput::new("No memories stored."))
-            } else {
-                let mut out = format!("All memories ({}):\n\n", all.len());
-                for (text, kind, _extra) in all {
-                    out.push_str(&format!("- [{}] {}\n", kind, text));
-                }
-                Ok(ToolOutput::new(out))
-            }
-        }
-        "forget" => {
-            let id = input
-                .id
-                .as_deref()
-                .ok_or_else(|| anyhow::anyhow!("id required"))?;
-            memory::set_state(MemoryState::ToolAction {
-                action: "forget".into(),
-                detail: truncate_for_widget(id, 30),
-            });
-            let found = adapter.forget(id).await?;
-            memory::add_event(MemoryEventKind::ToolForgot { id: id.to_string() });
-            memory::set_state(MemoryState::Idle);
-            if found {
-                Ok(ToolOutput::new(format!("Forgot: {}", id)))
-            } else {
-                Ok(ToolOutput::new(format!("Not found: {}", id)))
-            }
-        }
-        "tag" => {
-            let id = input
-                .id
-                .as_deref()
-                .ok_or_else(|| anyhow::anyhow!("id required"))?;
-            let tags = input
-                .tags
-                .as_deref()
-                .ok_or_else(|| anyhow::anyhow!("tags required"))?;
-            memory::set_state(MemoryState::ToolAction {
-                action: "tag".into(),
-                detail: format!("{} +{}", truncate_for_widget(id, 20), tags.join(",")),
-            });
-            adapter.tag(id, tags).await?;
-            let tags_str = tags.join(", ");
-            memory::add_event(MemoryEventKind::ToolTagged {
-                id: id.to_string(),
-                tags: tags_str.clone(),
-            });
-            memory::set_state(MemoryState::Idle);
-            Ok(ToolOutput::new(format!(
-                "Tagged memory {} with: {}",
-                id, tags_str
-            )))
-        }
-        "link" => {
-            let from_id = input
-                .from_id
-                .as_deref()
-                .ok_or_else(|| anyhow::anyhow!("from_id required"))?;
-            let to_id = input
-                .to_id
-                .as_deref()
-                .ok_or_else(|| anyhow::anyhow!("to_id required"))?;
-            let weight = input.weight.unwrap_or(0.5);
-            memory::set_state(MemoryState::ToolAction {
-                action: "link".into(),
-                detail: format!(
-                    "{} -> {}",
-                    truncate_for_widget(from_id, 15),
-                    truncate_for_widget(to_id, 15)
-                ),
-            });
-            adapter.link(from_id, to_id, weight).await?;
-            memory::add_event(MemoryEventKind::ToolLinked {
-                from: from_id.to_string(),
-                to: to_id.to_string(),
-            });
-            memory::set_state(MemoryState::Idle);
-            Ok(ToolOutput::new(format!(
-                "Linked memories {} -> {} (weight {:.2})",
-                from_id, to_id, weight
-            )))
-        }
-        "related" => {
-            let id = input
-                .id
-                .as_deref()
-                .ok_or_else(|| anyhow::anyhow!("id required"))?;
-            let depth = input.depth.unwrap_or(2);
-            memory::set_state(MemoryState::ToolAction {
-                action: "related".into(),
-                detail: truncate_for_widget(id, 30),
-            });
-            let related = adapter.related(id, depth).await?;
-            memory::add_event(MemoryEventKind::ToolRecalled {
-                query: format!("related:{}", truncate_for_widget(id, 20)),
-                count: related.len(),
-            });
-            memory::set_state(MemoryState::Idle);
-            if related.is_empty() {
-                Ok(ToolOutput::new(format!(
-                    "No related memories found for {}",
-                    id
-                )))
-            } else {
-                let mut out = format!(
-                    "Found {} memories related to {} (depth {}):\n\n",
-                    related.len(),
-                    id,
-                    depth
-                );
-                for (text, score) in related {
-                    out.push_str(&format!("- {} (relevance: {:.0}%)\n", text, score * 100.0));
-                }
-                Ok(ToolOutput::new(out))
-            }
-        }
-        other => Err(anyhow::anyhow!("Unknown action: {}", other)),
-    };
+            "tag" => {
+                let id = input.id.ok_or_else(|| anyhow::anyhow!("id required"))?;
+                let tags = input.tags.ok_or_else(|| anyhow::anyhow!("tags required"))?;
 
-    result.map_err(|err| {
-        crate::logging::warn(&format!(
-            "[tool:memory] mempalace action failed action={} session_id={} error={}",
-            action_label, session_id_for_error, err
-        ));
-        err
-    })
+                if tags.is_empty() {
+                    return Err(anyhow::anyhow!("At least one tag required"));
+                }
+
+                memory::set_state(MemoryState::ToolAction {
+                    action: "tag".into(),
+                    detail: format!("{} +{}", truncate_for_widget(&id, 20), tags.join(",")),
+                });
+                for tag in &tags {
+                    self.manager.tag_memory(&id, tag)?;
+                }
+                let tags_str = tags.join(", ");
+                memory::add_event(MemoryEventKind::ToolTagged {
+                    id: id.clone(),
+                    tags: tags_str.clone(),
+                });
+                memory::set_state(MemoryState::Idle);
+
+                Ok(ToolOutput::new(format!(
+                    "Tagged memory {} with: {}",
+                    id, tags_str
+                )))
+            }
+            "link" => {
+                let from_id = input
+                    .from_id
+                    .ok_or_else(|| anyhow::anyhow!("from_id required"))?;
+                let to_id = input
+                    .to_id
+                    .ok_or_else(|| anyhow::anyhow!("to_id required"))?;
+                let weight = input.weight.unwrap_or(0.5);
+
+                memory::set_state(MemoryState::ToolAction {
+                    action: "link".into(),
+                    detail: format!(
+                        "{} -> {}",
+                        truncate_for_widget(&from_id, 15),
+                        truncate_for_widget(&to_id, 15)
+                    ),
+                });
+                self.manager.link_memories(&from_id, &to_id, weight)?;
+                memory::add_event(MemoryEventKind::ToolLinked {
+                    from: from_id.clone(),
+                    to: to_id.clone(),
+                });
+                memory::set_state(MemoryState::Idle);
+                Ok(ToolOutput::new(format!(
+                    "Linked memories {} -> {} (weight {:.2})",
+                    from_id, to_id, weight
+                )))
+            }
+            "related" => {
+                let id = input.id.ok_or_else(|| anyhow::anyhow!("id required"))?;
+                let depth = input.depth.unwrap_or(2);
+
+                memory::set_state(MemoryState::ToolAction {
+                    action: "related".into(),
+                    detail: truncate_for_widget(&id, 30),
+                });
+                let related = self.manager.get_related(&id, depth)?;
+                memory::add_event(MemoryEventKind::ToolRecalled {
+                    query: format!("related:{}", truncate_for_widget(&id, 20)),
+                    count: related.len(),
+                });
+                memory::set_state(MemoryState::Idle);
+
+                if related.is_empty() {
+                    Ok(ToolOutput::new(format!(
+                        "No related memories found for {}",
+                        id
+                    )))
+                } else {
+                    let mut out = format!(
+                        "Found {} memories related to {} (depth {}):\n\n",
+                        related.len(),
+                        id,
+                        depth
+                    );
+                    for e in related {
+                        out.push_str(&format!(
+                            "- [{}] {}\n  id: {}\n\n",
+                            e.category, e.content, e.id
+                        ));
+                    }
+                    Ok(ToolOutput::new(out))
+                }
+            }
+            other => Err(anyhow::anyhow!("Unknown action: {}", other)),
+        }
+        .map_err(|err| {
+            crate::logging::warn(&format!(
+                "[tool:memory] action failed action={} session_id={} error={}",
+                action_label, session_id_for_error, err
+            ));
+            err
+        })
+    }
 }
 
 fn truncate_for_widget(s: &str, max: usize) -> String {

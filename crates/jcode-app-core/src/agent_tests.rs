@@ -152,7 +152,7 @@ async fn run_turn_streaming_mpsc_emits_keepalive_while_provider_is_quiet() {
         open_delay: Duration::from_secs(2),
         first_event_delay: Duration::from_secs(2),
     });
-    let registry = Registry::new(provider.clone(), None).await;
+    let registry = Registry::new(provider.clone()).await;
     let mut agent = Agent::new(provider, registry);
     agent.add_message(
         Role::User,
@@ -219,7 +219,7 @@ async fn run_turn_streaming_mpsc_emits_keepalive_while_provider_is_quiet() {
 #[tokio::test]
 async fn messages_for_provider_replays_persisted_native_compaction_in_auto_mode() {
     let provider: Arc<dyn Provider> = Arc::new(NativeAutoCompactionProvider);
-    let registry = Registry::new(provider.clone(), None).await;
+    let registry = Registry::new(provider.clone()).await;
     let mut agent = Agent::new(provider, registry);
 
     agent.add_message(
@@ -260,7 +260,7 @@ async fn messages_for_provider_replays_persisted_native_compaction_in_auto_mode(
 #[tokio::test]
 async fn oversized_openai_native_compaction_is_persisted_as_text_fallback() {
     let provider: Arc<dyn Provider> = Arc::new(NativeAutoCompactionProvider);
-    let registry = Registry::new(provider.clone(), None).await;
+    let registry = Registry::new(provider.clone()).await;
     let mut agent = Agent::new(provider, registry);
 
     agent.add_message(
@@ -322,7 +322,7 @@ async fn oversized_openai_native_compaction_is_persisted_as_text_fallback() {
 #[tokio::test]
 async fn messages_for_provider_applies_manual_compaction_in_native_auto_mode() {
     let provider: Arc<dyn Provider> = Arc::new(NativeAutoCompactionProvider);
-    let registry = Registry::new(provider.clone(), None).await;
+    let registry = Registry::new(provider.clone()).await;
     let mut agent = Agent::new(provider, registry);
 
     for i in 0..30 {
@@ -449,7 +449,7 @@ async fn interrupt_signal_notified_completes_after_fire() {
 async fn new_agent_registers_active_pid_and_clear_swaps_it() {
     let _guard = crate::storage::lock_test_env();
     let provider: Arc<dyn Provider> = Arc::new(NativeAutoCompactionProvider);
-    let registry = Registry::new(provider.clone(), None).await;
+    let registry = Registry::new(provider.clone()).await;
     let mut agent = Agent::new(provider, registry);
 
     let first_session_id = agent.session_id().to_string();
@@ -491,7 +491,7 @@ async fn default_disabled_tools_are_not_exposed_or_executable() {
     crate::config::Config::invalidate_cache();
 
     let provider: Arc<dyn Provider> = Arc::new(NativeAutoCompactionProvider);
-    let registry = Registry::new(provider.clone(), None).await;
+    let registry = Registry::new(provider.clone()).await;
     let mut agent = Agent::new(provider, registry);
     let definitions = agent.tool_definitions().await;
     let tool_names = agent.tool_names().await;
@@ -573,7 +573,7 @@ fn seed_transient_session_state(agent: &mut Agent) {
 async fn clear_resets_runtime_interrupt_and_queue_state() {
     let _guard = crate::storage::lock_test_env();
     let provider: Arc<dyn Provider> = Arc::new(NativeAutoCompactionProvider);
-    let registry = Registry::new(provider.clone(), None).await;
+    let registry = Registry::new(provider.clone()).await;
     let mut agent = Agent::new(provider, registry);
 
     seed_transient_session_state(&mut agent);
@@ -602,7 +602,7 @@ async fn clear_resets_runtime_interrupt_and_queue_state() {
 async fn restore_session_resets_runtime_interrupt_and_queue_state() {
     let _guard = crate::storage::lock_test_env();
     let provider: Arc<dyn Provider> = Arc::new(NativeAutoCompactionProvider);
-    let registry = Registry::new(provider.clone(), None).await;
+    let registry = Registry::new(provider.clone()).await;
     let mut agent = Agent::new(provider, registry);
 
     let mut restored_session = crate::session::Session::create_with_id(
@@ -644,7 +644,7 @@ async fn restore_session_rehydrates_injected_memory_ids() {
     crate::memory::clear_all_pending_memory();
 
     let provider: Arc<dyn Provider> = Arc::new(NativeAutoCompactionProvider);
-    let registry = Registry::new(provider.clone(), None).await;
+    let registry = Registry::new(provider.clone()).await;
     let mut agent = Agent::new(provider, registry);
 
     let mut restored_session = crate::session::Session::create_with_id(
@@ -685,7 +685,7 @@ async fn build_memory_prompt_nonblocking_defers_pending_memory_during_tool_loop(
     crate::memory::clear_all_pending_memory();
 
     let provider: Arc<dyn Provider> = Arc::new(NativeAutoCompactionProvider);
-    let registry = Registry::new(provider.clone(), None).await;
+    let registry = Registry::new(provider.clone()).await;
     let agent = Agent::new(provider, registry);
     let session_id = agent.session.id.clone();
 
@@ -735,7 +735,7 @@ async fn memory_injection_message_defaults_to_ephemeral_history() {
     crate::config::invalidate_config_cache();
 
     let provider: Arc<dyn Provider> = Arc::new(NativeAutoCompactionProvider);
-    let registry = Registry::new(provider.clone(), None).await;
+    let registry = Registry::new(provider.clone()).await;
     let mut agent = Agent::new(provider, registry);
     let before = agent.session.messages.len();
     let memory = crate::memory::PendingMemory {
@@ -768,7 +768,7 @@ async fn memory_injection_message_can_persist_to_history() {
     crate::config::invalidate_config_cache();
 
     let provider: Arc<dyn Provider> = Arc::new(NativeAutoCompactionProvider);
-    let registry = Registry::new(provider.clone(), None).await;
+    let registry = Registry::new(provider.clone()).await;
     let mut agent = Agent::new(provider, registry);
     let before = agent.session.messages.len();
     let memory = crate::memory::PendingMemory {
@@ -806,7 +806,7 @@ async fn mark_closed_persists_soft_interrupts_for_restore_after_reload() {
     crate::env::set_var("JCODE_HOME", temp.path());
 
     let provider: Arc<dyn Provider> = Arc::new(NativeAutoCompactionProvider);
-    let registry = Registry::new(provider.clone(), None).await;
+    let registry = Registry::new(provider.clone()).await;
     let mut agent = Agent::new(provider.clone(), registry.clone());
     let session_id = agent.session_id().to_string();
     agent.session.save().expect("save active session");
@@ -842,7 +842,7 @@ async fn mark_closed_persists_soft_interrupts_for_restore_after_reload() {
 async fn env_snapshot_detail_is_minimal_for_empty_sessions_and_full_after_history() {
     let _guard = crate::storage::lock_test_env();
     let provider: Arc<dyn Provider> = Arc::new(NativeAutoCompactionProvider);
-    let registry = Registry::new(provider.clone(), None).await;
+    let registry = Registry::new(provider.clone()).await;
     let mut agent = Agent::new(provider, registry);
 
     assert_eq!(agent.env_snapshot_detail(), EnvSnapshotDetail::Minimal);
@@ -905,7 +905,7 @@ impl crate::tool::Tool for FakeMcpTool {
 async fn mcp_tools_registered_after_lock_are_visible_to_agent() {
     let _guard = crate::storage::lock_test_env();
     let provider: Arc<dyn Provider> = Arc::new(NativeAutoCompactionProvider);
-    let registry = Registry::new(provider.clone(), None).await;
+    let registry = Registry::new(provider.clone()).await;
     let mut agent = Agent::new(provider, registry);
 
     // First turn locks the snapshot (this is what happens before the async MCP
@@ -967,7 +967,7 @@ async fn mcp_tools_registered_after_lock_are_visible_to_agent() {
 async fn mcp_late_registration_rebuild_happens_at_most_once() {
     let _guard = crate::storage::lock_test_env();
     let provider: Arc<dyn Provider> = Arc::new(NativeAutoCompactionProvider);
-    let registry = Registry::new(provider.clone(), None).await;
+    let registry = Registry::new(provider.clone()).await;
     let mut agent = Agent::new(provider, registry);
 
     // First turn locks the snapshot with no MCP tools yet.
@@ -1039,7 +1039,7 @@ async fn mcp_late_registration_rebuild_happens_at_most_once() {
 async fn tool_snapshot_is_stable_without_new_mcp_tools() {
     let _guard = crate::storage::lock_test_env();
     let provider: Arc<dyn Provider> = Arc::new(NativeAutoCompactionProvider);
-    let registry = Registry::new(provider.clone(), None).await;
+    let registry = Registry::new(provider.clone()).await;
     let mut agent = Agent::new(provider, registry);
 
     let first = agent.tool_definitions().await;

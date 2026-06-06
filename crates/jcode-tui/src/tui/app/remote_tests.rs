@@ -40,7 +40,7 @@ impl Provider for MockProvider {
 fn create_test_app() -> crate::tui::app::App {
     let provider: Arc<dyn Provider> = Arc::new(MockProvider);
     let rt = tokio::runtime::Runtime::new().expect("runtime");
-    let registry = rt.block_on(crate::tool::Registry::new(provider.clone(), None));
+    let registry = rt.block_on(crate::tool::Registry::new(provider.clone()));
     let mut app = crate::tui::app::App::new_for_test_harness(provider, registry);
     app.queue_mode = false;
     app.diff_mode = crate::config::DiffDisplayMode::Inline;

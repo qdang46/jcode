@@ -1318,7 +1318,7 @@ mod tests {
     ) {
         let provider = Arc::new(TestEffortProvider::default());
         let provider_dyn: Arc<dyn Provider> = provider.clone();
-        let registry = crate::tool::Registry::new(Arc::clone(&provider_dyn), None).await;
+        let registry = crate::tool::Registry::new(Arc::clone(&provider_dyn)).await;
         let mut session =
             crate::session::Session::create_with_id(session_id.to_string(), None, None);
         session.model = Some(provider.model());
@@ -1333,7 +1333,6 @@ mod tests {
     }
 
     #[tokio::test]
-    #[allow(clippy::await_holding_lock)]
     async fn set_reasoning_effort_does_not_wait_for_busy_agent_lock() {
         let _guard = crate::storage::lock_test_env();
         let _runtime = IsolatedRuntimeDir::new();
@@ -1368,7 +1367,6 @@ mod tests {
     }
 
     #[tokio::test]
-    #[allow(clippy::await_holding_lock)]
     async fn set_model_does_not_wait_for_busy_agent_lock() {
         let _guard = crate::storage::lock_test_env();
         let _runtime = IsolatedRuntimeDir::new();
@@ -1404,7 +1402,6 @@ mod tests {
     }
 
     #[tokio::test]
-    #[allow(clippy::await_holding_lock)]
     async fn set_service_tier_does_not_wait_for_busy_agent_lock() {
         let _guard = crate::storage::lock_test_env();
         let _runtime = IsolatedRuntimeDir::new();

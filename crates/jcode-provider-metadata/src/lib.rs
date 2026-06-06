@@ -425,38 +425,6 @@ mod tests {
     }
 
     #[test]
-    fn cohere_profile_uses_openai_compatibility_endpoint() {
-        // Issue #18: Cohere ships an OpenAI-compatible endpoint at
-        // /compatibility/v1 that accepts the OpenAI Chat Completions request
-        // shape. Wire it as a first-class provider preset rather than asking
-        // users to configure it manually as openai-compatible.
-        assert_eq!(COHERE_PROFILE.id, "cohere");
-        assert_eq!(
-            COHERE_PROFILE.api_base,
-            "https://api.cohere.com/compatibility/v1"
-        );
-        assert_eq!(COHERE_PROFILE.api_key_env, "COHERE_API_KEY");
-        assert_eq!(COHERE_PROFILE.env_file, "cohere.env");
-        assert_eq!(COHERE_PROFILE.default_model, Some("command-a-03-2025"));
-        assert!(COHERE_PROFILE.requires_api_key);
-        assert!(matches!(
-            COHERE_LOGIN_PROVIDER.target,
-            LoginProviderTarget::OpenAiCompatible(profile) if profile.id == "cohere"
-        ));
-        // Aliases must round-trip back to the cohere id so users can type
-        // `--provider command-a` or `--provider command-r` and land on the
-        // right preset.
-        assert_eq!(
-            resolve_login_provider("command-a").map(|p| p.id),
-            Some("cohere")
-        );
-        assert_eq!(
-            resolve_login_provider("command-r").map(|p| p.id),
-            Some("cohere")
-        );
-    }
-
-    #[test]
     fn nvidia_nim_profile_uses_hosted_openai_compatible_configuration() {
         assert_eq!(
             NVIDIA_NIM_PROFILE.api_base,
@@ -655,7 +623,7 @@ mod tests {
         );
         assert_eq!(
             resolve_login_selection("6", &providers).map(|provider| provider.id),
-            Some("openrouter")
+            Some("bedrock")
         );
         assert_eq!(
             resolve_login_selection("compat", &providers).map(|provider| provider.id),
@@ -673,26 +641,22 @@ mod tests {
         );
         assert_eq!(
             resolve_login_selection("4", &providers).map(|provider| provider.id),
-            Some("openai")
-        );
-        assert_eq!(
-            resolve_login_selection("5", &providers).map(|provider| provider.id),
             Some("jcode")
         );
         assert_eq!(
-            resolve_login_selection("6", &providers).map(|provider| provider.id),
+            resolve_login_selection("5", &providers).map(|provider| provider.id),
             Some("copilot")
         );
         assert_eq!(
-            resolve_login_selection("7", &providers).map(|provider| provider.id),
+            resolve_login_selection("6", &providers).map(|provider| provider.id),
             Some("openrouter")
         );
         assert_eq!(
-            resolve_login_selection("8", &providers).map(|provider| provider.id),
+            resolve_login_selection("7", &providers).map(|provider| provider.id),
             Some("bedrock")
         );
         assert_eq!(
-            resolve_login_selection("9", &providers).map(|provider| provider.id),
+            resolve_login_selection("8", &providers).map(|provider| provider.id),
             Some("azure")
         );
         assert_eq!(

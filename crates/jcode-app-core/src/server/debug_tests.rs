@@ -646,7 +646,7 @@ mod debug_execution_tests {
 
     async fn test_agent() -> Arc<AsyncMutex<Agent>> {
         let provider = Arc::new(TestProvider) as Arc<dyn provider::Provider>;
-        let registry = Registry::new(provider.clone(), None).await;
+        let registry = Registry::new(provider.clone()).await;
         Arc::new(AsyncMutex::new(Agent::new(provider, registry)))
     }
 

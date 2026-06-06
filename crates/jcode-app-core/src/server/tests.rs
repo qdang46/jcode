@@ -172,7 +172,7 @@ impl Provider for StreamingMockProvider {
 }
 
 async fn test_agent(provider: Arc<dyn Provider>) -> Arc<Mutex<Agent>> {
-    let registry = Registry::new(provider.clone(), None).await;
+    let registry = Registry::new(provider.clone()).await;
     Arc::new(Mutex::new(Agent::new(provider, registry)))
 }
 

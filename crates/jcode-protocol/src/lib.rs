@@ -171,7 +171,7 @@ impl AuthChanged {
 pub type ReloadRecoverySnapshot = jcode_selfdev_types::ReloadRecoveryDirective;
 
 mod wire;
-pub use wire::{ExperimentFlagWire, Request, ServerEvent};
+pub use wire::{Request, ServerEvent};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ToolCallSummary {
@@ -471,8 +471,6 @@ impl Request {
             Request::CommSubscribeChannel { id, .. } => *id,
             Request::CommUnsubscribeChannel { id, .. } => *id,
             Request::CommAwaitMembers { id, .. } => *id,
-            Request::ExperimentList { id } => *id,
-            Request::ExperimentSet { id, .. } => *id,
         }
     }
 

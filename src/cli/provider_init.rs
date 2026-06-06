@@ -94,18 +94,6 @@ pub enum ProviderChoice {
     NvidiaNim,
     #[value(alias = "xiaomi", alias = "mimo", alias = "xiaomi-mimo-api")]
     XiaomiMimo,
-    XiaomiTokenPlan,
-    Cohere,
-    SiliconFlow,
-    Hyperbolic,
-    Glm,
-    #[value(alias = "volcengine", alias = "doubao")]
-    VolcengineArk,
-    BytePlus,
-    #[value(alias = "cloudflare", alias = "workers-ai", alias = "cf-ai")]
-    CloudflareAi,
-    #[value(alias = "vercel-ai", alias = "ai-gateway")]
-    VercelAiGateway,
     #[value(alias = "lm-studio")]
     Lmstudio,
     Ollama,
@@ -124,13 +112,6 @@ pub enum ProviderChoice {
     Cursor,
     Copilot,
     Gemini,
-    #[value(
-        alias = "gemini-key",
-        alias = "gemini-apikey",
-        alias = "google-ai-studio",
-        alias = "ai-studio"
-    )]
-    GeminiApi,
     Antigravity,
     Google,
     Auto,
@@ -175,15 +156,6 @@ impl ProviderChoice {
             Self::Xai => "xai",
             Self::NvidiaNim => "nvidia-nim",
             Self::XiaomiMimo => "xiaomi-mimo",
-            Self::XiaomiTokenPlan => "xiaomi-token-plan",
-            Self::Cohere => "cohere",
-            Self::SiliconFlow => "siliconflow",
-            Self::Hyperbolic => "hyperbolic",
-            Self::Glm => "glm",
-            Self::VolcengineArk => "volcengine-ark",
-            Self::BytePlus => "byteplus",
-            Self::CloudflareAi => "cloudflare-ai",
-            Self::VercelAiGateway => "vercel-ai-gateway",
             Self::Lmstudio => "lmstudio",
             Self::Ollama => "ollama",
             Self::Chutes => "chutes",
@@ -193,7 +165,6 @@ impl ProviderChoice {
             Self::Cursor => "cursor",
             Self::Copilot => "copilot",
             Self::Gemini => "gemini",
-            Self::GeminiApi => "gemini-api",
             Self::Antigravity => "antigravity",
             Self::Google => "google",
             Self::Auto => "auto",
@@ -344,42 +315,6 @@ const PROVIDER_CHOICE_LOGIN_PROVIDERS: &[(ProviderChoice, LoginProviderDescripto
         crate::provider_catalog::XIAOMI_MIMO_LOGIN_PROVIDER,
     ),
     (
-        ProviderChoice::XiaomiTokenPlan,
-        crate::provider_catalog::XIAOMI_TOKEN_PLAN_LOGIN_PROVIDER,
-    ),
-    (
-        ProviderChoice::Cohere,
-        crate::provider_catalog::COHERE_LOGIN_PROVIDER,
-    ),
-    (
-        ProviderChoice::SiliconFlow,
-        crate::provider_catalog::SILICONFLOW_LOGIN_PROVIDER,
-    ),
-    (
-        ProviderChoice::Hyperbolic,
-        crate::provider_catalog::HYPERBOLIC_LOGIN_PROVIDER,
-    ),
-    (
-        ProviderChoice::Glm,
-        crate::provider_catalog::GLM_LOGIN_PROVIDER,
-    ),
-    (
-        ProviderChoice::VolcengineArk,
-        crate::provider_catalog::VOLCENGINE_ARK_LOGIN_PROVIDER,
-    ),
-    (
-        ProviderChoice::BytePlus,
-        crate::provider_catalog::BYTEPLUS_LOGIN_PROVIDER,
-    ),
-    (
-        ProviderChoice::CloudflareAi,
-        crate::provider_catalog::CLOUDFLARE_AI_LOGIN_PROVIDER,
-    ),
-    (
-        ProviderChoice::VercelAiGateway,
-        crate::provider_catalog::VERCEL_AI_GATEWAY_LOGIN_PROVIDER,
-    ),
-    (
         ProviderChoice::Lmstudio,
         crate::provider_catalog::LMSTUDIO_LOGIN_PROVIDER,
     ),
@@ -414,10 +349,6 @@ const PROVIDER_CHOICE_LOGIN_PROVIDERS: &[(ProviderChoice, LoginProviderDescripto
     (
         ProviderChoice::Gemini,
         crate::provider_catalog::GEMINI_LOGIN_PROVIDER,
-    ),
-    (
-        ProviderChoice::GeminiApi,
-        crate::provider_catalog::GEMINI_API_LOGIN_PROVIDER,
     ),
     (
         ProviderChoice::Antigravity,
@@ -1474,13 +1405,6 @@ async fn init_provider_with_options(
             lock_model_provider("openai");
             Arc::new(provider::MultiProvider::with_preference_fast(true))
         }
-        ProviderChoice::GeminiApi => {
-            disable_subscription_runtime_mode();
-            ensure_external_api_key_auth_allowed_for_explicit_choice("GEMINI_API_KEY")?;
-            init_notice("Using Gemini Developer API key provider (provider locked)");
-            lock_model_provider("gemini-api");
-            Arc::new(provider::MultiProvider::with_preference_fast(true))
-        }
         ProviderChoice::Cursor => {
             disable_subscription_runtime_mode();
             ensure_cursor_auth_allowed_for_explicit_choice()?;
@@ -1559,15 +1483,6 @@ async fn init_provider_with_options(
         | ProviderChoice::Xai
         | ProviderChoice::NvidiaNim
         | ProviderChoice::XiaomiMimo
-        | ProviderChoice::XiaomiTokenPlan
-        | ProviderChoice::Cohere
-        | ProviderChoice::SiliconFlow
-        | ProviderChoice::Hyperbolic
-        | ProviderChoice::Glm
-        | ProviderChoice::VolcengineArk
-        | ProviderChoice::BytePlus
-        | ProviderChoice::CloudflareAi
-        | ProviderChoice::VercelAiGateway
         | ProviderChoice::Lmstudio
         | ProviderChoice::Ollama
         | ProviderChoice::Chutes
@@ -1846,7 +1761,7 @@ pub async fn init_provider_and_registry(
     model: Option<&str>,
 ) -> Result<(Arc<dyn provider::Provider>, tool::Registry)> {
     let provider = init_provider(choice, model).await?;
-    let registry = tool::Registry::new(provider.clone(), tool::shared_agent_registry()).await;
+    let registry = tool::Registry::new(provider.clone()).await;
     Ok((provider, registry))
 }
 
@@ -1855,7 +1770,7 @@ pub async fn init_provider_and_registry_for_validation(
     model: Option<&str>,
 ) -> Result<(Arc<dyn provider::Provider>, tool::Registry)> {
     let provider = init_provider_for_validation(choice, model).await?;
-    let registry = tool::Registry::new(provider.clone(), tool::shared_agent_registry()).await;
+    let registry = tool::Registry::new(provider.clone()).await;
     Ok((provider, registry))
 }
 

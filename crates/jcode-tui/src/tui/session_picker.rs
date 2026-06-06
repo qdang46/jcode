@@ -560,7 +560,6 @@ impl SessionPicker {
             ResumeTarget::OpenCodeSession { .. } => external_path.as_deref().and_then(|path| {
                 loading::load_opencode_preview_from_path(std::path::Path::new(path))
             }),
-            ResumeTarget::ForeignSession { .. } => None,
         }
     }
 

@@ -132,7 +132,6 @@ const MACOS_TERMINAL_PREFERENCE: &[&str] = &[
 ];
 
 #[cfg(unix)]
-#[allow(clippy::needless_return)]
 pub fn detected_resume_terminal() -> Option<String> {
     if std::env::var("HANDTERM_SESSION").is_ok() || std::env::var("HANDTERM_PID").is_ok() {
         return Some("handterm".to_string());
@@ -143,12 +142,6 @@ pub fn detected_resume_terminal() -> Option<String> {
         .unwrap_or(false)
     {
         return Some("handterm".to_string());
-    }
-    // tmux: prefer splitting a new pane in the existing session over launching
-    // a brand-new terminal emulator. Detected via $TMUX which tmux always sets
-    // for processes inside an attached session. See issue #74 / upstream PR #78.
-    if std::env::var("TMUX").is_ok() {
-        return Some("tmux".to_string());
     }
     if std::env::var("KITTY_PID").is_ok() {
         return Some("kitty".to_string());
@@ -224,7 +217,6 @@ pub fn resume_terminal_candidates() -> Vec<String> {
     {
         for term in [
             "handterm",
-            "tmux",
             "kitty",
             "wezterm",
             "alacritty",
@@ -297,18 +289,6 @@ fn build_spawn_command(term: &str, command: &TerminalCommand, cwd: &Path) -> Opt
         "handterm" => {
             let shell = shell_command(&command_parts(command));
             cmd.args(["--backend", "gpu", "--exec", &shell]);
-        }
-        #[cfg(unix)]
-        "tmux" => {
-            // Split the current tmux window into a new detached pane and run
-            // the requested command there. `-d` keeps focus on the current
-            // pane; `select-layout tiled` re-flows so the new pane is visible.
-            // See issue #74 / upstream PR #78.
-            let shell = shell_command(&command_parts(command));
-            cmd.args(["split-window", "-d", "-c"])
-                .arg(cwd)
-                .arg(&shell)
-                .args([";", "select-layout", "tiled"]);
         }
         #[cfg(target_os = "macos")]
         "ghostty" => {
@@ -446,34 +426,6 @@ mod tests {
         assert_eq!(detected_resume_terminal().as_deref(), Some("ghostty"));
         unsafe {
             std::env::remove_var("GHOSTTY_RESOURCES_DIR");
-        }
-    }
-
-    #[test]
-    #[cfg(unix)]
-    fn detected_resume_terminal_recognizes_tmux_via_tmux_env() {
-        // Regression for issue #74 / upstream PR #78: an attached tmux session
-        // must be detected so spawn_resume_in_new_terminal opens a new pane in
-        // the existing session instead of launching a fresh terminal emulator.
-        let _guard = ENV_LOCK.lock().unwrap();
-        let prev_tmux = std::env::var_os("TMUX");
-        unsafe {
-            // Clear the higher-priority detectors so tmux can win.
-            std::env::remove_var("HANDTERM_SESSION");
-            std::env::remove_var("HANDTERM_PID");
-            std::env::remove_var("KITTY_PID");
-            std::env::remove_var("WEZTERM_EXECUTABLE");
-            std::env::remove_var("WEZTERM_PANE");
-            std::env::remove_var("ALACRITTY_WINDOW_ID");
-            std::env::remove_var("GHOSTTY_RESOURCES_DIR");
-            std::env::set_var("TMUX", "/tmp/tmux-1000/default,12345,0");
-        }
-        assert_eq!(detected_resume_terminal().as_deref(), Some("tmux"));
-        unsafe {
-            std::env::remove_var("TMUX");
-            if let Some(prev) = prev_tmux {
-                std::env::set_var("TMUX", prev);
-            }
         }
     }
 

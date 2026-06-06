@@ -3,7 +3,6 @@ use anyhow::{Context, Result};
 use async_trait::async_trait;
 use serde::Deserialize;
 use serde_json::{Value, json};
-#[cfg(all(unix, not(target_os = "macos")))]
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -171,7 +170,7 @@ fn resolve_target(target: &str, ctx: &ToolContext) -> Result<ResolvedTarget> {
     }
 
     let expanded = expand_home(trimmed)?;
-    let resolved = ctx.resolve_path_checked(Path::new(&expanded))?;
+    let resolved = ctx.resolve_path(Path::new(&expanded));
     resolve_local_target(resolved)
 }
 
@@ -340,7 +339,7 @@ async fn open_target(target: &ResolvedTarget) -> Result<String> {
             }
         }
         spawn_with_grace(cmd, "open").await?;
-        Ok("open".to_string())
+        return Ok("open".to_string());
     }
 
     #[cfg(all(unix, not(target_os = "macos")))]
@@ -373,7 +372,7 @@ async fn reveal_target(path: &Path, kind: LocalTargetKind) -> Result<(String, bo
             cmd.arg("-R").arg(path);
         }
         spawn_with_grace(cmd, "open").await?;
-        Ok(("open".to_string(), true))
+        return Ok(("open".to_string(), true));
     }
 
     #[cfg(all(unix, not(target_os = "macos")))]

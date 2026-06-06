@@ -151,31 +151,8 @@ impl App {
     }
 
     pub(super) fn cycle_model(&mut self, direction: i8) {
-        let provider_models = self.provider.available_models_for_switching();
-        if provider_models.is_empty() {
-            self.push_display_message(DisplayMessage::error(
-                "Model switching is not available for this provider.",
-            ));
-            self.set_status_notice("Model switching not available");
-            return;
-        }
-
-        // Apply scoped-models allowlist (issue #26). If the user has
-        // configured a list, restrict cycling to entries matching it,
-        // preserving the allowlist's order so flips are deterministic.
-        let allowlist = crate::scoped_models::resolve_allowlist();
-        let models = crate::scoped_models::filter_by_allowlist(&provider_models, &allowlist);
+        let models = self.provider.available_models_for_switching();
         if models.is_empty() {
-            // The allowlist filtered everything out — surface a helpful error
-            // instead of silently falling back to the unscoped list.
-            if !allowlist.is_empty() {
-                self.push_display_message(DisplayMessage::error(format!(
-                    "Scoped models {:?} matched no available model. Edit `provider.scoped_models` or pass `--models <patterns>`.",
-                    allowlist
-                )));
-                self.set_status_notice("No scoped models match");
-                return;
-            }
             self.push_display_message(DisplayMessage::error(
                 "Model switching is not available for this provider.",
             ));
@@ -336,13 +313,13 @@ impl App {
     }
 
     pub(super) fn current_stream_context_tokens(&self) -> Option<u64> {
-        if self.streaming_input_tokens == 0 {
+        if self.streaming.streaming_input_tokens == 0 {
             return None;
         }
         Some(self.effective_context_tokens_from_usage(
-            self.streaming_input_tokens,
-            self.streaming_cache_read_tokens,
-            self.streaming_cache_creation_tokens,
+            self.streaming.streaming_input_tokens,
+            self.streaming.streaming_cache_read_tokens,
+            self.streaming.streaming_cache_creation_tokens,
         ))
     }
 
@@ -488,11 +465,11 @@ impl App {
         self.clear_streaming_render_state();
         self.stream_buffer.clear();
         self.streaming_tool_calls.clear();
-        self.streaming_input_tokens = 0;
-        self.streaming_output_tokens = 0;
-        self.streaming_cache_read_tokens = None;
-        self.streaming_cache_creation_tokens = None;
-        self.current_api_usage_recorded = false;
+        self.streaming.streaming_input_tokens = 0;
+        self.streaming.streaming_output_tokens = 0;
+        self.streaming.streaming_cache_read_tokens = None;
+        self.streaming.streaming_cache_creation_tokens = None;
+        self.kv_cache.current_api_usage_recorded = false;
         self.thought_line_inserted = false;
         self.thinking_prefix_emitted = false;
         self.thinking_buffer.clear();

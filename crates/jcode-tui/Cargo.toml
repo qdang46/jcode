@@ -22,7 +22,6 @@ path = "src/lib.rs"
 # Re-exported via `pub use jcode_app_core::*` in lib.rs. default-features=false
 # so this crate (and ultimately the root crate) controls app-core's features.
 jcode-app-core = { path = "../jcode-app-core", default-features = false }
-jcode-keywords = { path = "../jcode-keywords" }
 
 # Pure math kernels for the idle animations (3D samplers, glyph chooser,
 # HSV->RGB). Pinned to opt-level = 3 in all profiles via workspace Cargo.toml so
@@ -40,16 +39,9 @@ serde_json = { version = "1", features = ["raw_value"] }
 
 # Utilities
 anyhow = "1"
-thiserror = "1"
-# Resolved by [workspace.dependencies] in the root Cargo.toml to point at
-# the fast_file_search main branch (carries the @-mention system).
-ffs-search.workspace = true
 libc = "0.2"
 chrono = { version = "0.4", features = ["serde"] }
-
-# DCG permission modes (experiment/dcg-permission-modes)
-dcg-core = { git = "https://github.com/quangdang46/destructive_command_guard", branch = "main" }
-regex.workspace = true
+regex = "1"
 dirs = "5"
 similar = "2"
 tempfile = "3"
@@ -79,12 +71,11 @@ jcode-session-types = { path = "../jcode-session-types" }
 jcode-provider-core = { path = "../jcode-provider-core" }
 jcode-tui-markdown = { path = "../jcode-tui-markdown" }
 jcode-tui-messages = { path = "../jcode-tui-messages" }
-# Phase B: payload resolution for the @-mention system.
-ffs-engine.workspace = true
 jcode-tui-core = { path = "../jcode-tui-core" }
 jcode-tui-mermaid = { path = "../jcode-tui-mermaid" }
 jcode-tui-account-picker = { path = "../jcode-tui-account-picker" }
 jcode-tui-render = { path = "../jcode-tui-render" }
+jcode-tui-visual-debug = { path = "../jcode-tui-visual-debug" }
 jcode-tui-session-picker = { path = "../jcode-tui-session-picker", features = ["serde"] }
 jcode-tui-style = { path = "../jcode-tui-style" }
 jcode-tui-tool-display = { path = "../jcode-tui-tool-display" }
@@ -92,8 +83,6 @@ jcode-tui-usage-overlay = { path = "../jcode-tui-usage-overlay" }
 jcode-terminal-image = { path = "../jcode-terminal-image" }
 jcode-productivity-core = { path = "../jcode-productivity-core" }
 jcode-tui-workspace = { path = "../jcode-tui-workspace" }
-jcode-plugin-runtime = { path = "../jcode-plugin-runtime" }
-jcode-experiment-flags = { path = "../jcode-experiment-flags" }
 
 [features]
 default = ["pdf", "embeddings"]
@@ -106,9 +95,7 @@ jemalloc = ["jcode-app-core/jemalloc"]
 jemalloc-prof = ["jcode-app-core/jemalloc-prof"]
 embeddings = ["jcode-app-core/embeddings"]
 pdf = ["jcode-app-core/pdf"]
-# Forward DCP feature to app-core.
 dcp = ["jcode-app-core/dcp"]
-# Forward RTCO feature to app-core.
 rtco = ["jcode-app-core/rtco"]
 mmdr-size-api = ["jcode-tui-mermaid/mmdr-size-api"]
 # Forwards the application core's `test-support` feature (and onward to
@@ -120,8 +107,6 @@ test-support = ["jcode-app-core/test-support"]
 # Enables the downstream test-support helpers for *this* crate's own test
 # target. Feature unification applies this only to test/bench/example builds.
 jcode-app-core = { path = "../jcode-app-core", features = ["test-support"] }
-# Used by the test module in `state_ui_messages.rs` for the `Role` enum.
-jcode-message-types = { path = "../jcode-message-types" }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 global-hotkey = "0.7"
