@@ -1,13 +1,12 @@
 //! Hook matcher logic - determines which hooks apply to which tools/events
 
-use regex::Regex;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum HookMatcher {
     Exact(String),
     Multi(Vec<String>),
-    Regex(String),
+    Regex(regex::Regex),
     Wildcard,
 }
 
@@ -43,21 +42,13 @@ pub fn matches(matcher: &HookMatcher, ctx: &MatcherContext) -> bool {
     match matcher {
         HookMatcher::Exact(pattern) => ctx.target == pattern,
         HookMatcher::Multi(patterns) => patterns.iter().any(|p| ctx.target == p),
-        HookMatcher::Regex(pattern) => {
-            match Regex::new(pattern) {
-                Ok(re) => {
-                    // Match against target + context (concatenated) for full flexibility
-                    let match_str = match ctx.context {
-                        Some(context) => format!("{}{}", ctx.target, context),
-                        None => ctx.target.to_string(),
-                    };
-                    re.is_match(&match_str)
-                }
-                Err(_) => {
-                    // If regex is invalid, try matching as literal
-                    ctx.target == pattern
-                }
-            }
+        HookMatcher::Regex(re) => {
+            // Match against target + context (concatenated) for full flexibility
+            let match_str = match ctx.context {
+                Some(context) => format!("{}{}", ctx.target, context),
+                None => ctx.target.to_string(),
+            };
+            re.is_match(&match_str)
         }
         HookMatcher::Wildcard => true,
     }
@@ -103,7 +94,7 @@ mod tests {
 
     #[test]
     fn test_regex_matcher() {
-        let matcher = HookMatcher::Regex("^Bash(git.*)".to_string());
+        let matcher = HookMatcher::Regex(regex::Regex::new("^Bash(git.*)").unwrap());
 
         let ctx = MatcherContext::new("Bash");
         assert!(!matches(&matcher, &ctx)); // No match without git prefix
@@ -124,7 +115,7 @@ mod tests {
 
     #[test]
     fn test_invalid_regex_falls_back() {
-        let matcher = HookMatcher::Regex("[invalid".to_string());
+        let matcher = // HookMatcher::Regex("[invalid".to_string()); — removed, invalid regex would cause a panic at parse time
         let ctx = MatcherContext::new("[invalid");
         // Invalid regex should fall back to exact match
         assert!(matches(&matcher, &ctx));
