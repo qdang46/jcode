@@ -16,6 +16,8 @@
 //! prompt_builder::build_keyword_prompt() → String (injected into system prompt)
 //!     ↓
 //! visual::compute_highlights() → Vec<KeywordHighlight> (rainbow TUI rendering)
+//!     ↓
+//! workflow::executor::execute_active_workflows() → Vec<WorkflowAction>
 //! ```
 
 pub mod conflict;
@@ -34,3 +36,5 @@ pub use detector::{DetectedKeyword, detect_keywords};
 pub use registry::{KeywordEntry, WorkflowKind};
 pub use state::ModeState;
 pub use visual::KeywordHighlight;
+pub use workflow::{WorkflowAction, WorkflowContext, WorkflowHandler};
+pub use workflow::executor::{execute_active_workflows, process_turn_response, build_workflow_prompt};

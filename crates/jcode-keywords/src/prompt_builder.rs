@@ -107,6 +107,7 @@ fn workflow_description(kind: WorkflowKind) -> &'static str {
 mod tests {
     use super::*;
     use crate::state::ActiveMode;
+    use std::collections::HashMap;
 
     #[test]
     fn empty_state_returns_empty() {
@@ -122,6 +123,7 @@ mod tests {
                 activated_at: "2026-01-01T00:00:00Z".to_string(),
                 turn_count: 2,
                 turn_limit: 10,
+                metadata: HashMap::new(),
             }],
             updated_at: None,
         };
@@ -139,12 +141,14 @@ mod tests {
                     activated_at: "2026-01-01T00:00:00Z".to_string(),
                     turn_count: 0,
                     turn_limit: 10,
+                    metadata: HashMap::new(),
                 },
                 ActiveMode {
                     workflow: WorkflowKind::Tdd,
                     activated_at: "2026-01-01T00:00:00Z".to_string(),
                     turn_count: 0,
                     turn_limit: 10,
+                    metadata: HashMap::new(),
                 },
             ],
             updated_at: None,

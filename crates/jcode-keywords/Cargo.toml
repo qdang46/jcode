@@ -13,6 +13,7 @@ toml = { version = "0.8" }
 strum = { workspace = true, features = ["derive"] }
 chrono = { version = "0.4", features = ["serde"] }
 dirs = "6"
+tokio = { version = "1", features = ["rt", "time"] }
 
 [dev-dependencies]
 tempfile = "3"

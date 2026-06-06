@@ -5,6 +5,7 @@
 
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use crate::detector::DetectedKeyword;
@@ -33,6 +34,9 @@ pub struct ActiveMode {
     pub turn_count: u32,
     /// Turn limit before auto-deactivation.
     pub turn_limit: u32,
+    /// Workflow-specific metadata (iteration counts, scores, goals, etc.).
+    #[serde(default)]
+    pub metadata: HashMap<String, String>,
 }
 
 impl ActiveMode {
@@ -85,6 +89,7 @@ pub fn update_modes(detections: &[DetectedKeyword], working_dir: Option<&Path>) 
             activated_at: Utc::now().to_rfc3339(),
             turn_count: 0,
             turn_limit: DEFAULT_TURN_LIMIT,
+            metadata: HashMap::new(),
         });
     }
 
@@ -160,6 +165,7 @@ mod tests {
                 activated_at: "2026-01-01T00:00:00Z".to_string(),
                 turn_count: 3,
                 turn_limit: 10,
+                metadata: HashMap::new(),
             }],
             updated_at: Some("2026-01-01T00:00:00Z".to_string()),
         };
@@ -176,6 +182,7 @@ mod tests {
             activated_at: "2026-01-01T00:00:00Z".to_string(),
             turn_count: 10,
             turn_limit: 10,
+            metadata: HashMap::new(),
         };
         assert!(mode.is_expired());
     }
@@ -187,6 +194,7 @@ mod tests {
             activated_at: "2026-01-01T00:00:00Z".to_string(),
             turn_count: 5,
             turn_limit: 10,
+            metadata: HashMap::new(),
         };
         assert!(!mode.is_expired());
     }
