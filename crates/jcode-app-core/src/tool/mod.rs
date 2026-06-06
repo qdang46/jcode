@@ -7,9 +7,9 @@ mod bg;
 mod browser;
 mod codesearch;
 mod communicate;
+mod conversation_search;
 #[cfg(feature = "mempalace-backend")]
 pub mod coordination;
-mod conversation_search;
 mod debug_socket;
 mod edit;
 mod glob;

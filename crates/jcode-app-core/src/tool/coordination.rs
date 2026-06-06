@@ -7,7 +7,7 @@ use super::{Tool, ToolContext, ToolOutput};
 use anyhow::Result;
 use async_trait::async_trait;
 use jcode_mempalace_adapter::coordination::CoordinationAdapter;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
@@ -467,9 +467,9 @@ impl Tool for FileConflictsTool {
             jcode_mempalace_adapter::ReservationConflict::None => {
                 Ok(ToolOutput::new("No conflict. Safe to edit.".to_string()))
             }
-            jcode_mempalace_adapter::ReservationConflict::SameAgent => {
-                Ok(ToolOutput::new("You already hold a reservation for this file.".to_string()))
-            }
+            jcode_mempalace_adapter::ReservationConflict::SameAgent => Ok(ToolOutput::new(
+                "You already hold a reservation for this file.".to_string(),
+            )),
             other => Ok(ToolOutput::new(format!("Conflict detected: {:?}", other))),
         }
     }
@@ -521,10 +521,7 @@ impl Tool for SaturationCheckTool {
             ));
         }
 
-        let mut result = format!(
-            "Saturation detected! {} signals:\n\n",
-            report.signals.len()
-        );
+        let mut result = format!("Saturation detected! {} signals:\n\n", report.signals.len());
         for evidence in &report.signals {
             result.push_str(&format!(
                 "- {:?}: {} occurrences (threshold: {})\n",
