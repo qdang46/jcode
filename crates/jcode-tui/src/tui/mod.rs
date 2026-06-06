@@ -161,6 +161,14 @@ pub trait TuiState {
     fn status_detail(&self) -> Option<String>;
     fn mcp_servers(&self) -> Vec<(String, usize)>;
     fn available_skills(&self) -> Vec<String>;
+    /// Registered slash-command metadata (name + description) for input highlighting.
+    fn registered_commands(&self) -> &[crate::tui::app::state_ui_input_helpers::RegisteredCommand] {
+        crate::tui::app::state_ui_input_helpers::REGISTERED_COMMANDS
+    }
+    /// Names of currently available skills (for input highlighting).
+    fn known_skill_names(&self) -> Vec<String> {
+        self.available_skills()
+    }
     fn streaming_tokens(&self) -> (u64, u64);
     fn streaming_cache_tokens(&self) -> (Option<u64>, Option<u64>);
     /// Output tokens per second during streaming (for status bar)

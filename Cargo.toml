@@ -85,6 +85,7 @@ members = [
 ffs-search = { git = "https://github.com/quangdang46/fast_file_search", rev = "4cd7f27" }
 ffs-engine = { git = "https://github.com/quangdang46/fast_file_search", rev = "4cd7f27" }
 strum = { version = "0.26", features = ["derive"] }
+regex = "1"
 
 [lib]
 name = "jcode"

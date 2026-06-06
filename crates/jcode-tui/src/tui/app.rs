@@ -83,7 +83,7 @@ pub(crate) mod run_shell;
 mod runtime_memory;
 mod split_view;
 mod state_ui;
-mod state_ui_input_helpers;
+pub(crate) mod state_ui_input_helpers;
 mod state_ui_maintenance;
 mod state_ui_messages;
 mod state_ui_runtime;

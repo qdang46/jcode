@@ -607,10 +607,10 @@ pub fn parse_markdown(text: &str) -> Document {
                 pending_item_marker = None;
             }
             Event::End(TagEnd::List(_)) => {
-                if let Some(frame) = list_stack.pop() {
-                    if frame.ordered {
-                        align_ordered_markers(&mut doc, frame.start_block, frame.depth);
-                    }
+                if let Some(frame) = list_stack.pop()
+                    && frame.ordered
+                {
+                    align_ordered_markers(&mut doc, frame.start_block, frame.depth);
                 }
             }
             Event::End(TagEnd::BlockQuote(_)) => {

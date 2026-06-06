@@ -245,6 +245,7 @@ impl Agent {
 /// This helper is intentionally not yet wired into step-prompt emission;
 /// integration will land alongside the Phase 1 `AgentDefinition.step_prompt`
 /// changes.
+#[allow(dead_code)]
 pub fn wrap_as_system_reminder(prompt: &str) -> String {
     if prompt.is_empty() {
         String::new()

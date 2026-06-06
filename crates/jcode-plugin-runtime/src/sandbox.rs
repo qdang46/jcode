@@ -79,9 +79,10 @@ impl SandboxContext {
 
     /// TODO(WIP): Invoke the actual JS handler for this event.
     /// Currently returns a default result. Full implementation should:
-    /// 1. Serialize EventInput to JSON
-    /// 2. Call the stored JS function reference via QuickJS context
-    /// 3. Deserialize the JS return value into HandlerResult
+    ///   1. Serialize EventInput to JSON
+    ///   2. Call the stored JS function reference via QuickJS context
+    ///   3. Deserialize the JS return value into HandlerResult
+    ///
     /// This is blocked on storing JS function references across the Rust boundary.
     async fn call_inner(
         &self,

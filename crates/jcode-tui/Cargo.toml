@@ -49,7 +49,7 @@ chrono = { version = "0.4", features = ["serde"] }
 
 # DCG permission modes (experiment/dcg-permission-modes)
 dcg-core = { git = "https://github.com/quangdang46/destructive_command_guard", branch = "main" }
-regex = "1"
+regex.workspace = true
 dirs = "5"
 similar = "2"
 tempfile = "3"

@@ -19,17 +19,17 @@ impl Agent {
 
         loop {
             turn_count += 1;
-            if let Some(max) = self.max_turns {
-                if turn_count > max {
-                    logging::info(&format!(
-                        "max_turns limit reached ({}); forcing turn completion",
-                        max
-                    ));
-                    if final_text.is_empty() {
-                        final_text = format!("[agent stopped: reached max_turns limit of {}]", max);
-                    }
-                    break;
+            if let Some(max) = self.max_turns
+                && turn_count > max
+            {
+                logging::info(&format!(
+                    "max_turns limit reached ({}); forcing turn completion",
+                    max
+                ));
+                if final_text.is_empty() {
+                    final_text = format!("[agent stopped: reached max_turns limit of {}]", max);
                 }
+                break;
             }
 
             let repaired = self.repair_missing_tool_outputs();

@@ -243,11 +243,11 @@ impl Tool for SubagentTool {
             &child_session_id,
             effective_permission_mode.map(dcg_bridge::permission_mode_to_dcg),
         );
-        if effective_permission_mode.is_some() {
+        if let Some(mode) = &effective_permission_mode {
             logging::info(&format!(
                 "[tool:subagent] session {} permission mode: {} (from agent definition)",
                 child_session_id,
-                effective_permission_mode.unwrap().as_str(),
+                mode.as_str(),
             ));
         }
 

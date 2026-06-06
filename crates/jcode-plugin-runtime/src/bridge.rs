@@ -3,6 +3,7 @@ use std::sync::Arc;
 use std::sync::atomic::AtomicU64;
 use tokio::sync::{Mutex, oneshot};
 
+#[derive(Default)]
 #[allow(dead_code)]
 pub struct PromiseBridge {
     next_id: AtomicU64,

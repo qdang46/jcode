@@ -42,9 +42,9 @@ struct RuntimePool {
 impl RuntimeManager {
     pub fn new(config: RuntimeConfig) -> Result<Self, PluginError> {
         let rt = AsyncRuntime::new().map_err(|e| PluginError::Runtime(e.to_string()))?;
-        let _ = rt.set_max_stack_size(config.max_stack_size);
-        let _ = rt.set_gc_threshold(config.gc_threshold);
-        let _ = rt.set_memory_limit(config.memory_limit);
+        drop(rt.set_max_stack_size(config.max_stack_size));
+        drop(rt.set_gc_threshold(config.gc_threshold));
+        drop(rt.set_memory_limit(config.memory_limit));
         Ok(Self {
             main_runtime: Arc::new(rt),
             pool: Arc::new(Mutex::new(RuntimePool {
@@ -66,19 +66,19 @@ impl RuntimeManager {
     }
 
     fn acquire_runtime(&self) -> Result<AsyncRuntime, PluginError> {
-        if let Ok(mut pool) = self.pool.try_lock() {
-            if let Some(rt) = pool.available.pop() {
-                return Ok(rt);
-            }
+        if let Ok(mut pool) = self.pool.try_lock()
+            && let Some(rt) = pool.available.pop()
+        {
+            return Ok(rt);
         }
         AsyncRuntime::new().map_err(|e| PluginError::Runtime(e.to_string()))
     }
 
     pub fn release(&self, runtime: AsyncRuntime) {
-        if let Ok(mut pool) = self.pool.try_lock() {
-            if pool.available.len() < pool.max_runtimes {
-                pool.available.push(runtime);
-            }
+        if let Ok(mut pool) = self.pool.try_lock()
+            && pool.available.len() < pool.max_runtimes
+        {
+            pool.available.push(runtime);
         }
     }
 

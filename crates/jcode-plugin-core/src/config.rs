@@ -28,23 +28,23 @@ pub struct PluginConfig {
 
 impl PluginConfig {
     pub fn apply_env_overrides(&mut self) {
-        if let Ok(val) = std::env::var("JCODE_DISABLE_PLUGINS") {
-            if val == "1" || val.eq_ignore_ascii_case("true") {
-                self.mode = Some("none".to_string());
-            }
+        if let Ok(val) = std::env::var("JCODE_DISABLE_PLUGINS")
+            && (val == "1" || val.eq_ignore_ascii_case("true"))
+        {
+            self.mode = Some("none".to_string());
         }
-        if let Ok(val) = std::env::var("JCODE_SKIP_PLUGINS") {
-            if val == "1" || val.eq_ignore_ascii_case("true") {
-                self.skip_hooks = true;
-            }
+        if let Ok(val) = std::env::var("JCODE_SKIP_PLUGINS")
+            && (val == "1" || val.eq_ignore_ascii_case("true"))
+        {
+            self.skip_hooks = true;
         }
         if let Ok(val) = std::env::var("JCODE_PLUGIN_MODE") {
             self.mode = Some(val);
         }
-        if let Ok(val) = std::env::var("JCODE_TEAM_WORKER") {
-            if val == "1" || val.eq_ignore_ascii_case("true") {
-                self.force_deny = true;
-            }
+        if let Ok(val) = std::env::var("JCODE_TEAM_WORKER")
+            && (val == "1" || val.eq_ignore_ascii_case("true"))
+        {
+            self.force_deny = true;
         }
     }
 }

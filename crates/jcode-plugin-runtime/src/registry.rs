@@ -25,6 +25,7 @@ enum PluginState {
     Disabled,
 }
 
+#[derive(Default)]
 pub struct JsToolRegistry {
     tools: RwLock<HashMap<String, JsToolEntry>>,
 }
