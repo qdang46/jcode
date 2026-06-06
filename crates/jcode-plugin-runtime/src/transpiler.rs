@@ -12,6 +12,7 @@ use swc_ecma_transforms_typescript::strip;
 ///
 /// Results are cached by content hash to avoid redundant work when the same
 /// snippet is transpiled multiple times.
+#[derive(Default)]
 pub struct Transpiler {
     cache: Mutex<HashMap<u64, String>>,
 }
@@ -26,10 +27,10 @@ impl Transpiler {
     pub fn transpile(&self, code: &str, filename: &str) -> Result<String, PluginError> {
         let hash = seahash::hash(code.as_bytes());
 
-        if let Ok(cache) = self.cache.lock() {
-            if let Some(cached) = cache.get(&hash) {
-                return Ok(cached.clone());
-            }
+        if let Ok(cache) = self.cache.lock()
+            && let Some(cached) = cache.get(&hash)
+        {
+            return Ok(cached.clone());
         }
 
         if filename.ends_with(".ts") || filename.ends_with(".tsx") {

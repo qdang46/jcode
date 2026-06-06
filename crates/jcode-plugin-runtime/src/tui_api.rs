@@ -29,7 +29,7 @@ impl SlotType {
         }
     }
 
-    pub fn from_str(s: &str) -> Option<Self> {
+    pub fn from_name(s: &str) -> Option<Self> {
         match s {
             "Sidebar" => Some(Self::Sidebar),
             "StatusBar" => Some(Self::StatusBar),
@@ -289,7 +289,7 @@ impl TuiPluginApi {
             Function::new(
                 ctx.clone(),
                 move |slot_name: String, content: Object<'js>| {
-                    let slot_type = match SlotType::from_str(&slot_name) {
+                    let slot_type = match SlotType::from_name(&slot_name) {
                         Some(s) => s,
                         None => {
                             tracing::warn!(
@@ -588,13 +588,13 @@ mod tests {
     fn slot_type_roundtrip() {
         for slot in SlotType::iter() {
             let s = slot.as_str();
-            assert_eq!(SlotType::from_str(s), Some(slot));
+            assert_eq!(SlotType::from_name(s), Some(slot));
         }
     }
 
     #[test]
     fn slot_type_unknown() {
-        assert_eq!(SlotType::from_str("Nonexistent"), None);
+        assert_eq!(SlotType::from_name("Nonexistent"), None);
     }
 
     #[test]

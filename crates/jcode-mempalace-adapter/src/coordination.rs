@@ -106,11 +106,7 @@ impl CoordinationAdapter {
     }
 
     /// Read signals for an agent.
-    pub fn read_signals(
-        &self,
-        agent_id: &str,
-        unread_only: bool,
-    ) -> Result<Vec<Signal>> {
+    pub fn read_signals(&self, agent_id: &str, unread_only: bool) -> Result<Vec<Signal>> {
         self.signals.read_signals(agent_id, unread_only, None, None)
     }
 
@@ -177,7 +173,11 @@ impl CoordinationAdapter {
     // === Saturation ===
 
     /// Check for coordination saturation signals.
-    pub fn check_saturation(&self, events: &[mempalace_core::coordination::saturation::CoordinationEvent], now_ms: u64) -> SaturationReport {
+    pub fn check_saturation(
+        &self,
+        events: &[mempalace_core::coordination::saturation::CoordinationEvent],
+        now_ms: u64,
+    ) -> SaturationReport {
         self.saturation.analyze(events, now_ms)
     }
 
@@ -191,11 +191,15 @@ impl CoordinationAdapter {
         content: &str,
         retention: Retention,
     ) -> Result<String> {
-        self.artifacts.store(category, entity_id, content, retention)
+        self.artifacts
+            .store(category, entity_id, content, retention)
     }
 
     /// Read an artifact.
-    pub fn read_artifact(&self, artifact_id: &str) -> Result<Option<mempalace_core::coordination::artifacts::Artifact>> {
+    pub fn read_artifact(
+        &self,
+        artifact_id: &str,
+    ) -> Result<Option<mempalace_core::coordination::artifacts::Artifact>> {
         self.artifacts.read(artifact_id)
     }
 }

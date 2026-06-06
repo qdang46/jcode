@@ -9,6 +9,7 @@ use serde_json::{Value, json};
 // TaskCreateTool
 // ---------------------------------------------------------------------------
 
+#[derive(Default)]
 pub struct TaskCreateTool;
 
 impl TaskCreateTool {
@@ -93,6 +94,7 @@ impl Tool for TaskCreateTool {
 // TaskUpdateTool
 // ---------------------------------------------------------------------------
 
+#[derive(Default)]
 pub struct TaskUpdateTool;
 
 impl TaskUpdateTool {
@@ -187,6 +189,7 @@ impl Tool for TaskUpdateTool {
 // TaskListTool
 // ---------------------------------------------------------------------------
 
+#[derive(Default)]
 pub struct TaskListTool;
 
 impl TaskListTool {

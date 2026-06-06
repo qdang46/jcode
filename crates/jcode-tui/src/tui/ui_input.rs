@@ -224,11 +224,7 @@ pub(super) fn wrapped_input_line_count(
     let num_str = next_prompt.to_string();
     let (prompt_char, caret_color) = input_prompt(app);
     let skills = app.known_skill_names();
-    let highlights = find_input_highlights(
-        app.input(),
-        app.registered_commands(),
-        &skills,
-    );
+    let highlights = find_input_highlights(app.input(), app.registered_commands(), &skills);
     let (lines, _, _) = wrap_input_text(
         app.input(),
         app.cursor_pos(),
@@ -1376,7 +1372,12 @@ mod tests {
             end_char: 17,
             display_width: 17,
         };
-        let hl = vec![InputHighlight { start: 6, end: 11, color: Color::Blue, priority: 5 }];
+        let hl = vec![InputHighlight {
+            start: 6,
+            end: 11,
+            color: Color::Blue,
+            priority: 5,
+        }];
         let spans = styled_segment_spans(&seg, &hl);
         assert_eq!(spans.len(), 3);
     }
@@ -1861,11 +1862,7 @@ pub(super) fn draw_input(
     }
 
     let skills = app.known_skill_names();
-    let highlights = find_input_highlights(
-        input_text,
-        app.registered_commands(),
-        &skills,
-    );
+    let highlights = find_input_highlights(input_text, app.registered_commands(), &skills);
     let (all_lines, cursor_line, cursor_col) = wrap_input_text(
         input_text,
         cursor_pos,
@@ -2090,7 +2087,11 @@ fn cursor_col_for_segment(segment: &WrappedInputSegment, cursor_char_pos: usize)
 }
 
 fn char_slice(s: &str, start: usize, end: usize) -> &str {
-    let byte_start = s.char_indices().nth(start).map(|(i, _)| i).unwrap_or(s.len());
+    let byte_start = s
+        .char_indices()
+        .nth(start)
+        .map(|(i, _)| i)
+        .unwrap_or(s.len());
     let byte_end = s.char_indices().nth(end).map(|(i, _)| i).unwrap_or(s.len());
     &s[byte_start..byte_end]
 }
@@ -2104,12 +2105,10 @@ fn find_input_highlights(
     static SLASH_RE: OnceLock<regex::Regex> = OnceLock::new();
     static DOLLAR_RE: OnceLock<regex::Regex> = OnceLock::new();
 
-    let slash_re = SLASH_RE.get_or_init(|| {
-        regex::Regex::new(r"(^|\s)(/[a-zA-Z][a-zA-Z0-9:-_]*)").unwrap()
-    });
-    let dollar_re = DOLLAR_RE.get_or_init(|| {
-        regex::Regex::new(r"(?:^|\s)(\$[a-zA-Z0-9_-]+)").unwrap()
-    });
+    let slash_re =
+        SLASH_RE.get_or_init(|| regex::Regex::new(r"(^|\s)(/[a-zA-Z][a-zA-Z0-9:-_]*)").unwrap());
+    let dollar_re =
+        DOLLAR_RE.get_or_init(|| regex::Regex::new(r"(?:^|\s)(\$[a-zA-Z0-9_-]+)").unwrap());
 
     let mut highlights = Vec::new();
     let suggestion_color = rgb(100, 180, 255);
@@ -2191,7 +2190,10 @@ fn styled_segment_spans<'a>(
         }
 
         let text = char_slice(&segment.text, hl_start - seg_start, hl_end - seg_start);
-        spans.push(Span::styled(text.to_string(), Style::default().fg(hl.color)));
+        spans.push(Span::styled(
+            text.to_string(),
+            Style::default().fg(hl.color),
+        ));
 
         pos = hl_end;
     }
@@ -2342,9 +2344,7 @@ pub(crate) fn wrap_input_text<'a>(
             line_spans.extend(styled_spans);
             lines.push(Line::from(line_spans));
         } else {
-            let mut line_spans = vec![
-                Span::raw(" ".repeat(prompt_len)),
-            ];
+            let mut line_spans = vec![Span::raw(" ".repeat(prompt_len))];
             line_spans.extend(styled_spans);
             lines.push(Line::from(line_spans));
         }

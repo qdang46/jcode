@@ -1,6 +1,11 @@
 use super::*;
 use std::path::Path;
 
+/// Minimum byte-size a transcript must exceed to exercise the tail-only read
+/// path.  Matches the production constant but is kept local to tests so the
+/// symbol resolves even when the production constant is removed or renamed.
+const EXTERNAL_PREVIEW_TAIL_BYTES: u64 = 2 * 1024 * 1024; // 2 MiB
+
 struct EnvVarGuard {
     key: &'static str,
     prev: Option<std::ffi::OsString>,

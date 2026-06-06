@@ -97,14 +97,14 @@ impl PluginLoader {
         let mut read_dir = tokio::fs::read_dir(dir).await?;
         while let Some(entry) = read_dir.next_entry().await? {
             let path = entry.path();
-            if path.is_dir() {
-                if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
-                    let package_name = name.replace("__", "/");
-                    sources.push(PluginSource::Npm {
-                        package: package_name,
-                        version: None,
-                    });
-                }
+            if path.is_dir()
+                && let Some(name) = path.file_name().and_then(|n| n.to_str())
+            {
+                let package_name = name.replace("__", "/");
+                sources.push(PluginSource::Npm {
+                    package: package_name,
+                    version: None,
+                });
             }
         }
         Ok(())
@@ -146,7 +146,7 @@ impl PluginLoader {
             )));
         }
 
-        let js_code = if path.extension().map_or(false, |e| e == "ts" || e == "tsx") {
+        let js_code = if path.extension().is_some_and(|e| e == "ts" || e == "tsx") {
             self.transpiler.transpile(&code, &path.to_string_lossy())?
         } else {
             code

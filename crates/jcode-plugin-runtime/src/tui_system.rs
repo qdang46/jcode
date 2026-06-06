@@ -175,34 +175,26 @@ impl TuiPluginSystem {
             let mut read_dir = tokio::fs::read_dir(npm_dir).await?;
             while let Some(entry) = read_dir.next_entry().await? {
                 let path = entry.path();
-                if path.is_dir() {
-                    if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
-                        let package_name = name.replace("__", "/");
-                        // Probe package.json for TUI kind.
-                        let pkg_json = path
-                            .join("node_modules")
-                            .join(&package_name)
-                            .join("package.json");
-                        if pkg_json.exists() {
-                            if let Ok(content) = tokio::fs::read_to_string(&pkg_json).await {
-                                if let Ok(json) =
-                                    serde_json::from_str::<serde_json::Value>(&content)
-                                {
-                                    if let Ok(manifest) =
-                                        jcode_plugin_core::manifest::PluginManifest::from_package_json(&json)
-                                    {
-                                        if manifest.kind == PluginKind::Tui
-                                            || manifest.kind == PluginKind::Both
-                                        {
-                                            sources.push(PluginSource::Npm {
-                                                package: package_name,
-                                                version: None,
-                                            });
-                                        }
-                                    }
-                                }
-                            }
-                        }
+                if path.is_dir()
+                    && let Some(name) = path.file_name().and_then(|n| n.to_str())
+                {
+                    let package_name = name.replace("__", "/");
+                    // Probe package.json for TUI kind.
+                    let pkg_json = path
+                        .join("node_modules")
+                        .join(&package_name)
+                        .join("package.json");
+                    if pkg_json.exists()
+                        && let Ok(content) = tokio::fs::read_to_string(&pkg_json).await
+                        && let Ok(json) = serde_json::from_str::<serde_json::Value>(&content)
+                        && let Ok(manifest) =
+                            jcode_plugin_core::manifest::PluginManifest::from_package_json(&json)
+                        && (manifest.kind == PluginKind::Tui || manifest.kind == PluginKind::Both)
+                    {
+                        sources.push(PluginSource::Npm {
+                            package: package_name,
+                            version: None,
+                        });
                     }
                 }
             }
@@ -290,7 +282,7 @@ impl TuiPluginSystem {
         }
 
         // Transpile TypeScript if needed.
-        let js_code = if path.extension().map_or(false, |e| e == "ts" || e == "tsx") {
+        let js_code = if path.extension().is_some_and(|e| e == "ts" || e == "tsx") {
             self.transpiler.transpile(&code, &path.to_string_lossy())?
         } else {
             code
@@ -298,9 +290,9 @@ impl TuiPluginSystem {
 
         // Create dedicated QuickJS runtime for this plugin.
         let runtime = Runtime::new().map_err(|e| PluginError::Runtime(e.to_string()))?;
-        let _ = runtime.set_max_stack_size(512 * 1024);
-        let _ = runtime.set_memory_limit(50 * 1024 * 1024);
-        let _ = runtime.set_gc_threshold(10 * 1024 * 1024);
+        runtime.set_max_stack_size(512 * 1024);
+        runtime.set_memory_limit(50 * 1024 * 1024);
+        runtime.set_gc_threshold(10 * 1024 * 1024);
 
         let context = Context::full(&runtime).map_err(|e| PluginError::Runtime(e.to_string()))?;
 

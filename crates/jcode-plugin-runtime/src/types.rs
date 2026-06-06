@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 pub use jcode_plugin_core::preflight::{PreflightResult, StaticAnalysis};
 
+#[allow(clippy::type_complexity)]
 pub enum HandlerSlot {
     Rust(
         Arc<

@@ -15,10 +15,6 @@ impl PluginId {
         Self(format!("builtin:{name}"))
     }
 
-    pub fn to_string(&self) -> String {
-        self.0.clone()
-    }
-
     pub fn as_str(&self) -> &str {
         &self.0
     }

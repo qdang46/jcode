@@ -70,8 +70,9 @@ impl PluginManifest {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub enum PluginKind {
+    #[default]
     #[serde(rename = "server")]
     Server,
     #[serde(rename = "tui")]
@@ -80,13 +81,7 @@ pub enum PluginKind {
     Both,
 }
 
-impl Default for PluginKind {
-    fn default() -> Self {
-        Self::Server
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct PluginEntry {
     #[serde(default)]
     pub server: Option<String>,
@@ -94,16 +89,6 @@ pub struct PluginEntry {
     pub tui: Option<String>,
     #[serde(default)]
     pub both: Option<String>,
-}
-
-impl Default for PluginEntry {
-    fn default() -> Self {
-        Self {
-            server: None,
-            tui: None,
-            both: None,
-        }
-    }
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -206,14 +191,8 @@ pub enum SettingSchema {
     },
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct PluginEngines {
     #[serde(default)]
     pub jcode: Option<String>,
-}
-
-impl Default for PluginEngines {
-    fn default() -> Self {
-        Self { jcode: None }
-    }
 }
