@@ -15,23 +15,20 @@
 //! silently override a value the user set explicitly in their environment.
 
 use std::path::Path;
-use std::sync::OnceLock;
 
 use crate::{SecretName, SecretScope, SecretsBackendKind, SecretsManager};
 
-static GLOBAL_MANAGER: OnceLock<Option<SecretsManager>> = OnceLock::new();
-
-/// Access the process-global [`SecretsManager`], initialising it on first use.
+/// Build a [`SecretsManager`] for the current jcode home directory.
 ///
-/// Returns `None` when the jcode home directory cannot be resolved (in which
-/// case secret resolution is simply skipped rather than failing the caller).
-pub fn global_manager() -> Option<&'static SecretsManager> {
-    GLOBAL_MANAGER
-        .get_or_init(|| {
-            let jcode_home = jcode_storage::jcode_dir().ok()?;
-            SecretsManager::new(jcode_home, SecretsBackendKind::Local).ok()
-        })
-        .as_ref()
+/// Construction is I/O-free — the backend only touches the filesystem and OS
+/// keychain on `get`/`set` — so the manager is built fresh per call rather than
+/// cached. This avoids a transient failure to resolve the home directory being
+/// cached for the rest of the process and silently disabling secret resolution.
+///
+/// Returns `None` when the jcode home directory cannot be resolved.
+pub fn current_manager() -> Option<SecretsManager> {
+    let jcode_home = jcode_storage::jcode_dir().ok()?;
+    SecretsManager::new(jcode_home, SecretsBackendKind::Local).ok()
 }
 
 /// Fallback resolver for `jcode-provider-env`.
@@ -39,9 +36,9 @@ pub fn global_manager() -> Option<&'static SecretsManager> {
 /// Matches the `fn(&str) -> Option<String>` signature expected by
 /// `jcode_provider_env::register_api_key_fallback_resolver`.
 pub fn secrets_api_key_resolver(env_key: &str) -> Option<String> {
-    let manager = global_manager()?;
+    let manager = current_manager()?;
     let cwd = std::env::current_dir().ok()?;
-    resolve_with_manager(manager, &cwd, env_key)
+    resolve_with_manager(&manager, &cwd, env_key)
 }
 
 /// Inner resolution logic, decoupled from the global singleton and the process

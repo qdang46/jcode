@@ -204,6 +204,20 @@ pub fn write_text_secret(path: &Path, content: &str) -> Result<()> {
     Ok(())
 }
 
+/// Atomically write binary secret content with owner-only (0600) permissions.
+///
+/// Like [`write_text_secret`] but for non-UTF-8 payloads (e.g. age-encrypted
+/// blobs). Uses the same temp-file + fsync + atomic-rename path, so a crash
+/// mid-write cannot truncate or corrupt the destination.
+pub fn write_bytes_secret(path: &Path, content: &[u8]) -> Result<()> {
+    write_bytes_inner(path, content, true)?;
+    if let Some(parent) = path.parent() {
+        jcode_core::fs::set_directory_permissions_owner_only(parent)?;
+    }
+    jcode_core::fs::set_permissions_owner_only(path)?;
+    Ok(())
+}
+
 pub fn upsert_env_file_value(path: &Path, env_key: &str, value: Option<&str>) -> Result<()> {
     let existing = std::fs::read_to_string(path).unwrap_or_default();
     let prefix = format!("{}=", env_key);

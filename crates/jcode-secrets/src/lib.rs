@@ -32,7 +32,7 @@ pub use local::LocalSecretsBackend;
 pub use jcode_redact::redact_secrets;
 
 mod resolver;
-pub use resolver::{global_manager, secrets_api_key_resolver};
+pub use resolver::{current_manager, secrets_api_key_resolver};
 
 use anyhow::{Context, Result};
 use jcode_keyring_store::KeyringStore;
@@ -101,29 +101,60 @@ impl fmt::Display for EnvId {
 
 /// Derive an environment ID from the current working directory.
 ///
-/// Strategy (matching codex `environment_id_from_cwd`):
-/// 1. Try `git rev-parse --show-toplevel` → use last path component (repo name).
-/// 2. Fallback: SHA256(canonicalized cwd)[..12] → `"cwd-{12hex}"`.
+/// Strategy:
+/// 1. Git repo: `<sanitized-repo-name>-<6 hex>` where the hex is a hash of the
+///    canonicalized repo-root path. The path hash is a discriminator so two
+///    unrelated repos that happen to share a basename (e.g. `~/a/acme` and
+///    `~/b/acme`) do not collapse to the same environment and bleed secrets.
+/// 2. Fallback (no git): `cwd-<12 hex>` of the canonicalized cwd.
+///
+/// The repo name is sanitized to `[a-zA-Z0-9_-]` so the resulting ID always
+/// round-trips through [`SecretScope::environment`] validation.
 ///
 /// The result is stable for the same directory across multiple calls.
 pub fn environment_id_from_cwd(cwd: &Path) -> EnvId {
-    // Try git repo root
+    use sha2::{Digest, Sha256};
+
+    // Git repo: sanitized name + a discriminator hash of the canonical root path.
     if let Ok(repo_root) = get_git_repo_root(cwd) {
         if let Some(repo_name) = repo_root
             .file_name()
             .and_then(|n| n.to_str())
             .filter(|n| !n.is_empty())
         {
-            return EnvId(repo_name.to_string());
+            let sanitized = sanitize_env_component(repo_name);
+            let canonical = std::fs::canonicalize(&repo_root).unwrap_or(repo_root);
+            let hash = Sha256::digest(canonical.to_string_lossy().as_bytes());
+            let short = hex_encode(&hash[..3]); // 6 hex chars
+            return EnvId(format!("{}-{}", sanitized, short));
         }
     }
 
     // Fallback: hash the canonical path
     let canonical = std::fs::canonicalize(cwd).unwrap_or_else(|_| cwd.to_path_buf());
-    use sha2::{Digest, Sha256};
     let hash = Sha256::digest(canonical.to_string_lossy().as_bytes());
     let short = hex_encode(&hash[..6]); // 12 hex chars
     EnvId(format!("cwd-{}", short))
+}
+
+/// Map a raw path component to the `[a-zA-Z0-9_-]` charset accepted by
+/// [`SecretScope::environment`], replacing any other character with `-`.
+fn sanitize_env_component(raw: &str) -> String {
+    let mapped: String = raw
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '-' || c == '_' {
+                c
+            } else {
+                '-'
+            }
+        })
+        .collect();
+    if mapped.is_empty() {
+        "repo".to_string()
+    } else {
+        mapped
+    }
 }
 
 fn get_git_repo_root(cwd: &Path) -> Result<PathBuf> {
@@ -323,8 +354,10 @@ const PASS_ACCOUNT: &str = "local-secrets-passphrase";
 
 /// Generate a cryptographically-random 32-byte passphrase, base64-encoded.
 ///
-/// The stack buffer is cleared via volatile write after encoding to minimise
-/// exposure of the raw key material.
+/// The raw random bytes are zeroized after encoding as basic hygiene. Note this
+/// is best-effort: the returned base64 string still holds the entropy, and the
+/// passphrase is ultimately persisted in the OS keychain, so callers should not
+/// treat the wipe as a strong confidentiality guarantee.
 pub fn generate_passphrase() -> String {
     use rand::TryRngCore;
     let mut bytes = [0u8; 32];
@@ -332,7 +365,8 @@ pub fn generate_passphrase() -> String {
         .try_fill_bytes(&mut bytes)
         .expect("OsRng should never fail");
     let encoded = base64::engine::general_purpose::STANDARD.encode(&bytes);
-    // Volatile write to clear stack — the only `unsafe` in the crate
+    // Zeroize the raw key bytes (the most sensitive form). Volatile write so the
+    // compiler cannot elide it. The only `unsafe` in the crate.
     for b in &mut bytes {
         unsafe {
             std::ptr::write_volatile(b, 0);
@@ -375,6 +409,42 @@ mod tests {
         // Non-git dir → cwd-{12 hex chars}
         assert!(env_id.to_string().starts_with("cwd-"));
         assert_eq!(env_id.to_string().len(), 16); // "cwd-" + 12 hex
+    }
+
+    #[test]
+    fn test_sanitize_env_component() {
+        assert_eq!(sanitize_env_component("my-repo"), "my-repo");
+        assert_eq!(sanitize_env_component("my.repo"), "my-repo");
+        assert_eq!(sanitize_env_component("a/b c"), "a-b-c");
+        assert_eq!(sanitize_env_component(""), "repo");
+        // Result must round-trip through environment scope validation.
+        assert!(SecretScope::environment(sanitize_env_component("weird.name@x")).is_ok());
+    }
+
+    #[test]
+    fn test_environment_id_same_basename_repos_do_not_collide() {
+        fn init_repo(parent: &Path, name: &str) -> std::path::PathBuf {
+            let repo = parent.join(name);
+            std::fs::create_dir_all(&repo).unwrap();
+            let _ = std::process::Command::new("git")
+                .args(["init", "-q"])
+                .current_dir(&repo)
+                .status();
+            repo
+        }
+        let a = tempfile::tempdir().unwrap();
+        let b = tempfile::tempdir().unwrap();
+        let repo_a = init_repo(a.path(), "acme");
+        let repo_b = init_repo(b.path(), "acme");
+
+        let id_a = environment_id_from_cwd(&repo_a).to_string();
+        let id_b = environment_id_from_cwd(&repo_b).to_string();
+
+        // When git is available both share the "acme-" prefix but the
+        // path-hash discriminator must keep them distinct (no secret bleed).
+        if id_a.starts_with("acme-") && id_b.starts_with("acme-") {
+            assert_ne!(id_a, id_b, "same-basename repos must not collide");
+        }
     }
 
     #[test]

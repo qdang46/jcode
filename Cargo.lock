@@ -5670,6 +5670,7 @@ dependencies = [
  "jcode-experiment-flags",
  "jcode-gateway-types",
  "jcode-hooks",
+ "jcode-keyring-store",
  "jcode-logging",
  "jcode-memory-types",
  "jcode-message-types",

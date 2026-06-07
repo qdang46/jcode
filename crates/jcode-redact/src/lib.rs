@@ -6,55 +6,21 @@
 //! output. `jcode-secrets` re-exports [`redact_secrets`] for backward
 //! compatibility.
 //!
-//! Patterns aggregated from:
-//! - OpenAI codex `codex-rs/secrets/src/sanitizer.rs`
-//! - oh-my-codex `src/auth/redact.ts`
-//! - jcode's former `jcode-app-core/src/export.rs` redact_secrets()
+//! **Best-effort:** this is high-precision pattern matching for *secret-shaped*
+//! tokens, not a guarantee. It cannot know the actual values stored in the
+//! secrets manager, and novel or low-entropy token formats may slip through.
+//! Treat it as defense-in-depth, not a substitute for not logging secrets.
 //!
-//! All patterns use [`LazyLock<Regex>`] for once-per-process compilation.
+//! Patterns aggregated from codex `codex-rs/secrets/src/sanitizer.rs`,
+//! oh-my-codex `src/auth/redact.ts`, and jcode's own export / session-history
+//! redactors.
 
 use regex::Regex;
+use std::borrow::Cow;
 use std::sync::LazyLock;
 
-// ─── Regex Patterns (lazy, compiled once) ───────────────────────────────────
-
-/// OpenAI / Anthropic style keys: `sk-...`, `sk-ant-...`
-static SK_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"\bsk-[A-Za-z0-9_\-\.]{20,}").unwrap()
-});
-
-/// AWS access key IDs: `AKIA...`
-static AWS_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"\bAKIA[0-9A-Z]{16}\b").unwrap()
-});
-
-/// HTTP Bearer tokens (keep the "Bearer " prefix)
-static BEARER_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?i)\b(Bearer\s+)[A-Za-z0-9._\-]{16,}").unwrap()
-});
-
-/// Generic secret/value assignments in code/config.
-///
-/// `[^\s"'\[]{8,}` excludes values starting with `[` so that already-redacted
-/// placeholders (`[REDACTED:*]`) are not re-matched.
-static SECRET_ASSIGNMENT_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r#"(?i)\b(api[_-]?key|token|secret|password)\b(\s*[:=]\s*)(["']?)[^\s"'\[]{8,}"#).unwrap()
-});
-
-/// GitHub tokens: `ghp_...`, `gho_...`, `ghs_...`, `ghr_...`, `ghu_...`
-static GITHUB_TOKEN_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"\bgh[opsru]_[A-Za-z0-9]{20,}").unwrap()
-});
-
-/// z.ai / ZHIPU style tokens: `{32 hex}.{12+ alphanum}`
-static ZAI_TOKEN_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"\b[a-f0-9]{32}\.[A-Za-z0-9]{12,}").unwrap()
-});
-
-// ─── Known Secret Env Vars ──────────────────────────────────────────────────
-
 /// Known environment variable names that carry API keys or secrets.
-/// Matched case-insensitively.
+/// Matched case-insensitively in `KEY=value` assignments.
 const KNOWN_SECRET_ENV_VARS: &[&str] = &[
     "ANTHROPIC_API_KEY",
     "OPENAI_API_KEY",
@@ -86,31 +52,58 @@ const KNOWN_SECRET_ENV_VARS: &[&str] = &[
     "ANTHROPIC_AUTH_TOKEN",
 ];
 
-/// Matches known secret env-var assignments: `KEY=value`, `KEY = value`
-static ENV_VAR_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
-    let names = KNOWN_SECRET_ENV_VARS.join("|");
-    Regex::new(&format!(
-        r#"(?i)\b({})(\s*=\s*)([^\r\n,'"\s]+)"#,
-        names
-    ))
-    .unwrap()
+/// Ordered (regex, replacement) table, compiled once.
+///
+/// Order matters: specific high-precision token formats run before the generic
+/// `key=value` / env-var assignment patterns. The assignment patterns exclude a
+/// leading `[` (`[^\s"'\[]`) so they never re-match an already-inserted
+/// `[REDACTED:*]` placeholder.
+static PATTERNS: LazyLock<Vec<(Regex, &'static str)>> = LazyLock::new(|| {
+    let env_names = KNOWN_SECRET_ENV_VARS.join("|");
+    vec![
+        // OpenAI / Anthropic style keys: `sk-...`, `sk-ant-...`
+        (Regex::new(r"\bsk-[A-Za-z0-9_\-\.]{20,}").unwrap(), "[REDACTED:sk]"),
+        // GitHub classic tokens: ghp_/gho_/ghs_/ghr_/ghu_
+        (Regex::new(r"\bgh[opsru]_[A-Za-z0-9]{20,}").unwrap(), "[REDACTED:github]"),
+        // GitHub fine-grained PAT
+        (Regex::new(r"\bgithub_pat_[A-Za-z0-9_]{20,}").unwrap(), "[REDACTED:github]"),
+        // Stripe secret/restricted/publishable live/test keys (underscore form)
+        (Regex::new(r"\b[rsp]k_(?:live|test)_[A-Za-z0-9]{16,}").unwrap(), "[REDACTED:stripe]"),
+        // Google API keys
+        (Regex::new(r"\bAIza[0-9A-Za-z_\-]{35}").unwrap(), "[REDACTED:google]"),
+        // Google OAuth access tokens
+        (Regex::new(r"\bya29\.[A-Za-z0-9._\-]{20,}").unwrap(), "[REDACTED:google]"),
+        // Slack tokens: xoxb-/xoxp-/xoxa-/xoxr-/xoxs-
+        (Regex::new(r"\bxox[baprs]-[A-Za-z0-9-]{10,}").unwrap(), "[REDACTED:slack]"),
+        // AWS access key IDs
+        (Regex::new(r"\bAKIA[0-9A-Z]{16}\b").unwrap(), "[REDACTED:aws]"),
+        // z.ai / ZHIPU style tokens: {32 hex}.{12+ alphanum}
+        (Regex::new(r"\b[a-f0-9]{32}\.[A-Za-z0-9]{12,}").unwrap(), "[REDACTED:token]"),
+        // JSON Web Tokens: base64url header.payload.signature (header+payload start eyJ)
+        (
+            Regex::new(r"\beyJ[A-Za-z0-9_\-]{8,}\.eyJ[A-Za-z0-9_\-]{8,}\.[A-Za-z0-9_\-]{8,}").unwrap(),
+            "[REDACTED:jwt]",
+        ),
+        // HTTP Bearer tokens (keep the "Bearer " prefix)
+        (Regex::new(r"(?i)\b(Bearer\s+)[A-Za-z0-9._\-]{16,}").unwrap(), "${1}[REDACTED]"),
+        // Generic api_key/token/secret/password assignments
+        (
+            Regex::new(r#"(?i)\b(api[_-]?key|token|secret|password)\b(\s*[:=]\s*)(["']?)[^\s"'\[]{8,}"#).unwrap(),
+            "${1}${2}[REDACTED]",
+        ),
+        // Known provider env-var assignments: KEY=value
+        (
+            Regex::new(&format!(r#"(?i)\b({})(\s*=\s*)([^\r\n,'"\s]+)"#, env_names)).unwrap(),
+            "${1}${2}[REDACTED:env]",
+        ),
+    ]
 });
-
-// ─── Public API ──────────────────────────────────────────────────────────────
 
 /// Redact known secret patterns from `input`, returning a sanitized string.
 ///
-/// The original string is not modified — a new `String` is returned.
-///
-/// # Pattern priority
-///
-/// 1. `sk-*` API keys (OpenAI, Anthropic, etc.)
-/// 2. GitHub tokens (`gh[opsru]_*`)
-/// 3. AWS access key IDs (`AKIA*`)
-/// 4. z.ai style tokens (`{hex}.{alphanum}`)
-/// 5. Bearer tokens in Authorization headers
-/// 6. Generic `api_key`, `token`, `secret`, `password` assignments
-/// 7. Known provider environment variable assignments
+/// The original string is not modified. Allocation is avoided unless a pattern
+/// actually matches: each step keeps the current value borrowed until a regex
+/// produces a replacement, so secret-free input incurs at most one final copy.
 ///
 /// # Example
 ///
@@ -121,47 +114,20 @@ static ENV_VAR_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
 /// assert!(safe.contains("[REDACTED:sk]"));
 /// ```
 pub fn redact_secrets(input: &str) -> String {
-    let mut output = input.to_string();
-
-    // 1. OpenAI / Anthropic api keys
-    output = SK_PATTERN
-        .replace_all(&output, "[REDACTED:sk]")
-        .into_owned();
-
-    // 2. GitHub tokens
-    output = GITHUB_TOKEN_PATTERN
-        .replace_all(&output, "[REDACTED:github]")
-        .into_owned();
-
-    // 3. AWS access keys
-    output = AWS_PATTERN
-        .replace_all(&output, "[REDACTED:aws]")
-        .into_owned();
-
-    // 4. z.ai style tokens
-    output = ZAI_TOKEN_PATTERN
-        .replace_all(&output, "[REDACTED:token]")
-        .into_owned();
-
-    // 5. Bearer tokens (preserve the "Bearer " prefix)
-    output = BEARER_PATTERN
-        .replace_all(&output, "${1}[REDACTED]")
-        .into_owned();
-
-    // 6. Generic secret assignments
-    output = SECRET_ASSIGNMENT_PATTERN
-        .replace_all(&output, "${1}${2}[REDACTED]")
-        .into_owned();
-
-    // 7. Known env-var assignments
-    output = ENV_VAR_PATTERN
-        .replace_all(&output, "${1}${2}[REDACTED:env]")
-        .into_owned();
-
-    output
+    let mut out: Cow<'_, str> = Cow::Borrowed(input);
+    for (re, replacement) in PATTERNS.iter() {
+        // Extract an owned result only when a replacement actually happened, so
+        // the borrow of `out` does not span the reassignment below.
+        let replaced: Option<String> = match re.replace_all(&out, *replacement) {
+            Cow::Owned(s) => Some(s),
+            Cow::Borrowed(_) => None,
+        };
+        if let Some(s) = replaced {
+            out = Cow::Owned(s);
+        }
+    }
+    out.into_owned()
 }
-
-// ─── Tests ───────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
 mod tests {
@@ -184,6 +150,47 @@ mod tests {
     fn redacts_github_token() {
         let result = redact_secrets("ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ123456");
         assert!(result.contains("[REDACTED:github]"));
+    }
+
+    #[test]
+    fn redacts_github_fine_grained_pat() {
+        let result = redact_secrets("github_pat_11ABCDEFG0abcdefghijklmnop");
+        assert!(result.contains("[REDACTED:github]"));
+    }
+
+    #[test]
+    fn redacts_stripe_key() {
+        // Assembled at runtime so the literal isn't flagged by secret scanners.
+        let result = redact_secrets(concat!("sk_", "live_", "abcdefghijklmnop1234567890"));
+        assert!(result.contains("[REDACTED:stripe]"), "got: {result}");
+        assert!(!result.contains("abcdefghijklmnop1234567890"));
+    }
+
+    #[test]
+    fn redacts_google_api_key() {
+        let result = redact_secrets("AIzaSyA1234567890abcdefghijklmnopqrstuvw");
+        assert!(result.contains("[REDACTED:google]"), "got: {result}");
+    }
+
+    #[test]
+    fn redacts_google_oauth_token() {
+        let result = redact_secrets("ya29.a0AfB_byC1234567890abcdefghij");
+        assert!(result.contains("[REDACTED:google]"), "got: {result}");
+    }
+
+    #[test]
+    fn redacts_slack_token() {
+        // Assembled at runtime so the literal isn't flagged by secret scanners.
+        let result = redact_secrets(concat!("xox", "b-123456789012-abcdefghijklmnop"));
+        assert!(result.contains("[REDACTED:slack]"), "got: {result}");
+    }
+
+    #[test]
+    fn redacts_jwt() {
+        let jwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.SflKxwRJSMeKKF2QT4";
+        let result = redact_secrets(jwt);
+        assert!(result.contains("[REDACTED:jwt]"), "got: {result}");
+        assert!(!result.contains("SflKxwRJSMeKKF2QT4"));
     }
 
     #[test]

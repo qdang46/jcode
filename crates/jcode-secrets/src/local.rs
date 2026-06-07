@@ -122,8 +122,10 @@ impl LocalSecretsBackend {
             .context("Failed to write encrypted data")?;
         writer.finish().context("Failed to finish age encryption")?;
 
-        std::fs::write(&self.secrets_path, &encrypted)
-            .with_context(|| format!("Failed to write {}", self.secrets_path.display()))?;
+        // Atomic, owner-only (0600) write: a crash mid-write cannot truncate or
+        // corrupt the existing encrypted store (temp file + fsync + rename, with
+        // a .bak fallback retained by jcode-storage).
+        jcode_storage::write_bytes_secret(&self.secrets_path, &encrypted)?;
         Ok(())
     }
 
