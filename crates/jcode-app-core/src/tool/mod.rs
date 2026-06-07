@@ -109,7 +109,6 @@ pub struct Registry {
     dispatch_config: DispatchConfig,
     #[cfg(feature = "dcp")]
     dcp: Option<Arc<Mutex<crate::dcp_plugin::DcpPlugin>>>,
-
 }
 
 impl Clone for Registry {
@@ -124,7 +123,6 @@ impl Clone for Registry {
             dispatch_config: self.dispatch_config.clone(),
             #[cfg(feature = "dcp")]
             dcp: self.dcp.clone(),
-
         }
     }
 }
@@ -175,7 +173,6 @@ impl Registry {
             dispatch_config: DispatchConfig::default(),
             #[cfg(feature = "dcp")]
             dcp: None,
-
         }
     }
 
@@ -309,7 +306,6 @@ impl Registry {
             dispatch_config,
             #[cfg(feature = "dcp")]
             dcp: None,
-
         };
         let registry_struct_ms = registry_struct_start.elapsed().as_millis();
 

@@ -246,7 +246,6 @@ pub struct Agent {
     /// DCP plugin for context pruning (behind feature flag).
     #[cfg(feature = "dcp")]
     dcp: Option<crate::dcp_plugin::DcpPlugin>,
-
 }
 
 impl Agent {
@@ -302,7 +301,6 @@ impl Agent {
             dispatch_config: DispatchConfig::default(),
             #[cfg(feature = "dcp")]
             dcp: crate::dcp_plugin::DcpPlugin::new().ok(),
-
         };
         crate::tool::set_session_tool_policy(
             &agent.session.id,
