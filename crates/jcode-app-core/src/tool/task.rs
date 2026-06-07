@@ -7,6 +7,7 @@ use crate::provider::Provider;
 use crate::session::Session;
 use anyhow::Result;
 use async_trait::async_trait;
+use jcode_hooks::{HookContext, HookEvent, HookInputBuilder};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use std::collections::{HashMap, HashSet};
@@ -214,6 +215,28 @@ impl Tool for SubagentTool {
             Some(allowed),
         );
 
+        // Dispatch SubagentStart hooks (fire-and-forget, observational only)
+        {
+            let hook_registry = self.registry.hook_registry().clone();
+            let dispatch_config = self.registry.dispatch_config().clone();
+            let sub_session_id = agent.session_id().to_string();
+            let subagent_type = params.subagent_type.clone();
+            let hook_input = HookInputBuilder::new()
+                .session(&sub_session_id, "")
+                .event("SubagentStart")
+                .build();
+            let ctx = HookContext::for_subagent_start(sub_session_id, None, Some(subagent_type));
+            let event = HookEvent::SubagentStart;
+            tokio::spawn(async move {
+                let handlers = hook_registry.read().await;
+                let handlers = handlers.get_matching(&event, &ctx);
+                if !handlers.is_empty() {
+                    jcode_hooks::dispatch_hooks(&event, &hook_input, &handlers, &dispatch_config)
+                        .await;
+                }
+            });
+        }
+
         let start = std::time::Instant::now();
         let final_text = agent.run_once_capture(&params.prompt).await.map_err(|err| {
             logging::warn(&format!(
@@ -244,6 +267,28 @@ impl Tool for SubagentTool {
             params.description,
             start.elapsed().as_secs_f64()
         ));
+
+        // Dispatch SubagentStop hooks (fire-and-forget, observational only)
+        {
+            let hook_registry = self.registry.hook_registry().clone();
+            let dispatch_config = self.registry.dispatch_config().clone();
+            let sub_session_id = sub_session_id.clone();
+            let subagent_type = params.subagent_type.clone();
+            let hook_input = HookInputBuilder::new()
+                .session(&sub_session_id, "")
+                .event("SubagentStop")
+                .build();
+            let ctx = HookContext::for_subagent_stop(sub_session_id, None, Some(subagent_type));
+            let event = HookEvent::SubagentStop;
+            tokio::spawn(async move {
+                let handlers = hook_registry.read().await;
+                let handlers = handlers.get_matching(&event, &ctx);
+                if !handlers.is_empty() {
+                    jcode_hooks::dispatch_hooks(&event, &hook_input, &handlers, &dispatch_config)
+                        .await;
+                }
+            });
+        }
 
         listener.abort();
 

@@ -25,6 +25,24 @@ impl Agent {
         if event.is_some() {
             self.note_compaction_applied();
             self.persist_session_best_effort("compaction completion");
+
+            // PostCompact hook (fire-and-forget)
+            let registry = self.hook_registry.clone();
+            let config = self.dispatch_config.clone();
+            let session_id = self.session.id.clone();
+            let cwd = self.session.working_dir.clone().unwrap_or_default();
+            let ctx = HookContext::for_post_compact(session_id.clone(), cwd.clone());
+            let hook_event = HookEvent::PostCompact;
+            tokio::spawn(async move {
+                let handlers = registry.get_matching(&hook_event, &ctx);
+                if !handlers.is_empty() {
+                    let hook_input = HookInputBuilder::new()
+                        .session(&session_id, &cwd)
+                        .event("PostCompact")
+                        .build();
+                    jcode_hooks::dispatch_hooks(&hook_event, &hook_input, &handlers, &config).await;
+                }
+            });
         }
 
         event
@@ -65,15 +83,87 @@ impl Agent {
                     }
                 );
 
+                // PreCompact hook (blocking - can cancel compaction)
+                {
+                    let registry = self.hook_registry.clone();
+                    let config = self.dispatch_config.clone();
+                    let hook_session_id = self.session.id.clone();
+                    let hook_cwd = self.session.working_dir.clone().unwrap_or_default();
+                    let ctx =
+                        HookContext::for_pre_compact(hook_session_id.clone(), hook_cwd.clone(), 0);
+                    let hook_event = HookEvent::PreCompact;
+                    let handlers = registry.get_matching(&hook_event, &ctx);
+                    if !handlers.is_empty() {
+                        let hook_input = HookInputBuilder::new()
+                            .session(&hook_session_id, &hook_cwd)
+                            .event("PreCompact")
+                            .build();
+                        let hook_stats = tokio::task::block_in_place(|| {
+                            tokio::runtime::Handle::current().block_on(jcode_hooks::dispatch_hooks(
+                                &hook_event,
+                                &hook_input,
+                                &handlers,
+                                &config,
+                            ))
+                        });
+                        if hook_stats.any_denied() {
+                            let deny_reason = hook_stats
+                                .results
+                                .iter()
+                                .find(|r| {
+                                    matches!(r.outcome, jcode_hooks::ClassifiedOutcome::Deny { .. })
+                                })
+                                .map(|r| match &r.outcome {
+                                    jcode_hooks::ClassifiedOutcome::Deny { reason } => {
+                                        reason.clone()
+                                    }
+                                    _ => String::new(),
+                                })
+                                .unwrap_or_else(|| "blocked by hook".to_string());
+                            return (
+                                format!(
+                                    "{status_msg}\n\n**Compaction cancelled by hook:** {deny_reason}"
+                                ),
+                                false,
+                            );
+                        }
+                    }
+                }
+
                 match manager.force_compact_with(&messages, provider) {
-                    Ok(()) => (
-                        format!(
-                            "{}\n\n📦 **Compacting context** (manual) — summarizing older messages in the background to stay within the context window.\n\
-                            The summary will be applied automatically when ready.",
-                            status_msg
-                        ),
-                        true,
-                    ),
+                    Ok(()) => {
+                        // PostCompact hook (fire-and-forget)
+                        let registry = self.hook_registry.clone();
+                        let config = self.dispatch_config.clone();
+                        let session_id = self.session.id.clone();
+                        let cwd = self.session.working_dir.clone().unwrap_or_default();
+                        let ctx = HookContext::for_post_compact(session_id.clone(), cwd.clone());
+                        let hook_event = HookEvent::PostCompact;
+                        tokio::spawn(async move {
+                            let handlers = registry.get_matching(&hook_event, &ctx);
+                            if !handlers.is_empty() {
+                                let hook_input = HookInputBuilder::new()
+                                    .session(&session_id, &cwd)
+                                    .event("PostCompact")
+                                    .build();
+                                jcode_hooks::dispatch_hooks(
+                                    &hook_event,
+                                    &hook_input,
+                                    &handlers,
+                                    &config,
+                                )
+                                .await;
+                            }
+                        });
+                        (
+                            format!(
+                                "{}\n\n📦 **Compacting context** (manual) — summarizing older messages in the background to stay within the context window.\n\
+                                The summary will be applied automatically when ready.",
+                                status_msg
+                            ),
+                            true,
+                        )
+                    }
                     Err(reason) => (
                         format!("{status_msg}\n\n⚠ **Cannot compact:** {reason}"),
                         false,
@@ -123,12 +213,50 @@ impl Agent {
         let context_limit = self.provider.context_window() as u64;
         let compaction = self.registry.compaction();
 
-        let (dropped, usage_pct) = match compaction.try_write() {
+        let (dropped, usage_pct, compaction_count, avg_saved_bytes) = match compaction.try_write() {
             Ok(mut manager) => {
-                let (dropped, usage_pct) = {
+                let hook_session_id = self.session.id.clone();
+                let hook_cwd = self.session.working_dir.clone().unwrap_or_default();
+                let (dropped, usage_pct, saved_bytes) = {
                     let all_messages = self.session.provider_messages();
                     manager.update_observed_input_tokens(context_limit);
                     let usage_pct = manager.context_usage_with(all_messages) * 100.0;
+                    // PreCompact hook (blocking - can cancel compaction)
+                    {
+                        let registry = self.hook_registry.clone();
+                        let config = self.dispatch_config.clone();
+                        let ctx = HookContext::for_pre_compact(
+                            hook_session_id.clone(),
+                            hook_cwd.clone(),
+                            0,
+                        );
+                        let hook_event = HookEvent::PreCompact;
+                        let handlers = registry.get_matching(&hook_event, &ctx);
+                        if !handlers.is_empty() {
+                            let hook_input = HookInputBuilder::new()
+                                .session(&hook_session_id, &hook_cwd)
+                                .event("PreCompact")
+                                .build();
+                            let hook_stats = tokio::task::block_in_place(|| {
+                                tokio::runtime::Handle::current().block_on(
+                                    jcode_hooks::dispatch_hooks(
+                                        &hook_event,
+                                        &hook_input,
+                                        &handlers,
+                                        &config,
+                                    ),
+                                )
+                            });
+                            if hook_stats.any_denied() {
+                                logging::warn(
+                                    "Context-limit auto-recovery blocked by PreCompact hook",
+                                );
+                                return false;
+                            }
+                        }
+                    }
+
+                    let pre_tokens = manager.effective_token_count_with(all_messages) as u64;
                     let dropped = match manager.hard_compact_with(all_messages) {
                         Ok(dropped) => dropped,
                         Err(reason) => {
@@ -139,10 +267,13 @@ impl Agent {
                             return false;
                         }
                     };
-                    (dropped, usage_pct)
+                    let post_tokens = manager.effective_token_count_with(all_messages) as u64;
+                    let saved_bytes = pre_tokens.saturating_sub(post_tokens);
+                    (dropped, usage_pct, saved_bytes)
                 };
+                let compaction_count = manager.compacted_count();
                 self.sync_session_compaction_state_from_manager(&manager);
-                (dropped, usage_pct)
+                (dropped, usage_pct, compaction_count, saved_bytes)
             }
             Err(_) => {
                 logging::warn("Context-limit auto-recovery skipped: compaction manager lock busy");
@@ -154,6 +285,55 @@ impl Agent {
         self.locked_tools = None;
         self.provider_session_id = None;
         self.session.provider_session_id = None;
+
+        // PostCompact hook (fire-and-forget)
+        {
+            let registry = self.hook_registry.clone();
+            let config = self.dispatch_config.clone();
+            let session_id = self.session.id.clone();
+            let cwd = self.session.working_dir.clone().unwrap_or_default();
+            let ctx = HookContext::for_post_compact(session_id.clone(), cwd.clone());
+            let hook_event = HookEvent::PostCompact;
+            tokio::spawn(async move {
+                let handlers = registry.get_matching(&hook_event, &ctx);
+                if !handlers.is_empty() {
+                    let hook_input = HookInputBuilder::new()
+                        .session(&session_id, &cwd)
+                        .event("PostCompact")
+                        .build();
+                    jcode_hooks::dispatch_hooks(&hook_event, &hook_input, &handlers, &config).await;
+                }
+            });
+        }
+
+        // AutoCompactionControl hook (fire-and-forget, observational)
+        {
+            let registry = self.hook_registry.clone();
+            let config = self.dispatch_config.clone();
+            let session_id = self.session.id.clone();
+            let cwd = self.session.working_dir.clone().unwrap_or_default();
+            // auto_compaction_enabled is true here — we only reach this
+            // code path when auto-compaction was triggered by a context
+            // limit error and the provider supports compaction.
+            let ctx = HookContext::for_auto_compaction_control(
+                session_id.clone(),
+                cwd.clone(),
+                true,
+                compaction_count,
+                avg_saved_bytes,
+            );
+            let hook_event = HookEvent::AutoCompactionControl;
+            tokio::spawn(async move {
+                let handlers = registry.get_matching(&hook_event, &ctx);
+                if !handlers.is_empty() {
+                    let hook_input = HookInputBuilder::new()
+                        .session(&session_id, &cwd)
+                        .event("AutoCompactionControl")
+                        .build();
+                    jcode_hooks::dispatch_hooks(&hook_event, &hook_input, &handlers, &config).await;
+                }
+            });
+        }
 
         logging::warn(&format!(
             "Context limit exceeded; auto-compacted and retrying (dropped {} messages, usage was {:.1}%)",

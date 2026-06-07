@@ -934,6 +934,47 @@ impl Agent {
                 match result {
                     Ok(output) => {
                         let output = cap_tool_output_for_history(&tc.name, output);
+
+                        // Dispatch SessionDiff hooks for file-modifying tools
+                        if matches!(tc.name.as_str(), "Edit" | "Write" | "ApplyPatch") {
+                            let registry = self.hook_registry.clone();
+                            let config = self.dispatch_config.clone();
+                            let session_id = self.session.id.clone();
+                            let cwd = self.session.working_dir.clone().unwrap_or_default();
+                            let tool_name = tc.name.clone();
+                            let tool_output_preview = if output.output.len() > 4096 {
+                                output.output[..4096].to_string()
+                            } else {
+                                output.output.clone()
+                            };
+                            let file_path = tc
+                                .input
+                                .get("file_path")
+                                .and_then(|v| v.as_str())
+                                .map(|s| s.to_string());
+                            let hook_input = HookInputBuilder::new()
+                                .session(&session_id, &cwd)
+                                .event("SessionDiff")
+                                .tool(&tool_name, tc.input.clone(), &tc.id)
+                                .tool_output(serde_json::json!({ "output": tool_output_preview }))
+                                .diff(&tool_output_preview, file_path.as_deref())
+                                .build();
+                            let ctx = HookContext::for_session_diff(session_id, cwd, file_path);
+                            let event = HookEvent::SessionDiff;
+                            tokio::spawn(async move {
+                                let handlers = registry.get_matching(&event, &ctx);
+                                if !handlers.is_empty() {
+                                    jcode_hooks::dispatch_hooks(
+                                        &event,
+                                        &hook_input,
+                                        &handlers,
+                                        &config,
+                                    )
+                                    .await;
+                                }
+                            });
+                        }
+
                         Bus::global().publish(BusEvent::ToolUpdated(ToolEvent {
                             session_id: self.session.id.clone(),
                             message_id: message_id.clone(),

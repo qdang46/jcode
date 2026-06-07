@@ -38,10 +38,14 @@ use crate::compaction::CompactionManager;
 use crate::provider::Provider;
 use crate::skill::SkillRegistry;
 use anyhow::Result;
+use jcode_hooks::{DispatchConfig, HookContext, HookEvent, HookInputBuilder, HookRegistry};
 use jcode_message_types::ToolDefinition;
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
+#[cfg(feature = "dcp")]
+use std::sync::Mutex;
+
 use std::sync::{LazyLock, RwLock as StdRwLock};
 use tokio::sync::RwLock;
 
@@ -99,6 +103,12 @@ pub struct Registry {
     tools: Arc<RwLock<HashMap<String, Arc<dyn Tool>>>>,
     skills: Arc<RwLock<SkillRegistry>>,
     compaction: Arc<RwLock<CompactionManager>>,
+    /// Hook system for lifecycle events (PreToolUse, PostToolUse, etc.)
+    hook_registry: Arc<RwLock<HookRegistry>>,
+    /// Dispatch configuration for hooks
+    dispatch_config: DispatchConfig,
+    #[cfg(feature = "dcp")]
+    dcp: Option<Arc<Mutex<crate::dcp_plugin::DcpPlugin>>>,
 }
 
 impl Clone for Registry {
@@ -109,11 +119,25 @@ impl Clone for Registry {
             // Each clone gets a fresh CompactionManager to prevent parallel
             // subagents from corrupting each other's message history
             compaction: Arc::new(RwLock::new(CompactionManager::new())),
+            hook_registry: self.hook_registry.clone(),
+            dispatch_config: self.dispatch_config.clone(),
+            #[cfg(feature = "dcp")]
+            dcp: self.dcp.clone(),
         }
     }
 }
 
 impl Registry {
+    /// Access the hook registry for dispatching lifecycle hooks.
+    pub fn hook_registry(&self) -> &Arc<RwLock<HookRegistry>> {
+        &self.hook_registry
+    }
+
+    /// Access the dispatch configuration for hooks.
+    pub fn dispatch_config(&self) -> &DispatchConfig {
+        &self.dispatch_config
+    }
+
     fn shared_skills_registry() -> Arc<RwLock<SkillRegistry>> {
         SkillRegistry::shared_registry()
     }
@@ -145,6 +169,10 @@ impl Registry {
             tools: Arc::new(RwLock::new(HashMap::new())),
             skills: Arc::new(RwLock::new(SkillRegistry::default())),
             compaction: Arc::new(RwLock::new(CompactionManager::new())),
+            hook_registry: Arc::new(RwLock::new(HookRegistry::default())),
+            dispatch_config: DispatchConfig::default(),
+            #[cfg(feature = "dcp")]
+            dcp: None,
         }
     }
 
@@ -267,10 +295,17 @@ impl Registry {
         let compaction = Arc::new(RwLock::new(CompactionManager::new()));
         let compaction_ms = compaction_start.elapsed().as_millis();
         let registry_struct_start = std::time::Instant::now();
+        let hook_config = jcode_hooks::load_hooks_config();
+        let hook_registry = Arc::new(RwLock::new(HookRegistry::from_config(hook_config.clone())));
+        let dispatch_config = DispatchConfig::from_settings(&hook_config.settings);
         let registry = Self {
             tools: Arc::new(RwLock::new(HashMap::new())),
             skills: skills.clone(),
             compaction: compaction.clone(),
+            hook_registry,
+            dispatch_config,
+            #[cfg(feature = "dcp")]
+            dcp: None,
         };
         let registry_struct_ms = registry_struct_start.elapsed().as_millis();
 
@@ -545,6 +580,52 @@ impl Registry {
             Self::tool_lifecycle_fields("start", name, resolved_name, &input, &ctx),
         );
 
+        // --- PreToolUse hook ---
+        let cwd = ctx
+            .working_dir
+            .as_ref()
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or_default();
+        let hook_ctx = HookContext::for_tool(
+            resolved_name.to_string(),
+            ctx.session_id.clone(),
+            cwd.clone(),
+        );
+        {
+            let hook_registry = self.hook_registry.read().await;
+            let handlers = hook_registry.get_matching(&HookEvent::PreToolUse, &hook_ctx);
+            if !handlers.is_empty() {
+                let hook_input = HookInputBuilder::new()
+                    .session(&ctx.session_id, &cwd)
+                    .event("PreToolUse")
+                    .tool(resolved_name, input.clone(), &ctx.tool_call_id)
+                    .build();
+                let stats = jcode_hooks::dispatch_hooks(
+                    &HookEvent::PreToolUse,
+                    &hook_input,
+                    &handlers,
+                    &self.dispatch_config,
+                )
+                .await;
+                if stats.any_denied() {
+                    let deny_reason = stats
+                        .results
+                        .iter()
+                        .find(|r| matches!(r.outcome, jcode_hooks::ClassifiedOutcome::Deny { .. }))
+                        .map(|r| match &r.outcome {
+                            jcode_hooks::ClassifiedOutcome::Deny { reason } => reason.clone(),
+                            _ => String::new(),
+                        })
+                        .unwrap_or_else(|| "blocked by hook".to_string());
+                    return Err(anyhow::anyhow!(
+                        "Tool '{}' blocked by hook: {}",
+                        resolved_name,
+                        deny_reason
+                    ));
+                }
+            }
+        }
+
         let started_at = std::time::Instant::now();
         let result = tool.execute(input.clone(), ctx.clone()).await;
         let latency_ms = started_at.elapsed().as_millis().min(u128::from(u64::MAX)) as u64;
@@ -552,8 +633,51 @@ impl Registry {
         crate::telemetry::record_tool_execution(resolved_name, &input, result.is_ok(), latency_ms);
 
         let mut output = match result {
-            Ok(output) => output,
+            Ok(output) => {
+                // --- PostToolUse hook ---
+                let hook_registry = self.hook_registry.read().await;
+                let handlers = hook_registry.get_matching(&HookEvent::PostToolUse, &hook_ctx);
+                if !handlers.is_empty() {
+                    let hook_input = HookInputBuilder::new()
+                        .session(&ctx.session_id, &cwd)
+                        .event("PostToolUse")
+                        .tool(resolved_name, input.clone(), &ctx.tool_call_id)
+                        .tool_output(serde_json::json!({ "output": &output.output }))
+                        .duration(latency_ms)
+                        .build();
+                    let _ = jcode_hooks::dispatch_hooks(
+                        &HookEvent::PostToolUse,
+                        &hook_input,
+                        &handlers,
+                        &self.dispatch_config,
+                    )
+                    .await;
+                }
+                drop(hook_registry);
+                output
+            }
             Err(error) => {
+                // --- PostToolUseFailure hook ---
+                let hook_registry = self.hook_registry.read().await;
+                let handlers =
+                    hook_registry.get_matching(&HookEvent::PostToolUseFailure, &hook_ctx);
+                if !handlers.is_empty() {
+                    let hook_input = HookInputBuilder::new()
+                        .session(&ctx.session_id, &cwd)
+                        .event("PostToolUseFailure")
+                        .tool(resolved_name, input.clone(), &ctx.tool_call_id)
+                        .error(&crate::util::format_error_chain(&error), -1)
+                        .duration(latency_ms)
+                        .build();
+                    let _ = jcode_hooks::dispatch_hooks(
+                        &HookEvent::PostToolUseFailure,
+                        &hook_input,
+                        &handlers,
+                        &self.dispatch_config,
+                    )
+                    .await;
+                }
+                drop(hook_registry);
                 let mut fields =
                     Self::tool_lifecycle_fields("error", name, resolved_name, &input, &ctx);
                 fields.push(("elapsed_ms".to_string(), latency_ms.to_string()));

@@ -37,6 +37,10 @@ use crate::skill::SkillRegistry;
 use crate::tool::{Registry, ToolContext, ToolExecutionMode};
 use anyhow::Result;
 use futures::StreamExt;
+use jcode_hooks::{DispatchConfig, HookContext, HookEvent, HookInputBuilder, HookRegistry};
+#[cfg(feature = "dcp")]
+use std::cell::Cell;
+
 use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
 use std::io::{self, Write};
@@ -235,6 +239,13 @@ pub struct Agent {
     stdin_request_tx: Option<tokio::sync::mpsc::UnboundedSender<crate::tool::StdinInputRequest>>,
     /// Canonical reducer-backed view of runtime provider/model selection.
     provider_runtime_state: ProviderRuntimeState,
+    /// Hook registry for dispatching lifecycle hooks.
+    hook_registry: HookRegistry,
+    /// Dispatch configuration for hook execution.
+    dispatch_config: DispatchConfig,
+    /// DCP plugin for context pruning (behind feature flag).
+    #[cfg(feature = "dcp")]
+    dcp: Option<crate::dcp_plugin::DcpPlugin>,
 }
 
 impl Agent {
@@ -286,6 +297,10 @@ impl Agent {
             rewind_undo_snapshot: None,
             stdin_request_tx: None,
             provider_runtime_state: ProviderRuntimeState::observed(initial_provider_model),
+            hook_registry: HookRegistry::default(),
+            dispatch_config: DispatchConfig::default(),
+            #[cfg(feature = "dcp")]
+            dcp: crate::dcp_plugin::DcpPlugin::new().ok(),
         };
         crate::tool::set_session_tool_policy(
             &agent.session.id,
@@ -325,6 +340,33 @@ impl Agent {
         agent.session.provider_key =
             crate::session::derive_session_provider_key(agent.provider.name());
         agent.session.ensure_initial_session_context_message();
+
+        // Dispatch SessionStart hooks (fire-and-forget, observational only)
+        {
+            let registry = agent.hook_registry.clone();
+            let config = agent.dispatch_config.clone();
+            let session_id = agent.session.id.clone();
+            let cwd = agent.session.working_dir.clone().unwrap_or_default();
+            let hook_input = HookInputBuilder::new()
+                .session(&session_id, &cwd)
+                .event("SessionStart")
+                .build();
+            let ctx = HookContext::for_session_start(session_id, cwd);
+            let event = HookEvent::SessionStart;
+            tokio::spawn(async move {
+                let handlers = registry.get_matching(&event, &ctx);
+                if !handlers.is_empty() {
+                    jcode_hooks::dispatch_hooks(&event, &hook_input, &handlers, &config).await;
+                }
+            });
+        }
+
+        // Wire DCP plugin into registry so DCP tools can access it
+        #[cfg(feature = "dcp")]
+        if let Some(dcp) = agent.dcp.take() {
+            agent.registry.set_dcp(dcp);
+        }
+
         agent.seed_compaction_from_session();
         agent.log_env_snapshot("create");
         crate::telemetry::begin_session_with_parent(
@@ -384,6 +426,33 @@ impl Agent {
         agent.restore_reasoning_effort_from_session();
         agent.session.ensure_initial_session_context_message();
         agent.sync_memory_dedup_state_from_session();
+
+        // Dispatch SessionStart hooks (fire-and-forget, observational only)
+        {
+            let registry = agent.hook_registry.clone();
+            let config = agent.dispatch_config.clone();
+            let session_id = agent.session.id.clone();
+            let cwd = agent.session.working_dir.clone().unwrap_or_default();
+            let hook_input = HookInputBuilder::new()
+                .session(&session_id, &cwd)
+                .event("SessionStart")
+                .build();
+            let ctx = HookContext::for_session_start(session_id, cwd);
+            let event = HookEvent::SessionStart;
+            tokio::spawn(async move {
+                let handlers = registry.get_matching(&event, &ctx);
+                if !handlers.is_empty() {
+                    jcode_hooks::dispatch_hooks(&event, &hook_input, &handlers, &config).await;
+                }
+            });
+        }
+
+        // Wire DCP plugin into registry so DCP tools can access it
+        #[cfg(feature = "dcp")]
+        if let Some(dcp) = agent.dcp.take() {
+            agent.registry.set_dcp(dcp);
+        }
+
         agent.seed_compaction_from_session();
         agent.log_env_snapshot("attach");
         crate::telemetry::begin_session_with_parent(
@@ -832,10 +901,70 @@ impl Agent {
             &self.provider.model(),
             crate::telemetry::SessionEndReason::NormalExit,
         );
+
+        // Dispatch SessionEnd hooks (fire-and-forget, observational only)
+        {
+            let registry = self.hook_registry.clone();
+            let config = self.dispatch_config.clone();
+            let session_id = self.session.id.clone();
+            let hook_input = HookInputBuilder::new()
+                .session(&session_id, "")
+                .event("SessionEnd")
+                .build();
+            let ctx = HookContext::for_session_end(session_id.clone());
+            let event = HookEvent::SessionEnd;
+            tokio::spawn(async move {
+                let handlers = registry.get_matching(&event, &ctx);
+                if !handlers.is_empty() {
+                    jcode_hooks::dispatch_hooks(&event, &hook_input, &handlers, &config).await;
+                }
+            });
+        }
+
+        // Dispatch AgentEnd hooks (fire-and-forget, observational only)
+        {
+            let registry = self.hook_registry.clone();
+            let config = self.dispatch_config.clone();
+            let session_id = self.session.id.clone();
+            let hook_input = HookInputBuilder::new()
+                .session(&session_id, "")
+                .event("AgentEnd")
+                .build();
+            let ctx = HookContext::for_agent_end(session_id);
+            let event = HookEvent::AgentEnd;
+            tokio::spawn(async move {
+                let handlers = registry.get_matching(&event, &ctx);
+                if !handlers.is_empty() {
+                    jcode_hooks::dispatch_hooks(&event, &hook_input, &handlers, &config).await;
+                }
+            });
+        }
+
         self.persist_soft_interrupt_snapshot();
         self.session.mark_closed();
         if !self.session.messages.is_empty() {
             self.persist_session_best_effort("session close state");
+        }
+
+        // Dispatch SessionUpdated hooks — session state changed to "closed"
+        {
+            let registry = self.hook_registry.clone();
+            let config = self.dispatch_config.clone();
+            let session_id = self.session.id.clone();
+            let cwd = self.session.working_dir.clone().unwrap_or_default();
+            let hook_input = HookInputBuilder::new()
+                .session(&session_id, &cwd)
+                .event("SessionUpdated")
+                .session_state("active", "closed", "normal_exit")
+                .build();
+            let ctx = HookContext::for_session_updated(session_id, cwd);
+            let event = HookEvent::SessionUpdated;
+            tokio::spawn(async move {
+                let handlers = registry.get_matching(&event, &ctx);
+                if !handlers.is_empty() {
+                    jcode_hooks::dispatch_hooks(&event, &hook_input, &handlers, &config).await;
+                }
+            });
         }
     }
 
@@ -845,16 +974,71 @@ impl Agent {
             &self.provider.model(),
             crate::telemetry::SessionEndReason::Unknown,
         );
+        let crash_msg = message
+            .clone()
+            .unwrap_or_else(|| "unknown crash".to_string());
         self.persist_soft_interrupt_snapshot();
         self.session.mark_crashed(message);
         if !self.session.messages.is_empty() {
             self.persist_session_best_effort("session crash state");
+        }
+
+        // Dispatch SessionUpdated hooks — session state changed to "crashed"
+        {
+            let registry = self.hook_registry.clone();
+            let config = self.dispatch_config.clone();
+            let session_id = self.session.id.clone();
+            let cwd = self.session.working_dir.clone().unwrap_or_default();
+            let hook_input = HookInputBuilder::new()
+                .session(&session_id, &cwd)
+                .event("SessionUpdated")
+                .session_state("active", "crashed", &crash_msg)
+                .build();
+            let ctx = HookContext::for_session_updated(session_id.clone(), cwd.clone());
+            let event = HookEvent::SessionUpdated;
+            tokio::spawn(async move {
+                let handlers = registry.get_matching(&event, &ctx);
+                if !handlers.is_empty() {
+                    jcode_hooks::dispatch_hooks(&event, &hook_input, &handlers, &config).await;
+                }
+            });
+        }
+
+        // Dispatch SessionError hooks — the session encountered a fatal error
+        {
+            let registry = self.hook_registry.clone();
+            let config = self.dispatch_config.clone();
+            let session_id = self.session.id.clone();
+            let cwd = self.session.working_dir.clone().unwrap_or_default();
+            let mut hook_input = HookInputBuilder::new()
+                .session(&session_id, &cwd)
+                .event("SessionError")
+                .build();
+            hook_input.error = Some(crash_msg);
+            let ctx = HookContext::for_session_error(session_id, cwd);
+            let event = HookEvent::SessionError;
+            tokio::spawn(async move {
+                let handlers = registry.get_matching(&event, &ctx);
+                if !handlers.is_empty() {
+                    jcode_hooks::dispatch_hooks(&event, &hook_input, &handlers, &config).await;
+                }
+            });
         }
     }
 
     /// Get the last token usage from the most recent API request
     pub fn last_usage(&self) -> &TokenUsage {
         &self.last_usage
+    }
+
+    /// Get a reference to the hook registry for external dispatch.
+    pub fn hook_registry(&self) -> &HookRegistry {
+        &self.hook_registry
+    }
+
+    /// Get a reference to the dispatch configuration for external dispatch.
+    pub fn dispatch_config(&self) -> &DispatchConfig {
+        &self.dispatch_config
     }
 
     pub fn token_usage_totals(&self) -> crate::protocol::TokenUsageTotals {

@@ -61,6 +61,9 @@ use crate::transport::Stream;
 use anyhow::Result;
 use futures::FutureExt;
 use jcode_agent_runtime::{InterruptSignal, SoftInterruptSource, StreamError};
+use jcode_hooks::{
+    ClassifiedOutcome, DispatchConfig, HookContext, HookEvent, HookInputBuilder, HookRegistry,
+};
 use std::collections::{HashMap, HashSet};
 use std::sync::{
     Arc,
@@ -2617,6 +2620,62 @@ async fn cancel_processing_message(
             *state.task = Some(handle);
             return;
         }
+
+        // --- Stop hook (BLOCKING) ---
+        // Dispatch Stop hooks before cancelling. If any hook denies, abort the
+        // cancel and leave the task running.
+        {
+            let hook_config = jcode_hooks::load_hooks_config();
+            if !hook_config.is_empty() {
+                let registry = HookRegistry::from_config(hook_config.clone());
+                let cwd = std::env::current_dir()
+                    .map(|p| p.to_string_lossy().to_string())
+                    .unwrap_or_default();
+                let hook_ctx = HookContext::for_stop(
+                    session_control.session_id.clone(),
+                    cwd.clone(),
+                    Some("user_cancel".to_string()),
+                );
+                let handlers = registry.get_matching(&HookEvent::Stop, &hook_ctx);
+                if !handlers.is_empty() {
+                    let mut hook_input = HookInputBuilder::new()
+                        .session(&session_control.session_id, &cwd)
+                        .event("Stop")
+                        .build();
+                    hook_input.stop_type = Some("user_cancel".to_string());
+                    let dispatch_config = DispatchConfig::from_settings(&hook_config.settings);
+                    let stats = jcode_hooks::dispatch_hooks(
+                        &HookEvent::Stop,
+                        &hook_input,
+                        &handlers,
+                        &dispatch_config,
+                    )
+                    .await;
+                    if stats.any_denied() {
+                        let deny_reason = stats
+                            .results
+                            .iter()
+                            .find(|r| matches!(r.outcome, ClassifiedOutcome::Deny { .. }))
+                            .map(|r| match &r.outcome {
+                                ClassifiedOutcome::Deny { reason } => reason.clone(),
+                                _ => String::new(),
+                            })
+                            .unwrap_or_else(|| "blocked by hook".to_string());
+                        crate::logging::info(&format!(
+                            "SERVER_INTERRUPT_CANCEL_BLOCKED_BY_HOOK request_id={:?} session={} message_id={:?} reason={} elapsed_ms={}",
+                            request_id,
+                            session_label,
+                            *state.message_id,
+                            deny_reason,
+                            cancel_start.elapsed().as_millis()
+                        ));
+                        *state.task = Some(handle);
+                        return;
+                    }
+                }
+            }
+        }
+
         session_control.request_cancel();
         crate::logging::info(&format!(
             "SERVER_INTERRUPT_CANCEL_SIGNALLED request_id={:?} session={} message_id={:?} wait_ms=500",
@@ -2818,6 +2877,7 @@ pub(super) async fn process_message_streaming_mpsc(
 ) -> Result<()> {
     let mut agent = agent.lock().await;
     let session_id = agent.session_id().to_string();
+    let cwd = agent.working_dir().unwrap_or_default().to_string();
     let result = agent
         .run_once_streaming_mpsc(content, images, system_reminder, event_tx)
         .await;
@@ -2827,9 +2887,51 @@ pub(super) async fn process_message_streaming_mpsc(
                 "turn_completed",
                 "message_turn_finished",
             )
-            .with_session_id(session_id)
+            .with_session_id(session_id.clone())
             .force_attribution(),
         );
+
+        // Dispatch SessionIdle hooks — turn completed, session is now idle
+        {
+            let registry = agent.hook_registry().clone();
+            let config = agent.dispatch_config().clone();
+            let hook_input = HookInputBuilder::new()
+                .session(&session_id, &cwd)
+                .event("SessionIdle")
+                .build();
+            let ctx = HookContext::for_session_idle(session_id, cwd);
+            let event = HookEvent::SessionIdle;
+            tokio::spawn(async move {
+                let handlers = registry.get_matching(&event, &ctx);
+                if !handlers.is_empty() {
+                    jcode_hooks::dispatch_hooks(&event, &hook_input, &handlers, &config).await;
+                }
+            });
+        }
+    } else {
+        // Dispatch SessionError hooks — turn failed with an error
+        let error_msg = result
+            .as_ref()
+            .err()
+            .map(crate::util::format_error_chain)
+            .unwrap_or_else(|| "unknown error".to_string());
+        {
+            let registry = agent.hook_registry().clone();
+            let config = agent.dispatch_config().clone();
+            let mut hook_input = HookInputBuilder::new()
+                .session(&session_id, &cwd)
+                .event("SessionError")
+                .build();
+            hook_input.error = Some(error_msg);
+            let ctx = HookContext::for_session_error(session_id, cwd);
+            let event = HookEvent::SessionError;
+            tokio::spawn(async move {
+                let handlers = registry.get_matching(&event, &ctx);
+                if !handlers.is_empty() {
+                    jcode_hooks::dispatch_hooks(&event, &hook_input, &handlers, &config).await;
+                }
+            });
+        }
     }
     result
 }

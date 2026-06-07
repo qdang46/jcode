@@ -599,6 +599,22 @@ pub(super) fn build_resume_command(
             let title = format!("◌ OpenCode {}", &session_id[..session_id.len().min(8)]);
             (exe, args, title)
         }
+        ResumeTarget::ForeignSession {
+            provider_slug,
+            session_id,
+            ..
+        } => {
+            let exe = launch_client_executable();
+            let imported_id =
+                crate::casr_adapter::imported_session_id_for_provider(provider_slug, session_id);
+            let args = resume_invocation_args(&imported_id, socket);
+            let title = format!(
+                "💾 {provider_slug} {}",
+                &session_id[..session_id.len().min(8)]
+            );
+            (exe, args, title)
+        }
+
     }
 }
 

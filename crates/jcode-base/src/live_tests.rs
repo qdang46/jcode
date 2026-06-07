@@ -2238,10 +2238,10 @@ pub fn classify_provider_test_coverage_line(line: &str) -> CoverageLineStyle {
     }
 
     // Per-pair in-progress rows lead with an `N/M` stage count.
-    if let Some(first) = t.split_whitespace().next() {
-        if is_stage_fraction(first) {
-            return if t.contains("failed at") { Fail } else { Warn };
-        }
+    if let Some(first) = t.split_whitespace().next()
+        && is_stage_fraction(first)
+    {
+        return if t.contains("failed at") { Fail } else { Warn };
     }
 
     // Provider-monitor rows end with a `ready/seen` fraction; color by status

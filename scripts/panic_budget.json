@@ -1,5 +1,5 @@
 {
-  "total": 20,
+  "total": 24,
   "tracked_files": {
     "crates/jcode-app-core/src/export.rs": 5,
     "crates/jcode-app-core/src/yolo_classifier.rs": 1,
@@ -7,6 +7,10 @@
     "crates/jcode-base/src/auth/oauth.rs": 3,
     "crates/jcode-desktop/src/main.rs": 2,
     "crates/jcode-desktop/src/single_session_render/wrapping.rs": 1,
+    "crates/jcode-hooks/src/cli.rs": 1,
+    "crates/jcode-hooks/src/dispatch.rs": 4,
+    "crates/jcode-hooks/src/execute.rs": 2,
+    "crates/jcode-tui/src/tui/app/helpers.rs": 1,
     "src/cli/commands.rs": 1,
     "src/orchestration_api.rs": 1,
     "crates/jcode-productivity-core/src/aggregate.rs": 1,

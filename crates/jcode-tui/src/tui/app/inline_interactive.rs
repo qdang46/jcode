@@ -1837,6 +1837,23 @@ impl App {
                     failed.push(format!("failed to import {}: {}", name, err));
                     continue;
                 }
+                ResumeTarget::CodexSession { session_id, .. } => {
+                    crate::casr_adapter::imported_codex_session_id(session_id)
+                }
+                ResumeTarget::PiSession { session_path } => {
+                    crate::casr_adapter::imported_pi_session_id(session_path)
+                }
+                ResumeTarget::OpenCodeSession { session_id, .. } => {
+                    crate::casr_adapter::imported_opencode_session_id(session_id)
+                }
+                ResumeTarget::ForeignSession {
+                    provider_slug,
+                    session_id,
+                    ..
+                } => {
+                    crate::casr_adapter::imported_session_id_for_provider(provider_slug, session_id)
+                }
+
             };
 
             match spawn_resume_target_in_new_terminal(&resolved_target, &cwd, socket.as_deref()) {
@@ -1942,12 +1959,26 @@ impl App {
             }
         };
 
-        let ResumeTarget::JcodeSession { session_id } = resolved_target else {
-            self.push_display_message(DisplayMessage::error(format!(
-                "Cannot resume {} in the current terminal.",
-                name
-            )));
-            return;
+        let resolved_target = match target {
+            ResumeTarget::JcodeSession { session_id } => session_id.clone(),
+            ResumeTarget::ClaudeCodeSession { session_id, .. } => {
+                crate::casr_adapter::imported_claude_code_session_id(session_id)
+            }
+            ResumeTarget::CodexSession { session_id, .. } => {
+                crate::casr_adapter::imported_codex_session_id(session_id)
+            }
+            ResumeTarget::PiSession { session_path } => {
+                crate::casr_adapter::imported_pi_session_id(session_path)
+            }
+            ResumeTarget::OpenCodeSession { session_id, .. } => {
+                crate::casr_adapter::imported_opencode_session_id(session_id)
+            }
+            ResumeTarget::ForeignSession {
+                provider_slug,
+                session_id,
+                ..
+            } => crate::casr_adapter::imported_session_id_for_provider(provider_slug, session_id),
+
         };
 
         if targets.len() > 1 {

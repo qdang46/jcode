@@ -1,84 +1,9 @@
 use super::*;
 
-/// Largest byte index `<= index` that is a UTF-8 char boundary in `text`.
-/// Equivalent to the unstable `str::floor_char_boundary`, reimplemented so the
-/// incremental marker scan can clamp its scan-window start onto a valid
-/// boundary without re-scanning the whole accumulated response.
-fn floor_char_boundary(text: &str, index: usize) -> usize {
-    if index >= text.len() {
-        return text.len();
-    }
-    let mut boundary = index;
-    while boundary > 0 && !text.is_char_boundary(boundary) {
-        boundary -= 1;
-    }
-    boundary
-}
-
-/// The wrapped-tool-call markers emitted by some models inside plain text.
-const WRAP_TOOL_MARKERS: [&str; 2] = ["to=functions.", "+#+#"];
-
-/// Find the first wrapped-tool-call marker in `accumulated`, scanning only the
-/// newly appended `delta` plus a short overlap from the previous tail (so a
-/// marker straddling the append boundary is still found).
-///
-/// This avoids re-scanning the entire accumulated response on every streamed
-/// delta, which was O(response) per token and O(response^2) over a full answer.
-fn find_wrap_marker_incremental(accumulated: &str, appended_len: usize) -> Option<usize> {
-    let max_marker_len = WRAP_TOOL_MARKERS
-        .iter()
-        .map(|marker| marker.len())
-        .max()
-        .unwrap_or(0);
-    let scan_start = accumulated
-        .len()
-        .saturating_sub(appended_len + max_marker_len.saturating_sub(1));
-    let scan_start = floor_char_boundary(accumulated, scan_start);
-    let window = &accumulated[scan_start..];
-    WRAP_TOOL_MARKERS
-        .iter()
-        .filter_map(|marker| window.find(marker))
-        .min()
-        .map(|rel_idx| scan_start + rel_idx)
-}
-
-fn reload_interrupted_tool_result(tc: &ToolCall, elapsed_secs: f64) -> (String, bool) {
-    if tc.name == "selfdev" {
-        return ("Reload initiated. Process restarting...".to_string(), false);
-    }
-
-    let action = tc
-        .input
-        .get("action")
-        .and_then(|value| value.as_str())
-        .unwrap_or_default();
-    let is_wait_like =
-        (tc.name == "bg" && action == "wait") || (tc.name == "swarm" && action == "await_members");
-
-    if is_wait_like {
-        let input = serde_json::to_string(&tc.input).unwrap_or_else(|_| "{}".to_string());
-        return (
-            format!(
-                "[Tool '{}' wait interrupted by server reload after {:.1}s. The underlying operation may still be running. Resume the wait by rerunning the same tool call with input: {}]",
-                tc.name, elapsed_secs, input
-            ),
-            false,
-        );
-    }
-
-    (
-        format!(
-            "[Tool '{}' interrupted by server reload after {:.1}s]",
-            tc.name, elapsed_secs
-        ),
-        true,
-    )
-}
-
 impl Agent {
-    pub(super) async fn run_turn_streaming_mpsc(
+    pub(super) async fn run_turn_streaming(
         &mut self,
-        event_tx: mpsc::UnboundedSender<ServerEvent>,
+        event_tx: broadcast::Sender<ServerEvent>,
     ) -> Result<()> {
         self.set_log_context();
         let trace = trace_enabled();
@@ -120,10 +45,9 @@ impl Agent {
             }
 
             let tools = self.tool_definitions().await;
-            let messages: std::sync::Arc<[Message]> = messages.into();
             // Non-blocking memory: uses pending result from last turn, spawns check for next turn
-            let memory_pending = self.build_memory_prompt_nonblocking_shared(
-                std::sync::Arc::clone(&messages),
+            let memory_pending = self.build_memory_prompt_nonblocking(
+                &messages,
                 Some(std::sync::Arc::new({
                     let event_tx = event_tx.clone();
                     move |event| {
@@ -138,18 +62,25 @@ impl Agent {
             // Check for client-side cache violations before memory injection.
             // Memory is an ephemeral suffix that changes each turn; tracking it would cause
             // false-positive violations every turn (prior turn's memory ≠ current history prefix).
-            self.record_client_cache_request(&messages);
+            if self.should_track_client_cache()
+                && let Some(violation) = self.cache_tracker.record_request(&messages)
+            {
+                logging::warn(&format!(
+                    "CLIENT_CACHE_VIOLATION: {} | turn={} messages={}",
+                    violation.reason, violation.turn, violation.message_count
+                ));
+            }
 
             let mut cache_signature_messages =
                 if crate::config::config().features.message_timestamps {
                     Message::with_timestamps(&messages)
                 } else {
-                    messages.iter().cloned().collect()
+                    messages.clone()
                 };
             let mut ephemeral_signature_messages = Vec::new();
 
             // Inject memory as a user message at the end (preserves cache prefix)
-            let mut messages_with_memory: Vec<Message> = messages.iter().cloned().collect();
+            let mut messages_with_memory = messages;
             if let Some(memory) = memory_pending.as_ref() {
                 let memory_count = memory.count.max(1);
                 let computed_age_ms = memory.computed_at.elapsed().as_millis() as u64;
@@ -210,13 +141,7 @@ impl Agent {
                 loop {
                     tokio::select! {
                         _ = keepalive.tick() => {
-                            send_stream_keepalive_mpsc(&event_tx);
-                        }
-                        _ = self.graceful_shutdown.notified() => {
-                            logging::info(
-                                "Graceful shutdown/cancel before API stream opened - stopping turn",
-                            );
-                            return Ok(());
+                            send_stream_keepalive_broadcast(&event_tx);
                         }
                         result = &mut complete_future => {
                             match result {
@@ -266,7 +191,7 @@ impl Agent {
                 self,
                 "stream_opened",
                 api_start,
-                vec![("mode", "mpsc".to_string())],
+                vec![("mode", "broadcast".to_string())],
             );
 
             let mut text_content = String::new();
@@ -288,13 +213,10 @@ impl Agent {
                 crate::provider::stores_reasoning_content_for_context(&provider_name);
             let mut reasoning_content = String::new();
             let mut reasoning_signature = String::new();
-            // Whether a live reasoning region is currently streaming to the client.
-            // Raw reasoning deltas are sent as `ReasoningDelta`; the client owns the
-            // dim/italic styling and live partial-line rendering. We close the region
-            // (via `ReasoningDone`) before real output or a tool call begins.
-            let mut reasoning_open = false;
+            let mut reasoning_fmt = crate::agent::reasoning_format::ReasoningStreamFormatter::new();
             let mut openai_reasoning_items: Vec<ContentBlock> = Vec::new();
             let mut openai_native_compaction: Option<(String, usize)> = None;
+            // Track tool_use_id -> name for tool results
             let mut tool_id_to_name: std::collections::HashMap<String, String> =
                 std::collections::HashMap::new();
 
@@ -304,24 +226,8 @@ impl Agent {
                 let next_event = std::pin::pin!(stream.next());
                 let event = tokio::select! {
                     _ = keepalive.tick() => {
-                        send_stream_keepalive_mpsc(&event_tx);
+                        send_stream_keepalive_broadcast(&event_tx);
                         continue;
-                    }
-                    _ = self.graceful_shutdown.notified() => {
-                        log_agent_provider_stream_lifecycle(
-                            logging::LogLevel::Warn,
-                            self,
-                            "stream_cancelled",
-                            api_start,
-                            vec![
-                                ("mode", "mpsc".to_string()),
-                                ("reason", "graceful_shutdown".to_string()),
-                            ],
-                        );
-                        logging::info(
-                            "Graceful shutdown/cancel while waiting for API stream event - stopping stream",
-                        );
-                        break;
                     }
                     event = next_event => event,
                 };
@@ -336,7 +242,7 @@ impl Agent {
                         "stream_eof",
                         api_start,
                         vec![
-                            ("mode", "mpsc".to_string()),
+                            ("mode", "broadcast".to_string()),
                             ("saw_message_end", saw_message_end.to_string()),
                         ],
                     );
@@ -353,7 +259,7 @@ impl Agent {
                                 "stream_error_retry_after_compaction",
                                 api_start,
                                 vec![
-                                    ("mode", "mpsc".to_string()),
+                                    ("mode", "broadcast".to_string()),
                                     ("error", err_str.clone()),
                                     (
                                         "context_limit_retries",
@@ -390,7 +296,7 @@ impl Agent {
                             self,
                             "stream_error",
                             api_start,
-                            vec![("mode", "mpsc".to_string()), ("error", err_str)],
+                            vec![("mode", "broadcast".to_string()), ("error", err_str)],
                         );
                         return Err(e);
                     }
@@ -413,42 +319,39 @@ impl Agent {
                     }
                     StreamEvent::ThinkingDelta(thinking_text) => {
                         // Only send thinking content if enabled in config
-                        if crate::config::config().display.show_thinking
-                            && !thinking_text.is_empty()
-                        {
-                            reasoning_open = true;
-                            let _ = event_tx.send(ServerEvent::ReasoningDelta {
-                                text: thinking_text.clone(),
-                            });
+                        if crate::config::config().display.show_thinking {
+                            let formatted = reasoning_fmt.push_delta(&thinking_text);
+                            if !formatted.is_empty() {
+                                let _ = event_tx.send(ServerEvent::TextDelta { text: formatted });
+                            }
                         }
-                        // Always capture reasoning text so it can be persisted as a
-                        // history-only trace, regardless of provider replay support.
-                        reasoning_content.push_str(&thinking_text);
+                        if store_reasoning_content {
+                            reasoning_content.push_str(&thinking_text);
+                        }
                     }
                     StreamEvent::ThinkingDone { duration_secs } => {
-                        if reasoning_open {
-                            reasoning_open = false;
-                            let _ = event_tx.send(ServerEvent::ReasoningDone {
-                                duration_secs: Some(duration_secs),
-                            });
+                        if reasoning_fmt.is_open() {
+                            let closing = reasoning_fmt
+                                .finish(Some(&format!("*Thought for {:.1}s*", duration_secs)));
+                            if !closing.is_empty() {
+                                let _ = event_tx.send(ServerEvent::TextDelta { text: closing });
+                            }
                         }
                     }
                     StreamEvent::TextDelta(text) => {
-                        // Close any open reasoning region before real output so the
-                        // answer renders as a normal paragraph rather than as reasoning.
-                        if reasoning_open && !text.trim().is_empty() {
-                            reasoning_open = false;
-                            let _ = event_tx.send(ServerEvent::ReasoningDone {
-                                duration_secs: None,
-                            });
+                        // Close any open reasoning blockquote before real output so the
+                        // answer renders as a normal paragraph rather than inside the quote.
+                        if reasoning_fmt.is_open() && !text.trim().is_empty() {
+                            let closing = reasoning_fmt.finish(None);
+                            if !closing.is_empty() {
+                                let _ = event_tx.send(ServerEvent::TextDelta { text: closing });
+                            }
                         }
                         text_content.push_str(&text);
                         if !text_wrapped_detected {
-                            // Scan only the new delta (plus a short overlap for
-                            // markers straddling the boundary) instead of the
-                            // whole accumulated response on every token.
-                            if let Some(marker_idx) =
-                                find_wrap_marker_incremental(&text_content, text.len())
+                            if let Some(marker_idx) = text_content
+                                .find("to=functions.")
+                                .or_else(|| text_content.find("+#+#"))
                             {
                                 text_wrapped_detected = true;
                                 let clean_prefix =
@@ -460,36 +363,25 @@ impl Agent {
                                     event_tx.send(ServerEvent::TextDelta { text: text.clone() });
                             }
                         }
-                        if self.is_graceful_shutdown() {
-                            logging::info(
-                                "Graceful shutdown during streaming - checkpointing partial response",
-                            );
-                            let _ = event_tx.send(ServerEvent::TextDelta {
-                                text: "\n\n[generation interrupted - server reloading]".to_string(),
-                            });
-                            text_content
-                                .push_str("\n\n[generation interrupted - server reloading]");
-                            break;
-                        }
                     }
                     StreamEvent::ToolUseStart { id, name } => {
-                        if reasoning_open {
-                            reasoning_open = false;
-                            let _ = event_tx.send(ServerEvent::ReasoningDone {
-                                duration_secs: None,
-                            });
+                        if reasoning_fmt.is_open() {
+                            let closing = reasoning_fmt.finish(None);
+                            if !closing.is_empty() {
+                                let _ = event_tx.send(ServerEvent::TextDelta { text: closing });
+                            }
                         }
                         let _ = event_tx.send(ServerEvent::ToolStart {
                             id: id.clone(),
                             name: name.clone(),
                         });
+                        // Track tool name for later tool_done event
                         tool_id_to_name.insert(id.clone(), name.clone());
                         current_tool = Some(ToolCall {
                             id,
                             name,
                             input: serde_json::Value::Null,
                             intent: None,
-                            thought_signature: None,
                         });
                         current_tool_input.clear();
                     }
@@ -510,17 +402,16 @@ impl Agent {
                                 name: tool.name.clone(),
                             });
 
-                            tool_calls.push(tool);
-                            current_tool_input.clear();
-                        }
-                    }
-                    StreamEvent::ToolUseSignature(signature) => {
-                        // Attach Gemini 3 thought signature to the most recent
-                        // tool call so it can be persisted and replayed.
-                        if let Some(tool) = tool_calls.last_mut() {
-                            if !signature.is_empty() {
-                                tool.thought_signature = Some(signature);
+                            // Issue #164: dedup by tool_use_id (see turn_loops.rs).
+                            let tool_id = tool.id.clone();
+                            let tool_name = tool.name.clone();
+                            if !super::tools::push_dedup_by_id(&mut tool_calls, tool) {
+                                logging::warn(&format!(
+                                    "Dropping duplicate tool_use_id={} name={} (already accumulated this turn)",
+                                    tool_id, tool_name
+                                ));
                             }
+                            current_tool_input.clear();
                         }
                     }
                     StreamEvent::ToolResult {
@@ -528,6 +419,7 @@ impl Agent {
                         content,
                         is_error,
                     } => {
+                        // SDK executed tool - send result and store for later
                         let tool_name = tool_id_to_name
                             .get(&tool_use_id)
                             .cloned()
@@ -629,14 +521,6 @@ impl Agent {
                         stop_reason: reason,
                     } => {
                         saw_message_end = true;
-                        // Close any still-open reasoning region (e.g. a reasoning-only
-                        // step) so the client flushes its live partial line.
-                        if reasoning_open {
-                            reasoning_open = false;
-                            let _ = event_tx.send(ServerEvent::ReasoningDone {
-                                duration_secs: None,
-                            });
-                        }
                         if reason.is_some() {
                             stop_reason = reason;
                         }
@@ -682,6 +566,7 @@ impl Agent {
                             message_id: self.session.id.clone(),
                             tool_call_id: request_id.clone(),
                             working_dir: self.working_dir().map(PathBuf::from),
+                            sandbox_root: crate::sandbox::current_sandbox_root(),
                             stdin_request_tx: self.stdin_request_tx.clone(),
                             graceful_shutdown_signal: Some(self.graceful_shutdown.clone()),
                             execution_mode: ToolExecutionMode::AgentTurn,
@@ -717,7 +602,7 @@ impl Agent {
                                 "stream_event_retry_after_compaction",
                                 api_start,
                                 vec![
-                                    ("mode", "mpsc".to_string()),
+                                    ("mode", "broadcast".to_string()),
                                     ("error", message.clone()),
                                     (
                                         "context_limit_retries",
@@ -755,7 +640,7 @@ impl Agent {
                             "stream_event_error",
                             api_start,
                             vec![
-                                ("mode", "mpsc".to_string()),
+                                ("mode", "broadcast".to_string()),
                                 ("error", message.clone()),
                                 (
                                     "retry_after_secs",
@@ -776,7 +661,7 @@ impl Agent {
                     self,
                     "retry_after_compaction",
                     api_start,
-                    vec![("mode", "mpsc".to_string())],
+                    vec![("mode", "broadcast".to_string())],
                 );
                 continue;
             }
@@ -796,7 +681,7 @@ impl Agent {
                 "stream_complete",
                 api_start,
                 vec![
-                    ("mode", "mpsc".to_string()),
+                    ("mode", "broadcast".to_string()),
                     ("saw_message_end", saw_message_end.to_string()),
                     ("input_tokens", usage_input.unwrap_or(0).to_string()),
                     ("output_tokens", usage_output.unwrap_or(0).to_string()),
@@ -805,6 +690,7 @@ impl Agent {
                 ],
             );
 
+            // Send token usage
             if usage_input.is_some()
                 || usage_output.is_some()
                 || usage_cache_read.is_some()
@@ -816,21 +702,6 @@ impl Agent {
                     usage_cache_read,
                     usage_cache_creation,
                 );
-
-                let input = usage_input.unwrap_or(0);
-                let output = usage_output.unwrap_or(0);
-                let total = input
-                    .saturating_add(output)
-                    .saturating_add(usage_cache_read.unwrap_or(0))
-                    .saturating_add(usage_cache_creation.unwrap_or(0));
-                crate::session_metrics::record_token_usage(&self.session.id, total, output);
-            }
-
-            if usage_input.is_some()
-                || usage_output.is_some()
-                || usage_cache_read.is_some()
-                || usage_cache_creation.is_some()
-            {
                 let _ = event_tx.send(ServerEvent::TokenUsage {
                     input: usage_input.unwrap_or(0),
                     output: usage_output.unwrap_or(0),
@@ -880,14 +751,13 @@ impl Agent {
                     cache_control: None,
                 });
             }
-            crate::message::push_reasoning_blocks(
-                &mut content_blocks,
-                &provider_name,
-                &reasoning_content,
-                Some(&reasoning_signature),
-                store_reasoning_content,
-            );
             if store_reasoning_content {
+                crate::message::push_reasoning_content_block(
+                    &mut content_blocks,
+                    &provider_name,
+                    &reasoning_content,
+                    Some(&reasoning_signature),
+                );
                 content_blocks.extend(openai_reasoning_items.iter().cloned());
             }
             for tc in &tool_calls {
@@ -895,7 +765,6 @@ impl Agent {
                     id: tc.id.clone(),
                     name: tc.name.clone(),
                     input: tc.input.clone(),
-                    thought_signature: None,
                 });
             }
 
@@ -959,33 +828,12 @@ impl Agent {
                 }
             }
 
-            // If graceful shutdown was signaled during streaming and we have tool calls,
-            // we need to provide tool results for them (API requires tool_use -> tool_result)
-            // then exit cleanly
-            if self.is_graceful_shutdown() {
-                logging::info(&format!(
-                    "Graceful shutdown - skipping {} tool call(s)",
-                    tool_calls.len()
-                ));
-                for tc in &tool_calls {
-                    self.add_message(
-                        Role::User,
-                        vec![ContentBlock::ToolResult {
-                            tool_use_id: tc.id.clone(),
-                            content: "[Skipped - server reloading]".to_string(),
-                            is_error: Some(true),
-                        }],
-                    );
-                }
-                self.session.save()?;
-                break;
-            }
-
             logging::info(&format!(
                 "Turn has {} tool calls to execute",
                 tool_calls.len()
             ));
 
+            // If provider handles tools internally, only run native tools locally
             if self.provider.handles_tools_internally() {
                 tool_calls.retain(|tc| JCODE_NATIVE_TOOLS.contains(&tc.name.as_str()));
                 if tool_calls.is_empty() {
@@ -1008,7 +856,6 @@ impl Agent {
             for tool_index in 0..tool_count {
                 // === INJECTION POINT C (before): Check for urgent abort before each tool (except first) ===
                 if tool_index > 0 && self.has_urgent_interrupt() {
-                    crate::telemetry::record_user_cancelled();
                     // Add tool_results for all remaining skipped tools to maintain valid history
                     for skipped_tc in &tool_calls[tool_index..] {
                         self.add_message(
@@ -1073,6 +920,7 @@ impl Agent {
 
                 let is_native_tool = JCODE_NATIVE_TOOLS.contains(&tc.name.as_str());
 
+                // Check if SDK already executed this tool
                 if let Some((sdk_content, sdk_is_error)) = sdk_tool_results.remove(&tc.id) {
                     // For native tools, ignore SDK errors and execute locally
                     if !(is_native_tool && sdk_is_error) {
@@ -1094,11 +942,13 @@ impl Agent {
                     // Fall through to local execution for native tools with SDK errors
                 }
 
+                // SDK didn't execute this tool (or native tool with SDK error), run it locally
                 let ctx = ToolContext {
                     session_id: self.session.id.clone(),
                     message_id: message_id.clone(),
                     tool_call_id: tc.id.clone(),
                     working_dir: self.working_dir().map(PathBuf::from),
+                    sandbox_root: crate::sandbox::current_sandbox_root(),
                     stdin_request_tx: self.stdin_request_tx.clone(),
                     graceful_shutdown_signal: Some(self.graceful_shutdown.clone()),
                     execution_mode: ToolExecutionMode::AgentTurn,
@@ -1111,255 +961,110 @@ impl Agent {
                 logging::info(&format!("Tool starting: {}", tc.name));
                 let tool_start = Instant::now();
 
-                // Spawn tool in its own task so we can detach it to background on Alt+B
-                let registry_clone = self.registry.clone();
-                let tool_name_for_spawn = tc.name.clone();
-                let tool_input_for_spawn = tc.input.clone();
-                let tool_handle = tokio::spawn(async move {
-                    registry_clone
-                        .execute(&tool_name_for_spawn, tool_input_for_spawn, ctx)
-                        .await
-                });
-
-                // Reset background signal before waiting
-                self.background_tool_signal.reset();
-
-                // Wait for tool completion OR background signal from user (Alt+B)
-                // OR graceful shutdown signal from server reload
-                let bg_signal = self.background_tool_signal.clone();
-                let shutdown_signal = self.graceful_shutdown.clone();
-                let allow_reload_handoff = tc.name == "bash";
-                let tool_result;
-                let mut tool_handle = tool_handle;
-                tokio::select! {
-                    biased;
-                    res = &mut tool_handle => {
-                        tool_result = Some(match res {
-                            Ok(r) => r,
-                            Err(e) => Err(anyhow::anyhow!("Tool task panicked: {}", e)),
-                        });
-                    }
-                    _ = async {
-                        tokio::select! {
-                            _ = bg_signal.notified() => {}
-                            _ = shutdown_signal.notified() => {}
-                        }
-                    } => {
-                        if self.is_graceful_shutdown() && allow_reload_handoff {
-                            tool_result = match tokio::time::timeout(
-                                Duration::from_millis(750),
-                                &mut tool_handle,
-                            )
-                            .await
-                            {
-                                Ok(res) => Some(match res {
-                                    Ok(r) => r,
-                                    Err(e) => Err(anyhow::anyhow!("Tool task panicked: {}", e)),
-                                }),
-                                Err(_) => None,
-                            };
-                        } else {
-                            tool_result = None;
-                        }
-                    }
-                };
-
+                let result = self.registry.execute(&tc.name, tc.input.clone(), ctx).await;
+                crate::telemetry::record_tool_call();
                 self.unlock_tools_if_needed(&tc.name);
                 let tool_elapsed = tool_start.elapsed();
+                logging::info(&format!(
+                    "Tool finished: {} in {:.2}s",
+                    tc.name,
+                    tool_elapsed.as_secs_f64()
+                ));
 
-                if let Some(result) = tool_result {
-                    // Normal tool completion
-                    logging::info(&format!(
-                        "Tool finished: {} in {:.2}s",
-                        tc.name,
-                        tool_elapsed.as_secs_f64()
-                    ));
+                match result {
+                    Ok(output) => {
+                        let output = cap_tool_output_for_history(&tc.name, output);
 
-                    match result {
-                        Ok(output) => {
-                            let output = cap_tool_output_for_history(&tc.name, output);
-
-                            // Dispatch SessionDiff hooks for file-modifying tools
-                            if matches!(tc.name.as_str(), "Edit" | "Write" | "ApplyPatch") {
-                                let registry = self.hook_registry.clone();
-                                let config = self.dispatch_config.clone();
-                                let session_id = self.session.id.clone();
-                                let cwd = self.session.working_dir.clone().unwrap_or_default();
-                                let tool_name = tc.name.clone();
-                                let tool_output_preview = if output.output.len() > 4096 {
-                                    output.output[..4096].to_string()
-                                } else {
-                                    output.output.clone()
-                                };
-                                let file_path = tc
-                                    .input
-                                    .get("file_path")
-                                    .and_then(|v| v.as_str())
-                                    .map(|s| s.to_string());
-                                let hook_input = HookInputBuilder::new()
-                                    .session(&session_id, &cwd)
-                                    .event("SessionDiff")
-                                    .tool(&tool_name, tc.input.clone(), &tc.id)
-                                    .tool_output(
-                                        serde_json::json!({ "output": tool_output_preview }),
+                        // Dispatch SessionDiff hooks for file-modifying tools
+                        if matches!(tc.name.as_str(), "Edit" | "Write" | "ApplyPatch") {
+                            let registry = self.hook_registry.clone();
+                            let config = self.dispatch_config.clone();
+                            let session_id = self.session.id.clone();
+                            let cwd = self.session.working_dir.clone().unwrap_or_default();
+                            let tool_name = tc.name.clone();
+                            let tool_output_preview = if output.output.len() > 4096 {
+                                output.output[..4096].to_string()
+                            } else {
+                                output.output.clone()
+                            };
+                            let file_path = tc
+                                .input
+                                .get("file_path")
+                                .and_then(|v| v.as_str())
+                                .map(|s| s.to_string());
+                            let hook_input = HookInputBuilder::new()
+                                .session(&session_id, &cwd)
+                                .event("SessionDiff")
+                                .tool(&tool_name, tc.input.clone(), &tc.id)
+                                .tool_output(serde_json::json!({ "output": tool_output_preview }))
+                                .diff(&tool_output_preview, file_path.as_deref())
+                                .build();
+                            let ctx = HookContext::for_session_diff(session_id, cwd, file_path);
+                            let event = HookEvent::SessionDiff;
+                            tokio::spawn(async move {
+                                let handlers = registry.get_matching(&event, &ctx);
+                                if !handlers.is_empty() {
+                                    jcode_hooks::dispatch_hooks(
+                                        &event,
+                                        &hook_input,
+                                        &handlers,
+                                        &config,
                                     )
-                                    .diff(&tool_output_preview, file_path.as_deref())
-                                    .build();
-                                let ctx = HookContext::for_session_diff(session_id, cwd, file_path);
-                                let event = HookEvent::SessionDiff;
-                                tokio::spawn(async move {
-                                    let handlers = registry.get_matching(&event, &ctx);
-                                    if !handlers.is_empty() {
-                                        jcode_hooks::dispatch_hooks(
-                                            &event,
-                                            &hook_input,
-                                            &handlers,
-                                            &config,
-                                        )
-                                        .await;
-                                    }
-                                });
-                            }
-
-                            let _ = event_tx.send(ServerEvent::ToolDone {
-                                id: tc.id.clone(),
-                                name: tc.name.clone(),
-                                output: output.output.clone(),
-                                error: None,
+                                    .await;
+                                }
                             });
-
-                            let side_pane_images =
-                                tool_output_side_pane_images(&tc.name, &tc.input, &output);
-                            if !side_pane_images.is_empty() {
-                                logging::info(&format!(
-                                    "SidePaneImages: emitting {} image(s) from tool '{}' (session={})",
-                                    side_pane_images.len(),
-                                    tc.name,
-                                    self.session.id
-                                ));
-                                let _ = event_tx.send(ServerEvent::SidePaneImages {
-                                    session_id: self.session.id.clone(),
-                                    images: side_pane_images,
-                                });
-                            }
-
-                            let blocks = tool_output_to_content_blocks(tc.id.clone(), output);
-                            self.add_message_with_duration(
-                                Role::User,
-                                blocks,
-                                Some(tool_elapsed.as_millis() as u64),
-                            );
-                            tool_results_dirty = true;
                         }
-                        Err(e) => {
-                            let error_msg = format!("Error: {}", e);
-                            let _ = event_tx.send(ServerEvent::ToolDone {
-                                id: tc.id.clone(),
-                                name: tc.name.clone(),
-                                output: error_msg.clone(),
-                                error: Some(error_msg.clone()),
+
+                        let _ = event_tx.send(ServerEvent::ToolDone {
+                            id: tc.id.clone(),
+                            name: tc.name.clone(),
+                            output: output.output.clone(),
+                            error: None,
+                        });
+
+                        let side_pane_images =
+                            tool_output_side_pane_images(&tc.name, &tc.input, &output);
+                        if !side_pane_images.is_empty() {
+                            logging::info(&format!(
+                                "SidePaneImages: emitting {} image(s) from tool '{}' (session={})",
+                                side_pane_images.len(),
+                                tc.name,
+                                self.session.id
+                            ));
+                            let _ = event_tx.send(ServerEvent::SidePaneImages {
+                                session_id: self.session.id.clone(),
+                                images: side_pane_images,
                             });
-
-                            self.add_message_with_duration(
-                                Role::User,
-                                vec![ContentBlock::ToolResult {
-                                    tool_use_id: tc.id.clone(),
-                                    content: error_msg,
-                                    is_error: Some(true),
-                                }],
-                                Some(tool_elapsed.as_millis() as u64),
-                            );
-                            tool_results_dirty = true;
                         }
+
+                        let blocks = tool_output_to_content_blocks(tc.id.clone(), output);
+                        self.add_message_with_duration(
+                            Role::User,
+                            blocks,
+                            Some(tool_elapsed.as_millis() as u64),
+                        );
+                        tool_results_dirty = true;
                     }
-                } else if self.is_graceful_shutdown() {
-                    // Server reload - abort tool and save interrupted result
-                    logging::info(&format!(
-                        "Tool '{}' interrupted by server reload after {:.1}s",
-                        tc.name,
-                        tool_elapsed.as_secs_f64()
-                    ));
-                    tool_handle.abort();
+                    Err(e) => {
+                        let error_msg = format!("Error: {}", e);
+                        let _ = event_tx.send(ServerEvent::ToolDone {
+                            id: tc.id.clone(),
+                            name: tc.name.clone(),
+                            output: error_msg.clone(),
+                            error: Some(error_msg.clone()),
+                        });
 
-                    // For selfdev reload and wait-like tools, the interruption is expected:
-                    // selfdev initiated the restart, while wait-like tools should be resumed
-                    // after reload rather than treated as failed work.
-                    let (interrupted_msg, is_error) =
-                        reload_interrupted_tool_result(tc, tool_elapsed.as_secs_f64());
-
-                    let _ = event_tx.send(ServerEvent::ToolDone {
-                        id: tc.id.clone(),
-                        name: tc.name.clone(),
-                        output: interrupted_msg.clone(),
-                        error: if is_error {
-                            Some("interrupted by reload".to_string())
-                        } else {
-                            None
-                        },
-                    });
-
-                    self.add_message_with_duration(
-                        Role::User,
-                        vec![ContentBlock::ToolResult {
-                            tool_use_id: tc.id.clone(),
-                            content: interrupted_msg,
-                            is_error: Some(is_error),
-                        }],
-                        Some(tool_elapsed.as_millis() as u64),
-                    );
-                    self.session.save()?;
-
-                    // Add results for any remaining tools too
-                    for remaining_tc in &tool_calls[(tool_index + 1)..] {
-                        self.add_message(
+                        self.add_message_with_duration(
                             Role::User,
                             vec![ContentBlock::ToolResult {
-                                tool_use_id: remaining_tc.id.clone(),
-                                content: "[Skipped - server reloading]".to_string(),
+                                tool_use_id: tc.id.clone(),
+                                content: error_msg,
                                 is_error: Some(true),
                             }],
+                            Some(tool_elapsed.as_millis() as u64),
                         );
+                        tool_results_dirty = true;
                     }
-                    self.session.save()?;
-                    return Ok(());
-                } else {
-                    // User pressed Alt+B — move tool to background
-                    logging::info(&format!(
-                        "Tool '{}' moved to background after {:.1}s",
-                        tc.name,
-                        tool_elapsed.as_secs_f64()
-                    ));
-
-                    let bg_info = crate::background::global()
-                        .adopt(&tc.name, &self.session.id, tool_handle)
-                        .await;
-
-                    let bg_msg = format!(
-                        "Tool '{}' was moved to background by the user (task_id: {}). \
-                         Use the `bg` tool with action 'wait' to wait for completion/checkpoints, \
-                         or action 'status'/'output' to inspect it.",
-                        tc.name, bg_info.task_id
-                    );
-
-                    let _ = event_tx.send(ServerEvent::ToolDone {
-                        id: tc.id.clone(),
-                        name: tc.name.clone(),
-                        output: bg_msg.clone(),
-                        error: None,
-                    });
-
-                    self.add_message_with_duration(
-                        Role::User,
-                        vec![ContentBlock::ToolResult {
-                            tool_use_id: tc.id.clone(),
-                            content: bg_msg,
-                            is_error: None,
-                        }],
-                        Some(tool_elapsed.as_millis() as u64),
-                    );
-                    self.session.save()?;
-
-                    self.background_tool_signal.reset();
                 }
 
                 // NOTE: We do NOT inject between tools (non-urgent) because that would
@@ -1391,118 +1096,5 @@ impl Agent {
         }
 
         Ok(())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use serde_json::json;
-
-    fn tool_call(name: &str, input: serde_json::Value) -> ToolCall {
-        ToolCall {
-            id: "toolu_test".to_string(),
-            name: name.to_string(),
-            input,
-            intent: None,
-            thought_signature: None,
-        }
-    }
-
-    #[test]
-    fn reload_interrupted_bg_wait_is_non_error_and_resumable() {
-        let tc = tool_call(
-            "bg",
-            json!({"action": "wait", "task_id": "bg-123", "max_wait_seconds": 300}),
-        );
-
-        let (message, is_error) = reload_interrupted_tool_result(&tc, 1.2);
-
-        assert!(!is_error);
-        assert!(message.contains("Resume the wait"));
-        assert!(message.contains("\"task_id\":\"bg-123\""));
-    }
-
-    #[test]
-    fn reload_interrupted_non_wait_tool_remains_error() {
-        let tc = tool_call("bash", json!({"command": "sleep 10"}));
-
-        let (message, is_error) = reload_interrupted_tool_result(&tc, 1.2);
-
-        assert!(is_error);
-        assert!(message.contains("interrupted by server reload"));
-    }
-
-    /// Reference O(n) full scan, preserving the original precedence: the
-    /// `to=functions.` marker is checked before `+#+#`.
-    fn find_wrap_marker_full(text: &str) -> Option<usize> {
-        text.find("to=functions.").or_else(|| text.find("+#+#"))
-    }
-
-    /// Simulate streaming `full` in arbitrary deltas and assert the incremental
-    /// scan finds the first marker position, matching a full rescan each step.
-    fn assert_incremental_matches(full: &str, chunk: usize) {
-        let mut acc = String::new();
-        let mut incremental_hit: Option<usize> = None;
-        let bytes = full.as_bytes();
-        let mut i = 0;
-        while i < bytes.len() {
-            let mut end = (i + chunk).min(bytes.len());
-            while end < bytes.len() && !full.is_char_boundary(end) {
-                end += 1;
-            }
-            let delta = &full[i..end];
-            acc.push_str(delta);
-            if incremental_hit.is_none() {
-                incremental_hit = find_wrap_marker_incremental(&acc, delta.len());
-            }
-            i = end;
-        }
-        // The earliest of either marker in the full text.
-        let fn_pos = full.find("to=functions.");
-        let plus_pos = full.find("+#+#");
-        let expected = match (fn_pos, plus_pos) {
-            (Some(a), Some(b)) => Some(a.min(b)),
-            (a, b) => a.or(b),
-        };
-        assert_eq!(
-            incremental_hit, expected,
-            "incremental scan mismatch for {full:?} chunk={chunk}"
-        );
-    }
-
-    #[test]
-    fn wrap_marker_incremental_detects_markers_across_chunk_sizes() {
-        let cases = [
-            "plain answer with no marker at all",
-            "answer then to=functions.foo({})",
-            "answer then +#+# wrapped",
-            "prefix +#+# and later to=functions.bar",
-            "unicode 🔄 résumé then to=functions.baz",
-            "",
-            "to=functions.first",
-            "+#+#",
-        ];
-        for case in cases {
-            for chunk in [1usize, 2, 3, 5, 7, 100] {
-                assert_incremental_matches(case, chunk);
-            }
-        }
-    }
-
-    #[test]
-    fn wrap_marker_incremental_finds_marker_straddling_delta_boundary() {
-        // Feed "to=functions." split right in the middle so the marker only
-        // exists once both halves are appended; the overlap window must catch it.
-        let mut acc = String::new();
-        acc.push_str("answer to=fun");
-        assert_eq!(
-            find_wrap_marker_incremental(&acc, "answer to=fun".len()),
-            None
-        );
-        acc.push_str("ctions.tool");
-        let hit = find_wrap_marker_incremental(&acc, "ctions.tool".len());
-        assert_eq!(hit, find_wrap_marker_full(&acc));
-        assert_eq!(hit, Some("answer ".len()));
     }
 }
