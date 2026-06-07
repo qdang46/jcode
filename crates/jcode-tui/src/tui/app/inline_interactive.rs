@@ -1830,28 +1830,20 @@ impl App {
                 ResumeTarget::OpenCodeSession { session_id, .. } => {
                     format!("OpenCode {}", &session_id[..session_id.len().min(8)])
                 }
+                ResumeTarget::ForeignSession {
+                    provider_slug,
+                    session_id,
+                    ..
+                } => format!(
+                    "{provider_slug} {}",
+                    &session_id[..session_id.len().min(8)]
+                ),
             };
             let resolved_target = match crate::import::resolve_resume_target_to_jcode(target) {
                 Ok(target) => target,
                 Err(err) => {
                     failed.push(format!("failed to import {}: {}", name, err));
                     continue;
-                }
-                ResumeTarget::CodexSession { session_id, .. } => {
-                    crate::casr_adapter::imported_codex_session_id(session_id)
-                }
-                ResumeTarget::PiSession { session_path } => {
-                    crate::casr_adapter::imported_pi_session_id(session_path)
-                }
-                ResumeTarget::OpenCodeSession { session_id, .. } => {
-                    crate::casr_adapter::imported_opencode_session_id(session_id)
-                }
-                ResumeTarget::ForeignSession {
-                    provider_slug,
-                    session_id,
-                    ..
-                } => {
-                    crate::casr_adapter::imported_session_id_for_provider(provider_slug, session_id)
                 }
             };
 
@@ -1945,17 +1937,14 @@ impl App {
             ResumeTarget::OpenCodeSession { session_id, .. } => {
                 format!("OpenCode {}", &session_id[..session_id.len().min(8)])
             }
-        };
-
-        let resolved_target = match crate::import::resolve_resume_target_to_jcode(target) {
-            Ok(target) => target,
-            Err(err) => {
-                self.push_display_message(DisplayMessage::error(format!(
-                    "Failed to import {}: {}",
-                    name, err
-                )));
-                return;
-            }
+            ResumeTarget::ForeignSession {
+                provider_slug,
+                session_id,
+                ..
+            } => format!(
+                "{provider_slug} {}",
+                &session_id[..session_id.len().min(8)]
+            ),
         };
 
         let resolved_target = match target {
@@ -1986,7 +1975,7 @@ impl App {
                 name
             )));
         }
-        self.workspace_client.queue_resume_session(session_id);
+        self.workspace_client.queue_resume_session(resolved_target);
         self.session_picker_overlay = None;
         self.session_picker_mode = SessionPickerMode::Resume;
         self.set_status_notice(format!("Switching → {}", name));

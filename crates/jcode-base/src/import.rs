@@ -393,6 +393,14 @@ pub fn imported_session_id_for_target(
         jcode_session_types::ResumeTarget::OpenCodeSession { session_id, .. } => {
             Some(imported_opencode_session_id(session_id))
         }
+        jcode_session_types::ResumeTarget::ForeignSession {
+            provider_slug,
+            session_id,
+            ..
+        } => Some(crate::casr_adapter::imported_session_id_for_provider(
+            provider_slug,
+            session_id,
+        )),
     }
 }
 
@@ -432,6 +440,14 @@ pub fn resolve_resume_target_to_jcode(
             import_opencode_session_from_path(Path::new(session_path), Some(session_id))?;
             imported_opencode_session_id(session_id)
         }
+        ResumeTarget::ForeignSession {
+            provider_slug,
+            session_id,
+            ..
+        } => crate::casr_adapter::imported_session_id_for_provider(
+            provider_slug,
+            session_id,
+        ),
     };
 
     Ok(ResumeTarget::JcodeSession { session_id })

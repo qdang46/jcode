@@ -27,6 +27,10 @@ pub enum ResumeTarget {
         session_id: String,
         session_path: String,
     },
+    ForeignSession {
+        provider_slug: String,
+        session_id: String,
+    },
 }
 
 impl ResumeTarget {
@@ -37,6 +41,7 @@ impl ResumeTarget {
             Self::CodexSession { session_id, .. } => session_id,
             Self::PiSession { session_path } => session_path,
             Self::OpenCodeSession { session_id, .. } => session_id,
+            Self::ForeignSession { session_id, .. } => session_id,
         }
     }
 }

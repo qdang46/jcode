@@ -119,6 +119,7 @@ jcode-side-panel-types = { path = "../jcode-side-panel-types" }
 flate2 = "1"
 tempfile = "3"
 agentgrep = { git = "https://github.com/1jehuang/agentgrep.git", tag = "v0.1.2" }
+casr = { git = "https://github.com/quangdang46/cross_agent_session_resumer", package = "cross_agent_session_resumer", rev = "aaee83d0049e2801aa1ffc5d18f22026bf78b225" }
 qrcode = { version = "0.14.1", default-features = false }
 
 [features]

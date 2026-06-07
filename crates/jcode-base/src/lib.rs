@@ -22,6 +22,7 @@ pub mod background;
 pub mod browser;
 pub mod bus;
 pub mod cache_tracker;
+pub mod casr_adapter;
 pub mod client_input;
 pub mod compaction;
 pub mod config;

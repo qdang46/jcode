@@ -4334,7 +4334,7 @@ checksum = "ed5909b6e89a2db4456e54cd5f673791d7eca6732202bbf2a9cc504fe2f9b84a"
 [[package]]
 name = "hashline"
 version = "0.2.2"
-source = "git+https://github.com/quangdang46/hashline.git?rev=b2d9e83#b2d9e832700e60c47bb073cf82af2adfd7654a14"
+source = "git+https://github.com/quangdang46/hashline.git?tag=v0.2.2#abf914f5bd673315cd9d419cf41af46abe2118b2"
 dependencies = [
  "anyhow",
  "clap",
@@ -5388,6 +5388,7 @@ dependencies = [
  "base64 0.22.1",
  "bytes",
  "chrono",
+ "cross_agent_session_resumer",
  "crossterm",
  "dirs 5.0.1",
  "flate2",
