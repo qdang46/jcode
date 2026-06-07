@@ -682,6 +682,103 @@ Notes:
 
 ---
 
+## Architecture
+
+jcode is a Rust workspace of 68 crates. The layer stack and upstream repo integrations:
+
+```mermaid
+graph BT
+    subgraph support["60+ Support Crates"]
+        direction LR
+        SC1["Protocol Adapters"]
+        SC2["Provider Backends"]
+        SC3["Platform Support"]
+        SC4["Utilities"]
+    end
+
+    subgraph base["jcode-base"]
+        direction TB
+        B1["Provider · Auth · Config"]
+        B2["Session · Message · Memory"]
+        B3["Telemetry · MCP · Sidecar"]
+        B4["Embeddings · PDF · Browser"]
+    end
+
+    subgraph core["jcode-app-core"]
+        A1["Agent · Server · Tools"]
+        A2["Missions · Hooks · Channels"]
+    end
+
+    subgraph tui["jcode-tui"]
+        T["Full-screen TUI · Rendering\nInput Handling"]
+    end
+
+    subgraph bin["jcode (binary)"]
+        J["Entrypoint · Self-build Tools\nRe-exports jcode-app-core + jcode-base"]
+    end
+
+    SC1 --> B1
+    SC2 --> B3
+    SC3 --> B4
+    SC4 --> B2
+    B1 --> A1
+    B2 --> A1
+    B3 --> A2
+    B4 --> A2
+    A1 --> T
+    A2 --> T
+    T --> J
+```
+
+```mermaid
+flowchart LR
+    subgraph jcode["jcode Crate Stack"]
+        direction TB
+        J2["jcode (binary)"]
+        T2["jcode-tui"]
+        C2["jcode-app-core"]
+        B2["jcode-base"]
+        T2 --> J2
+        C2 --> T2
+        B2 --> C2
+    end
+
+    subgraph upstream["Upstream Repos"]
+        DCP["dcp\n(dynamic_context_pruning)"]
+        DCG["dcg-core\n(destructive_command_guard)"]
+        CASR["casr\n(cross_agent_session_resumer)"]
+        MEM["mempalace_rust"]
+        RTC["rtco-core\n(rust_token_cost_optimizer)"]
+        HL["hashline"]
+        FFS["ffs\n(fast_file_search)"]
+    end
+
+    DCP -- "git dep, branch=main, feature-gated" ----> T2
+    DCG -- "git dep, branch=main" ----> B2
+    CASR -- "git dep, pinned rev" ----> J2
+    CASR ----> C2
+    MEM -- "git dep, branch=main" --> ADPT["jcode-mempalace-adapter"] --> J2
+    RTC -- "git dep, branch=main, feature-gated" ----> C2
+    HL -- "git dep, pinned rev" ----> J2
+    HL ----> C2
+    FFS -- "git dep, pinned rev\n(ffs-search + ffs-engine)" ----> C2
+
+    style ADPT fill:#2d5a27,stroke:#4a8f3f,color:#e0e0e0
+    style DCP fill:#3a3a5c,stroke:#6a6a8c,color:#e0e0e0
+    style DCG fill:#3a3a5c,stroke:#6a6a8c,color:#e0e0e0
+    style CASR fill:#3a3a5c,stroke:#6a6a8c,color:#e0e0e0
+    style MEM fill:#3a3a5c,stroke:#6a6a8c,color:#e0e0e0
+    style RTC fill:#3a3a5c,stroke:#6a6a8c,color:#e0e0e0
+    style HL fill:#3a3a5c,stroke:#6a6a8c,color:#e0e0e0
+    style FFS fill:#3a3a5c,stroke:#6a6a8c,color:#e0e0e0
+```
+
+Every upstream repo is consumed cleanly as a library dependency (no manual
+re-implementations). Feature flags control optional integrations (dcp, rtco,
+mempalace) so the base build stays lean.
+
+---
+
 ## Further Reading
 
 - [Ambient Mode / OpenClaw](docs/AMBIENT_MODE.md)
