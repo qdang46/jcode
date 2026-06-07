@@ -531,8 +531,7 @@ pub fn list_sessions() -> Result<()> {
             if targets.len() == 1 {
                 let target = &targets[0];
                 let mut session_cwd = cwd.clone();
-                if let jcode_tui_session_picker::ResumeTarget::JcodeSession { session_id } =
-                    target
+                if let jcode_tui_session_picker::ResumeTarget::JcodeSession { session_id } = target
                     && let Ok(sess) = session::Session::load(session_id)
                     && let Some(dir) = sess.working_dir.as_deref()
                     && std::path::Path::new(dir).is_dir()
@@ -571,8 +570,7 @@ pub fn list_sessions() -> Result<()> {
                                 );
                                 warned_no_terminal = true;
                             }
-                            let (program, args) =
-                                build_resume_target_command(&exe, &target);
+                            let (program, args) = build_resume_target_command(&exe, &target);
                             eprintln!("  {}", command_display(&program, &args));
                         }
                         Err(e) => {
@@ -607,8 +605,7 @@ pub fn list_sessions() -> Result<()> {
                     }
                 };
                 let mut session_cwd = cwd.clone();
-                if let jcode_tui_session_picker::ResumeTarget::JcodeSession { session_id } =
-                    &target
+                if let jcode_tui_session_picker::ResumeTarget::JcodeSession { session_id } = &target
                     && let Ok(sess) = session::Session::load(session_id)
                     && let Some(dir) = sess.working_dir.as_deref()
                     && std::path::Path::new(dir).is_dir()

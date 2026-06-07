@@ -6,6 +6,9 @@ ios_simulator_screenshot.png
 /tmp/
 .beads/
 .claude/worktrees/
+# Parallel-agent git worktrees live here; never track them (gitlinks with no
+# .gitmodules break `actions/checkout --recursive` in CI).
+.worktrees/
 # Local onboarding sandbox + auth fixtures. May contain REAL OAuth tokens copied
 # from $HOME (see scripts/onboarding_sandbox.sh seed-real-logins). Never commit.
 /.tmp/

@@ -444,10 +444,7 @@ pub fn resolve_resume_target_to_jcode(
             provider_slug,
             session_id,
             ..
-        } => crate::casr_adapter::imported_session_id_for_provider(
-            provider_slug,
-            session_id,
-        ),
+        } => crate::casr_adapter::imported_session_id_for_provider(provider_slug, session_id),
     };
 
     Ok(ResumeTarget::JcodeSession { session_id })

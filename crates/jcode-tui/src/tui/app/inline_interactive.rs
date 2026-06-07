@@ -1834,10 +1834,7 @@ impl App {
                     provider_slug,
                     session_id,
                     ..
-                } => format!(
-                    "{provider_slug} {}",
-                    &session_id[..session_id.len().min(8)]
-                ),
+                } => format!("{provider_slug} {}", &session_id[..session_id.len().min(8)]),
             };
             let resolved_target = match crate::import::resolve_resume_target_to_jcode(target) {
                 Ok(target) => target,
@@ -1941,10 +1938,7 @@ impl App {
                 provider_slug,
                 session_id,
                 ..
-            } => format!(
-                "{provider_slug} {}",
-                &session_id[..session_id.len().min(8)]
-            ),
+            } => format!("{provider_slug} {}", &session_id[..session_id.len().min(8)]),
         };
 
         let resolved_target = match target {
