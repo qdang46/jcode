@@ -39,4 +39,14 @@ pub fn check_mcp(opts: &DoctorOptions, out: &mut Vec<Finding>) {
             .with_remediation("set JCODE_REQUIRE_MCP_TRUST=1 to require explicit trust"),
         );
     }
+
+    // mcp_trust.json presence (MVP parity).
+    if let Ok(home) = crate::storage::jcode_dir()
+        && home.join("mcp_trust.json").is_file()
+    {
+        out.push(Finding::ok(
+            CheckCategory::Mcp,
+            "mcp_trust.json present (trust decisions recorded)",
+        ));
+    }
 }

@@ -113,6 +113,8 @@ fn test_schema_only_requires_tool() {
             jcode_hooks::HookRegistry::default(),
         )),
         dispatch_config: jcode_hooks::DispatchConfig::default(),
+        #[cfg(feature = "dcp")]
+        dcp: None,
     })
     .parameters_schema();
 

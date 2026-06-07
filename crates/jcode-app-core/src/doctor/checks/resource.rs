@@ -34,21 +34,34 @@ pub fn check_resource(out: &mut Vec<Finding>) {
 
     let sessions = home.join("sessions");
     if sessions.is_dir() {
+        // Count session files the same way the sessions check does (non-journal
+        // *.json), so the two findings agree and the cap comparison is accurate.
         let count = std::fs::read_dir(&sessions)
-            .map(|rd| rd.flatten().count())
+            .map(|rd| {
+                rd.flatten()
+                    .filter(|e| {
+                        e.file_name()
+                            .to_str()
+                            .map(|n| n.ends_with(".json") && !n.ends_with(".journal.json"))
+                            .unwrap_or(false)
+                    })
+                    .count()
+            })
             .unwrap_or(0);
         match env_string("JCODE_SESSION_PICKER_MAX_SESSIONS").and_then(|v| v.parse::<usize>().ok())
         {
             Some(cap) if count > cap => out.push(
                 Finding::warn(
                     CheckCategory::Resource,
-                    format!("{count} sessions exceed JCODE_SESSION_PICKER_MAX_SESSIONS={cap}"),
+                    format!(
+                        "{count} session file(s) exceed JCODE_SESSION_PICKER_MAX_SESSIONS={cap}"
+                    ),
                 )
                 .with_remediation("raise the cap or archive old sessions"),
             ),
             Some(cap) => out.push(Finding::ok(
                 CheckCategory::Resource,
-                format!("{count} session(s), under cap {cap}"),
+                format!("{count} session file(s), under cap {cap}"),
             )),
             None => out.push(Finding::ok(
                 CheckCategory::Resource,

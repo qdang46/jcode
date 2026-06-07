@@ -375,6 +375,8 @@ async fn test_context_guard_small_output_passes_through() {
         compaction,
         hook_registry: Arc::new(RwLock::new(HookRegistry::default())),
         dispatch_config: DispatchConfig::default(),
+        #[cfg(feature = "dcp")]
+        dcp: None,
     };
 
     let output = ToolOutput::new("small output");
@@ -391,6 +393,8 @@ async fn test_context_guard_truncates_huge_single_output() {
         compaction,
         hook_registry: Arc::new(RwLock::new(HookRegistry::default())),
         dispatch_config: DispatchConfig::default(),
+        #[cfg(feature = "dcp")]
+        dcp: None,
     };
 
     // 30% of 1000 = 300 tokens = 1200 chars max for a single output
@@ -421,6 +425,8 @@ async fn test_context_guard_truncates_when_context_nearly_full() {
         compaction,
         hook_registry: Arc::new(RwLock::new(HookRegistry::default())),
         dispatch_config: DispatchConfig::default(),
+        #[cfg(feature = "dcp")]
+        dcp: None,
     };
 
     // Even a modest output should get truncated when context is 95% full
@@ -441,6 +447,8 @@ async fn test_context_guard_zero_budget_passes_through() {
         compaction,
         hook_registry: Arc::new(RwLock::new(HookRegistry::default())),
         dispatch_config: DispatchConfig::default(),
+        #[cfg(feature = "dcp")]
+        dcp: None,
     };
 
     let output = ToolOutput::new("x".repeat(100_000));

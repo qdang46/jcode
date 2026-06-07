@@ -27,14 +27,24 @@ pub fn check_config(opts: &DoctorOptions, out: &mut Vec<Finding>) {
                 .with_remediation(format!("check permissions on {}", path.display())),
             ),
             Ok(text) => match toml::from_str::<toml::Value>(&text) {
-                Err(e) => out.push(
-                    Finding::fail(
-                        CheckCategory::Config,
-                        format!("{label} config.toml has a syntax error"),
+                Err(e) => {
+                    // Only surface the location line ("TOML parse error at line N,
+                    // column C"); never the source snippet, which can echo secrets.
+                    let location = e
+                        .to_string()
+                        .lines()
+                        .next()
+                        .unwrap_or("syntax error")
+                        .to_string();
+                    out.push(
+                        Finding::fail(
+                            CheckCategory::Config,
+                            format!("{label} config.toml has a syntax error"),
+                        )
+                        .with_detail(location)
+                        .with_remediation(format!("fix the TOML syntax in {}", path.display())),
                     )
-                    .with_detail(e.to_string())
-                    .with_remediation(format!("fix the TOML syntax in {}", path.display())),
-                ),
+                }
                 Ok(_) => out.push(Finding::ok(
                     CheckCategory::Config,
                     format!("{label} config.toml valid"),

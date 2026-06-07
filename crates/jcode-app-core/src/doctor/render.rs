@@ -62,14 +62,65 @@ fn redact_report(report: &DoctorReport) -> DoctorReport {
 }
 
 /// Redact secret-looking `key: value` / `key=value` fragments before output.
+/// Redact secret-looking values before output (defense-in-depth). Handles
+/// `key: value`, `key = value`, quoted JSON/TOML values (`"token": "..."`,
+/// `api_key = "..."`), env-style keys (`OPENAI_API_KEY=...`), and
+/// `Authorization: Bearer <token>`. The value class covers base64 (`+ / =`).
 fn redact(s: &str) -> String {
     use std::sync::OnceLock;
-    static RE: OnceLock<regex::Regex> = OnceLock::new();
-    let re = RE.get_or_init(|| {
-        regex::Regex::new(
-            r"(?i)(token|secret|api[_-]?key|authorization|bearer|password)(\s*[:=]\s*)([A-Za-z0-9._\-]{6,})",
-        )
-        .expect("valid redaction regex")
+    static SCHEME_RE: OnceLock<regex::Regex> = OnceLock::new();
+    static KV_RE: OnceLock<regex::Regex> = OnceLock::new();
+    // `Bearer <token>` / `Basic <token>`: redact the credential, not the scheme word.
+    let scheme_re = SCHEME_RE.get_or_init(|| {
+        regex::Regex::new(r"(?i)\b(bearer|basic)\s+[A-Za-z0-9._~+/\-]{8,}={0,2}")
+            .expect("valid scheme redaction regex")
     });
-    re.replace_all(s, "${1}${2}<redacted>").into_owned()
+    // A key whose name contains a sensitive token, an optional-quote separator,
+    // then a value. Matches quoted and unquoted JSON/TOML/env forms.
+    let kv_re = KV_RE.get_or_init(|| {
+        regex::Regex::new(
+            r#"(?i)([A-Za-z0-9_]*(?:api[_-]?key|secret|token|password|authorization|auth[_-]?token|access[_-]?key|client[_-]?secret|credential)[A-Za-z0-9_]*)(\s*["']?\s*[:=]\s*["']?)([A-Za-z0-9._~+/\-]{6,}={0,2})"#,
+        )
+        .expect("valid key-value redaction regex")
+    });
+    let scrubbed = scheme_re.replace_all(s, |c: &regex::Captures| format!("{} <redacted>", &c[1]));
+    kv_re
+        .replace_all(scrubbed.as_ref(), "${1}${2}<redacted>")
+        .into_owned()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::redact;
+
+    #[test]
+    fn redacts_quoted_json_value() {
+        let out = redact(r#"{"token": "abcdef123456"}"#);
+        assert!(!out.contains("abcdef123456"), "leaked: {out}");
+        assert!(out.contains("<redacted>"));
+    }
+
+    #[test]
+    fn redacts_quoted_toml_value() {
+        let out = redact(r#"api_key = "sk-proj-abcdef123""#);
+        assert!(!out.contains("sk-proj-abcdef123"), "leaked: {out}");
+    }
+
+    #[test]
+    fn redacts_env_style_key() {
+        let out = redact("OPENAI_API_KEY=sk-proj-aBcDeFgH12345");
+        assert!(!out.contains("sk-proj-aBcDeFgH12345"), "leaked: {out}");
+    }
+
+    #[test]
+    fn redacts_bearer_token_not_just_scheme() {
+        let out = redact("authorization: Bearer eyJhbGc.abc_def-12345");
+        assert!(!out.contains("eyJhbGc.abc_def-12345"), "leaked: {out}");
+    }
+
+    #[test]
+    fn leaves_non_secret_text_untouched() {
+        let out = redact("auth.json is group/world accessible (mode 644)");
+        assert_eq!(out, "auth.json is group/world accessible (mode 644)");
+    }
 }

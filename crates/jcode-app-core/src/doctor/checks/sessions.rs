@@ -1,8 +1,14 @@
 //! Session integrity: scan `~/.jcode/sessions/<id>.json`, flag transcripts that
-//! no longer parse, and (with `--fix`) quarantine corrupt files to a `.bak`.
+//! no longer parse, and (with `--fix`) quarantine corrupt files to a `.bak` and
+//! remove orphan temp files left by interrupted atomic writes.
 
 use super::super::fix::quarantine;
 use super::super::types::{CheckCategory, DoctorOptions, Finding};
+use std::path::{Path, PathBuf};
+
+/// Files larger than this are not deeply parsed (avoids reading a multi-GB
+/// transcript fully into memory just to validate it).
+const MAX_VALIDATE_BYTES: u64 = 64 * 1024 * 1024;
 
 pub fn check_sessions(opts: &DoctorOptions, out: &mut Vec<Finding>) {
     let dir = match crate::storage::jcode_dir() {
@@ -18,8 +24,9 @@ pub fn check_sessions(opts: &DoctorOptions, out: &mut Vec<Finding>) {
     }
 
     let mut total = 0usize;
-    let mut corrupt: Vec<std::path::PathBuf> = Vec::new();
-    let mut orphan_tmp = 0usize;
+    let mut skipped = 0usize;
+    let mut corrupt: Vec<PathBuf> = Vec::new();
+    let mut orphan_tmp: Vec<PathBuf> = Vec::new();
     if let Ok(rd) = std::fs::read_dir(&dir) {
         for entry in rd.flatten() {
             let p = entry.path();
@@ -30,23 +37,22 @@ pub fn check_sessions(opts: &DoctorOptions, out: &mut Vec<Finding>) {
                 .to_string();
             if name.ends_with(".json") && !name.ends_with(".journal.json") {
                 total += 1;
-                let valid = std::fs::read_to_string(&p)
-                    .ok()
-                    .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
-                    .is_some();
-                if !valid {
-                    corrupt.push(p);
+                match validate_json(&p) {
+                    Some(true) => {}
+                    Some(false) => corrupt.push(p),
+                    None => skipped += 1, // too large to cheaply validate
                 }
             } else if name.contains(".tmp") {
-                orphan_tmp += 1;
+                orphan_tmp.push(p);
             }
         }
     }
 
-    out.push(Finding::ok(
-        CheckCategory::Sessions,
-        format!("{total} session file(s), {} corrupt", corrupt.len()),
-    ));
+    let mut summary = format!("{total} session file(s), {} corrupt", corrupt.len());
+    if skipped > 0 {
+        summary.push_str(&format!(" ({skipped} too large to validate)"));
+    }
+    out.push(Finding::ok(CheckCategory::Sessions, summary));
 
     for path in &corrupt {
         let name = path
@@ -63,13 +69,49 @@ pub fn check_sessions(opts: &DoctorOptions, out: &mut Vec<Finding>) {
         }
     }
 
-    if orphan_tmp > 0 {
-        out.push(
-            Finding::warn(
-                CheckCategory::Sessions,
-                format!("{orphan_tmp} orphan temp file(s) from interrupted writes"),
-            )
-            .auto_fixable(),
-        );
+    if !orphan_tmp.is_empty() {
+        let f = Finding::warn(
+            CheckCategory::Sessions,
+            format!(
+                "{} orphan temp file(s) from interrupted writes",
+                orphan_tmp.len()
+            ),
+        )
+        .with_remediation("run `jcode doctor --fix` to remove them");
+        if opts.fix {
+            // Removing interrupted-write leftovers is safe (they are garbage).
+            let mut removed = 0usize;
+            let mut errors: Vec<String> = Vec::new();
+            for p in &orphan_tmp {
+                match std::fs::remove_file(p) {
+                    Ok(()) => removed += 1,
+                    Err(e) => errors.push(e.to_string()),
+                }
+            }
+            if errors.is_empty() {
+                out.push(f.fixed(format!("removed {removed} orphan temp file(s)")));
+            } else {
+                out.push(f.fix_failed(format!(
+                    "removed {removed}, {} failed: {}",
+                    errors.len(),
+                    errors.join("; ")
+                )));
+            }
+        } else {
+            out.push(f.auto_fixable());
+        }
     }
+}
+
+/// Validate that a file is parseable JSON without building a DOM or reading the
+/// whole file into a `String`. Returns `None` for files too large to cheaply
+/// validate (left untouched).
+fn validate_json(path: &Path) -> Option<bool> {
+    let meta = std::fs::metadata(path).ok()?;
+    if meta.len() > MAX_VALIDATE_BYTES {
+        return None;
+    }
+    let file = std::fs::File::open(path).ok()?;
+    let reader = std::io::BufReader::new(file);
+    Some(serde_json::from_reader::<_, serde::de::IgnoredAny>(reader).is_ok())
 }

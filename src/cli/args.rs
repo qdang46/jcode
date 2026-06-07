@@ -104,6 +104,19 @@ pub(crate) struct Args {
     pub(crate) command: Option<Command>,
 }
 
+/// Validate a `--only` category token at parse time (clap value_parser) so an
+/// unknown category is rejected instead of silently ignored (which would
+/// otherwise fall back to running every check).
+fn parse_doctor_category(s: &str) -> Result<String, String> {
+    if crate::doctor::CheckCategory::parse(s).is_some() {
+        Ok(s.to_string())
+    } else {
+        Err(format!(
+            "unknown category '{s}' (valid: build, platform, storage, config, auth, shell, sessions, mcp, resource, swarm)"
+        ))
+    }
+}
+
 #[derive(Subcommand, Debug)]
 pub(crate) enum Command {
     /// Start the agent server (background daemon)
@@ -491,7 +504,7 @@ pub(crate) enum Command {
 
         /// Limit checks to specific categories (repeatable): build, platform,
         /// storage, config, auth, shell, sessions, mcp, resource, swarm
-        #[arg(long = "only", value_name = "CATEGORY")]
+        #[arg(long = "only", value_name = "CATEGORY", value_parser = parse_doctor_category)]
         only: Vec<String>,
     },
 

@@ -24,15 +24,28 @@ pub fn check_swarm(opts: &DoctorOptions, out: &mut Vec<Finding>) {
     }
 }
 
-/// Count `git status --porcelain` entries in `cwd`. `None` if not a git repo or
-/// git is unavailable.
+/// Count `git status --porcelain` entries in `cwd`. `None` if not a git repo,
+/// git is unavailable, or git does not finish within the timeout.
+///
+/// Bounded by a 5s timeout (a hung/slow FS or index.lock must not hang an
+/// offline health check) and runs with `core.fsmonitor=` disabled so a
+/// status-time fsmonitor command from an untrusted repo cannot execute.
 fn git_status_porcelain(cwd: &std::path::Path) -> Option<usize> {
-    let output = std::process::Command::new("git")
-        .arg("-C")
-        .arg(cwd)
-        .args(["status", "--porcelain"])
-        .output()
-        .ok()?;
+    use std::sync::mpsc;
+    use std::time::Duration;
+
+    let cwd = cwd.to_path_buf();
+    let (tx, rx) = mpsc::channel();
+    std::thread::spawn(move || {
+        let result = std::process::Command::new("git")
+            .args(["-c", "core.fsmonitor="])
+            .arg("-C")
+            .arg(&cwd)
+            .args(["status", "--porcelain"])
+            .output();
+        let _ = tx.send(result);
+    });
+    let output = rx.recv_timeout(Duration::from_secs(5)).ok()?.ok()?;
     if !output.status.success() {
         return None;
     }

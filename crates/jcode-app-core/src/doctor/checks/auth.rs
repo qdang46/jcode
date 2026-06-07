@@ -48,15 +48,25 @@ pub fn check_auth(opts: &DoctorOptions, out: &mut Vec<Finding>) {
     };
 
     let mut configured = 0usize;
-    for (_name, oauth_file, envs) in PROVIDERS {
+    for (name, oauth_file, envs) in PROVIDERS {
         let has_oauth = !oauth_file.is_empty() && home.join(oauth_file).is_file();
-        let has_env = envs.iter().any(|e| {
+        let env_hit = envs.iter().find(|e| {
             std::env::var(e)
                 .map(|v| !v.trim().is_empty())
                 .unwrap_or(false)
         });
-        if has_oauth || has_env {
+        let detail = match (has_oauth, env_hit) {
+            (true, Some(e)) => Some(format!("oauth file + env {e} (env wins at runtime)")),
+            (true, None) => Some(format!("oauth file ~/.jcode/{oauth_file}")),
+            (false, Some(e)) => Some(format!("env {e}")),
+            (false, None) => None,
+        };
+        if let Some(detail) = detail {
             configured += 1;
+            out.push(Finding::ok(
+                CheckCategory::Auth,
+                format!("{name}: {detail}"),
+            ));
         }
     }
     if configured == 0 {

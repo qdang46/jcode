@@ -140,6 +140,18 @@ mod tests {
     }
 
     #[test]
+    fn warn_only_report_exits_zero() {
+        let report = DoctorReport::from_findings(vec![
+            Finding::ok(CheckCategory::Build, "a"),
+            Finding::warn(CheckCategory::Auth, "b"),
+        ]);
+        assert!(
+            !report.has_unfixed_fail(),
+            "warnings must not cause a nonzero exit"
+        );
+    }
+
+    #[test]
     fn report_serializes_to_json_with_schema_version() {
         let report = DoctorReport::from_findings(vec![Finding::ok(CheckCategory::Build, "x")]);
         let v: serde_json::Value =

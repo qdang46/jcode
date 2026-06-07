@@ -598,6 +598,11 @@ fn doctor_defaults_are_read_only() {
 }
 
 #[test]
+fn doctor_only_rejects_unknown_category() {
+    assert!(Args::try_parse_from(["jcode", "doctor", "--only", "bogus"]).is_err());
+}
+
+#[test]
 fn provider_list_subcommand_parses() {
     let args = Args::try_parse_from(["jcode", "provider", "list", "--json"]).unwrap();
     match args.command {

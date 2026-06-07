@@ -36,25 +36,47 @@ pub fn quarantine(
     if !opts.fix {
         return Ok(None);
     }
+    // In --json mode never prompt — it would corrupt the JSON on stdout — so a
+    // destructive fix requires an explicit `--yes`.
+    if opts.json && !opts.assume_yes {
+        return Ok(None);
+    }
     if !opts.assume_yes && !confirm(&format!("{action} {}? [y/N] ", path.display())) {
         return Ok(None);
     }
-    let ts = chrono::Utc::now().timestamp();
-    let mut backup = path.as_os_str().to_owned();
-    backup.push(format!(".bak-{ts}"));
-    let backup = PathBuf::from(backup);
+    let backup = unique_backup_path(path);
     std::fs::rename(path, &backup)?;
     Ok(Some(backup))
 }
 
-/// Prompt on the controlling terminal. Returns false when stdin/stdout is not a
-/// tty (non-interactive/CI without `--yes`).
+/// Build a `<path>.bak-<ts>[-<n>]` path that does not already exist (so two
+/// repairs in the same second cannot clobber each other's backup).
+fn unique_backup_path(path: &Path) -> PathBuf {
+    let ts = chrono::Utc::now().timestamp();
+    let mut n = 0u32;
+    loop {
+        let mut name = path.as_os_str().to_owned();
+        if n == 0 {
+            name.push(format!(".bak-{ts}"));
+        } else {
+            name.push(format!(".bak-{ts}-{n}"));
+        }
+        let candidate = PathBuf::from(name);
+        if !candidate.exists() {
+            return candidate;
+        }
+        n += 1;
+    }
+}
+
+/// Prompt on stderr (so it never corrupts stdout / `--json`). Returns false
+/// when stdin or stderr is not a tty (non-interactive / CI without `--yes`).
 fn confirm(prompt: &str) -> bool {
-    if !std::io::stdin().is_terminal() || !std::io::stdout().is_terminal() {
+    if !std::io::stdin().is_terminal() || !std::io::stderr().is_terminal() {
         return false;
     }
-    print!("{prompt}");
-    let _ = std::io::stdout().flush();
+    eprint!("{prompt}");
+    let _ = std::io::stderr().flush();
     let mut line = String::new();
     if std::io::stdin().read_line(&mut line).is_err() {
         return false;
@@ -68,4 +90,83 @@ pub fn chmod(path: &Path, mode: u32) -> anyhow::Result<()> {
     use std::os::unix::fs::PermissionsExt;
     std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode))?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::super::types::{CheckCategory, Fixability};
+    use super::*;
+
+    fn opts(fix: bool, yes: bool, json: bool) -> DoctorOptions {
+        DoctorOptions {
+            cwd: std::path::PathBuf::from("."),
+            fix,
+            assume_yes: yes,
+            only: Vec::new(),
+            json,
+        }
+    }
+
+    #[test]
+    fn try_autofix_only_advertises_without_fix() {
+        let f = Finding::warn(CheckCategory::Storage, "x");
+        let r = try_autofix(&opts(false, false, false), f, || Ok("done".into()));
+        assert_eq!(r.fixability, Fixability::AutoFixable);
+    }
+
+    #[test]
+    fn try_autofix_runs_repair_with_fix() {
+        let f = Finding::warn(CheckCategory::Storage, "x");
+        let r = try_autofix(&opts(true, false, false), f, || Ok("done".into()));
+        assert_eq!(r.fixability, Fixability::Fixed);
+    }
+
+    #[test]
+    fn quarantine_is_noop_without_fix() {
+        let tmp = tempfile::tempdir().unwrap();
+        let p = tmp.path().join("corrupt.json");
+        std::fs::write(&p, b"{bad").unwrap();
+        let r = quarantine(&opts(false, false, false), &p, "Quarantine").unwrap();
+        assert!(r.is_none());
+        assert!(p.exists(), "file must be untouched without --fix");
+    }
+
+    #[test]
+    fn quarantine_is_noop_in_json_without_yes() {
+        let tmp = tempfile::tempdir().unwrap();
+        let p = tmp.path().join("corrupt.json");
+        std::fs::write(&p, b"{bad").unwrap();
+        let r = quarantine(&opts(true, false, true), &p, "Quarantine").unwrap();
+        assert!(
+            r.is_none(),
+            "json mode must not prompt/mutate without --yes"
+        );
+        assert!(p.exists());
+    }
+
+    #[test]
+    fn quarantine_backs_up_with_yes() {
+        let tmp = tempfile::tempdir().unwrap();
+        let p = tmp.path().join("corrupt.json");
+        std::fs::write(&p, b"{bad").unwrap();
+        let backup = quarantine(&opts(true, true, false), &p, "Quarantine")
+            .unwrap()
+            .expect("should back up");
+        assert!(!p.exists(), "original should be moved, not left in place");
+        assert!(backup.exists(), "timestamped .bak should exist");
+        assert!(!std::fs::read(&backup).unwrap().is_empty());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn chmod_sets_mode_600() {
+        use std::os::unix::fs::PermissionsExt;
+        let tmp = tempfile::tempdir().unwrap();
+        let p = tmp.path().join("auth.json");
+        std::fs::write(&p, b"{}").unwrap();
+        std::fs::set_permissions(&p, std::fs::Permissions::from_mode(0o644)).unwrap();
+        chmod(&p, 0o600).unwrap();
+        let mode = std::fs::metadata(&p).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o600);
+    }
 }
