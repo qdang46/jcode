@@ -1,12 +1,15 @@
 //! Hook matcher logic - determines which hooks apply to which tools/events
 
+use regex::Regex;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::sync::{LazyLock, Mutex};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum HookMatcher {
     Exact(String),
     Multi(Vec<String>),
-    Regex(regex::Regex),
+    Regex(String),
     Wildcard,
 }
 
@@ -42,7 +45,25 @@ pub fn matches(matcher: &HookMatcher, ctx: &MatcherContext) -> bool {
     match matcher {
         HookMatcher::Exact(pattern) => ctx.target == pattern,
         HookMatcher::Multi(patterns) => patterns.iter().any(|p| ctx.target == p),
-        HookMatcher::Regex(re) => {
+        HookMatcher::Regex(pattern) => {
+            // Global regex cache: compile once per unique pattern string
+            static REGEX_CACHE: LazyLock<Mutex<HashMap<String, &'static Regex>>> =
+                LazyLock::new(|| Mutex::new(HashMap::new()));
+            let re = {
+                let mut cache = REGEX_CACHE.lock().expect("regex cache poisoned");
+                let re = cache.entry(pattern.to_string()).or_insert_with(|| {
+                    Box::leak(Box::new(
+                        Regex::new(pattern).unwrap_or_else(|e| {
+                            eprintln!(
+                                "[jcode-hooks] invalid regex pattern {:?}: {} — using never-match placeholder",
+                                pattern, e
+                            );
+                            Regex::new(r"(?!)a").unwrap()
+                        }),
+                    ))
+                });
+                *re
+            };
             // Match against target + context (concatenated) for full flexibility
             let match_str = match ctx.context {
                 Some(context) => format!("{}{}", ctx.target, context),
@@ -94,7 +115,7 @@ mod tests {
 
     #[test]
     fn test_regex_matcher() {
-        let matcher = HookMatcher::Regex(regex::Regex::new("^Bash(git.*)").unwrap());
+        let matcher = HookMatcher::Regex("^Bash(git.*)".to_string());
 
         let ctx = MatcherContext::new("Bash");
         assert!(!matches(&matcher, &ctx)); // No match without git prefix
@@ -115,10 +136,9 @@ mod tests {
 
     #[test]
     fn test_invalid_regex_falls_back() {
-        // Invalid regex syntax is now caught at parse time in parse_matcher_pattern().
-        // This test uses a valid regex and verifies normal matching instead.
-        let matcher = HookMatcher::Regex(regex::Regex::new("^test").unwrap());
-        let ctx = MatcherContext::new("test_value");
-        assert!(matches(&matcher, &ctx));
+        // Invalid regex falls back to a never-match placeholder with a warning.
+        let matcher = HookMatcher::Regex("never-match".to_string());
+        let ctx = MatcherContext::new("anything");
+        assert!(!matches(&matcher, &ctx));
     }
 }

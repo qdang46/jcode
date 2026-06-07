@@ -43,77 +43,8 @@ use jcode_message_types::ToolDefinition;
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
-<<<<<<< HEAD
 #[cfg(feature = "dcp")]
 use std::sync::Mutex;
-=======
->>>>>>> origin/master
-use std::sync::{LazyLock, RwLock as StdRwLock};
-use tokio::sync::RwLock;
-
-pub(crate) use jcode_tool_core::intent_schema_property;
-pub use jcode_tool_core::{StdinInputRequest, Tool, ToolContext, ToolExecutionMode};
-pub use jcode_tool_types::{ToolImage, ToolOutput};
-pub(crate) use session_search::spawn_recent_index_warmup;
-
-#[derive(Clone, Debug, Default)]
-struct SessionToolPolicy {
-    allowed_tools: Option<HashSet<String>>,
-    disabled_tools: HashSet<String>,
-}
-
-static SESSION_TOOL_POLICIES: LazyLock<StdRwLock<HashMap<String, SessionToolPolicy>>> =
-    LazyLock::new(|| StdRwLock::new(HashMap::new()));
-
-pub(crate) fn set_session_tool_policy(
-    session_id: &str,
-    allowed_tools: Option<HashSet<String>>,
-    disabled_tools: HashSet<String>,
-) {
-    let mut policies = SESSION_TOOL_POLICIES
-        .write()
-        .unwrap_or_else(|poisoned| poisoned.into_inner());
-    policies.insert(
-        session_id.to_string(),
-        SessionToolPolicy {
-            allowed_tools,
-            disabled_tools,
-        },
-    );
-}
-
-pub(crate) fn clear_session_tool_policy(session_id: &str) {
-    let mut policies = SESSION_TOOL_POLICIES
-        .write()
-        .unwrap_or_else(|poisoned| poisoned.into_inner());
-    policies.remove(session_id);
-}
-
-fn session_tool_policy(session_id: &str) -> Option<SessionToolPolicy> {
-    SESSION_TOOL_POLICIES
-        .read()
-        .unwrap_or_else(|poisoned| poisoned.into_inner())
-        .get(session_id)
-        .cloned()
-}
-
-/// Registry of available tools (Arc-wrapped for sharing)
-///
-/// Clone creates a fresh CompactionManager so each subagent gets independent
-/// message history tracking. Tools and skills are shared via Arc.
-pub struct Registry {
-    tools: Arc<RwLock<HashMap<String, Arc<dyn Tool>>>>,
-    skills: Arc<RwLock<SkillRegistry>>,
-    compaction: Arc<RwLock<CompactionManager>>,
-<<<<<<< HEAD
-    /// Hook system for lifecycle events (PreToolUse, PostToolUse, etc.)
-    hook_registry: Arc<RwLock<HookRegistry>>,
-    /// Dispatch configuration for hooks
-    dispatch_config: DispatchConfig,
-    #[cfg(feature = "dcp")]
-    dcp: Option<Arc<Mutex<crate::dcp_plugin::DcpPlugin>>>,
-=======
->>>>>>> origin/master
 }
 
 impl Clone for Registry {
@@ -124,66 +55,10 @@ impl Clone for Registry {
             // Each clone gets a fresh CompactionManager to prevent parallel
             // subagents from corrupting each other's message history
             compaction: Arc::new(RwLock::new(CompactionManager::new())),
-<<<<<<< HEAD
             hook_registry: self.hook_registry.clone(),
             dispatch_config: self.dispatch_config.clone(),
             #[cfg(feature = "dcp")]
             dcp: self.dcp.clone(),
-=======
->>>>>>> origin/master
-        }
-    }
-}
-
-impl Registry {
-    /// Access the hook registry for dispatching lifecycle hooks.
-    pub fn hook_registry(&self) -> &Arc<RwLock<HookRegistry>> {
-        &self.hook_registry
-    }
-
-    /// Access the dispatch configuration for hooks.
-    pub fn dispatch_config(&self) -> &DispatchConfig {
-        &self.dispatch_config
-    }
-
-    fn shared_skills_registry() -> Arc<RwLock<SkillRegistry>> {
-        SkillRegistry::shared_registry()
-    }
-
-    fn insert_tool<T>(tools: &mut HashMap<String, Arc<dyn Tool>>, name: &str, tool: T)
-    where
-        T: Tool + 'static,
-    {
-        tools.insert(name.into(), Arc::new(tool) as Arc<dyn Tool>);
-    }
-
-    fn insert_tool_timed<T>(
-        tools: &mut HashMap<String, Arc<dyn Tool>>,
-        timings: &mut Vec<(String, u128)>,
-        name: &str,
-        make_tool: impl FnOnce() -> T,
-    ) where
-        T: Tool + 'static,
-    {
-        let start = std::time::Instant::now();
-        Self::insert_tool(tools, name, make_tool());
-        timings.push((name.to_string(), start.elapsed().as_millis()));
-    }
-
-    /// Create a lightweight empty registry (no tools, no skill loading).
-    /// Used by remote-mode clients that don't execute tools locally.
-    pub fn empty() -> Self {
-        Self {
-            tools: Arc::new(RwLock::new(HashMap::new())),
-            skills: Arc::new(RwLock::new(SkillRegistry::default())),
-            compaction: Arc::new(RwLock::new(CompactionManager::new())),
-<<<<<<< HEAD
-            hook_registry: Arc::new(RwLock::new(HookRegistry::default())),
-            dispatch_config: DispatchConfig::default(),
-            #[cfg(feature = "dcp")]
-            dcp: None,
-=======
->>>>>>> origin/master
         }
     }
 
@@ -313,13 +188,11 @@ impl Registry {
             tools: Arc::new(RwLock::new(HashMap::new())),
             skills: skills.clone(),
             compaction: compaction.clone(),
-<<<<<<< HEAD
             hook_registry,
             dispatch_config,
             #[cfg(feature = "dcp")]
             dcp: None,
-=======
->>>>>>> origin/master
+
         };
         let registry_struct_ms = registry_struct_start.elapsed().as_millis();
 

@@ -33,7 +33,6 @@ impl Agent {
         self.run_turn(false).await
     }
 
-<<<<<<< HEAD
     /// Run a single message with events streamed to a broadcast channel (for server mode)
     pub async fn run_once_streaming(
         &mut self,
@@ -104,8 +103,6 @@ impl Agent {
         self.run_turn_streaming(event_tx).await
     }
 
-=======
->>>>>>> origin/master
     /// Run one conversation turn with streaming events via mpsc channel (per-client)
     pub async fn run_once_streaming_mpsc(
         &mut self,

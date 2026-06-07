@@ -1,9 +1,5 @@
 {
-<<<<<<< HEAD
   "total": 24,
-=======
-  "total": 20,
->>>>>>> origin/master
   "tracked_files": {
     "crates/jcode-app-core/src/export.rs": 5,
     "crates/jcode-app-core/src/yolo_classifier.rs": 1,

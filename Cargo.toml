@@ -72,16 +72,13 @@ members = [
     "crates/jcode-mobile-core",
     "crates/jcode-mobile-sim",
     "crates/jcode-desktop",
-<<<<<<< HEAD
     "crates/jcode-hooks",
-=======
+    "crates/jcode-keywords",
+    "crates/jcode-mempalace-adapter",
     "crates/jcode-plugin-core",
     "crates/jcode-plugin-runtime",
-    "crates/jcode-mempalace-adapter",
     "crates/jcode-render-core",
-    "crates/jcode-keywords",
     "evals/jbench",
->>>>>>> origin/master
 ]
 
 # Local override: build against the fast_file_search main branch which

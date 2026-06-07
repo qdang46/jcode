@@ -37,220 +37,9 @@ use crate::skill::SkillRegistry;
 use crate::tool::{Registry, ToolContext, ToolExecutionMode};
 use anyhow::Result;
 use futures::StreamExt;
-<<<<<<< HEAD
 use jcode_hooks::{DispatchConfig, HookContext, HookEvent, HookInputBuilder, HookRegistry};
 #[cfg(feature = "dcp")]
 use std::cell::Cell;
-=======
->>>>>>> origin/master
-use std::collections::{HashMap, HashSet};
-use std::hash::{Hash, Hasher};
-use std::io::{self, Write};
-use std::path::PathBuf;
-use std::sync::{Arc, LazyLock, Mutex as StdMutex};
-use std::time::{Duration, Instant};
-use tokio::sync::mpsc;
-
-use interrupts::{NoToolCallOutcome, PostToolInterruptOutcome};
-pub use jcode_agent_runtime::{
-    BackgroundToolSignal, GracefulShutdownSignal, InterruptSignal, SoftInterruptMessage,
-    SoftInterruptQueue, SoftInterruptSource, StreamError,
-};
-
-const JCODE_NATIVE_TOOLS: &[&str] = &["selfdev", "communicate"];
-static RECOVERED_TEXT_WRAPPED_TOOL_CALLS: std::sync::atomic::AtomicU64 =
-    std::sync::atomic::AtomicU64::new(0);
-static JCODE_REPO_SOURCE_STATE: LazyLock<(Option<String>, Option<bool>)> = LazyLock::new(|| {
-    crate::build::get_repo_dir()
-        .map(|repo_dir| {
-            (
-                build::current_git_hash(&repo_dir).ok(),
-                build::is_working_tree_dirty(&repo_dir).ok(),
-            )
-        })
-        .unwrap_or((None, None))
-});
-static WORKING_GIT_STATE_CACHE: LazyLock<StdMutex<HashMap<PathBuf, Option<GitState>>>> =
-    LazyLock::new(|| StdMutex::new(HashMap::new()));
-const STREAM_KEEPALIVE_PONG_ID: u64 = 0;
-
-fn stable_hash_str(value: &str) -> u64 {
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    value.hash(&mut hasher);
-    hasher.finish()
-}
-
-fn stable_hash_json<T: serde::Serialize + ?Sized>(value: &T) -> u64 {
-    let encoded = serde_json::to_string(value).unwrap_or_default();
-    stable_hash_str(&encoded)
-}
-
-fn stable_json_len<T: serde::Serialize + ?Sized>(value: &T) -> usize {
-    serde_json::to_string(value)
-        .map(|encoded| encoded.len())
-        .unwrap_or_default()
-}
-
-fn message_hashes(messages: &[Message]) -> Vec<u64> {
-    messages.iter().map(stable_hash_json).collect()
-}
-
-fn kv_cache_request_event(
-    messages: &[Message],
-    tools: &[ToolDefinition],
-    system_static: &str,
-    ephemeral_messages: &[Message],
-) -> ServerEvent {
-    let ephemeral_hash = if ephemeral_messages.is_empty() {
-        None
-    } else {
-        Some(stable_hash_json(ephemeral_messages))
-    };
-    ServerEvent::KvCacheRequest {
-        system_static_hash: stable_hash_str(system_static),
-        tools_hash: stable_hash_json(tools),
-        messages_hash: stable_hash_json(messages),
-        message_hashes: message_hashes(messages),
-        message_count: messages.len(),
-        tool_count: tools.len(),
-        system_static_chars: system_static.chars().count(),
-        tools_json_chars: stable_json_len(tools),
-        messages_json_chars: stable_json_len(messages),
-        ephemeral_hash,
-        ephemeral_chars: stable_json_len(ephemeral_messages),
-        ephemeral_message_count: ephemeral_messages.len(),
-    }
-}
-
-fn log_agent_provider_stream_lifecycle(
-    level: logging::LogLevel,
-    agent: &Agent,
-    phase: &str,
-    api_start: Instant,
-    fields: Vec<(&str, String)>,
-) {
-    let mut owned = vec![
-        ("phase".to_string(), phase.to_string()),
-        ("provider".to_string(), agent.provider.name().to_string()),
-        ("model".to_string(), agent.provider.model()),
-        ("session_id".to_string(), agent.session.id.clone()),
-        (
-            "provider_session_id".to_string(),
-            agent
-                .provider_session_id
-                .clone()
-                .unwrap_or_else(|| "none".to_string()),
-        ),
-        (
-            "connection_type".to_string(),
-            agent
-                .last_connection_type
-                .clone()
-                .unwrap_or_else(|| "unknown".to_string()),
-        ),
-        (
-            "elapsed_ms".to_string(),
-            api_start.elapsed().as_millis().to_string(),
-        ),
-    ];
-    owned.extend(
-        fields
-            .into_iter()
-            .map(|(key, value)| (key.to_string(), value)),
-    );
-    logging::event(level, "AGENT_PROVIDER_STREAM_LIFECYCLE", owned);
-}
-
-/// Token usage from the last API request
-#[derive(Debug, Clone, Default, serde::Serialize)]
-pub struct TokenUsage {
-    pub input_tokens: u64,
-    pub output_tokens: u64,
-    pub cache_read_input_tokens: Option<u64>,
-    pub cache_creation_input_tokens: Option<u64>,
-}
-
-#[derive(Debug, Clone)]
-struct RewindUndoSnapshot {
-    messages: Vec<StoredMessage>,
-    provider_session_id: Option<String>,
-    session_provider_session_id: Option<String>,
-    visible_message_count: usize,
-}
-
-pub struct Agent {
-    provider: Arc<dyn Provider>,
-    registry: Registry,
-    skills: Arc<SkillRegistry>,
-    session: Session,
-    active_skill: Option<String>,
-    allowed_tools: Option<HashSet<String>>,
-    disabled_tools: HashSet<String>,
-    /// Provider-specific session ID for conversation resume (e.g., Claude Code CLI session)
-    provider_session_id: Option<String>,
-    /// Last upstream provider (OpenRouter) observed for this session
-    last_upstream_provider: Option<String>,
-    /// Last observed transport/connection type for this session
-    last_connection_type: Option<String>,
-    /// Last provider-supplied human-readable transport detail for this session
-    last_status_detail: Option<String>,
-    /// Pending swarm alerts to inject into the next turn
-    pending_alerts: Vec<String>,
-    /// Transient reminder injected into provider requests for the current turn only.
-    /// Not persisted to session history.
-    current_turn_system_reminder: Option<String>,
-    /// Tool call ids observed in the current session transcript.
-    tool_call_ids: HashSet<String>,
-    /// Tool result ids observed in the current session transcript.
-    tool_result_ids: HashSet<String>,
-    /// Number of stored session messages already indexed for missing tool-output repair.
-    tool_output_scan_index: usize,
-    /// Soft interrupt queue: messages to inject at next safe point without cancelling
-    /// Uses std::sync::Mutex so it can be accessed without async, even while agent is processing
-    soft_interrupt_queue: SoftInterruptQueue,
-    /// Signal from client to move the currently executing tool to background
-    background_tool_signal: InterruptSignal,
-    /// Signal to gracefully stop generation (checkpoint partial response and exit)
-    graceful_shutdown: InterruptSignal,
-    /// Client-side cache tracking for detecting append-only violations
-    cache_tracker: CacheTracker,
-    /// Last token usage from API request (for debug socket queries)
-    last_usage: TokenUsage,
-    /// Locked tool list: once the first API request is sent, freeze the tool list
-    /// to avoid cache invalidation when MCP tools arrive asynchronously.
-    /// Cleared on compaction/reset.
-    locked_tools: Option<Vec<ToolDefinition>>,
-    /// One-shot guard for the async MCP-registration race (#206).
-    ///
-    /// MCP servers connect on a background task and register `mcp__*` tools
-    /// seconds after the session starts (we deliberately do NOT block the first
-    /// turn on MCP connection, so the user can talk to the agent immediately).
-    /// The first turn therefore locks a snapshot without MCP tools. We allow
-    /// exactly one rebuild to pick them up — an intentional, one-time provider
-    /// prompt-cache miss. Once that rebuild happens (or we confirm there are no
-    /// MCP tools to wait for), this is set so the per-turn registry scan stops.
-    /// Reset whenever the tool list is intentionally unlocked.
-    mcp_late_register_resolved: bool,
-    /// Override system prompt (used by ambient mode to inject a custom prompt)
-    system_prompt_override: Option<String>,
-    /// Whether memory features are enabled for this session
-    memory_enabled: bool,
-    /// One-step undo snapshot captured before the most recent rewind.
-    rewind_undo_snapshot: Option<RewindUndoSnapshot>,
-    /// Channel for tools to request stdin input from the user
-    stdin_request_tx: Option<tokio::sync::mpsc::UnboundedSender<crate::tool::StdinInputRequest>>,
-    /// Canonical reducer-backed view of runtime provider/model selection.
-    provider_runtime_state: ProviderRuntimeState,
-<<<<<<< HEAD
-    /// Hook registry for dispatching lifecycle hooks.
-    hook_registry: HookRegistry,
-    /// Dispatch configuration for hook execution.
-    dispatch_config: DispatchConfig,
-    /// DCP plugin for context pruning (behind feature flag).
-    #[cfg(feature = "dcp")]
-    dcp: Option<crate::dcp_plugin::DcpPlugin>,
-=======
->>>>>>> origin/master
 }
 
 impl Agent {
@@ -302,82 +91,10 @@ impl Agent {
             rewind_undo_snapshot: None,
             stdin_request_tx: None,
             provider_runtime_state: ProviderRuntimeState::observed(initial_provider_model),
-<<<<<<< HEAD
             hook_registry: HookRegistry::default(),
             dispatch_config: DispatchConfig::default(),
             #[cfg(feature = "dcp")]
             dcp: crate::dcp_plugin::DcpPlugin::new().ok(),
-=======
->>>>>>> origin/master
-        };
-        crate::tool::set_session_tool_policy(
-            &agent.session.id,
-            agent.allowed_tools.clone(),
-            agent.disabled_tools.clone(),
-        );
-        agent
-    }
-
-    fn current_skills_snapshot(&self) -> Arc<SkillRegistry> {
-        self.registry
-            .skills()
-            .try_read()
-            .map(|skills| Arc::new(skills.clone()))
-            .unwrap_or_else(|_| self.skills.clone())
-    }
-
-    pub fn available_skill_names(&self) -> Vec<String> {
-        self.current_skills_snapshot()
-            .list()
-            .iter()
-            .map(|skill| skill.name.clone())
-            .collect()
-    }
-
-    pub fn new(provider: Arc<dyn Provider>, registry: Registry) -> Self {
-        let tool_selection = crate::config::config().tools.selection();
-        let mut agent = Self::build_base(
-            provider,
-            registry,
-            Session::create(None, None),
-            tool_selection.allowed_tools,
-            tool_selection.disabled_tools,
-        );
-        agent.session.mark_active();
-        agent.session.model = Some(agent.provider.model());
-        agent.session.provider_key =
-            crate::session::derive_session_provider_key(agent.provider.name());
-        agent.session.ensure_initial_session_context_message();
-<<<<<<< HEAD
-
-        // Dispatch SessionStart hooks (fire-and-forget, observational only)
-        {
-            let registry = agent.hook_registry.clone();
-            let config = agent.dispatch_config.clone();
-            let session_id = agent.session.id.clone();
-            let cwd = agent.session.working_dir.clone().unwrap_or_default();
-            let hook_input = HookInputBuilder::new()
-                .session(&session_id, &cwd)
-                .event("SessionStart")
-                .build();
-            let ctx = HookContext::for_session_start(session_id, cwd);
-            let event = HookEvent::SessionStart;
-            tokio::spawn(async move {
-                let handlers = registry.get_matching(&event, &ctx);
-                if !handlers.is_empty() {
-                    jcode_hooks::dispatch_hooks(&event, &hook_input, &handlers, &config).await;
-                }
-            });
-        }
-
-        // Wire DCP plugin into registry so DCP tools can access it
-        #[cfg(feature = "dcp")]
-        if let Some(dcp) = agent.dcp.take() {
-            agent.registry.set_dcp(dcp);
-        }
-
-=======
->>>>>>> origin/master
         agent.seed_compaction_from_session();
         agent.log_env_snapshot("create");
         crate::telemetry::begin_session_with_parent(
@@ -437,7 +154,6 @@ impl Agent {
         agent.restore_reasoning_effort_from_session();
         agent.session.ensure_initial_session_context_message();
         agent.sync_memory_dedup_state_from_session();
-<<<<<<< HEAD
 
         // Dispatch SessionStart hooks (fire-and-forget, observational only)
         {
@@ -465,8 +181,6 @@ impl Agent {
             agent.registry.set_dcp(dcp);
         }
 
-=======
->>>>>>> origin/master
         agent.seed_compaction_from_session();
         agent.log_env_snapshot("attach");
         crate::telemetry::begin_session_with_parent(

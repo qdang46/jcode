@@ -37,11 +37,7 @@ use std::path::PathBuf;
 use std::sync::{LazyLock, Mutex};
 
 use dcg_core::{Decision, Effect, Engine, EngineConfig, Mode, Session, ToolCall};
-<<<<<<< HEAD
 use jcode_hooks::{DispatchConfig, HookContext, HookEvent, HookInputBuilder, HookRegistry};
-=======
-use jcode_agent_runtime::permission::PermissionMode;
->>>>>>> origin/master
 
 pub use crate::yolo_classifier::YoloClassifier;
 

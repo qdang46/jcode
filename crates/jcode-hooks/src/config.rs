@@ -20,7 +20,6 @@ use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 
 use super::matcher::HookMatcher;
-use regex::Regex;
 
 // ---------------------------------------------------------------------------
 // HookEvent
@@ -275,21 +274,7 @@ pub fn parse_matcher_pattern(s: &str) -> HookMatcher {
         return HookMatcher::Wildcard;
     }
     if trimmed.starts_with('/') && trimmed.ends_with('/') && trimmed.len() > 2 {
-        // Validate and compile the regex pattern at parse time so we never
-        // re-compile on every match call later.
-        let pattern = &trimmed[1..trimmed.len() - 1];
-        match regex::Regex::new(pattern) {
-            Ok(re) => return HookMatcher::Regex(re),
-            Err(e) => {
-                // Invalid regex: fall back to exact match so a misconfigured
-                // hooks.toml does not crash the whole process.
-                eprintln!(
-                    "[jcode-hooks] invalid regex pattern in {}: {} — falling back to exact match",
-                    trimmed, e
-                );
-                return HookMatcher::Exact(trimmed.to_string());
-            }
-        }
+        return HookMatcher::Regex(trimmed[1..trimmed.len() - 1].to_string());
     }
     if trimmed.contains('|') {
         let parts: Vec<String> = trimmed.split('|').map(|p| p.trim().to_string()).collect();
@@ -322,7 +307,7 @@ where
                 HookMatcher::Wildcard => "*".to_string(),
                 HookMatcher::Exact(v) => v.clone(),
                 HookMatcher::Multi(parts) => parts.join("|"),
-                HookMatcher::Regex(re) => format!("/{}/", re.as_str()),
+                HookMatcher::Regex(pat) => format!("/{}/", pat),
             };
             serializer.serialize_some(&s)
         }
@@ -1044,7 +1029,7 @@ mod tests {
     fn matcher_regex() {
         assert_eq!(
             parse_matcher_pattern("/^Bash/"),
-            HookMatcher::Regex(regex::Regex::new("^Bash").unwrap())
+            HookMatcher::Regex("^Bash".to_string())
         );
     }
 

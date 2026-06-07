@@ -452,7 +452,6 @@ pub fn list_sessions() -> Result<()> {
                 exe.to_path_buf(),
                 vec![
                     "--resume".to_string(),
-<<<<<<< HEAD
                     crate::casr_adapter::imported_opencode_session_id(session_id),
                 ],
             ),
@@ -468,9 +467,6 @@ pub fn list_sessions() -> Result<()> {
                         provider_slug,
                         session_id,
                     ),
-=======
-                    crate::import::imported_opencode_session_id(session_id),
->>>>>>> origin/master
                 ],
             ),
         }
@@ -526,7 +522,6 @@ pub fn list_sessions() -> Result<()> {
 
             if targets.len() == 1 {
                 let target = &targets[0];
-<<<<<<< HEAD
                 let resolved_target = match target {
                     jcode_tui_session_picker::ResumeTarget::JcodeSession { session_id } => {
                         session_id.clone()
@@ -553,9 +548,6 @@ pub fn list_sessions() -> Result<()> {
                         session_id,
                     ),
                 };
-=======
-                let resolved_target = crate::import::resolve_resume_target_to_jcode(target)?;
->>>>>>> origin/master
                 let mut session_cwd = cwd.clone();
                 if let jcode_tui_session_picker::ResumeTarget::JcodeSession { session_id } =
                     &resolved_target
@@ -578,7 +570,6 @@ pub fn list_sessions() -> Result<()> {
                 let mut warned_no_terminal = false;
 
                 for target in targets {
-<<<<<<< HEAD
                     let resolved_target = match &target {
                         jcode_tui_session_picker::ResumeTarget::JcodeSession { session_id } => {
                             session_id.clone()
@@ -606,16 +597,6 @@ pub fn list_sessions() -> Result<()> {
                             session_id,
                         ),
                     };
-=======
-                    let resolved_target =
-                        match crate::import::resolve_resume_target_to_jcode(&target) {
-                            Ok(target) => target,
-                            Err(e) => {
-                                eprintln!("Failed to import selected session: {}", e);
-                                continue;
-                            }
-                        };
->>>>>>> origin/master
                     let mut session_cwd = cwd.clone();
                     if let jcode_tui_session_picker::ResumeTarget::JcodeSession { session_id } =
                         &resolved_target
@@ -669,7 +650,6 @@ pub fn list_sessions() -> Result<()> {
                         eprintln!("Failed to import selected session: {}", e);
                         continue;
                     }
-<<<<<<< HEAD
                     jcode_tui_session_picker::ResumeTarget::ClaudeCodeSession {
                         session_id,
                         ..
@@ -691,8 +671,7 @@ pub fn list_sessions() -> Result<()> {
                         provider_slug,
                         session_id,
                     ),
-=======
->>>>>>> origin/master
+
                 };
                 let mut session_cwd = cwd.clone();
                 if let jcode_tui_session_picker::ResumeTarget::JcodeSession { session_id } =

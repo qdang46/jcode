@@ -2,19 +2,11 @@
   "threshold_loc": 1200,
   "tracked_files": {
     "crates/jcode-app-core/src/server/provider_control_tests.rs": 1203,
-<<<<<<< HEAD
     "crates/jcode-base/src/live_tests.rs": 2880,
     "crates/jcode-base/src/provider/anthropic_tests.rs": 1210,
     "crates/jcode-base/src/provider/openrouter_tests.rs": 1792,
     "crates/jcode-base/src/provider/tests/model_resolution.rs": 1565,
     "crates/jcode-base/src/session_tests/cases.rs": 1569,
-=======
-    "crates/jcode-base/src/live_tests.rs": 2886,
-    "crates/jcode-base/src/provider/anthropic_tests.rs": 1281,
-    "crates/jcode-base/src/provider/openrouter_tests.rs": 1813,
-    "crates/jcode-base/src/provider/tests/model_resolution.rs": 1573,
-    "crates/jcode-base/src/session_tests/cases.rs": 1703,
->>>>>>> origin/master
     "crates/jcode-desktop/src/main_tests.rs": 10143,
     "crates/jcode-desktop/src/session_launch/tests.rs": 1207,
     "crates/jcode-desktop/src/single_session_render/tests.rs": 1936,

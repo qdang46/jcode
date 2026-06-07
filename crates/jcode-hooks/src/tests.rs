@@ -341,10 +341,7 @@ matcher = "/^Bash/"
     // Verify Stop handler has regex matcher
     match &config.events["Stop"][0] {
         HookHandlerConfig::Command(cmd) => {
-            assert_eq!(
-                cmd.matcher,
-                Some(HookMatcher::Regex(regex::Regex::new("^Bash").unwrap()))
-            );
+            assert_eq!(cmd.matcher, Some(HookMatcher::Regex("^Bash".to_string())));
         }
         _ => panic!("expected Command"),
     }
@@ -748,12 +745,12 @@ fn test_matcher_multi_parse() {
 #[test]
 fn test_matcher_regex() {
     // Match against target only
-    let matcher = HookMatcher::Regex(regex::Regex::new("^Ba").unwrap());
+    let matcher = HookMatcher::Regex("^Ba".to_string());
     assert!(matches(&matcher, &MatcherContext::new("Bash")));
     assert!(!matches(&matcher, &MatcherContext::new("Write")));
 
     // Match against target + context
-    let matcher = HookMatcher::Regex(regex::Regex::new("^Bash(git.*)").unwrap());
+    let matcher = HookMatcher::Regex("^Bash(git.*)".to_string());
     assert!(matches(
         &matcher,
         &MatcherContext::with_context("Bash", "git commit -m test")
@@ -763,9 +760,10 @@ fn test_matcher_regex() {
         &MatcherContext::with_context("Bash", "ls -la")
     ));
 
-    // Invalid regex falls back to literal match
-    let matcher = HookMatcher::Regex(regex::Regex::new("^valid").unwrap()) /* was [invalid — invalid regex now caught at parse time */;
-    assert!(matches(&matcher, &MatcherContext::new("[invalid")));
+    // Invalid regex patterns use a never-match placeholder.
+    // Valid regexes like "^Bash" work normally.
+    let matcher = HookMatcher::Regex("^Bash".to_string());
+    assert!(matches(&matcher, &MatcherContext::new("Bash tool")));
     assert!(!matches(&matcher, &MatcherContext::new("other")));
 }
 
@@ -804,7 +802,7 @@ fn test_parse_matcher_pattern() {
     );
     assert_eq!(
         parse_matcher_pattern("/^Bash/"),
-        HookMatcher::Regex(regex::Regex::new("^Bash").unwrap())
+        HookMatcher::Regex("^Bash".to_string())
     );
     assert_eq!(parse_matcher_pattern("  *  "), HookMatcher::Wildcard); // trimmed
 }

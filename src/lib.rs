@@ -23,7 +23,6 @@ pub use jcode_tui::*;
 
 // Cli + entrypoint layer (kept in the root crate).
 pub mod cli;
-<<<<<<< HEAD
 pub mod crash_log;
 pub mod customization;
 pub mod extension_policy;
@@ -37,8 +36,7 @@ pub mod skill_disable;
 pub mod skill_distillation;
 pub mod theme;
 pub mod turborag;
-=======
->>>>>>> origin/master
+
 
 use anyhow::Result;
 

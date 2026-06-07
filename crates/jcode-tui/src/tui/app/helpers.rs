@@ -599,7 +599,6 @@ pub(super) fn build_resume_command(
             let title = format!("◌ OpenCode {}", &session_id[..session_id.len().min(8)]);
             (exe, args, title)
         }
-<<<<<<< HEAD
         ResumeTarget::ForeignSession {
             provider_slug,
             session_id,
@@ -615,8 +614,7 @@ pub(super) fn build_resume_command(
             );
             (exe, args, title)
         }
-=======
->>>>>>> origin/master
+
     }
 }
 
