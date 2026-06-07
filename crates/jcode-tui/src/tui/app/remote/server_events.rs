@@ -1006,6 +1006,17 @@ pub(in crate::tui::app) fn handle_server_event(
                 app.remote_server_icon = server_icon.clone();
                 app.remote_server_has_update = server_has_update;
                 app.pending_server_reload = true;
+                // Remember the session the server told us about *before* bailing
+                // out. We deliberately return below without assigning
+                // `app.remote_session_id` (history stays deferred until after the
+                // server reloads), but the client reload handoff still needs a
+                // real session id to resume. Without this, the handoff falls back
+                // to a freshly fabricated `ses_<ts>_<rand>` id that no store can
+                // ever resolve, leaving the user at a "No session found matching
+                // ..." shell prompt after an auto-update (issue #328).
+                if !session_id.is_empty() {
+                    app.pending_reload_session_id = Some(session_id.clone());
+                }
                 app.clear_remote_startup_phase();
                 if client_detected_stale {
                     // The client independently measured the server's release as

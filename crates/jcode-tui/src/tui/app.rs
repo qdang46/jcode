@@ -851,6 +851,13 @@ pub struct App {
     remote_server_has_update: Option<bool>,
     // Auto-reload server when stale (set on first connect if server_has_update)
     pending_server_reload: bool,
+    // Real session id captured from a History event whose payload we deferred
+    // because of a server/runtime version mismatch. The deferral returns before
+    // `remote_session_id` is assigned, so without stashing the id here the
+    // subsequent client reload handoff has no session to resume and would
+    // fabricate a bogus `ses_<ts>_<rand>` id, producing
+    // "No session found matching ..." on the next launch (issue #328).
+    pending_reload_session_id: Option<String>,
     // Defense-in-depth circuit breaker for issue #277: count how many times this
     // client has auto-reloaded the server. A healthy reload happens at most once
     // (afterwards the server is up to date), so repeated auto-reloads indicate a
@@ -1114,6 +1121,12 @@ pub struct App {
     command_suggestion_selected: usize,
     // Time when app started (for startup animations)
     app_started: Instant,
+    // Whether the client terminal currently has focus. When the terminal window
+    // or tab is backgrounded (FocusLost), decorative animations and periodic
+    // idle redraws are paused so a swarm of background sessions does not burn
+    // CPU animating screens nobody is looking at. Defaults to true because not
+    // every terminal reports focus events.
+    client_focused: bool,
     // Optional client runtime memory logger for low-overhead attribution journaling.
     runtime_memory_log: Option<RuntimeMemoryLogController>,
     // Binary modification time when client started (for smart reload detection)

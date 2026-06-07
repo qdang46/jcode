@@ -259,7 +259,12 @@ fn test_anthropic_fast_mode_is_limited_to_opus_48() {
 #[test]
 fn test_anthropic_manual_thinking_budget_for_opus_45() {
     let provider = AnthropicProvider::new();
-    provider.set_model("claude-opus-4-5").unwrap();
+    // Keep this request-builder test independent of the live/persisted Anthropic
+    // model catalog, which may legitimately omit older Opus 4.5 models.
+    *provider
+        .model
+        .write()
+        .unwrap_or_else(|poisoned| poisoned.into_inner()) = "claude-opus-4-5".to_string();
     provider.set_reasoning_effort("high").unwrap();
 
     let (thinking, output_config, temperature) =

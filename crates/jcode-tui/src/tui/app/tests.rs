@@ -601,6 +601,89 @@ fn stale_server_history_is_deferred_before_remote_state_is_applied() {
 }
 
 #[test]
+fn deferred_stale_server_history_captures_session_id_for_reload_handoff() {
+    // Issue #328: when a fresh client connects to a still-running older server
+    // (e.g. right after an auto-update), the History payload is deferred because
+    // of the version mismatch and the handler returns BEFORE assigning
+    // `remote_session_id`. On a fresh client that id is `None`, so the later
+    // client reload handoff used to fabricate a `ses_<ts>_<rand>` id that no
+    // store can resolve, leaving the user stuck at "No session found matching
+    // ...". We must stash the real session id so the re-exec resumes the actual
+    // server session instead.
+    let _env_guard = crate::storage::lock_test_env();
+    crate::env::remove_var("JCODE_ALLOW_SERVER_VERSION_MISMATCH");
+    crate::env::set_var("JCODE_TEST_CLIENT_VERSION_OVERRIDE", "v0.21.0 (deadbeef)");
+
+    let mut app = create_test_app();
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    let _guard = rt.enter();
+    let mut remote = crate::tui::backend::RemoteConnection::dummy();
+
+    app.is_remote = true;
+    // Fresh client: no session id learned yet (the #328 reproduction).
+    app.remote_session_id = None;
+    assert!(app.pending_reload_session_id.is_none());
+
+    let redraw = app.handle_server_event(
+        crate::protocol::ServerEvent::History {
+            id: 1,
+            session_id: "session_real_server_owned".to_string(),
+            messages: vec![crate::protocol::HistoryMessage {
+                role: "assistant".to_string(),
+                content: "stale answer".to_string(),
+                tool_calls: None,
+                tool_data: None,
+            }],
+            images: vec![],
+            provider_name: Some("stale-provider".to_string()),
+            provider_model: Some("stale-model".to_string()),
+            subagent_model: None,
+            autoreview_enabled: None,
+            autojudge_enabled: None,
+            available_models: vec![],
+            available_model_routes: vec![],
+            mcp_servers: vec![],
+            skills: vec![],
+            total_tokens: None,
+            token_usage_totals: None,
+            all_sessions: vec![],
+            client_count: None,
+            is_canary: None,
+            reload_recovery: None,
+            // Ancient server that predates self-reported staleness; the client's
+            // own release-version comparison drives the deferral.
+            server_version: Some("v0.20.4".to_string()),
+            server_name: Some("stale-server".to_string()),
+            server_icon: Some("🧟".to_string()),
+            server_has_update: None,
+            was_interrupted: None,
+            connection_type: None,
+            status_detail: None,
+            upstream_provider: None,
+            resolved_credential: None,
+            reasoning_effort: None,
+            service_tier: None,
+            compaction_mode: crate::config::CompactionMode::Reactive,
+            activity: None,
+            side_panel: crate::side_panel::SidePanelSnapshot::default(),
+        },
+        &mut remote,
+    );
+
+    // History is deferred (no redraw, reload pending, remote_session_id still
+    // unset) but the real session id is captured for the reload handoff.
+    assert!(!redraw);
+    assert!(app.pending_server_reload);
+    assert_eq!(app.remote_session_id.as_deref(), None);
+    assert_eq!(
+        app.pending_reload_session_id.as_deref(),
+        Some("session_real_server_owned")
+    );
+
+    crate::env::remove_var("JCODE_TEST_CLIENT_VERSION_OVERRIDE");
+}
+
+#[test]
 fn ancient_server_history_is_deferred_via_client_side_release_check() {
     // Issue #295: a server old enough to predate the self-reported staleness
     // machinery sends `server_has_update: None`, so it can never tell the client
