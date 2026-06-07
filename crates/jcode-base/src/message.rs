@@ -63,7 +63,9 @@ pub fn redact_secrets(text: &str) -> String {
         && !lower.contains("token")
     {
         logging::debug("secret redaction fast path skipped regex scan");
-        return text.to_string();
+        // Still apply the shared sanitizer: it covers formats this fast path's
+        // markers don't (AWS AKIA, Stripe, Bearer, JWT, ...).
+        return jcode_redact::redact_secrets(text);
     }
 
     logging::debug(&format!(
@@ -211,7 +213,10 @@ pub fn redact_secrets(text: &str) -> String {
         logging::info("redacted secrets from message text");
     }
 
-    redacted
+    // Layer the shared sanitizer on top so session history also benefits from
+    // its broader format coverage. The env/assignment patterns there exclude a
+    // leading `[`, so the `[REDACTED_SECRET]` placeholders above are preserved.
+    jcode_redact::redact_secrets(&redacted)
 }
 
 pub const GENERATED_IMAGE_TOOL_NAME: &str = "image_generation";

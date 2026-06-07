@@ -269,6 +269,7 @@ pub(crate) async fn run_main(mut args: Args) -> Result<()> {
             }
             SecretsCommand::List { env, json } => super::secrets_cmd::run_list(env, json)?,
             SecretsCommand::Init { json } => super::secrets_cmd::run_init(json)?,
+            SecretsCommand::Purge { yes, json } => super::secrets_cmd::run_purge(yes, json)?,
         },
         Some(Command::Ambient(subcmd)) => {
             commands::run_ambient_command(map_ambient_subcommand(subcmd)).await?;

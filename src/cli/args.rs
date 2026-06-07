@@ -853,6 +853,17 @@ pub(crate) enum SecretsCommand {
         #[arg(long)]
         json: bool,
     },
+
+    /// Permanently delete ALL stored secrets and the keychain passphrase
+    Purge {
+        /// Confirm the destructive purge (required; nothing is deleted without it)
+        #[arg(long)]
+        yes: bool,
+
+        /// Emit JSON instead of human-readable output
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 #[derive(Subcommand, Debug)]

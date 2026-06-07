@@ -234,6 +234,32 @@ fn init_with(manager: &SecretsManager, json: bool) -> Result<String> {
     })
 }
 
+#[derive(Serialize)]
+struct PurgeOutput {
+    status: &'static str,
+}
+
+pub fn run_purge(yes: bool, json: bool) -> Result<()> {
+    if !yes {
+        anyhow::bail!(
+            "Refusing to purge. This permanently deletes ALL stored secrets and the \
+             keychain passphrase. Re-run with --yes to confirm."
+        );
+    }
+    let manager = manager()?;
+    println!("{}", purge_with(&manager, json)?);
+    Ok(())
+}
+
+fn purge_with(manager: &SecretsManager, json: bool) -> Result<String> {
+    manager.purge()?;
+    Ok(if json {
+        serde_json::to_string_pretty(&PurgeOutput { status: "purged" })?
+    } else {
+        "Purged all stored secrets and removed the keychain passphrase.".to_string()
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -328,5 +354,15 @@ mod tests {
     #[test]
     fn scope_for_global_is_default() {
         assert!(matches!(scope_for(false).unwrap(), SecretScope::Global));
+    }
+
+    #[test]
+    fn purge_removes_all_secrets() {
+        let dir = tempfile::tempdir().unwrap();
+        let m = test_manager(dir.path());
+        set_with(&m, &SecretScope::Global, "K", "v", false).unwrap();
+        let msg = purge_with(&m, false).unwrap();
+        assert!(msg.contains("Purged"));
+        assert_eq!(list_with(&m, None, false).unwrap(), "No secrets stored.");
     }
 }

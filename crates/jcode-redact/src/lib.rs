@@ -91,9 +91,11 @@ static PATTERNS: LazyLock<Vec<(Regex, &'static str)>> = LazyLock::new(|| {
             Regex::new(r#"(?i)\b(api[_-]?key|token|secret|password)\b(\s*[:=]\s*)(["']?)[^\s"'\[]{8,}"#).unwrap(),
             "${1}${2}[REDACTED]",
         ),
-        // Known provider env-var assignments: KEY=value
+        // Known provider env-var assignments: KEY=value. The value's first char
+        // must not be `[`, so an already-inserted `[REDACTED...]` placeholder is
+        // never re-redacted (e.g. when layered after another sanitizer).
         (
-            Regex::new(&format!(r#"(?i)\b({})(\s*=\s*)([^\r\n,'"\s]+)"#, env_names)).unwrap(),
+            Regex::new(&format!(r#"(?i)\b({})(\s*=\s*)([^\r\n,'"\s\[][^\r\n,'"\s]*)"#, env_names)).unwrap(),
             "${1}${2}[REDACTED:env]",
         ),
     ]
@@ -231,6 +233,13 @@ mod tests {
         assert!(!result.contains("sk-abc123DEF456ghi789jkl012"));
         assert!(!result.contains("ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ123456"));
         assert!(!result.contains("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"));
+    }
+
+    #[test]
+    fn does_not_re_redact_existing_placeholder() {
+        // A value already replaced by another sanitizer must be left intact.
+        let input = "GROQ_API_KEY=[REDACTED_SECRET]";
+        assert_eq!(redact_secrets(input), input);
     }
 
     #[test]

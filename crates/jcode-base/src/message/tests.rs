@@ -281,6 +281,17 @@ fn redact_secrets_leaves_normal_output_unchanged() {
 }
 
 #[test]
+fn redact_secrets_also_covers_shared_sanitizer_formats() {
+    // Formats the bespoke message.rs patterns don't catch are now redacted via
+    // the layered jcode-redact pass (AWS access key id, Bearer header).
+    let aws = redact_secrets("aws=AKIAIOSFODNN7EXAMPLE");
+    assert!(!aws.contains("AKIAIOSFODNN7EXAMPLE"), "got: {aws}");
+
+    let bearer = redact_secrets("Authorization: Bearer abcdef0123456789ghijklmnop");
+    assert!(!bearer.contains("abcdef0123456789ghijklmnop"), "got: {bearer}");
+}
+
+#[test]
 fn format_timestamp_is_stable_utc_rfc3339() -> Result<()> {
     let ts = chrono::DateTime::parse_from_rfc3339("2025-03-15T02:24:13.250Z")?.with_timezone(&Utc);
     assert_eq!(Message::format_timestamp(&ts), "2025-03-15T02:24:13.250Z");

@@ -270,6 +270,12 @@ pub trait SecretsBackend: Send + Sync {
     fn initialize(&self) -> Result<()> {
         Ok(())
     }
+
+    /// Permanently remove ALL stored secrets and any backing key material
+    /// (e.g. the encrypted file and the OS keychain passphrase). Destructive.
+    fn purge(&self) -> Result<()> {
+        Ok(())
+    }
 }
 
 // ─── SecretsManager ─────────────────────────────────────────────────────────
@@ -344,6 +350,12 @@ impl SecretsManager {
     /// the encrypted store file) so the store is ready for use.
     pub fn initialize(&self) -> Result<()> {
         self.backend.initialize()
+    }
+
+    /// Permanently delete all stored secrets and backing key material.
+    /// Destructive and irreversible.
+    pub fn purge(&self) -> Result<()> {
+        self.backend.purge()
     }
 }
 

@@ -192,6 +192,18 @@ impl SecretsBackend for LocalSecretsBackend {
         let secrets = self.load_secrets()?;
         self.save_secrets(&secrets)
     }
+
+    fn purge(&self) -> Result<()> {
+        // Remove the encrypted store file if present.
+        if self.secrets_path.exists() {
+            std::fs::remove_file(&self.secrets_path).with_context(|| {
+                format!("Failed to remove {}", self.secrets_path.display())
+            })?;
+        }
+        // Remove the OS keychain passphrase entry (idempotent).
+        self.keyring_store.delete(SERVICE_NAME, PASS_ACCOUNT)?;
+        Ok(())
+    }
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -240,6 +252,23 @@ mod tests {
         assert!(backend.secrets_path.exists());
         // An initialized store is empty but readable.
         assert!(backend.list(None).unwrap().is_empty());
+    }
+
+    #[test]
+    fn test_purge_removes_file_and_secrets() {
+        let (backend, _dir) = test_backend();
+        let scope = SecretScope::Global;
+        backend
+            .set(&scope, &SecretName::new("K1").unwrap(), "v1")
+            .unwrap();
+        assert!(backend.secrets_path.exists());
+
+        backend.purge().unwrap();
+        assert!(!backend.secrets_path.exists());
+        // After purge the store reads as empty again.
+        assert!(backend.list(None).unwrap().is_empty());
+        // Purge is idempotent.
+        backend.purge().unwrap();
     }
 
     #[test]

@@ -81,6 +81,7 @@ jcode-tui-session-picker = { path = "../jcode-tui-session-picker", features = ["
 jcode-tui-style = { path = "../jcode-tui-style" }
 jcode-tui-permissions = { path = "../jcode-tui-permissions" }
 jcode-tui-tool-display = { path = "../jcode-tui-tool-display" }
+jcode-redact = { path = "../jcode-redact" }
 jcode-tui-usage-overlay = { path = "../jcode-tui-usage-overlay" }
 jcode-terminal-image = { path = "../jcode-terminal-image" }
 jcode-productivity-core = { path = "../jcode-productivity-core" }
