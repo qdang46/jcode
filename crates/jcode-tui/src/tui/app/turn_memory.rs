@@ -76,6 +76,18 @@ impl App {
             result.keyword_prompt
         };
 
+        // Inject priority-tier notes into the system prompt so they survive compaction.
+        let working_dir = self
+            .session
+            .working_dir
+            .as_deref()
+            .map(std::path::Path::new);
+        let notepad_prompt = crate::notepad::Notepad::new(
+            working_dir,
+            &crate::notepad::NotepadConfig::default(),
+        )
+        .and_then(|n| n.priority_prompt_block());
+
         let (mut split, context_info) = crate::prompt::build_system_prompt_split(
             skill_prompt.as_deref(),
             &available_skills,
@@ -83,6 +95,7 @@ impl App {
             memory_prompt,
             None,
             keyword_prompt,
+            notepad_prompt.as_deref(),
         );
         self.append_current_turn_system_reminder(&mut split);
         self.context_info = context_info;

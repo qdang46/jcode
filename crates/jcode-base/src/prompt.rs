@@ -205,6 +205,7 @@ pub fn build_system_prompt_with_context_and_memory(
         memory_prompt,
         None,
         None,
+        None,
     )
 }
 
@@ -216,6 +217,7 @@ pub fn build_system_prompt_full(
     memory_prompt: Option<&str>,
     working_dir: Option<&Path>,
     keyword_prompt: Option<String>,
+    notepad_prompt: Option<&str>,
 ) -> (String, ContextInfo) {
     let mut parts = vec![DEFAULT_SYSTEM_PROMPT.to_string()];
     let mut info = ContextInfo {
@@ -271,6 +273,13 @@ pub fn build_system_prompt_full(
         }
     }
 
+    // Priority notepad content (injected every turn, survives compaction)
+    if let Some(notepad) = notepad_prompt {
+        if !notepad.is_empty() {
+            parts.push(notepad.to_string());
+        }
+    }
+
     // Add available skills list
     if !available_skills.is_empty() {
         let mut skills_section = "# Available Skills\n\nYou have access to the following skills that the user can invoke with `/skillname`:\n".to_string();
@@ -304,6 +313,7 @@ pub fn build_system_prompt_split(
     memory_prompt: Option<&str>,
     working_dir: Option<&Path>,
     keyword_prompt: Option<String>,
+    notepad_prompt: Option<&str>,
 ) -> (SplitSystemPrompt, ContextInfo) {
     let mut static_parts = vec![DEFAULT_SYSTEM_PROMPT.to_string()];
     let mut dynamic_parts = Vec::new();
@@ -380,6 +390,13 @@ pub fn build_system_prompt_split(
     // Active skill prompt (changes per skill invocation)
     if let Some(skill) = skill_prompt {
         dynamic_parts.push(format!("# Active Skill\n\n{}", skill));
+    }
+
+    // Priority notepad content – injected every turn so it survives compaction.
+    if let Some(notepad) = notepad_prompt {
+        if !notepad.is_empty() {
+            dynamic_parts.push(notepad.to_string());
+        }
     }
 
     let static_part = static_parts.join("\n\n");

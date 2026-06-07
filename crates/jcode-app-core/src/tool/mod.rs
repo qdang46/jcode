@@ -20,6 +20,7 @@ mod lsp;
 pub mod mcp;
 mod memory;
 mod multiedit;
+mod notepad;
 mod open;
 mod patch;
 mod read;
@@ -263,6 +264,43 @@ impl Registry {
             Self::insert_tool_timed(&mut m, &mut timings, "gmail", gmail::GmailTool::new);
             Self::insert_tool_timed(&mut m, &mut timings, "schedule", ambient::ScheduleTool::new);
             Self::insert_tool_timed(&mut m, &mut timings, "selfdev", selfdev::SelfDevTool::new);
+            // Notepad tools (compaction-resistant notes)
+            Self::insert_tool_timed(
+                &mut m,
+                &mut timings,
+                "read_priority",
+                notepad::NotepadTool::read_priority,
+            );
+            Self::insert_tool_timed(
+                &mut m,
+                &mut timings,
+                "write_priority",
+                notepad::NotepadTool::write_priority,
+            );
+            Self::insert_tool_timed(
+                &mut m,
+                &mut timings,
+                "read_working",
+                notepad::NotepadTool::read_working,
+            );
+            Self::insert_tool_timed(
+                &mut m,
+                &mut timings,
+                "write_working",
+                notepad::NotepadTool::write_working,
+            );
+            Self::insert_tool_timed(
+                &mut m,
+                &mut timings,
+                "read_manual",
+                notepad::NotepadTool::read_manual,
+            );
+            Self::insert_tool_timed(
+                &mut m,
+                &mut timings,
+                "write_manual",
+                notepad::NotepadTool::write_manual,
+            );
             let nonzero: Vec<String> = timings
                 .iter()
                 .filter(|(_, ms)| *ms > 0)

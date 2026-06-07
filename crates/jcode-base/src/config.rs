@@ -439,6 +439,9 @@ pub struct Config {
 
     /// Auto-judge configuration
     pub autojudge: AutoJudgeConfig,
+
+    /// Notepad (3-tier context notes) configuration
+    pub notepad: crate::notepad::NotepadConfig,
 }
 
 /// Agent Client Protocol adapter configuration.
