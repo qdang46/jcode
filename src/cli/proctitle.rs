@@ -49,6 +49,7 @@ pub(crate) fn initial_title(args: &Args) -> String {
         Some(Command::Model(_)) => "jcode model".to_string(),
         Some(Command::ProviderTestCoverage { .. }) => "jcode provider-test-coverage".to_string(),
         Some(Command::ProviderDoctor { .. }) => "jcode provider-doctor".to_string(),
+        Some(Command::Doctor { .. }) => "jcode doctor".to_string(),
         Some(Command::AuthTest { .. }) => "jcode auth-test".to_string(),
         Some(Command::Restart { .. }) => "jcode restart".to_string(),
         Some(Command::SetupLauncher) => "jcode setup-launcher".to_string(),

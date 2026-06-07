@@ -418,6 +418,31 @@ pub(crate) async fn run_main(mut args: Args) -> Result<()> {
                 .await?;
             }
         }
+        Some(Command::Doctor {
+            json,
+            fix,
+            yes,
+            only,
+        }) => {
+            let only = only
+                .iter()
+                .filter_map(|s| crate::doctor::CheckCategory::parse(s))
+                .collect::<Vec<_>>();
+            let cwd = match args.cwd.clone() {
+                Some(c) => std::path::PathBuf::from(c),
+                None => std::env::current_dir()?,
+            };
+            let code = crate::doctor::run(crate::doctor::DoctorOptions {
+                cwd,
+                fix,
+                assume_yes: yes,
+                only,
+                json,
+            })?;
+            if code != 0 {
+                std::process::exit(code);
+            }
+        }
         Some(Command::Restart { action }) => match action {
             RestartCommand::Save { auto_restore } => {
                 commands::run_restart_save_command(auto_restore).await?

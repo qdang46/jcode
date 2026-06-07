@@ -469,6 +469,32 @@ pub(crate) enum Command {
         coverage_limit: usize,
     },
 
+    /// Run a comprehensive offline health check of the local jcode environment.
+    ///
+    /// Validates config, auth files, shell tools, sessions, storage, MCP config,
+    /// resource headroom, and swarm preconditions. Use `--fix` to auto-repair
+    /// safe problems (create missing dirs, tighten `auth.json` permissions). This
+    /// command is offline and never spends provider balance — use
+    /// `jcode provider-doctor` / `jcode auth-test` for live provider verification.
+    Doctor {
+        /// Emit the report as JSON (stable schema) for scripting/CI
+        #[arg(long)]
+        json: bool,
+
+        /// Attempt to automatically repair fixable problems
+        #[arg(long)]
+        fix: bool,
+
+        /// Allow destructive fixes (quarantine corrupt files) without an interactive prompt
+        #[arg(long, requires = "fix")]
+        yes: bool,
+
+        /// Limit checks to specific categories (repeatable): build, platform,
+        /// storage, config, auth, shell, sessions, mcp, resource, swarm
+        #[arg(long = "only", value_name = "CATEGORY")]
+        only: Vec<String>,
+    },
+
     /// Save or restore the current set of open jcode windows across a system reboot
     Restart {
         #[command(subcommand)]
