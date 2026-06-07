@@ -1,5 +1,10 @@
 # Repository Guidelines
 
+## Origin Sync (fork management)
+This repo (quangdang46/jcode) is a fork of `1jehuang/jcode`. Several modules have been extracted into separate repos. When syncing from upstream, use the `origin-sync` skill: `skill(name="origin-sync")`. It provides a structured workflow for classifying conflicts (extracted-code, local-extension, upstream-only, dep, new-feature) and resolving them correctly.
+
+
+
 ## Development Workflow
 
 - **Commit as you go** - Make small, focused commits after completing each feature or fix
