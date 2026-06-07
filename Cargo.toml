@@ -79,6 +79,7 @@ members = [
     "crates/jcode-plugin-runtime",
     "crates/jcode-render-core",
     "evals/jbench",
+
 ]
 
 # Local override: build against the fast_file_search main branch which
