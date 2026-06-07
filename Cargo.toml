@@ -198,7 +198,7 @@ jcode-logging = { path = "crates/jcode-logging" }
 # OAuth
 base64 = "0.22"
 sha2 = "0.10"
-hashline = { git = "https://github.com/quangdang46/hashline.git", rev = "b2d9e83", default-features = false, features = ["sha256-anchors"] }
+hashline = { git = "https://github.com/quangdang46/hashline.git", tag = "v0.2.2", default-features = false, features = ["sha256-anchors"] }
 rand = "0.9.3"
 hex = "0.4"
 url = "2"
