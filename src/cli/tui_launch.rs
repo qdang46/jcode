@@ -467,7 +467,6 @@ pub fn list_sessions() -> Result<()> {
                         provider_slug,
                         session_id,
                     ),
-
                 ],
             ),
         }
@@ -674,7 +673,6 @@ pub fn list_sessions() -> Result<()> {
                         provider_slug,
                         session_id,
                     ),
-
                 };
                 let mut session_cwd = cwd.clone();
                 if let jcode_tui_session_picker::ResumeTarget::JcodeSession { session_id } =

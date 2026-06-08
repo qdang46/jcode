@@ -50,7 +50,10 @@ pub fn send_message(msg: &TeamMessage, run_id: &str, ctx: &SendContext) -> TeamR
     // assertTeamAcceptsMessages: a missing state file is tolerated.
     match load_runtime(run_id) {
         Ok(state) => {
-            if matches!(state.status, RuntimeStatus::Deleting | RuntimeStatus::Deleted) {
+            if matches!(
+                state.status,
+                RuntimeStatus::Deleting | RuntimeStatus::Deleted
+            ) {
                 return Err(TeamError::TeamDeleting);
             }
         }
@@ -213,7 +216,12 @@ mod tests {
         let base = crate::team::test_support::guarded_base();
         let run = base.run_id();
         let members = vec!["worker".to_string()];
-        send_message(&msg("m1", "worker", "hello"), &run, &SendContext::lead(&members)).unwrap();
+        send_message(
+            &msg("m1", "worker", "hello"),
+            &run,
+            &SendContext::lead(&members),
+        )
+        .unwrap();
         let unread = list_unread(&run, "worker").unwrap();
         assert_eq!(unread.len(), 1);
         assert_eq!(unread[0].body, "hello");
@@ -226,9 +234,18 @@ mod tests {
         let base = crate::team::test_support::guarded_base();
         let run = base.run_id();
         let members = vec!["worker".to_string()];
-        send_message(&msg("dup", "worker", "a"), &run, &SendContext::lead(&members)).unwrap();
-        let err =
-            send_message(&msg("dup", "worker", "b"), &run, &SendContext::lead(&members)).unwrap_err();
+        send_message(
+            &msg("dup", "worker", "a"),
+            &run,
+            &SendContext::lead(&members),
+        )
+        .unwrap();
+        let err = send_message(
+            &msg("dup", "worker", "b"),
+            &run,
+            &SendContext::lead(&members),
+        )
+        .unwrap_err();
         assert!(matches!(err, TeamError::DuplicateMessageId(_)));
     }
 
@@ -311,7 +328,11 @@ mod tests {
         send_message(&msg("ok", "w", "good"), &run, &SendContext::lead(&members)).unwrap();
         fs::write(inbox_dir(&run, "w").join("junk.json"), b"{not json").unwrap();
         let unread = list_unread(&run, "w").unwrap();
-        assert_eq!(unread.len(), 1, "malformed file skipped, valid one survives");
+        assert_eq!(
+            unread.len(),
+            1,
+            "malformed file skipped, valid one survives"
+        );
     }
 
     #[test]

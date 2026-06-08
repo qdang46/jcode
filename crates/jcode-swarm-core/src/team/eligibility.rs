@@ -45,7 +45,14 @@ mod tests {
 
     #[test]
     fn read_only_agents_rejected() {
-        for a in ["oracle", "librarian", "explore", "metis", "momus", "multimodal-looker"] {
+        for a in [
+            "oracle",
+            "librarian",
+            "explore",
+            "metis",
+            "momus",
+            "multimodal-looker",
+        ] {
             assert!(assert_eligible(a).is_err(), "{a} must be rejected");
         }
     }

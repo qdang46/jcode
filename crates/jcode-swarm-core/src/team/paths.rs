@@ -36,10 +36,7 @@ pub fn tasks_dir(run_id: &str) -> PathBuf {
 }
 
 pub fn worktree_dir(run_id: &str, member: &str) -> PathBuf {
-    teams_base_dir()
-        .join("worktrees")
-        .join(run_id)
-        .join(member)
+    teams_base_dir().join("worktrees").join(run_id).join(member)
 }
 
 /// Create the base directory tree for a run with 0o700 perms (port of `ensureBaseDirs`).

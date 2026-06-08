@@ -614,7 +614,6 @@ pub(super) fn build_resume_command(
             );
             (exe, args, title)
         }
-
     }
 }
 

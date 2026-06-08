@@ -84,7 +84,10 @@ pub fn claim_task(run_id: &str, task_id: &str, member: &str) -> TeamResult<TeamT
         task.owner = Some(member.to_string());
         task.claimed_at = Some(now);
         task.updated_at = now;
-        atomic_write(&path, &format!("{}\n", serde_json::to_string_pretty(&task)?))?;
+        atomic_write(
+            &path,
+            &format!("{}\n", serde_json::to_string_pretty(&task)?),
+        )?;
         Ok(task)
     })
 }
@@ -101,7 +104,10 @@ pub fn update_status(run_id: &str, task_id: &str, next: TaskStatus) -> TeamResul
     }
     task.status = next;
     task.updated_at = now_millis();
-    atomic_write(&path, &format!("{}\n", serde_json::to_string_pretty(&task)?))?;
+    atomic_write(
+        &path,
+        &format!("{}\n", serde_json::to_string_pretty(&task)?),
+    )?;
     Ok(task)
 }
 
@@ -141,7 +147,9 @@ pub fn list_tasks(
         }
         if let Ok(task) = read_json::<TeamTask>(&entry.path()) {
             let status_ok = status.map(|s| s == task.status).unwrap_or(true);
-            let owner_ok = owner.map(|o| task.owner.as_deref() == Some(o)).unwrap_or(true);
+            let owner_ok = owner
+                .map(|o| task.owner.as_deref() == Some(o))
+                .unwrap_or(true);
             if status_ok && owner_ok {
                 out.push(task);
             }
@@ -242,9 +250,19 @@ mod tests {
         let a = create_task(&run, new_task("a", vec![])).unwrap();
         let _b = create_task(&run, new_task("b", vec![])).unwrap();
         claim_task(&run, &a.id, "alice").unwrap();
-        assert_eq!(list_tasks(&run, Some(TaskStatus::Claimed), None).unwrap().len(), 1);
+        assert_eq!(
+            list_tasks(&run, Some(TaskStatus::Claimed), None)
+                .unwrap()
+                .len(),
+            1
+        );
         assert_eq!(list_tasks(&run, None, Some("alice")).unwrap().len(), 1);
-        assert_eq!(list_tasks(&run, Some(TaskStatus::Pending), None).unwrap().len(), 1);
+        assert_eq!(
+            list_tasks(&run, Some(TaskStatus::Pending), None)
+                .unwrap()
+                .len(),
+            1
+        );
         assert_eq!(list_tasks(&run, None, None).unwrap().len(), 2);
     }
 

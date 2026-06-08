@@ -71,13 +71,32 @@ pub fn create_team_layout(
         let flag = split_flag(teammates.len());
         let pane_id = if teammates.is_empty() {
             run_tmux(&[
-                "split-window", "-t", caller_pane, flag, "-d", "-l", "70%", "-P", "-F",
-                "#{pane_id}", "-c", m.cwd,
+                "split-window",
+                "-t",
+                caller_pane,
+                flag,
+                "-d",
+                "-l",
+                "70%",
+                "-P",
+                "-F",
+                "#{pane_id}",
+                "-c",
+                m.cwd,
             ])?
         } else {
             let anchor = teammates[teammates.len() / 2].clone();
             run_tmux(&[
-                "split-window", "-t", &anchor, flag, "-d", "-P", "-F", "#{pane_id}", "-c", m.cwd,
+                "split-window",
+                "-t",
+                &anchor,
+                flag,
+                "-d",
+                "-P",
+                "-F",
+                "#{pane_id}",
+                "-c",
+                m.cwd,
             ])?
         };
         teammates.push(pane_id.clone());
@@ -138,7 +157,13 @@ pub fn rebalance(window_id: &str, tiled: bool) -> TeamResult<()> {
     let layout = if tiled { "tiled" } else { "main-vertical" };
     run_tmux(&["select-layout", "-t", window_id, layout])?;
     if !tiled {
-        run_tmux(&["set-window-option", "-t", window_id, "main-pane-width", "60%"])?;
+        run_tmux(&[
+            "set-window-option",
+            "-t",
+            window_id,
+            "main-pane-width",
+            "60%",
+        ])?;
         run_tmux(&["select-layout", "-t", window_id, layout])?; // reapply after resize
     }
     Ok(())
@@ -175,9 +200,11 @@ pub fn sweep_stale_team_sessions(active_run_ids: &HashSet<String>) -> TeamResult
     let mut killed = Vec::new();
     for line in listing.lines().map(str::trim).filter(|l| !l.is_empty()) {
         if let Some(run_id) = parse_team_run_id(line)
-            && !active_run_ids.contains(&run_id) && run_tmux(&["kill-session", "-t", line]).is_ok() {
-                killed.push(line.to_string());
-            }
+            && !active_run_ids.contains(&run_id)
+            && run_tmux(&["kill-session", "-t", line]).is_ok()
+        {
+            killed.push(line.to_string());
+        }
     }
     Ok(killed)
 }

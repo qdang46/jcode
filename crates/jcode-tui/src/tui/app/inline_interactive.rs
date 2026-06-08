@@ -1853,7 +1853,6 @@ impl App {
                 } => {
                     crate::casr_adapter::imported_session_id_for_provider(provider_slug, session_id)
                 }
-
             };
 
             match spawn_resume_target_in_new_terminal(&resolved_target, &cwd, socket.as_deref()) {
@@ -1978,7 +1977,6 @@ impl App {
                 session_id,
                 ..
             } => crate::casr_adapter::imported_session_id_for_provider(provider_slug, session_id),
-
         };
 
         if targets.len() > 1 {

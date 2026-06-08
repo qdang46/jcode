@@ -249,18 +249,16 @@ pub fn shutdown_team(run_id: &str) -> TeamResult<()> {
 pub fn delete_team(run_id: &str) -> TeamResult<()> {
     let _ = state::transition(run_id, |st| st.status = RuntimeStatus::Deleting);
     if let Ok(st) = state::load_runtime(run_id)
-        && let Some(layout) = &st.tmux_layout {
-            let pane_ids: Vec<String> = st
-                .members
-                .iter()
-                .filter_map(|m| m.tmux_pane_id.clone())
-                .collect();
-            let _ = layout::remove_team_layout(
-                layout.owned_session,
-                &layout.target_session_id,
-                &pane_ids,
-            );
-        }
+        && let Some(layout) = &st.tmux_layout
+    {
+        let pane_ids: Vec<String> = st
+            .members
+            .iter()
+            .filter_map(|m| m.tmux_pane_id.clone())
+            .collect();
+        let _ =
+            layout::remove_team_layout(layout.owned_session, &layout.target_session_id, &pane_ids);
+    }
     let _ = std::fs::remove_dir_all(paths::runtime_dir(run_id));
     Ok(())
 }
@@ -311,7 +309,12 @@ mod tests {
         let loaded = state::load_runtime(&run.team_run_id).unwrap();
         assert_eq!(loaded.members.len(), 3);
         assert!(loaded.members.iter().all(|m| m.session_id.is_some()));
-        assert!(loaded.members.iter().all(|m| m.status == MemberStatus::Running));
+        assert!(
+            loaded
+                .members
+                .iter()
+                .all(|m| m.status == MemberStatus::Running)
+        );
         // First member promoted to lead.
         assert_eq!(loaded.members[0].agent_type, MemberAgentType::Leader);
     }
@@ -371,7 +374,13 @@ mod tests {
         let loaded = state::load_runtime(&run.team_run_id).unwrap();
         assert_eq!(loaded.status, RuntimeStatus::ShutdownRequested);
         // Non-lead members each received a shutdown_request message.
-        assert_eq!(mailbox::list_unread(&run.team_run_id, "m1").unwrap().len(), 1);
-        assert_eq!(mailbox::list_unread(&run.team_run_id, "m2").unwrap().len(), 1);
+        assert_eq!(
+            mailbox::list_unread(&run.team_run_id, "m1").unwrap().len(),
+            1
+        );
+        assert_eq!(
+            mailbox::list_unread(&run.team_run_id, "m2").unwrap().len(),
+            1
+        );
     }
 }

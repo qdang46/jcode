@@ -112,9 +112,10 @@ pub fn list_active_runs() -> TeamResult<Vec<TeamRuntimeState>> {
             && matches!(
                 state.status,
                 RuntimeStatus::Creating | RuntimeStatus::Active
-            ) {
-                out.push(state);
-            }
+            )
+        {
+            out.push(state);
+        }
     }
     Ok(out)
 }
