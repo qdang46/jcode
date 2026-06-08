@@ -629,6 +629,11 @@ impl App {
                 description: s.description.clone(),
             })
             .collect();
+        // Startup pre-compute of context_info for display/telemetry only.
+        // We deliberately use the no-notepad wrapper here: the notepad
+        // block is built per-turn from `session.working_dir` (resolved on
+        // the per-turn path in turn_memory.rs), and there is no value in a
+        // potentially-stale notepad block in the startup `context_info`.
         let (_, context_info) = crate::prompt::build_system_prompt_with_context(
             None,
             &available_skills,

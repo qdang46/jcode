@@ -535,6 +535,20 @@ impl Config {
             }
         }
 
+        // Best-of-N editing
+        if let Ok(v) = std::env::var("JCODE_BEST_OF_N_MODE")
+            && let Some(mode) = jcode_best_of_n::BestOfNMode::parse(&v)
+        {
+            self.best_of_n.mode = mode;
+        }
+        if let Ok(v) = std::env::var("JCODE_BEST_OF_N_COUNT")
+            && let Ok(count) = v.trim().parse::<usize>()
+        {
+            if count >= 1 {
+                self.best_of_n.count = count;
+            }
+        }
+
         // Power management
         if let Ok(v) = std::env::var("JCODE_PREVENT_SLEEP_WHILE_STREAMING") {
             if let Some(parsed) = parse_env_bool(&v) {

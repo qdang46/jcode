@@ -265,52 +265,54 @@ impl Registry {
             Self::insert_tool_timed(&mut m, &mut timings, "schedule", ambient::ScheduleTool::new);
             Self::insert_tool_timed(&mut m, &mut timings, "selfdev", selfdev::SelfDevTool::new);
             // Notepad tools (compaction-resistant notes)
+            // Names are namespaced (`notepad_*`) to avoid collision
+            // with future built-in or MCP tools.
             Self::insert_tool_timed(
                 &mut m,
                 &mut timings,
-                "read_priority",
+                "notepad_read_priority",
                 notepad::NotepadTool::read_priority,
             );
             Self::insert_tool_timed(
                 &mut m,
                 &mut timings,
-                "write_priority",
+                "notepad_write_priority",
                 notepad::NotepadTool::write_priority,
             );
             Self::insert_tool_timed(
                 &mut m,
                 &mut timings,
-                "read_working",
+                "notepad_read_working",
                 notepad::NotepadTool::read_working,
             );
             Self::insert_tool_timed(
                 &mut m,
                 &mut timings,
-                "write_working",
+                "notepad_write_working",
                 notepad::NotepadTool::write_working,
             );
             Self::insert_tool_timed(
                 &mut m,
                 &mut timings,
-                "read_manual",
+                "notepad_read_manual",
                 notepad::NotepadTool::read_manual,
             );
             Self::insert_tool_timed(
                 &mut m,
                 &mut timings,
-                "write_manual",
+                "notepad_write_manual",
                 notepad::NotepadTool::write_manual,
             );
             Self::insert_tool_timed(
                 &mut m,
                 &mut timings,
-                "prune",
+                "notepad_prune",
                 notepad::NotepadPruneTool::new,
             );
             Self::insert_tool_timed(
                 &mut m,
                 &mut timings,
-                "stats",
+                "notepad_stats",
                 notepad::NotepadStatsTool::new,
             );
             let nonzero: Vec<String> = timings

@@ -5428,6 +5428,7 @@ dependencies = [
  "jcode-azure-auth",
  "jcode-background-types",
  "jcode-batch-types",
+ "jcode-best-of-n",
  "jcode-build-meta",
  "jcode-compaction-core",
  "jcode-config-types",
@@ -5495,6 +5496,21 @@ version = "0.1.0"
 dependencies = [
  "jcode-message-types",
  "serde",
+]
+
+[[package]]
+name = "jcode-best-of-n"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "dashmap",
+ "serde",
+ "serde_json",
+ "similar",
+ "thiserror 1.0.69",
+ "tokio",
+ "tracing",
+ "uuid",
 ]
 
 [[package]]

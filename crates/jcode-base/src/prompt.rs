@@ -182,7 +182,12 @@ pub fn build_system_prompt_with_selfdev(
     prompt
 }
 
-/// Build the full system prompt and return context info about what was loaded
+/// Build the full system prompt and return context info about what was loaded.
+///
+/// **Note:** this convenience wrapper does **not** thread the per-turn
+/// notepad, keyword, or working-dir-driven context. Prefer
+/// [`build_system_prompt_full`] or [`build_system_prompt_split`] for any
+/// caller that needs the full prompt the agent actually sees at runtime.
 pub fn build_system_prompt_with_context(
     skill_prompt: Option<&str>,
     available_skills: &[SkillInfo],
@@ -191,7 +196,12 @@ pub fn build_system_prompt_with_context(
     build_system_prompt_with_context_and_memory(skill_prompt, available_skills, is_selfdev, None)
 }
 
-/// Build the full system prompt with optional memory section and return context info
+/// Build the full system prompt with optional memory section and return context info.
+///
+/// **Note:** like [`build_system_prompt_with_context`], this wrapper does not
+/// inject the notepad prompt, the keyword prompt, or the working-dir-driven
+/// AGENTS.md/overlays/preferred-tools content. Use
+/// [`build_system_prompt_full`] directly when those are needed.
 pub fn build_system_prompt_with_context_and_memory(
     skill_prompt: Option<&str>,
     available_skills: &[SkillInfo],

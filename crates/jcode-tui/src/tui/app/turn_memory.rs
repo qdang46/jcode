@@ -93,7 +93,7 @@ impl App {
             &available_skills,
             self.session.is_canary,
             memory_prompt,
-            None,
+            working_dir,
             keyword_prompt,
             notepad_prompt.as_deref(),
         );
