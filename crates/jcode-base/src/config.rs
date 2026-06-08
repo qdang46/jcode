@@ -105,6 +105,8 @@ const CONFIG_ENV_KEYS: &[&str] = &[
     "JCODE_OPENAI_REASONING_EFFORT",
     "JCODE_OPENAI_SERVICE_TIER",
     "JCODE_OPENAI_TRANSPORT",
+    "JCODE_PERMISSION_MODE",
+    "JCODE_DANGEROUSLY_SKIP_PERMISSIONS",
     "JCODE_ANTHROPIC_REASONING_EFFORT",
     "JCODE_PRESERVE_REASONING_CONTEXT",
     "JCODE_PERFORMANCE",
@@ -434,6 +436,16 @@ pub struct Config {
 
     /// Power-management configuration (prevent sleep while streaming)
     pub power: PowerConfig,
+
+    /// Permission mode for tool execution (default, accept-edits, plan, auto, dont-ask, bypass-permissions)
+    pub permission_mode: Option<String>,
+
+    /// Skip all permission checks (overrides all other mode settings).
+    /// Read from `JCODE_DANGEROUSLY_SKIP_PERMISSIONS` env var or from a
+    /// non-CLI consumer (desktop, daemon, integration tests). The CLI
+    /// `--dangerously-skip-permissions` flag also sets this by populating
+    /// the env var.
+    pub dangerously_skip_permissions: bool,
 
     /// Auto-review configuration
     pub autoreview: AutoReviewConfig,

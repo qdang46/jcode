@@ -10,6 +10,23 @@ use ratatui::{
     widgets::{Block, Borders, Paragraph},
 };
 
+/// Strip ANSI/VT escape sequences and control characters from text before
+/// rendering it to the TUI.  Accepts a `&str` and returns an owned `String`
+/// with `\x1b` (ESC, the escape character that starts all VT sequences) and
+/// other common control characters (BEL, backspace, etc.) removed.
+///
+/// This is a defense-in-depth measure for strings that originate from
+/// dcg-core (tool names, reasons, MCP server names) which are technically
+/// trusted by the caller but could contain terminal-injection sequences if
+/// influenced by external input (e.g. an MCP server name configured by the
+/// user, or a poisoned prompt).
+#[must_use]
+pub fn sanitize_terminal_text(s: &str) -> String {
+    s.chars()
+        .filter(|&c| c >= ' ' || c == '\n' || c == '\t')
+        .collect()
+}
+
 pub(super) fn draw_changelog_overlay(frame: &mut Frame, area: Rect, scroll: usize) {
     clear_area(frame, area);
 
@@ -618,4 +635,69 @@ fn color_to_rgb(color: Color) -> Option<[u8; 3]> {
         }
         _ => None,
     }
+}
+
+
+pub(super) fn draw_permission_dialog_overlay(frame: &mut Frame, area: Rect, app: &dyn crate::tui::TuiState) {
+    clear_area(frame, area);
+
+    let title_style = Style::default()
+        .fg(accent_color())
+        .add_modifier(Modifier::BOLD);
+    let text_style = Style::default().fg(rgb(210, 210, 220));
+    let dim_style = Style::default().fg(dim_color());
+    let warn_style = Style::default().fg(rgb(235, 190, 105));
+    let alt_style = Style::default().fg(rgb(160, 200, 240));
+
+    let tool = app.pending_permission_tool().unwrap_or("unknown");
+    let reason = app.pending_permission_reason().unwrap_or("");
+
+    let mut lines: Vec<Line<'static>> = Vec::new();
+    lines.push(Line::from(Span::styled(
+        "  \u{26a0} Permission Required",
+        warn_style.add_modifier(Modifier::BOLD),
+    )));
+    lines.push(Line::from(Span::styled(
+        "  A tool call needs your approval before it can execute.",
+        dim_style,
+    )));
+    lines.push(Line::from(""));
+    lines.push(Line::from(vec![
+        Span::styled("  Tool:  ", dim_style),
+        Span::styled(tool.to_string(), title_style),
+    ]));
+    lines.push(Line::from(vec![
+        Span::styled("  Reason: ", dim_style),
+        Span::styled(reason.to_string(), text_style),
+    ]));
+    // Render alternatives if present (spec §3.2 Bash command dialog shows
+    // "Safer alternatives" after the reason).
+    let alternatives = app.pending_permission_alternatives();
+    if !alternatives.is_empty() {
+        lines.push(Line::from(Span::styled(
+            "  Safer alternatives:",
+            dim_style,
+        )));
+        for alt in alternatives {
+            lines.push(Line::from(vec![
+                Span::raw("    \u{2022} "),
+                Span::styled(alt.to_owned(), alt_style),
+            ]));
+        }
+    }
+    lines.push(Line::from(""));
+    lines.push(Line::from(Span::styled(
+        "  [y] Approve tool  [a] Approve all for session  [n] Deny  [Esc] Cancel",
+        dim_style,
+    )));
+
+    let paragraph = Paragraph::new(lines)
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title(" Permission Request ")
+                .border_style(warn_style),
+        )
+        .alignment(ratatui::prelude::Alignment::Left);
+    frame.render_widget(paragraph, area);
 }

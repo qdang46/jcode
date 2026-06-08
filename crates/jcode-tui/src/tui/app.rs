@@ -1229,6 +1229,18 @@ pub struct App {
     /// Per-client Niri-style workspace navigation state. Previously a process
     /// global; now owned per App instance.
     workspace_client: super::workspace_client::WorkspaceClientState,
+
+    // === DCG Permission Dialog State ===
+    /// Tool name pending user permission (set when BridgeDecision::Prompt received)
+    pub pending_permission_tool: Option<String>,
+    /// Reason for pending permission request
+    pub pending_permission_reason: Option<String>,
+    /// Allow-once code for pending permission (6 hex chars, SHA-256 derived)
+    pub pending_permission_code: Option<String>,
+    /// Safer alternatives for the pending permission, surfaced from dcg-core
+    /// in `Decision::Prompt.alternatives`. Rendered in the dialog so the
+    /// user can make an informed choice.
+    pub pending_permission_alternatives: Vec<String>,
 }
 
 /// Inert provider used by runtime modes whose output is supplied by another source.

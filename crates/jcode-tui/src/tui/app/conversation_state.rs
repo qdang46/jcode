@@ -401,6 +401,15 @@ impl App {
         self.status_notice = Some((text.into(), Instant::now()));
     }
 
+    /// Reset the permission dialog state. Safe to call even when no dialog
+    /// is shown (future-proofing for session-change cleanups).
+    pub fn reset_permission_dialog(&mut self) {
+        self.pending_permission_tool = None;
+        self.pending_permission_reason = None;
+        self.pending_permission_code = None;
+        self.pending_permission_alternatives.clear();
+    }
+
     pub(crate) fn set_remote_startup_phase(&mut self, phase: super::RemoteStartupPhase) {
         let changed = self.remote_startup_phase.as_ref() != Some(&phase);
         self.remote_startup_phase = Some(phase);

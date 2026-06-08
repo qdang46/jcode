@@ -408,6 +408,19 @@ pub enum BusEvent {
     MermaidRenderCompleted,
     /// Productivity report finished generating off the UI thread
     ProductivityReportReady(ProductivityReportReady),
+    /// A tool call requires user permission (from dcg_bridge Prompt decision).
+    /// The TUI should show a dialog with the reason and allow-once code.
+    PermissionRequested(PermissionRequested),
+}
+
+/// A tool call that needs user approval.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct PermissionRequested {
+    pub session_id: String,
+    pub tool_name: String,
+    pub reason: String,
+    pub allow_once_code: String,
+    pub alternatives: Vec<String>,
 }
 
 pub struct Bus {

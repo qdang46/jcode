@@ -1392,6 +1392,13 @@ pub(super) fn handle_alt_key(app: &mut App, code: KeyCode) -> bool {
             app.copy_chat_viewport_context_to_clipboard();
             true
         }
+        // Alt+P: cycle permission mode (Default → AcceptEdits → Plan → Auto → DontAsk → BypassPermissions)
+        KeyCode::Char('p') => {
+            let mode = crate::dcg_bridge::cycle_mode();
+            let mode_str = crate::dcg_bridge::mode_to_str(mode);
+            app.set_status_notice(&format!("Permission mode → {mode_str}"));
+            true
+        }
         _ => false,
     }
 }
@@ -1749,6 +1756,56 @@ pub(super) fn handle_modal_key(
         return Ok(true);
     }
 
+    // Permission dialog — handle approval/denial keys
+    if app.pending_permission_tool.is_some() {
+        let session_id = app.session.id.clone();
+        let tool_name = app.pending_permission_tool.clone().unwrap_or_default();
+        match code {
+            KeyCode::Char('y') | KeyCode::Char('Y') => {
+                // Approve for this tool. Record the action on the session's
+                // allow-list so the next call to classify_for_session for
+                // the same tool short-circuits to Allow. We deliberately do
+                // not call consume_allow_once() here because that mutates
+                // dcg-core's internal allow-once cache for a code that the
+                // *original* tool call already errored on — there is nothing
+                // to consume for. The session allow-list is the user-facing
+                // "I trust this tool" affordance.
+                crate::dcg_bridge::approve_session_action(&session_id, &tool_name);
+                // Best-effort: also consume the 6-hex code if present and
+                // well-formed, so a subsequent `jcode permission allow` from
+                // another shell honors the same code (length-validated).
+                if let Some(ref code_str) = app.pending_permission_code {
+                    crate::dcg_bridge::consume_allow_once(code_str);
+                }
+                app.reset_permission_dialog();
+                let tool = if tool_name.is_empty() { "tool".to_string() } else { tool_name };
+                app.set_status_notice(&format!("Approved '{tool}' for this session."));
+                return Ok(true);
+            }
+            KeyCode::Char('a') | KeyCode::Char('A') => {
+                // Approve every tool for this session. SCOPED to the session,
+                // never global — no more silent global BypassPermissions.
+                crate::dcg_bridge::approve_session_all(&session_id);
+                app.reset_permission_dialog();
+                app.set_status_notice("Approved all tools for this session.");
+                return Ok(true);
+            }
+            KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => {
+                // Deny — just clear the dialog. The agent will see the
+                // original Err and decide whether to retry or surface the
+                // denial to the user.
+                app.reset_permission_dialog();
+                return Ok(true);
+            }
+            _ => {
+                // Unknown key while the dialog is open: pass through so the
+                // user can still scroll the underlying chat. The dialog
+                // remains open; only y / a / n / Esc close it.
+                return Ok(false);
+            }
+        }
+    }
+
     if app.model_status_scroll.is_some() {
         app.handle_model_status_key(code)?;
         return Ok(true);
@@ -2062,7 +2119,16 @@ impl App {
             return Ok(());
         }
 
+        // BackTab (Shift+Tab): cycle permission mode
         if code == KeyCode::BackTab {
+            let mode = crate::dcg_bridge::cycle_mode();
+            let mode_str = crate::dcg_bridge::mode_to_str(mode);
+            self.set_status_notice(&format!("Permission mode → {mode_str}"));
+            return Ok(());
+        }
+
+        // Alt+F: cycle model favorite (moved from BackTab to free up Shift+Tab for permissions)
+        if code == KeyCode::Char('f') && modifiers == KeyModifiers::ALT {
             self.cycle_model_favorite_hotkey();
             return Ok(());
         }

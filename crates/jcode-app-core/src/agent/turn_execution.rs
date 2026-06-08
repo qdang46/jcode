@@ -485,6 +485,61 @@ impl Agent {
         if self.disabled_tools.contains(name) {
             return Err(anyhow::anyhow!("Tool '{}' is disabled", name));
         }
+        // Delegate to dcg_bridge for permission mode evaluation.
+        // Uses classify_for_session so that per-session overrides (e.g. a
+        // subagent spawned with an explicit mode) are honored; falls back to
+        // the global mode when no per-session override is set.
+        // - Allow → proceed
+        // - Deny → block with error
+        // - Prompt → block with a permission-required error and surface a
+        //   TUI dialog via the bus
+        {
+            use crate::dcg_bridge::{self, BridgeDecision};
+            match dcg_bridge::classify_for_session(name, &self.session.id) {
+                BridgeDecision::Deny { reason, alternatives, .. } => {
+                    let msg = if alternatives.is_empty() {
+                        format!("Tool '{}' blocked: {}. Current mode: {:?}", name, reason, crate::dcg_bridge::current_mode())
+                    } else {
+                        format!("Tool '{}' blocked: {}. Alternatives: {}. Current mode: {:?}", name, reason, alternatives.join(", "), crate::dcg_bridge::current_mode())
+                    };
+                    crate::logging::info(&format!(
+                        "[permission] Denied tool '{}': {} (mode {:?})",
+                        name, reason, crate::dcg_bridge::current_mode()
+                    ));
+                    return Err(anyhow::anyhow!(msg));
+                }
+                BridgeDecision::Prompt { reason, allow_once_code, alternatives } => {
+                    let msg = format!(
+                        "Tool '{}' requires permission: {}. Current mode: {:?}",
+                        name, reason, crate::dcg_bridge::current_mode()
+                    );
+                    // NOTE: the allow-once code is intentionally NOT embedded
+                    // in the user-facing error message and NOT logged. The
+                    // 6-hex code is a single-use secret for 24h; leaking it via
+                    // the agent transcript or the log file is a credential
+                    // exposure. The TUI receives the code only over the in-
+                    // process bus and never writes it to disk.
+                    if !alternatives.is_empty() {
+                        // Alternatives are safe to surface; they are static
+                        // suggestions from dcg-core, not untrusted input.
+                    }
+                    // Publish bus event so TUI can show a permission dialog
+                    crate::bus::Bus::global().publish(
+                        crate::bus::BusEvent::PermissionRequested(
+                            crate::bus::PermissionRequested {
+                                session_id: self.session.id.clone(),
+                                tool_name: name.to_string(),
+                                reason: reason.clone(),
+                                allow_once_code: allow_once_code.clone(),
+                                alternatives: alternatives.clone(),
+                            }
+                        )
+                    );
+                    return Err(anyhow::anyhow!(msg));
+                }
+                BridgeDecision::Allow => {}
+            }
+        }
         Ok(())
     }
 
