@@ -1,3 +1,4 @@
+#![allow(clippy::doc_overindented_list_items, clippy::doc_lazy_continuation)]
 //! First-run onboarding flow state machine.
 //!
 //! After the user logs in / imports credentials on a fresh install, we walk

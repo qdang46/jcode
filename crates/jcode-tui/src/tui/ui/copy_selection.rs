@@ -1,3 +1,4 @@
+#![allow(clippy::needless_borrow)]
 use unicode_width::UnicodeWidthStr;
 
 use super::CopyViewportSnapshot;
