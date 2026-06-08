@@ -76,6 +76,9 @@ members = [
     "crates/jcode-mobile-sim",
     "crates/jcode-desktop",
     "crates/jcode-render-core",
+    "evals/jbench",
+    "evals/jcode-edit-bench",
+
 ]
 
 [lib]
