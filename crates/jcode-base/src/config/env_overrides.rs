@@ -102,6 +102,20 @@ impl Config {
             self.dictation.timeout_secs = parsed;
         }
 
+        // Permission mode
+        if let Ok(v) = std::env::var("JCODE_PERMISSION_MODE") {
+            self.permission_mode = Some(v);
+        }
+
+        // Dangerous override — non-CLI consumers (desktop, daemon) use this
+        // to disable all permission checks. The CLI flag also sets this by
+        // populating the env var in dispatch.rs.
+        if std::env::var("JCODE_DANGEROUSLY_SKIP_PERMISSIONS").is_ok()
+            && std::env::var("JCODE_DANGEROUSLY_SKIP_PERMISSIONS").unwrap_or_default() == "1"
+        {
+            self.dangerously_skip_permissions = true;
+        }
+
         // Tools
         if let Ok(v) = std::env::var("JCODE_TOOL_PROFILE") {
             self.tools.profile = v;

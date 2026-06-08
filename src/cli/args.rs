@@ -100,6 +100,14 @@ pub(crate) struct Args {
     #[arg(long, global = true)]
     pub(crate) disable_base_tools: bool,
 
+    /// Permission mode for tool execution: default, accept-edits, plan, auto, dont-ask, bypass-permissions
+    #[arg(long, global = true)]
+    pub(crate) permission_mode: Option<String>,
+
+    /// Skip all permission checks (dangerous) — overrides --permission-mode
+    #[arg(long, global = true)]
+    pub(crate) dangerously_skip_permissions: bool,
+
     #[command(subcommand)]
     pub(crate) command: Option<Command>,
 }
@@ -290,6 +298,10 @@ pub(crate) enum Command {
     /// Ambient mode management
     #[command(subcommand)]
     Ambient(AmbientCommand),
+
+    /// DCG permission mode management (allow-once codes)
+    #[command(subcommand)]
+    Permission(PermissionCommand),
 
     /// Optional Jcode Cloud/Jade integration commands
     #[command(subcommand)]
@@ -1009,6 +1021,22 @@ pub(crate) enum AuthCommand {
         /// Emit JSON instead of plain text
         #[arg(long)]
         json: bool,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+pub(crate) enum PermissionCommand {
+    /// Consume an allow-once code to approve a pending permission
+    Allow {
+        /// The allow-once code (6 hex chars) from the permission prompt
+        code: String,
+    },
+    /// Show current permission mode
+    Mode,
+    /// Set permission mode
+    Set {
+        /// Mode name: default, accept-edits, plan, auto, dont-ask, bypass-permissions
+        mode: String,
     },
 }
 

@@ -195,7 +195,7 @@ impl YoloClassifier {
     pub fn evaluate(&self, action: &str, tool: &str, effects: &[String]) -> BridgeDecision {
         // Circuit breaker check
         if self.is_circuit_broken() {
-            return BridgeDecision::Prompt;
+            return BridgeDecision::Prompt { reason: "Circuit breaker tripped".into(), allow_once_code: String::new(), alternatives: vec![] };
         }
 
         // Stage 1: Fast classification (64 tokens, no thinking)
@@ -212,7 +212,7 @@ impl YoloClassifier {
             Err(_) => {
                 // Fail closed on error
                 self.record_denial();
-                return BridgeDecision::Prompt;
+                return BridgeDecision::Prompt { reason: "YOLO stage 1 blocked".into(), allow_once_code: String::new(), alternatives: vec![] };
             }
         }
 
@@ -224,13 +224,13 @@ impl YoloClassifier {
                     BridgeDecision::Allow
                 } else {
                     self.record_denial();
-                    BridgeDecision::Prompt
+                    BridgeDecision::Prompt { reason: "YOLO stage 2 blocked".into(), allow_once_code: String::new(), alternatives: vec![] }
                 }
             }
             Err(_) => {
                 // Fail closed on error
                 self.record_denial();
-                BridgeDecision::Prompt
+                BridgeDecision::Prompt { reason: "YOLO classifier error".into(), allow_once_code: String::new(), alternatives: vec![] }
             }
         }
     }
@@ -348,7 +348,7 @@ mod tests {
         let prompt = stage2_user_prompt(
             "delete_ssh_keys",
             "Bash",
-            &["Irreversible", "CredentialAccess"],
+            &["Irreversible".to_string(), "CredentialAccess".to_string()],
         );
         assert!(prompt.contains("delete_ssh_keys"));
         assert!(prompt.contains("Bash"));

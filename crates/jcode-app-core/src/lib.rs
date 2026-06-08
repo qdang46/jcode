@@ -33,6 +33,8 @@ pub mod external_auth;
 pub mod mission;
 pub mod network_retry;
 pub mod notifications;
+pub mod dcg_bridge;
+pub mod yolo_classifier;
 pub mod overnight;
 pub mod perf;
 pub mod replay;
