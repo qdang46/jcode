@@ -20,6 +20,7 @@ mod lsp;
 pub mod mcp;
 mod memory;
 mod multiedit;
+mod notepad;
 mod open;
 mod patch;
 mod read;
@@ -277,24 +278,61 @@ impl Registry {
             Self::insert_tool_timed(&mut m, &mut timings, "gmail", gmail::GmailTool::new);
             Self::insert_tool_timed(&mut m, &mut timings, "schedule", ambient::ScheduleTool::new);
             Self::insert_tool_timed(&mut m, &mut timings, "selfdev", selfdev::SelfDevTool::new);
+            // Notepad tools (compaction-resistant notes)
+            // Names are namespaced (`notepad_*`) to avoid collision
+            // with future built-in or MCP tools.
             Self::insert_tool_timed(
                 &mut m,
                 &mut timings,
-                "team_create",
-                team::TeamCreateTool::new,
+                "notepad_read_priority",
+                notepad::NotepadTool::read_priority,
             );
             Self::insert_tool_timed(
                 &mut m,
                 &mut timings,
-                "team_delete",
-                team::TeamDeleteTool::new,
+                "notepad_write_priority",
+                notepad::NotepadTool::write_priority,
             );
             Self::insert_tool_timed(
                 &mut m,
                 &mut timings,
-                "team_status",
-                team::TeamStatusTool::new,
+                "notepad_read_working",
+                notepad::NotepadTool::read_working,
             );
+            Self::insert_tool_timed(
+                &mut m,
+                &mut timings,
+                "notepad_write_working",
+                notepad::NotepadTool::write_working,
+            );
+            Self::insert_tool_timed(
+                &mut m,
+                &mut timings,
+                "notepad_read_manual",
+                notepad::NotepadTool::read_manual,
+            );
+            Self::insert_tool_timed(
+                &mut m,
+                &mut timings,
+                "notepad_write_manual",
+                notepad::NotepadTool::write_manual,
+            );
+            Self::insert_tool_timed(
+                &mut m,
+                &mut timings,
+                "notepad_prune",
+                notepad::NotepadPruneTool::new,
+            );
+            Self::insert_tool_timed(
+                &mut m,
+                &mut timings,
+                "notepad_stats",
+                notepad::NotepadStatsTool::new,
+            );
+            // Team tools (multi-agent orchestration)
+            Self::insert_tool_timed(&mut m, &mut timings, "team_create", team::TeamCreateTool::new);
+            Self::insert_tool_timed(&mut m, &mut timings, "team_delete", team::TeamDeleteTool::new);
+            Self::insert_tool_timed(&mut m, &mut timings, "team_status", team::TeamStatusTool::new);
             Self::insert_tool_timed(
                 &mut m,
                 &mut timings,

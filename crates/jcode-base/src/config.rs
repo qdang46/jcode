@@ -39,6 +39,8 @@ const CONFIG_ENV_KEYS: &[&str] = &[
     "JCODE_ANIMATION_FPS",
     "JCODE_AUTOJUDGE_ENABLED",
     "JCODE_AUTOJUDGE_MODEL",
+    "JCODE_BEST_OF_N_MODE",
+    "JCODE_BEST_OF_N_COUNT",
     "JCODE_AUTOREVIEW_ENABLED",
     "JCODE_AUTOREVIEW_MODEL",
     "JCODE_AUTO_SERVER_RELOAD",
@@ -452,6 +454,12 @@ pub struct Config {
 
     /// Auto-judge configuration
     pub autojudge: AutoJudgeConfig,
+
+    /// Notepad (3-tier context notes) configuration
+    pub notepad: crate::notepad::NotepadConfig,
+
+    /// Best-of-N parallel editing configuration
+    pub best_of_n: jcode_best_of_n::BestOfNConfig,
 }
 
 /// Agent Client Protocol adapter configuration.

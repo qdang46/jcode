@@ -77,6 +77,7 @@ members = [
     "crates/jcode-tui-workspace",
     "crates/jcode-mobile-core",
     "crates/jcode-mobile-sim",
+    "crates/jcode-best-of-n",
     "crates/jcode-desktop",
     "crates/jcode-hooks",
     "crates/jcode-keyring-store",

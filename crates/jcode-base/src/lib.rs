@@ -44,6 +44,7 @@ pub mod logging;
 pub mod login_qr;
 pub mod mcp;
 pub mod memory;
+pub mod notepad;
 pub mod memory_agent;
 pub mod memory_graph;
 pub mod memory_log;

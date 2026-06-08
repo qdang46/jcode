@@ -182,7 +182,12 @@ pub fn build_system_prompt_with_selfdev(
     prompt
 }
 
-/// Build the full system prompt and return context info about what was loaded
+/// Build the full system prompt and return context info about what was loaded.
+///
+/// **Note:** this convenience wrapper does **not** thread the per-turn
+/// notepad, keyword, or working-dir-driven context. Prefer
+/// [`build_system_prompt_full`] or [`build_system_prompt_split`] for any
+/// caller that needs the full prompt the agent actually sees at runtime.
 pub fn build_system_prompt_with_context(
     skill_prompt: Option<&str>,
     available_skills: &[SkillInfo],
@@ -191,7 +196,12 @@ pub fn build_system_prompt_with_context(
     build_system_prompt_with_context_and_memory(skill_prompt, available_skills, is_selfdev, None)
 }
 
-/// Build the full system prompt with optional memory section and return context info
+/// Build the full system prompt with optional memory section and return context info.
+///
+/// **Note:** like [`build_system_prompt_with_context`], this wrapper does not
+/// inject the notepad prompt, the keyword prompt, or the working-dir-driven
+/// AGENTS.md/overlays/preferred-tools content. Use
+/// [`build_system_prompt_full`] directly when those are needed.
 pub fn build_system_prompt_with_context_and_memory(
     skill_prompt: Option<&str>,
     available_skills: &[SkillInfo],
@@ -205,6 +215,7 @@ pub fn build_system_prompt_with_context_and_memory(
         memory_prompt,
         None,
         None,
+        None,
     )
 }
 
@@ -216,6 +227,7 @@ pub fn build_system_prompt_full(
     memory_prompt: Option<&str>,
     working_dir: Option<&Path>,
     keyword_prompt: Option<String>,
+    notepad_prompt: Option<&str>,
 ) -> (String, ContextInfo) {
     let mut parts = vec![DEFAULT_SYSTEM_PROMPT.to_string()];
     let mut info = ContextInfo {
@@ -272,6 +284,13 @@ pub fn build_system_prompt_full(
         }
     }
 
+    // Priority notepad content (injected every turn, survives compaction)
+    if let Some(notepad) = notepad_prompt {
+        if !notepad.is_empty() {
+            parts.push(notepad.to_string());
+        }
+    }
+
     // Add available skills list
     if !available_skills.is_empty() {
         let mut skills_section = "# Available Skills\n\nYou have access to the following skills that the user can invoke with `/skillname`:\n".to_string();
@@ -305,6 +324,7 @@ pub fn build_system_prompt_split(
     memory_prompt: Option<&str>,
     working_dir: Option<&Path>,
     keyword_prompt: Option<String>,
+    notepad_prompt: Option<&str>,
 ) -> (SplitSystemPrompt, ContextInfo) {
     let mut static_parts = vec![DEFAULT_SYSTEM_PROMPT.to_string()];
     let mut dynamic_parts = Vec::new();
@@ -382,6 +402,13 @@ pub fn build_system_prompt_split(
     // Active skill prompt (changes per skill invocation)
     if let Some(skill) = skill_prompt {
         dynamic_parts.push(format!("# Active Skill\n\n{}", skill));
+    }
+
+    // Priority notepad content – injected every turn so it survives compaction.
+    if let Some(notepad) = notepad_prompt {
+        if !notepad.is_empty() {
+            dynamic_parts.push(notepad.to_string());
+        }
     }
 
     let static_part = static_parts.join("\n\n");

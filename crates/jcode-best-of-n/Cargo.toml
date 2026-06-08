@@ -1,0 +1,21 @@
+[package]
+name = "jcode-best-of-n"
+version = "0.1.0"
+edition = "2024"
+publish = false
+description = "Best-of-N editing: spawn N parallel implementations, pick the best diff"
+
+[lib]
+name = "jcode_best_of_n"
+path = "src/lib.rs"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+anyhow = "1"
+thiserror = "1"
+dashmap = "6"
+uuid = { version = "1", features = ["v4"] }
+tokio = { version = "1", features = ["sync"] }
+tracing = "0.1"
+similar = "2"

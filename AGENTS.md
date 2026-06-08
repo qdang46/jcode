@@ -30,3 +30,27 @@ This repo (quangdang46/jcode) is a fork of `1jehuang/jcode`. Several modules hav
 - On Windows, the equivalents are `%LOCALAPPDATA%\\jcode\\bin\\jcode.exe` for the launcher, `%LOCALAPPDATA%\\jcode\\builds\\stable\\jcode.exe` for stable, and `%LOCALAPPDATA%\\jcode\\builds\\versions\\<version>\\jcode.exe` for immutable installs; `scripts/install.ps1` currently installs the stable channel.
 - Ensure `~/.local/bin` is **before** `~/.cargo/bin` in `PATH`.
 
+## Notepad (compaction-resistant notes)
+
+The notepad (`crates/jcode-base/src/notepad.rs`, `crates/jcode-app-core/src/tool/notepad.rs`) is a 3-tier file-based store under `<working_dir>/.jcode/notepad/` that lets the model persist short notes across turns and across compaction.
+
+Tiers:
+- **priority** — auto-injected into the system prompt every turn. Survives compaction because the content is re-read from disk each cycle. Rendered as a fenced code block with a trust marker so the model cannot inject instructions through it.
+- **working** — persistent scratchpad for in-progress reasoning. Cleared with `notepad_prune`.
+- **manual** — user-authored notes that persist across sessions. Not auto-injected.
+
+Tools (namespaced under `notepad_*`):
+- `notepad_read_priority`, `notepad_write_priority` (requires `confirm: true` by default)
+- `notepad_read_working`, `notepad_write_working`
+- `notepad_read_manual`, `notepad_write_manual`
+- `notepad_prune` (clears the working tier only)
+- `notepad_stats` (per-tier sizes)
+
+Config (under `[notepad]` in `config.toml`):
+- `enabled` (default: `true`) — set to `false` to disable entirely.
+- `dir` (default: `.jcode/notepad`) — must be a relative path with no `..` components; absolute paths and `..` are rejected.
+- `max_bytes_per_tier` (default: 4096) — the field is byte-based (predictable file size, predictable token cost). Truncation always lands on a UTF-8 char boundary.
+- `require_priority_confirm` (default: `true`) — when enabled, `notepad_write_priority` must include `confirm: true` in its input.
+
+Trust model: priority content is rendered as data (fenced code block + trust marker), `notepad_write_priority` requires explicit `confirm: true` by default, and every priority write emits a structured log line. The notepad is **not** auto-cleared on session end — clear it explicitly with `notepad_prune` or by writing empty content.
+
