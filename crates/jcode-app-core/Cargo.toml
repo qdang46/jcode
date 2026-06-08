@@ -44,6 +44,10 @@ ignore = "0.4"           # gitignore-aware file walking
 walkdir = "2"
 similar = "2"            # diffing for edits
 
+aho-corasick = "1"
+memchr = "2"
+globset = "0.4"
+
 # Utilities
 dirs = "5"               # home directory
 anyhow = "1"
@@ -128,8 +132,10 @@ jcode-side-panel-types = { path = "../jcode-side-panel-types" }
 flate2 = "1"
 tar = "0.4"
 tempfile = "3"
+hashline = { git = "https://github.com/quangdang46/hashline.git", tag = "v0.2.2", default-features = false, features = ["sha256-anchors"] }
 agentgrep = { git = "https://github.com/1jehuang/agentgrep.git", tag = "v0.1.2" }
 qrcode = { version = "0.14.1", default-features = false }
+dynamic_context_pruning = { git = "https://github.com/quangdang46/dynamic_context_pruning", branch = "main", package = "dynamic_context_pruning", optional = true }
 
 [features]
 default = ["pdf", "embeddings"]
@@ -145,6 +151,7 @@ pdf = ["dep:jcode-pdf"]
 # jcode-base's `test-support` so downstream crates' test targets can reach the
 # whole stack's helpers. Never enabled in normal (non-test) builds.
 test-support = ["jcode-base/test-support"]
+dcp = ["dep:dynamic_context_pruning"]
 
 [dev-dependencies]
 # Used by async streaming tests (ambient/runner_tests, server/client_actions_tests).

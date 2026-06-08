@@ -10,10 +10,14 @@ mod communicate;
 mod conversation_search;
 mod debug_socket;
 mod edit;
-mod glob;
+mod ffs_glob;
+mod ffs_grep;
 mod gmail;
 mod goal;
-mod grep;
+mod ffs_outline;
+mod ffs_symbol;
+mod ffs_multi_grep;
+mod hashline_edit;
 mod invalid;
 mod ls;
 mod lsp;
@@ -32,6 +36,8 @@ mod task;
 mod todo;
 mod webfetch;
 mod websearch;
+#[cfg(feature = "dcp")]
+mod dcp_compress;
 mod write;
 
 use crate::compaction::CompactionManager;
@@ -185,8 +191,26 @@ impl Registry {
                 "apply_patch",
                 apply_patch::ApplyPatchTool::new,
             );
-            Self::insert_tool_timed(&mut m, &mut timings, "glob", glob::GlobTool::new);
-            Self::insert_tool_timed(&mut m, &mut timings, "grep", grep::GrepTool::new);
+            Self::insert_tool_timed(&mut m, &mut timings, "glob", ffs_glob::FfsGlobTool::new);
+            Self::insert_tool_timed(&mut m, &mut timings, "grep", ffs_grep::FfsGrepTool::new);
+            Self::insert_tool_timed(
+                &mut m,
+                &mut timings,
+                "outline",
+                ffs_outline::FfsOutlineTool::new,
+            );
+            Self::insert_tool_timed(
+                &mut m,
+                &mut timings,
+                "symbol",
+                ffs_symbol::FfsSymbolTool::new,
+            );
+            Self::insert_tool_timed(
+                &mut m,
+                &mut timings,
+                "multi_grep",
+                ffs_multi_grep::FfsMultiGrepTool::new,
+            );
             Self::insert_tool_timed(&mut m, &mut timings, "ls", ls::LsTool::new);
             Self::insert_tool_timed(&mut m, &mut timings, "bash", bash::BashTool::new);
             Self::insert_tool_timed(&mut m, &mut timings, "browser", browser::BrowserTool::new);
@@ -233,7 +257,10 @@ impl Registry {
                 goal::InitiativeTool::new,
             );
             Self::insert_tool_timed(&mut m, &mut timings, "gmail", gmail::GmailTool::new);
+            Self::insert_tool_timed(&mut m, &mut timings, "hashline_edit", hashline_edit::HashlineEditTool::new);
             Self::insert_tool_timed(&mut m, &mut timings, "schedule", ambient::ScheduleTool::new);
+            #[cfg(feature = "dcp")]
+            Self::insert_tool_timed(&mut m, &mut timings, "dcp_compress", dcp_compress::DcpCompressTool::new);
             Self::insert_tool_timed(&mut m, &mut timings, "selfdev", selfdev::SelfDevTool::new);
             let nonzero: Vec<String> = timings
                 .iter()

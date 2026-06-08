@@ -46,6 +46,11 @@ pub mod startup_profile;
 pub mod tool;
 pub mod update;
 
+#[cfg(feature = "dcp")]
+pub mod dcp_bridge;
+#[cfg(feature = "dcp")]
+pub mod dcp_plugin;
+
 use std::sync::Mutex;
 
 static CURRENT_SESSION_ID: Mutex<Option<String>> = Mutex::new(None);

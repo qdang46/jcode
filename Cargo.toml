@@ -275,6 +275,7 @@ jemalloc-prof = [
 embeddings = ["dep:jcode-embedding", "jcode-tui/embeddings"]
 mmdr-size-api = ["jcode-tui/mmdr-size-api"]
 pdf = ["dep:jcode-pdf", "jcode-tui/pdf"]
+dcp = ["jcode-tui/dcp"]
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_System_Threading"] }

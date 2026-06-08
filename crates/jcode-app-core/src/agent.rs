@@ -66,6 +66,9 @@ static JCODE_REPO_SOURCE_STATE: LazyLock<(Option<String>, Option<bool>)> = LazyL
 });
 static WORKING_GIT_STATE_CACHE: LazyLock<StdMutex<HashMap<PathBuf, Option<GitState>>>> =
     LazyLock::new(|| StdMutex::new(HashMap::new()));
+#[cfg(feature = "dcp")]
+static CURRENT_DCP: LazyLock<StdMutex<Option<Arc<StdMutex<crate::dcp_plugin::DcpPlugin>>>>> =
+    LazyLock::new(|| StdMutex::new(None));
 const STREAM_KEEPALIVE_PONG_ID: u64 = 0;
 
 fn stable_hash_str(value: &str) -> u64 {
@@ -238,6 +241,12 @@ pub struct Agent {
 }
 
 impl Agent {
+    /// Get the current DCP plugin instance (for tool access).
+    #[cfg(feature = "dcp")]
+    pub fn get_current_dcp() -> Option<Arc<StdMutex<crate::dcp_plugin::DcpPlugin>>> {
+        CURRENT_DCP.lock().ok()?.clone()
+    }
+
     fn should_track_client_cache(&self) -> bool {
         match std::env::var("JCODE_TRACK_CLIENT_CACHE") {
             Ok(value) => {
@@ -292,6 +301,13 @@ impl Agent {
             agent.allowed_tools.clone(),
             agent.disabled_tools.clone(),
         );
+        #[cfg(feature = "dcp")] {
+            if let Ok(dcp) = crate::dcp_plugin::DcpPlugin::new() {
+                if let Ok(mut guard) = CURRENT_DCP.lock() {
+                    *guard = Some(Arc::new(StdMutex::new(dcp)));
+                }
+            }
+        }
         agent
     }
 
@@ -597,6 +613,31 @@ impl Agent {
     }
 
     fn messages_for_provider(&mut self) -> (Vec<Message>, Option<CompactionEvent>) {
+        // Step 1: Get raw messages from session
+        #[cfg_attr(not(feature = "dcp"), allow(unused_mut))]
+        let mut messages: Vec<Message> = self.session.provider_messages().to_vec();
+
+        // Step 2: Optionally run DCP transform before compaction.
+        #[cfg(feature = "dcp")]
+        if let Some(dcp_plugin) = Self::get_current_dcp() {
+            if let Ok(mut dcp) = dcp_plugin.lock() {
+                if dcp.is_enabled() {
+                    match dcp.transform(&messages) {
+                        Ok(output) if output.changed => {
+                            logging::info(&format!(
+                                "DCP: transformed messages, saved {} tokens",
+                                output.tokens_saved
+                            ));
+                            messages = output.messages;
+                        }
+                        Ok(_) => {}
+                        Err(e) => logging::warn(&format!("DCP transform error: {e}")),
+                    }
+                }
+            }
+        }
+
+        // Step 3: Feed DCP-pruned messages into CompactionManager.
         if self.provider.supports_compaction() || self.session.compaction.is_some() {
             let compaction = self.registry.compaction();
             match compaction.try_write() {
@@ -604,10 +645,9 @@ impl Agent {
                     let discarded_oversized_native =
                         manager.discard_oversized_openai_native_compaction();
                     let messages = {
-                        let all_messages = self.session.provider_messages();
                         if self.provider.uses_jcode_compaction() {
                             let action =
-                                manager.ensure_context_fits(all_messages, self.provider.clone());
+                                manager.ensure_context_fits(&messages, self.provider.clone());
                             match action {
                                 crate::compaction::CompactionAction::BackgroundStarted {
                                     trigger,
@@ -626,7 +666,7 @@ impl Agent {
                                 crate::compaction::CompactionAction::None => {}
                             }
                         }
-                        manager.messages_for_api_with(all_messages)
+                        manager.messages_for_api_with(&messages)
                     };
                     let event = manager.take_compaction_event();
                     if event.is_some() || discarded_oversized_native {
@@ -655,8 +695,6 @@ impl Agent {
             };
         }
 
-        let all_messages = self.session.provider_messages();
-        let messages = all_messages.to_vec();
         let user_count = messages
             .iter()
             .filter(|message| matches!(message.role, Role::User))
