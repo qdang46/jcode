@@ -105,12 +105,18 @@ where
     F: FnOnce(&mut TeamRuntimeState),
 {
     let lock = runtime_dir(run_id).join(".state.lock");
-    with_lock_stale(&lock, &format!("transition:{run_id}"), STATE_LOCK_STALE, Duration::from_secs(15), || {
-        let mut state = load_runtime(run_id)?;
-        mutate(&mut state);
-        persist(&state)?;
-        Ok(state)
-    })
+    with_lock_stale(
+        &lock,
+        &format!("transition:{run_id}"),
+        STATE_LOCK_STALE,
+        Duration::from_secs(15),
+        || {
+            let mut state = load_runtime(run_id)?;
+            mutate(&mut state);
+            persist(&state)?;
+            Ok(state)
+        },
+    )
 }
 
 /// Enumerate runtime states whose status is `Creating` or `Active`.

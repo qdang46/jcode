@@ -176,7 +176,8 @@ pub fn rebalance(window_id: &str, tiled: bool) -> TeamResult<()> {
     if window_id.is_empty() || !can_visualize() {
         return Ok(());
     }
-    validate_tmux_target(window_id, "window")?;    let layout = if tiled { "tiled" } else { "main-vertical" };
+    validate_tmux_target(window_id, "window")?;
+    let layout = if tiled { "tiled" } else { "main-vertical" };
     run_tmux(&["select-layout", "-t", window_id, layout])?;
     if !tiled {
         run_tmux(&[

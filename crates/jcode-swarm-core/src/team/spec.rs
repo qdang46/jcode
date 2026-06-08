@@ -234,7 +234,6 @@ pub struct TeamRuntimeState {
     pub capability_token: String,
 }
 
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SpecSource {

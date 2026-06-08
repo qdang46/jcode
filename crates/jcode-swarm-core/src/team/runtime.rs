@@ -49,8 +49,8 @@ pub fn create_team(
 
     let cursor = AtomicUsize::new(0);
     let failure: Mutex<Option<TeamError>> = Mutex::new(None);
-    let deadline = Instant::now()
-        + std::time::Duration::from_secs(run.bounds.max_wall_clock_minutes * 60);
+    let deadline =
+        Instant::now() + std::time::Duration::from_secs(run.bounds.max_wall_clock_minutes * 60);
     let worker_count = run
         .bounds
         .max_parallel_members

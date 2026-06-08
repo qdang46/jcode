@@ -1437,8 +1437,7 @@ pub(super) fn gather_team_info() -> Option<crate::tui::info_widget::TeamInfo> {
     let runs = crate::team::state::list_active_runs().ok()?;
     let run = runs.into_iter().next()?;
     // Compute live task/message counts for the TUI display.
-    let tasks = crate::team::tasklist::list_tasks(&run.team_run_id, None, None)
-        .unwrap_or_default();
+    let tasks = crate::team::tasklist::list_tasks(&run.team_run_id, None, None).unwrap_or_default();
     let by_owner: std::collections::HashMap<&str, usize> = tasks
         .iter()
         .filter_map(|t| t.owner.as_deref().map(|o| (o, t)))
@@ -1450,10 +1449,9 @@ pub(super) fn gather_team_info() -> Option<crate::tui::info_widget::TeamInfo> {
         .members
         .iter()
         .map(|m| {
-            let msg_count =
-                crate::team::mailbox::list_unread(&run.team_run_id, &m.name)
-                    .map(|msgs| msgs.len())
-                    .unwrap_or(0);
+            let msg_count = crate::team::mailbox::list_unread(&run.team_run_id, &m.name)
+                .map(|msgs| msgs.len())
+                .unwrap_or(0);
             crate::tui::info_widget::TeamMemberView {
                 name: m.name.clone(),
                 is_lead: m.agent_type == crate::team::spec::MemberAgentType::Leader,

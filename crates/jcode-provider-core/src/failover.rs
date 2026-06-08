@@ -52,7 +52,10 @@ pub enum FailoverDecision {
 
 impl FailoverDecision {
     pub fn should_failover(self) -> bool {
-        matches!(self, Self::RetryNextProvider | Self::RetryAndMarkUnavailable)
+        matches!(
+            self,
+            Self::RetryNextProvider | Self::RetryAndMarkUnavailable
+        )
     }
 
     pub fn should_mark_provider_unavailable(self) -> bool {
@@ -180,64 +183,113 @@ fn error_code_by_name(name: &str) -> Option<ErrorCode> {
 
     Some(match normalised.as_str() {
         // Retryable
-        "ratelimit" | "ratelimiterror" | "rate_limit_error" | "toomanyrequests"
+        "ratelimit"
+        | "ratelimiterror"
+        | "rate_limit_error"
+        | "toomanyrequests"
         | "rate_limit_exceeded" => ErrorCode::RateLimited,
 
-        "overloaded" | "overloadederror" | "overloaded_error" | "serveroverloaded"
-        | "server_is_overloaded" | "modeloverloadederror" => ErrorCode::Overloaded,
+        "overloaded"
+        | "overloadederror"
+        | "overloaded_error"
+        | "serveroverloaded"
+        | "server_is_overloaded"
+        | "modeloverloadederror" => ErrorCode::Overloaded,
 
-        "servererror" | "server_error" | "internalservererror"
-        | "internal_error" | "internal_server_error" => ErrorCode::ServerError,
+        "servererror"
+        | "server_error"
+        | "internalservererror"
+        | "internal_error"
+        | "internal_server_error" => ErrorCode::ServerError,
 
-        "connectionerror" | "providerconnectionerror" | "connection_error"
-        | "networkerror" | "network_error" | "econnrefused"
+        "connectionerror"
+        | "providerconnectionerror"
+        | "connection_error"
+        | "networkerror"
+        | "network_error"
+        | "econnrefused"
         | "econnreset" => ErrorCode::ConnectionError,
 
-        "timeout" | "timeouterror" | "timeout_error" | "requesttimeout"
-        | "request_timeout" | "stream_timeout" => ErrorCode::Timeout,
+        "timeout" | "timeouterror" | "timeout_error" | "requesttimeout" | "request_timeout"
+        | "stream_timeout" => ErrorCode::Timeout,
 
-        "modelnotfound" | "modelunavailable" | "model_not_found"
-        | "modelunavailableerror" | "modelnotfounderror" | "model_not_supported"
-        => ErrorCode::ModelNotFound,
+        "modelnotfound"
+        | "modelunavailable"
+        | "model_not_found"
+        | "modelunavailableerror"
+        | "modelnotfounderror"
+        | "model_not_supported" => ErrorCode::ModelNotFound,
 
         // Non-retryable
-        "contextlengtherror" | "contextlengthexceeded" | "context_length_exceeded"
-        | "context_length_error" | "prompttooolong" | "prompt_is_too_long"
+        "contextlengtherror"
+        | "contextlengthexceeded"
+        | "context_length_exceeded"
+        | "context_length_error"
+        | "prompttooolong"
+        | "prompt_is_too_long"
         | "string_too_long" => ErrorCode::ContextLengthExceeded,
 
-        "permissiondenied" | "permissiondeniederror" | "permission_denied"
-        | "authenticationerror" | "authentication_error" | "unauthorized"
-        | "forbidden" | "accessdenied" => ErrorCode::PermissionDenied,
+        "permissiondenied"
+        | "permissiondeniederror"
+        | "permission_denied"
+        | "authenticationerror"
+        | "authentication_error"
+        | "unauthorized"
+        | "forbidden"
+        | "accessdenied" => ErrorCode::PermissionDenied,
 
-        "messageaborted" | "messageabortederror" | "message_aborted"
-        | "turnaborted" | "interrupted" => ErrorCode::MessageAborted,
+        "messageaborted"
+        | "messageabortederror"
+        | "message_aborted"
+        | "turnaborted"
+        | "interrupted" => ErrorCode::MessageAborted,
 
-        "invalidrequesterror" | "invalid_request_error" | "invalidrequest"
-        | "badrequesterror" | "bad_request_error" | "invalidparameter"
-        => ErrorCode::InvalidRequest,
+        "invalidrequesterror"
+        | "invalid_request_error"
+        | "invalidrequest"
+        | "badrequesterror"
+        | "bad_request_error"
+        | "invalidparameter" => ErrorCode::InvalidRequest,
 
-        "contentpolicierror" | "content_policy_error" | "contentfilter"
-        | "content_filter" | "safetyerror" | "safety_error"
+        "contentpolicierror"
+        | "content_policy_error"
+        | "contentfilter"
+        | "content_filter"
+        | "safetyerror"
+        | "safety_error"
         | "responsibleaipolicyviolation" => ErrorCode::ContentPolicy,
 
-        "validationerror" | "validation_error" | "invalidtoolinput"
-        | "invalid_prompt" => ErrorCode::ValidationError,
+        "validationerror" | "validation_error" | "invalidtoolinput" | "invalid_prompt" => {
+            ErrorCode::ValidationError
+        }
 
         // STOP — halt the session
-        "quotaexceeded" | "quotaexceedederror" | "quota_exceeded"
-        | "insufficient_quota" | "insufficientquota" | "usage_limit_reached"
-        => ErrorCode::QuotaExceeded,
+        "quotaexceeded"
+        | "quotaexceedederror"
+        | "quota_exceeded"
+        | "insufficient_quota"
+        | "insufficientquota"
+        | "usage_limit_reached" => ErrorCode::QuotaExceeded,
 
-        "insufficientcredits" | "insufficientcreditserror"
-        | "insufficient_credits" | "nocredits" | "no_credits"
-        | "credits_exhausted" | "outofcredits" => ErrorCode::InsufficientCredits,
+        "insufficientcredits"
+        | "insufficientcreditserror"
+        | "insufficient_credits"
+        | "nocredits"
+        | "no_credits"
+        | "credits_exhausted"
+        | "outofcredits" => ErrorCode::InsufficientCredits,
 
-        "billingerror" | "billing_error" | "paymentrequired"
-        | "payment_required" | "payment_required_error"
+        "billingerror"
+        | "billing_error"
+        | "paymentrequired"
+        | "payment_required"
+        | "payment_required_error"
         | "usage_not_included" => ErrorCode::BillingLimitReached,
 
-        "freeusagelimiterror" | "free_usage_limit_error"
-        | "freeusagelimit" | "free_usage_limit"
+        "freeusagelimiterror"
+        | "free_usage_limit_error"
+        | "freeusagelimit"
+        | "free_usage_limit"
         | "freeusagelimitexceeded" => ErrorCode::FreeUsageLimit,
 
         _ => return None,
@@ -382,16 +434,34 @@ fn has_auto_retry_signal(lower: &str) -> bool {
         .any(|gate| lower.contains(gate))
 }
 
-fn classify_by_status_code(lower: &str, status_code: Option<u16>) -> Option<(FailoverDecision, ErrorCode)> {
+fn classify_by_status_code(
+    lower: &str,
+    status_code: Option<u16>,
+) -> Option<(FailoverDecision, ErrorCode)> {
     // Structured status_code from the HTTP response takes priority
     if let Some(sc) = status_code {
         let result = match sc {
-            429 => Some((FailoverDecision::RetryAndMarkUnavailable, ErrorCode::RateLimited)),
-            401 | 403 => Some((FailoverDecision::RetryAndMarkUnavailable, ErrorCode::PermissionDenied)),
+            429 => Some((
+                FailoverDecision::RetryAndMarkUnavailable,
+                ErrorCode::RateLimited,
+            )),
+            401 | 403 => Some((
+                FailoverDecision::RetryAndMarkUnavailable,
+                ErrorCode::PermissionDenied,
+            )),
             402 => Some((FailoverDecision::Halt, ErrorCode::BillingLimitReached)),
-            408 => Some((FailoverDecision::RetryAndMarkUnavailable, ErrorCode::Timeout)),
-            500..=511 => Some((FailoverDecision::RetryAndMarkUnavailable, ErrorCode::ServerError)),
-            529 => Some((FailoverDecision::RetryAndMarkUnavailable, ErrorCode::Overloaded)),
+            408 => Some((
+                FailoverDecision::RetryAndMarkUnavailable,
+                ErrorCode::Timeout,
+            )),
+            500..=511 => Some((
+                FailoverDecision::RetryAndMarkUnavailable,
+                ErrorCode::ServerError,
+            )),
+            529 => Some((
+                FailoverDecision::RetryAndMarkUnavailable,
+                ErrorCode::Overloaded,
+            )),
             _ => None,
         };
         if result.is_some() {
@@ -404,16 +474,27 @@ fn classify_by_status_code(lower: &str, status_code: Option<u16>) -> Option<(Fai
     // These are checked AFTER the structured status_code so that an explicit
     // 200 with embedded "429" in the body does not override the HTTP truth.
     if contains_independent_status_code(lower, "529") {
-        return Some((FailoverDecision::RetryAndMarkUnavailable, ErrorCode::Overloaded));
+        return Some((
+            FailoverDecision::RetryAndMarkUnavailable,
+            ErrorCode::Overloaded,
+        ));
     }
     if contains_independent_status_code(lower, "429") {
-        return Some((FailoverDecision::RetryAndMarkUnavailable, ErrorCode::RateLimited));
+        return Some((
+            FailoverDecision::RetryAndMarkUnavailable,
+            ErrorCode::RateLimited,
+        ));
     }
     if contains_independent_status_code(lower, "402") {
         return Some((FailoverDecision::Halt, ErrorCode::BillingLimitReached));
     }
-    if contains_independent_status_code(lower, "401") || contains_independent_status_code(lower, "403") {
-        return Some((FailoverDecision::RetryAndMarkUnavailable, ErrorCode::PermissionDenied));
+    if contains_independent_status_code(lower, "401")
+        || contains_independent_status_code(lower, "403")
+    {
+        return Some((
+            FailoverDecision::RetryAndMarkUnavailable,
+            ErrorCode::PermissionDenied,
+        ));
     }
 
     None
@@ -454,7 +535,10 @@ pub fn classify_failover_error_message_structured(
         // Only treat as rate-limited if there's no STOP signal in the message.
         let has_stop = STOP_MESSAGE_PATTERNS.iter().any(|p| lower.contains(p));
         if !has_stop {
-            return (FailoverDecision::RetryAndMarkUnavailable, Some(ErrorCode::RateLimited));
+            return (
+                FailoverDecision::RetryAndMarkUnavailable,
+                Some(ErrorCode::RateLimited),
+            );
         }
     }
 
@@ -496,11 +580,12 @@ pub fn classify_failover_error_message_structured(
     // Tier 2: STOP message patterns (checked before everything else so
     // billing/quota errors are never accidentally retried).
     if STOP_MESSAGE_PATTERNS.iter().any(|p| lower.contains(p)) {
-        let code = if lower.contains("quota") || lower.contains("credit") || lower.contains("billing") {
-            ErrorCode::QuotaExceeded
-        } else {
-            ErrorCode::FreeUsageLimit
-        };
+        let code =
+            if lower.contains("quota") || lower.contains("credit") || lower.contains("billing") {
+                ErrorCode::QuotaExceeded
+            } else {
+                ErrorCode::FreeUsageLimit
+            };
         return (FailoverDecision::Halt, Some(code));
     }
 
@@ -509,7 +594,10 @@ pub fn classify_failover_error_message_structured(
     // retrying on their side; we should wait, not fail-over.
     // Only fires when message contains "retrying in" AND a gate pattern.
     if has_auto_retry_signal(&lower) {
-        return (FailoverDecision::RetryAndMarkUnavailable, Some(ErrorCode::RateLimited));
+        return (
+            FailoverDecision::RetryAndMarkUnavailable,
+            Some(ErrorCode::RateLimited),
+        );
     }
 
     // Tier 4: HTTP status codes — structured then embedded.
@@ -518,9 +606,7 @@ pub fn classify_failover_error_message_structured(
     }
 
     // Tier 5a: Context-length patterns (do NOT mark provider unavailable).
-    if CONTEXT_LENGTH_PATTERNS
-        .iter()
-        .any(|p| lower.contains(p))
+    if CONTEXT_LENGTH_PATTERNS.iter().any(|p| lower.contains(p))
         || contains_independent_status_code(&lower, "413")
     {
         return (
@@ -530,11 +616,11 @@ pub fn classify_failover_error_message_structured(
     }
 
     // Tier 5b: General retryable message patterns.
-    if RETRYABLE_MESSAGE_PATTERNS
-        .iter()
-        .any(|p| lower.contains(p))
-    {
-        return (FailoverDecision::RetryAndMarkUnavailable, Some(ErrorCode::ServerError));
+    if RETRYABLE_MESSAGE_PATTERNS.iter().any(|p| lower.contains(p)) {
+        return (
+            FailoverDecision::RetryAndMarkUnavailable,
+            Some(ErrorCode::ServerError),
+        );
     }
 
     // Default: terminal/unrecognised.
@@ -647,13 +733,8 @@ mod tests {
 
     #[test]
     fn stop_tier_chinese() {
-        let (decision, _) = classify_failover_error_message_structured(
-            "额度不足，请充值",
-            None,
-            None,
-            None,
-            None,
-        );
+        let (decision, _) =
+            classify_failover_error_message_structured("额度不足，请充值", None, None, None, None);
         assert_eq!(decision, FailoverDecision::Halt);
     }
 
@@ -700,13 +781,8 @@ mod tests {
 
     #[test]
     fn retryable_on_502_bad_gateway() {
-        let (decision, code) = classify_failover_error_message_structured(
-            "502 Bad Gateway",
-            None,
-            None,
-            None,
-            None,
-        );
+        let (decision, code) =
+            classify_failover_error_message_structured("502 Bad Gateway", None, None, None, None);
         assert_eq!(decision, FailoverDecision::RetryAndMarkUnavailable);
         assert_eq!(code, Some(ErrorCode::ServerError));
     }
@@ -891,7 +967,8 @@ mod tests {
 
     #[test]
     fn empty_message_returns_none() {
-        let (decision, code) = classify_failover_error_message_structured("", None, None, None, None);
+        let (decision, code) =
+            classify_failover_error_message_structured("", None, None, None, None);
         assert_eq!(decision, FailoverDecision::None);
         assert_eq!(code, None);
     }

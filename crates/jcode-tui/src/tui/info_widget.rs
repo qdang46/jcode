@@ -126,7 +126,7 @@ impl WidgetKind {
             WidgetKind::TeamView => 6,
             WidgetKind::SwarmStatus => 12, // Session list - lower priority
             WidgetKind::AmbientMode => 13, // Scheduled agent - lower priority
-            WidgetKind::Tips => 14,    // Did you know - lowest
+            WidgetKind::Tips => 14,        // Did you know - lowest
         }
     }
 
