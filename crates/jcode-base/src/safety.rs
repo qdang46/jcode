@@ -1,7 +1,9 @@
 use anyhow::Result;
 use chrono::{DateTime, Utc};
+use dcg_core::{Decision as DcgDecision, Effect, Engine, EngineConfig, Mode, Session, ToolCall};
 use serde::{Deserialize, Serialize};
-use std::sync::{Mutex, OnceLock};
+use std::path::PathBuf;
+use std::sync::{LazyLock, Mutex, OnceLock};
 
 use crate::storage;
 
@@ -176,23 +178,84 @@ pub struct AmbientTranscript {
     pub conversation: Option<String>,
 }
 
-// ---------------------------------------------------------------------------
-// Tier-1 (auto-allowed) action names
-// ---------------------------------------------------------------------------
+pub static DCG_ENGINE: LazyLock<Engine> = LazyLock::new(|| {
+    let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("/"));
+    Engine::new(
+        EngineConfig::builder()
+            .working_dir(cwd)
+            .protected_paths(default_protected_paths())
+            .build(),
+    )
+});
 
-const AUTO_ALLOWED: &[&str] = &[
-    "read",
-    "glob",
-    "grep",
-    "ls",
-    "memory",
-    "todo",
-    "todowrite",
-    "todoread",
-    "conversation_search",
-    "session_search",
-    "codesearch",
-];
+pub static DCG_SESSION: LazyLock<Mutex<Session>> = LazyLock::new(|| {
+    let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("/"));
+    Mutex::new(Session::with_working_dir(cwd))
+});
+
+pub fn default_protected_paths() -> Vec<String> {
+    vec![
+        "~/.ssh".to_string(),
+        "~/.aws".to_string(),
+        "~/.config/gh".to_string(),
+        ".git".to_string(),
+        ".env".to_string(),
+    ]
+}
+
+fn action_to_dcg_call(action_lower: &str) -> (ToolCall, Vec<Effect>) {
+    use Effect::{Fs, Irreversible, MutateVcs, Network, Read, Spawn, Write};
+
+    let placeholder = PathBuf::from(".");
+    match action_lower {
+        "read"
+        | "glob"
+        | "grep"
+        | "ls"
+        | "codesearch"
+        | "conversation_search"
+        | "session_search"
+        | "todoread" => (ToolCall::read(placeholder), vec![Read, Fs]),
+        "memory" | "todo" | "todowrite" => (ToolCall::write(placeholder), vec![Write, Fs]),
+        "edit" | "multiedit" | "apply_patch" | "patch" | "write" | "hashline_edit" => {
+            (ToolCall::write(placeholder), vec![Write, Fs])
+        }
+        "git" | "git_commit" | "git_push" => {
+            (ToolCall::bash(action_lower), vec![Write, MutateVcs, Spawn])
+        }
+        "webfetch" | "websearch" | "browser" | "mcp" => (
+            ToolCall::Network {
+                url: String::new(),
+                method: "GET".to_string(),
+            },
+            vec![Read, Network],
+        ),
+        "bash" | "shell" | "run_terminal_cmd" | "execute_command" => {
+            (ToolCall::bash(""), vec![Spawn, Write, Irreversible])
+        }
+        action if action.starts_with("mcp__") => (
+            ToolCall::Network {
+                url: action.to_string(),
+                method: "GET".to_string(),
+            },
+            vec![Read, Write, Spawn, Network],
+        ),
+        other => (ToolCall::bash(other), vec![Write, Irreversible]),
+    }
+}
+
+fn classify_via_dcg(action: &str) -> ActionTier {
+    let lower = action.to_lowercase();
+    let (tool, effects) = action_to_dcg_call(&lower);
+    let decision = match DCG_SESSION.lock() {
+        Ok(mut session) => DCG_ENGINE.evaluate(&mut session, &tool, Mode::Default, &effects),
+        Err(_) => return ActionTier::RequiresPermission,
+    };
+    match decision {
+        DcgDecision::Allow => ActionTier::AutoAllowed,
+        DcgDecision::Prompt { .. } | DcgDecision::Deny { .. } => ActionTier::RequiresPermission,
+    }
+}
 
 // ---------------------------------------------------------------------------
 // SafetySystem
@@ -226,12 +289,7 @@ impl SafetySystem {
 
     /// Classify an action name into a tier.
     pub fn classify(&self, action: &str) -> ActionTier {
-        let lower = action.to_lowercase();
-        if AUTO_ALLOWED.iter().any(|&a| a == lower) {
-            ActionTier::AutoAllowed
-        } else {
-            ActionTier::RequiresPermission
-        }
+        classify_via_dcg(action)
     }
 
     /// Submit a permission request. Returns `Queued` with the request id.
@@ -634,7 +692,7 @@ mod tests {
     }
 
     #[test]
-    fn test_classify_auto_allowed() {
+    fn test_classify_dcg_default_allows_non_destructive_actions() {
         with_temp_home(|| {
             let sys = SafetySystem::new();
             assert_eq!(sys.classify("read"), ActionTier::AutoAllowed);
@@ -652,21 +710,12 @@ mod tests {
     }
 
     #[test]
-    fn test_classify_requires_permission() {
+    fn test_classify_dcg_blocks_destructive_actions() {
         with_temp_home(|| {
             let sys = SafetySystem::new();
-            assert_eq!(sys.classify("bash"), ActionTier::RequiresPermission);
-            assert_eq!(sys.classify("write"), ActionTier::RequiresPermission);
-            assert_eq!(sys.classify("edit"), ActionTier::RequiresPermission);
-            assert_eq!(sys.classify("multiedit"), ActionTier::RequiresPermission);
-            assert_eq!(sys.classify("patch"), ActionTier::RequiresPermission);
-            assert_eq!(sys.classify("apply_patch"), ActionTier::RequiresPermission);
-            assert_eq!(sys.classify("communicate"), ActionTier::RequiresPermission);
-            assert_eq!(sys.classify("open"), ActionTier::RequiresPermission);
-            assert_eq!(sys.classify("launch"), ActionTier::RequiresPermission);
-            assert_eq!(sys.classify("webfetch"), ActionTier::RequiresPermission);
-            assert_eq!(sys.classify("websearch"), ActionTier::RequiresPermission);
-            assert_eq!(sys.classify("unknown_tool"), ActionTier::RequiresPermission);
+            assert_eq!(sys.classify("rm -rf /tmp/jcode-test"), ActionTier::RequiresPermission);
+            assert_eq!(sys.classify("git reset --hard HEAD"), ActionTier::RequiresPermission);
+            assert_eq!(sys.classify("git clean -fd"), ActionTier::RequiresPermission);
         });
     }
 
@@ -676,7 +725,7 @@ mod tests {
             let sys = SafetySystem::new();
             assert_eq!(sys.classify("Read"), ActionTier::AutoAllowed);
             assert_eq!(sys.classify("GLOB"), ActionTier::AutoAllowed);
-            assert_eq!(sys.classify("Bash"), ActionTier::RequiresPermission);
+            assert_eq!(sys.classify("Bash"), ActionTier::AutoAllowed);
         });
     }
 

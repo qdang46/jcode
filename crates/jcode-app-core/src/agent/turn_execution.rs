@@ -496,22 +496,45 @@ impl Agent {
         {
             use crate::dcg_bridge::{self, BridgeDecision};
             match dcg_bridge::classify_for_session(name, &self.session.id) {
-                BridgeDecision::Deny { reason, alternatives, .. } => {
+                BridgeDecision::Deny {
+                    reason,
+                    alternatives,
+                    ..
+                } => {
                     let msg = if alternatives.is_empty() {
-                        format!("Tool '{}' blocked: {}. Current mode: {:?}", name, reason, crate::dcg_bridge::current_mode())
+                        format!(
+                            "Tool '{}' blocked: {}. Current mode: {:?}",
+                            name,
+                            reason,
+                            crate::dcg_bridge::current_mode()
+                        )
                     } else {
-                        format!("Tool '{}' blocked: {}. Alternatives: {}. Current mode: {:?}", name, reason, alternatives.join(", "), crate::dcg_bridge::current_mode())
+                        format!(
+                            "Tool '{}' blocked: {}. Alternatives: {}. Current mode: {:?}",
+                            name,
+                            reason,
+                            alternatives.join(", "),
+                            crate::dcg_bridge::current_mode()
+                        )
                     };
                     crate::logging::info(&format!(
                         "[permission] Denied tool '{}': {} (mode {:?})",
-                        name, reason, crate::dcg_bridge::current_mode()
+                        name,
+                        reason,
+                        crate::dcg_bridge::current_mode()
                     ));
                     return Err(anyhow::anyhow!(msg));
                 }
-                BridgeDecision::Prompt { reason, allow_once_code, alternatives } => {
+                BridgeDecision::Prompt {
+                    reason,
+                    allow_once_code,
+                    alternatives,
+                } => {
                     let msg = format!(
                         "Tool '{}' requires permission: {}. Current mode: {:?}",
-                        name, reason, crate::dcg_bridge::current_mode()
+                        name,
+                        reason,
+                        crate::dcg_bridge::current_mode()
                     );
                     // NOTE: the allow-once code is intentionally NOT embedded
                     // in the user-facing error message and NOT logged. The
@@ -524,17 +547,15 @@ impl Agent {
                         // suggestions from dcg-core, not untrusted input.
                     }
                     // Publish bus event so TUI can show a permission dialog
-                    crate::bus::Bus::global().publish(
-                        crate::bus::BusEvent::PermissionRequested(
-                            crate::bus::PermissionRequested {
-                                session_id: self.session.id.clone(),
-                                tool_name: name.to_string(),
-                                reason: reason.clone(),
-                                allow_once_code: allow_once_code.clone(),
-                                alternatives: alternatives.clone(),
-                            }
-                        )
-                    );
+                    crate::bus::Bus::global().publish(crate::bus::BusEvent::PermissionRequested(
+                        crate::bus::PermissionRequested {
+                            session_id: self.session.id.clone(),
+                            tool_name: name.to_string(),
+                            reason: reason.clone(),
+                            allow_once_code: allow_once_code.clone(),
+                            alternatives: alternatives.clone(),
+                        },
+                    ));
                     return Err(anyhow::anyhow!(msg));
                 }
                 BridgeDecision::Allow => {}

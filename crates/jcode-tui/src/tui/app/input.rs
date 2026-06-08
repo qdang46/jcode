@@ -1778,7 +1778,11 @@ pub(super) fn handle_modal_key(
                     crate::dcg_bridge::consume_allow_once(code_str);
                 }
                 app.reset_permission_dialog();
-                let tool = if tool_name.is_empty() { "tool".to_string() } else { tool_name };
+                let tool = if tool_name.is_empty() {
+                    "tool".to_string()
+                } else {
+                    tool_name
+                };
                 app.set_status_notice(&format!("Approved '{tool}' for this session."));
                 return Ok(true);
             }

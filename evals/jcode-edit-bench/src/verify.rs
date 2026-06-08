@@ -8,8 +8,10 @@ use std::path::Path;
 
 use similar::{ChangeTag, TextDiff};
 
-use crate::formatter::{compute_indent_score, format_content, normalize_blank_lines, normalize_line_endings};
 use crate::fixtures::list_files;
+use crate::formatter::{
+    compute_indent_score, format_content, normalize_blank_lines, normalize_line_endings,
+};
 
 /// Result of a verification pass.
 #[derive(Debug)]
@@ -68,10 +70,7 @@ pub async fn verify_files(
     if !missing_files.is_empty() {
         return Ok(VerificationResult {
             success: false,
-            error: Some(format!(
-                "Missing files: {}",
-                missing_files.join(", ")
-            )),
+            error: Some(format!("Missing files: {}", missing_files.join(", "))),
             indent_score: None,
             formatted_equivalent: None,
             diff_stats: None,
@@ -89,10 +88,7 @@ pub async fn verify_files(
         if !extra_files.is_empty() {
             return Ok(VerificationResult {
                 success: false,
-                error: Some(format!(
-                    "Unexpected files: {}",
-                    extra_files.join(", ")
-                )),
+                error: Some(format!("Unexpected files: {}", extra_files.join(", "))),
                 indent_score: None,
                 formatted_equivalent: None,
                 diff_stats: None,
@@ -113,7 +109,8 @@ pub async fn verify_files(
         let actual_normalized = normalize_line_endings(&actual_raw);
 
         // Restore whitespace-only diffs
-        let actual_restored = restore_whitespace_only_diffs(&expected_normalized, &actual_normalized);
+        let actual_restored =
+            restore_whitespace_only_diffs(&expected_normalized, &actual_normalized);
 
         // Normalize blank lines
         let expected_blank = normalize_blank_lines(&expected_normalized);
@@ -126,7 +123,8 @@ pub async fn verify_files(
         let formatted_equivalent = expected_formatted.formatted == actual_formatted.formatted;
 
         // Indent score: distance between actual raw and formatted
-        let file_indent_score = compute_indent_score(&actual_normalized, &actual_formatted.formatted);
+        let file_indent_score =
+            compute_indent_score(&actual_normalized, &actual_formatted.formatted);
         total_indent_score += file_indent_score;
         file_count += 1;
 
@@ -136,10 +134,8 @@ pub async fn verify_files(
                 &actual_formatted.formatted,
                 3,
             );
-            let stats = compute_diff_stats(
-                &expected_formatted.formatted,
-                &actual_formatted.formatted,
-            );
+            let stats =
+                compute_diff_stats(&expected_formatted.formatted, &actual_formatted.formatted);
 
             return Ok(VerificationResult {
                 success: false,
@@ -180,7 +176,8 @@ fn create_compact_diff(expected: &str, actual: &str, context_lines: usize) -> St
 
     while i < changes.len() {
         let change = changes[i];
-        if change.tag() != similar::ChangeTag::Insert && change.tag() != similar::ChangeTag::Delete {
+        if change.tag() != similar::ChangeTag::Insert && change.tag() != similar::ChangeTag::Delete
+        {
             line_num += 1;
             i += 1;
             continue;
@@ -191,7 +188,9 @@ fn create_compact_diff(expected: &str, actual: &str, context_lines: usize) -> St
             let mut ctx_start = i.saturating_sub(context_lines);
             // Skip back to find actual context
             while ctx_start < i {
-                if changes[ctx_start].tag() != similar::ChangeTag::Insert && changes[ctx_start].tag() != similar::ChangeTag::Delete {
+                if changes[ctx_start].tag() != similar::ChangeTag::Insert
+                    && changes[ctx_start].tag() != similar::ChangeTag::Delete
+                {
                     output.push(format!(" {}>", changes[ctx_start].value().trim_end()));
                 }
                 ctx_start += 1;
@@ -204,7 +203,11 @@ fn create_compact_diff(expected: &str, actual: &str, context_lines: usize) -> St
             if c.tag() != similar::ChangeTag::Insert && c.tag() != similar::ChangeTag::Delete {
                 break;
             }
-            let prefix = if c.tag() == similar::ChangeTag::Insert { "+" } else { "-" };
+            let prefix = if c.tag() == similar::ChangeTag::Insert {
+                "+"
+            } else {
+                "-"
+            };
             for line in c.value().lines() {
                 if !line.is_empty() || c.value().ends_with('\n') {
                     output.push(format!("{prefix} {line}"));
@@ -275,8 +278,14 @@ fn restore_whitespace_only_diffs(expected: &str, actual: &str) -> String {
                     let removed = pending_removed[i];
                     let added = pending_added[i];
                     if removed != added
-                        && removed.chars().filter(|c| !c.is_whitespace()).collect::<String>()
-                            == added.chars().filter(|c| !c.is_whitespace()).collect::<String>()
+                        && removed
+                            .chars()
+                            .filter(|c| !c.is_whitespace())
+                            .collect::<String>()
+                            == added
+                                .chars()
+                                .filter(|c| !c.is_whitespace())
+                                .collect::<String>()
                     {
                         out.push(removed); // prefer expected version
                     } else {
@@ -300,8 +309,14 @@ fn restore_whitespace_only_diffs(expected: &str, actual: &str) -> String {
         let removed = pending_removed[i];
         let added = pending_added[i];
         if removed != added
-            && removed.chars().filter(|c| !c.is_whitespace()).collect::<String>()
-                == added.chars().filter(|c| !c.is_whitespace()).collect::<String>()
+            && removed
+                .chars()
+                .filter(|c| !c.is_whitespace())
+                .collect::<String>()
+                == added
+                    .chars()
+                    .filter(|c| !c.is_whitespace())
+                    .collect::<String>()
         {
             out.push(removed);
         } else {

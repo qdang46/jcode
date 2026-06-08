@@ -120,6 +120,7 @@ jcode-tool-core = { path = "../jcode-tool-core" }
 jcode-tool-types = { path = "../jcode-tool-types" }
 jcode-side-panel-types = { path = "../jcode-side-panel-types" }
 jcode-best-of-n = { path = "../jcode-best-of-n" }
+dcg-core = { git = "https://github.com/quangdang46/destructive_command_guard", branch = "main" }
 
 # Gzip decoding (used by provider import/helpers)
 flate2 = "1"

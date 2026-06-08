@@ -31,8 +31,7 @@ use std::fmt;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum PermissionMode {
-    /// Rule-based classification using the legacy `AUTO_ALLOWED` list.
-    /// Read-only tools auto-allowed; writes require permission.
+    /// Rule-based classification delegated to dcg-core.
     #[default]
     Default,
     /// File operations (edit, write, patch) auto-allowed. Network,

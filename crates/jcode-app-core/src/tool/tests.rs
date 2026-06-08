@@ -373,7 +373,9 @@ async fn test_context_guard_small_output_passes_through() {
         tools: Arc::new(RwLock::new(HashMap::new())),
         skills: Arc::new(RwLock::new(crate::skill::SkillRegistry::default())),
         compaction,
-        hook_registry: Arc::new(tokio::sync::RwLock::new(jcode_hooks::HookRegistry::default())),
+        hook_registry: Arc::new(tokio::sync::RwLock::new(
+            jcode_hooks::HookRegistry::default(),
+        )),
         dispatch_config: jcode_hooks::DispatchConfig::default(),
         #[cfg(feature = "dcp")]
         dcp: None,
@@ -391,7 +393,9 @@ async fn test_context_guard_truncates_huge_single_output() {
         tools: Arc::new(RwLock::new(HashMap::new())),
         skills: Arc::new(RwLock::new(crate::skill::SkillRegistry::default())),
         compaction,
-        hook_registry: Arc::new(tokio::sync::RwLock::new(jcode_hooks::HookRegistry::default())),
+        hook_registry: Arc::new(tokio::sync::RwLock::new(
+            jcode_hooks::HookRegistry::default(),
+        )),
         dispatch_config: jcode_hooks::DispatchConfig::default(),
         #[cfg(feature = "dcp")]
         dcp: None,
@@ -423,7 +427,9 @@ async fn test_context_guard_truncates_when_context_nearly_full() {
         tools: Arc::new(RwLock::new(HashMap::new())),
         skills: Arc::new(RwLock::new(crate::skill::SkillRegistry::default())),
         compaction,
-        hook_registry: Arc::new(tokio::sync::RwLock::new(jcode_hooks::HookRegistry::default())),
+        hook_registry: Arc::new(tokio::sync::RwLock::new(
+            jcode_hooks::HookRegistry::default(),
+        )),
         dispatch_config: jcode_hooks::DispatchConfig::default(),
         #[cfg(feature = "dcp")]
         dcp: None,
@@ -445,7 +451,9 @@ async fn test_context_guard_zero_budget_passes_through() {
         tools: Arc::new(RwLock::new(HashMap::new())),
         skills: Arc::new(RwLock::new(crate::skill::SkillRegistry::default())),
         compaction,
-        hook_registry: Arc::new(tokio::sync::RwLock::new(jcode_hooks::HookRegistry::default())),
+        hook_registry: Arc::new(tokio::sync::RwLock::new(
+            jcode_hooks::HookRegistry::default(),
+        )),
         dispatch_config: jcode_hooks::DispatchConfig::default(),
         #[cfg(feature = "dcp")]
         dcp: None,

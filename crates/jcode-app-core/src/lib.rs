@@ -28,13 +28,12 @@ pub mod ambient_scheduler;
 pub mod build;
 pub mod catchup;
 pub mod channel;
+pub mod dcg_bridge;
 pub mod doctor;
 pub mod external_auth;
 pub mod mission;
 pub mod network_retry;
 pub mod notifications;
-pub mod dcg_bridge;
-pub mod yolo_classifier;
 pub mod overnight;
 pub mod perf;
 pub mod replay;
@@ -48,6 +47,7 @@ pub mod ssh_remote;
 pub mod startup_profile;
 pub mod tool;
 pub mod update;
+pub mod yolo_classifier;
 
 #[cfg(feature = "dcp")]
 pub mod dcp_bridge;

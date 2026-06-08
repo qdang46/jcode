@@ -8,9 +8,9 @@ use clap::{Parser, Subcommand};
 use jcode_edit_bench::{
     fixtures::{load_tasks_from_dir, validate_fixtures},
     generate::generate_tasks,
-    types::{BenchmarkConfig, GenerateConfig},
+    report::{generate_json_report, generate_markdown_report},
     runner::run_benchmark,
-    report::{generate_markdown_report, generate_json_report},
+    types::{BenchmarkConfig, GenerateConfig},
 };
 
 /// JCode Edit Benchmark — mutation-based edit-tool quality measurement.
@@ -131,8 +131,8 @@ async fn main() -> anyhow::Result<()> {
             min_score,
             dry_run,
         } => {
-            let categories = categories
-                .map(|s| s.split(',').map(|p| p.trim().to_string()).collect());
+            let categories =
+                categories.map(|s| s.split(',').map(|p| p.trim().to_string()).collect());
 
             let config = GenerateConfig {
                 source_dirs,
@@ -140,7 +140,10 @@ async fn main() -> anyhow::Result<()> {
                 count_per_type,
                 seed,
                 categories,
-                difficulties: difficulty.split(',').map(|s| s.trim().to_string()).collect(),
+                difficulties: difficulty
+                    .split(',')
+                    .map(|s| s.trim().to_string())
+                    .collect(),
                 min_score,
                 dry_run,
             };
@@ -207,8 +210,14 @@ async fn main() -> anyhow::Result<()> {
                 println!("    Name: {}", task.name);
                 println!("    Files: {}", task.files.join(", "));
                 if let Some(ref meta) = task.metadata {
-                    println!("    Mutation: {} ({})", meta.mutation_type, meta.mutation_category);
-                    println!("    Difficulty: {} (score: {})", meta.difficulty, meta.difficulty_score);
+                    println!(
+                        "    Mutation: {} ({})",
+                        meta.mutation_type, meta.mutation_category
+                    );
+                    println!(
+                        "    Difficulty: {} (score: {})",
+                        meta.difficulty, meta.difficulty_score
+                    );
                     println!("    Target: {}:{}", meta.file_name, meta.line_number);
                 }
                 println!();
@@ -218,7 +227,10 @@ async fn main() -> anyhow::Result<()> {
         Command::Check { path } => {
             let issues = validate_fixtures(&path);
             if issues.is_empty() {
-                println!("Fixtures OK — {} tasks validated", load_tasks_from_dir(&path)?.len());
+                println!(
+                    "Fixtures OK — {} tasks validated",
+                    load_tasks_from_dir(&path)?.len()
+                );
             } else {
                 for issue in &issues {
                     eprintln!("  [{}] {}", issue.task_id, issue.message);

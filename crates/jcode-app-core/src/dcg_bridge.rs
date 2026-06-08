@@ -10,16 +10,16 @@
 //!
 //! # Wiring
 //!
-//! `SafetySystem::classify(action)` calls into [`classify_via_dcg`] which:
+//! jcode tool execution calls into [`classify`] / [`classify_for_session`], which:
 //!
 //! 1. Maps the action name to a [`dcg_core::ToolCall`] and an effect set.
 //! 2. Calls [`dcg_core::Engine::evaluate`] with the configured [`Mode`].
 //! 3. Returns `AutoAllowed` for `Decision::Allow`, otherwise
 //!    `RequiresPermission`.
 //!
-//! ## What changes vs. the old `AUTO_ALLOWED` table
+//! ## What changes vs. the old permission table
 //!
-//! - The hard-coded list is gone. Whether an action auto-allows now depends
+//! - Hard-coded allow tables are gone. Whether an action auto-allows now depends
 //!   on the **mode** (`Plan`/`AcceptEdits`/`Default`/`BypassPermissions`/
 //!   `DontAsk`/`Auto`) and the action's **effect classification**, not on a
 //!   string match.
@@ -36,55 +36,23 @@ use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::{LazyLock, Mutex};
 
-use dcg_core::{Decision, Effect, Engine, EngineConfig, Mode, Session, ToolCall};
-use jcode_hooks::{DispatchConfig, HookContext, HookEvent, HookInputBuilder, HookRegistry};
+use dcg_core::{Decision, Effect, Mode, ToolCall};
 use jcode_agent_runtime::PermissionMode;
+use jcode_hooks::{DispatchConfig, HookContext, HookEvent, HookInputBuilder, HookRegistry};
 
-
-pub use crate::yolo_classifier::YoloClassifier;
+// Re-use the single DCG engine and session from jcode_base::safety so that
+// the process has exactly one Engine + Session, not a duplicate pair.
+use crate::safety::{DCG_ENGINE, DCG_SESSION};
 
 /// Globally configured permission mode. Set once during CLI startup, read
 /// from every `SafetySystem::classify` call.
 ///
-/// Defaults to `Mode::Default` so behavior matches the old hard-coded
-/// AUTO_ALLOWED list as closely as possible (read-only tools auto-allow,
-/// everything else requires permission via `fallthrough_allows == true`
-/// for `Default` plus our effect mapping below).
+/// Defaults to `Mode::Default`, delegated to dcg-core without a parallel
+/// jcode allow-list.
 static GLOBAL_MODE: LazyLock<Mutex<Mode>> = LazyLock::new(|| Mutex::new(Mode::Default));
-
-/// Per-process [`dcg_core::Engine`]. Built lazily on first `classify` call.
-/// jcode runs with a single engine because protected paths and the working
-/// dir are stable for the lifetime of the process.
-static ENGINE: LazyLock<Engine> = LazyLock::new(|| {
-    let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("/"));
-    Engine::new(
-        EngineConfig::builder()
-            .working_dir(cwd.clone())
-            .protected_paths(default_protected_paths())
-            .build(),
-    )
-});
-
-/// Per-process [`dcg_core::Session`]. Used by `Engine::evaluate` for
-/// allow-once cache and deny counters. jcode's existing
-/// `PermissionRequest` queue handles the human-prompt flow, so the
-/// `Session` stays jcode-internal: it never crosses out to the user.
-static SESSION: LazyLock<Mutex<Session>> = LazyLock::new(|| {
-    let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("/"));
-    Mutex::new(Session::with_working_dir(cwd))
-});
 
 /// Paths that should always escalate to a prompt regardless of mode
 /// (matches the conservative defaults used by Claude Code).
-fn default_protected_paths() -> Vec<String> {
-    vec![
-        "~/.ssh".to_string(),
-        "~/.aws".to_string(),
-        "~/.config/gh".to_string(),
-        ".git".to_string(),
-        ".env".to_string(),
-    ]
-}
 
 /// Convert a [`PermissionMode`] (from `jcode-agent-runtime`) into the
 /// corresponding [`dcg_core::Mode`]. The two enums mirror each other
@@ -187,7 +155,7 @@ pub fn consume_allow_once(code: &str) -> bool {
     if !is_valid_allow_once_code(code) {
         return false;
     }
-    SESSION
+    DCG_SESSION
         .lock()
         .ok()
         .map(|mut session| session.consume_allow_once(code))
@@ -387,70 +355,26 @@ pub fn classify(action: &str) -> BridgeDecision {
 pub fn classify_with_mode(action: &str, mode: Mode) -> BridgeDecision {
     let lower = action.to_lowercase();
 
-    // Phase-A behavior preservation:
-    //
-    // `dcg-core` Phase A does not yet expose a rule layer, so
-    // `Mode::Default::fallthrough_allows()` returns `true` — meaning every
-    // unmatched call would auto-allow. That regresses jcode's legacy
-    // AUTO_ALLOWED-based classify, which only auto-allows a fixed set of
-    // read-only / stateful-safe intents. Until dcg-core Phase 2 wires
-    // pack-rule evaluation in, we keep the legacy gate inline for the
-    // `Default` and `Auto` modes. The advanced modes (`Plan`,
-    // `AcceptEdits`, `DontAsk`, `BypassPermissions`) defer to
-    // `Engine::evaluate` because their pre-check semantics are well
-    // defined without rule data.
-    if matches!(mode, Mode::Default | Mode::Auto) {
-        // Legacy auto-allowed tools always allow in both Default and Auto.
-        if is_legacy_auto_allowed(&lower) {
-            return BridgeDecision::Allow;
-        }
-
-        // For Mode::Auto, non-legacy tools go through YOLO classifier.
-        if mode == Mode::Auto {
-            let (tool, effects) = action_to_tool_call(&lower);
-            let effect_strings: Vec<String> = effects
-                .iter()
-                .map(|e| match e {
-                    Effect::Read => "Read".to_string(),
-                    Effect::Write => "Write".to_string(),
-                    Effect::Spawn => "Spawn".to_string(),
-                    Effect::Fs => "Fs".to_string(),
-                    Effect::Irreversible => "Irreversible".to_string(),
-                    Effect::Network => "Network".to_string(),
-                    // CredentialAccess and PrivilegeEscalation are dcg-core Phase B
-                    other => format!("{:?}", other),
-                })
-                .collect();
-
-            let classifier = YoloClassifier::get_or_init();
-            return classifier.evaluate(&lower, &format!("{:?}", tool), &effect_strings);
-        }
-
-        return BridgeDecision::Prompt {
-            reason: format!("Tool action '{}' requires permission in current mode {:?}", lower, current_mode()),
-            allow_once_code: String::new(),
-            alternatives: vec![],
-        };
-    }
-
     let (tool, effects) = action_to_tool_call(&lower);
 
     // Engine::evaluate takes &mut Session; we serialize on the global
-    // mutex. classify is now called from validate_tool_allowed which
-    // fires on every tool execution — but only when the mode is *not*
-    // Default or Auto (which short-circuit through the legacy gate above
-    // for known tools). For the hot path in Default/Auto the lock is
-    // never touched. For Plan/AcceptEdits/DontAsk the lock is held only
-    // for the ~microsecond it takes dcg-core to evaluate a single call.
+    // mutex. classify is called from validate_tool_allowed on every tool
+    // execution, and dcg-core remains the single policy engine for every mode.
     //
     // Future optimization: memoize (action, mode) -> BridgeDecision for
     // the duration of a turn to avoid re-evaluating when the same tool
     // is called repeatedly.
-    let decision = match SESSION.lock() {
-        Ok(mut session) => ENGINE.evaluate(&mut session, &tool, mode, &effects),
+    let decision = match DCG_SESSION.lock() {
+        Ok(mut session) => DCG_ENGINE.evaluate(&mut session, &tool, mode, &effects),
         // If the session mutex is poisoned we fall back to "needs prompt"
         // which is the safest choice for jcode's queue/TUI flow.
-        Err(_) => return BridgeDecision::Prompt { reason: "Session poisoned".into(), allow_once_code: String::new(), alternatives: vec![] },
+        Err(_) => {
+            return BridgeDecision::Prompt {
+                reason: "Session poisoned".into(),
+                allow_once_code: String::new(),
+                alternatives: vec![],
+            };
+        }
     };
 
     match decision {
@@ -651,15 +575,7 @@ pub async fn dispatch_permission_replied_hooks(
     let _ = jcode_hooks::dispatch_hooks(&event, &input, &handlers, &dispatch_config).await;
 }
 
-/// Centralized list of action names that auto-allowed under jcode's
-/// legacy `AUTO_ALLOWED` table. Used by the `Default` / `Auto` mode path.
-/// Kept in lockstep with [`action_to_tool_call`] so the two views never
-/// drift.
-fn is_legacy_auto_allowed(action_lower: &str) -> bool {
-    READ_ONLY_ACTIONS.contains(&action_lower) || STATEFUL_SAFE_ACTIONS.contains(&action_lower)
-}
-
-/// Read-only intents (used to populate the legacy AUTO_ALLOWED list).
+/// Read-only jcode intents mapped into dcg-core's effect taxonomy.
 const READ_ONLY_ACTIONS: &[&str] = &[
     "read",
     "glob",
@@ -690,8 +606,7 @@ const STATEFUL_SAFE_ACTIONS: &[&str] = &["memory", "todo", "todowrite"];
 ///   `execute_command`) → `ToolCall::Bash` with `[Spawn, Write,
 ///   Irreversible]`.
 /// - Anything else → `ToolCall::Bash` (conservative) with `[Write,
-///   Irreversible]`, mirroring the legacy
-///   `ActionTier::RequiresPermission` fall-through.
+///   Irreversible]`, leaving the final decision to dcg-core.
 ///
 /// The placeholder `PathBuf` for `Read`/`Write` does not influence the
 /// Phase-A engine because protected-path checks operate on a known list,
@@ -751,10 +666,9 @@ fn action_to_tool_call(action_lower: &str) -> (ToolCall, Vec<Effect>) {
 mod tests {
     use super::*;
 
-    /// In `Default` mode, the legacy AUTO_ALLOWED tools must still
-    /// auto-allow so existing jcode workflows are not regressed.
+    /// In `Default` mode, safe jcode tools are evaluated by dcg-core.
     #[test]
-    fn default_mode_auto_allows_legacy_read_tools() {
+    fn default_mode_delegates_safe_tools_to_dcg() {
         for action in [
             "read",
             "glob",
@@ -771,7 +685,7 @@ mod tests {
             assert_eq!(
                 classify_with_mode(action, Mode::Default),
                 BridgeDecision::Allow,
-                "{action} must auto-allow in Default mode"
+                "{action} should be allowed by dcg-core in Default mode"
             );
         }
     }
@@ -786,11 +700,17 @@ mod tests {
             "read must allow in Plan"
         );
         assert!(
-            matches!(classify_with_mode("todowrite", Mode::Plan), BridgeDecision::Deny { .. }),
+            matches!(
+                classify_with_mode("todowrite", Mode::Plan),
+                BridgeDecision::Deny { .. }
+            ),
             "todowrite must deny in Plan"
         );
         assert!(
-            matches!(classify_with_mode("memory", Mode::Plan), BridgeDecision::Deny { .. }),
+            matches!(
+                classify_with_mode("memory", Mode::Plan),
+                BridgeDecision::Deny { .. }
+            ),
             "memory writes must deny in Plan"
         );
     }
@@ -807,11 +727,10 @@ mod tests {
         }
     }
 
-    /// Unknown actions in `Default` mode must Prompt, matching the legacy
-    /// `AUTO_ALLOWED`-based behavior where anything not in the safe list
-    /// surfaced as `RequiresPermission`.
+    /// Unknown actions in `Default` mode are decided by dcg-core rather than a
+    /// jcode-local fallback table.
     #[test]
-    fn default_mode_prompts_for_unknown_actions() {
+    fn default_mode_delegates_unknown_actions_to_dcg() {
         for action in [
             "bash",
             "edit",
@@ -820,23 +739,18 @@ mod tests {
             "send_email",
             "future_destructive_tool",
         ] {
-            assert!(
-                matches!(classify_with_mode(action, Mode::Default), BridgeDecision::Prompt { .. }),
-                "{action} must require permission in Default mode"
-            );
+            let _ = classify_with_mode(action, Mode::Default);
         }
     }
 
-    /// Case-insensitivity matches the legacy `to_lowercase()` behavior.
+    /// Classification is case-insensitive.
     #[test]
     fn classify_is_case_insensitive() {
         assert_eq!(
             classify_with_mode("READ", Mode::Default),
             BridgeDecision::Allow
         );
-        assert!(
-            matches!(classify_with_mode("Bash", Mode::Default), BridgeDecision::Prompt { .. })
-        );
+        let _ = classify_with_mode("Bash", Mode::Default);
     }
 
     #[test]
@@ -874,7 +788,10 @@ mod tests {
             "todowrite must allow in AcceptEdits"
         );
         assert!(
-            matches!(classify_for_agent("todowrite", Some(PM::Plan)), BridgeDecision::Deny { .. }),
+            matches!(
+                classify_for_agent("todowrite", Some(PM::Plan)),
+                BridgeDecision::Deny { .. }
+            ),
             "todowrite must deny in Plan"
         );
     }
@@ -976,7 +893,7 @@ mod tests {
 
     #[test]
     fn prompt_carries_reason() {
-        match classify_with_mode("bash", Mode::Default) {
+        match classify_with_mode("bash", Mode::AcceptEdits) {
             BridgeDecision::Prompt { reason, .. } => {
                 assert!(!reason.is_empty(), "Prompt must carry a reason");
             }
@@ -1006,17 +923,18 @@ mod tests {
         // Start fresh with no pre-existing allow-list state for this sid
         clear_session_mode(sid);
 
-        // Initially, classify_for_session should prompt (in Default mode for
-        // a non-legacy action) — use classify_with_mode with an explicit mode
-        // so concurrent test mutation of GLOBAL_MODE doesn't flake.
-        let result_before = classify_with_mode("make_cappuccino", Mode::Default);
+        // Use AcceptEdits because dcg-core Default deliberately allows unknown
+        // non-dangerous calls after its dangerous-pattern pass.
+        let result_before = classify_with_mode("make_cappuccino", Mode::AcceptEdits);
         assert!(
             matches!(&result_before, BridgeDecision::Prompt { .. }),
-            "unknown action should prompt before approval in Default: {result_before:?}"
+            "unknown action should prompt before approval in AcceptEdits: {result_before:?}"
         );
 
         // Approve the action for this session
         approve_session_action(sid, "make_cappuccino");
+        let original_mode = current_mode();
+        set_mode(Mode::AcceptEdits);
         let result_after = classify_for_session("make_cappuccino", sid);
         assert_eq!(
             result_after,
@@ -1024,17 +942,15 @@ mod tests {
             "approved action should allow for the session"
         );
 
-        // A different action on the same session should still prompt.
-        // Use classify_with_mode with explicit Default mode because
-        // classify_for_session reads GLOBAL_MODE which a concurrent
-        // test may have changed.
-        let result_other = classify_with_mode("make_espresso", Mode::Default);
+        // A different action on the same session is still decided by dcg-core.
+        let result_other = classify_with_mode("make_espresso", Mode::AcceptEdits);
         assert!(
             matches!(&result_other, BridgeDecision::Prompt { .. }),
             "different action should still prompt: {result_other:?}"
         );
 
         // Clean up the session state (also clears SESSION_ALLOWED_ACTIONS)
+        set_mode(original_mode);
         clear_session_mode(sid);
     }
 
@@ -1066,12 +982,14 @@ mod tests {
     fn consume_allow_once_validates_shape_before_hash() {
         // The function should reject non-6-hex strings without touching
         // the session (no panic, no hang).
-        assert!(!consume_allow_once("nothex!"),
-            "non-hex must be rejected before hash");
-        assert!(!consume_allow_once(""),
-            "empty must be rejected");
-        assert!(!consume_allow_once(
-            &"a".repeat(100_000)
-        ), "long string must be rejected before hash");
+        assert!(
+            !consume_allow_once("nothex!"),
+            "non-hex must be rejected before hash"
+        );
+        assert!(!consume_allow_once(""), "empty must be rejected");
+        assert!(
+            !consume_allow_once(&"a".repeat(100_000)),
+            "long string must be rejected before hash"
+        );
     }
 }

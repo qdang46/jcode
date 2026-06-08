@@ -637,8 +637,11 @@ fn color_to_rgb(color: Color) -> Option<[u8; 3]> {
     }
 }
 
-
-pub(super) fn draw_permission_dialog_overlay(frame: &mut Frame, area: Rect, app: &dyn crate::tui::TuiState) {
+pub(super) fn draw_permission_dialog_overlay(
+    frame: &mut Frame,
+    area: Rect,
+    app: &dyn crate::tui::TuiState,
+) {
     clear_area(frame, area);
 
     let title_style = Style::default()
@@ -674,10 +677,7 @@ pub(super) fn draw_permission_dialog_overlay(frame: &mut Frame, area: Rect, app:
     // "Safer alternatives" after the reason).
     let alternatives = app.pending_permission_alternatives();
     if !alternatives.is_empty() {
-        lines.push(Line::from(Span::styled(
-            "  Safer alternatives:",
-            dim_style,
-        )));
+        lines.push(Line::from(Span::styled("  Safer alternatives:", dim_style)));
         for alt in alternatives {
             lines.push(Line::from(vec![
                 Span::raw("    \u{2022} "),

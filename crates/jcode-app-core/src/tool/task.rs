@@ -168,7 +168,10 @@ impl Tool for SubagentTool {
                     "[tool:subagent] session={} inherits permission mode {:?} from parent={}",
                     session.id, mode, ctx.session_id
                 ));
-                Some(crate::dcg_bridge::SessionModeGuard::new(&session.id, Some(mode)))
+                Some(crate::dcg_bridge::SessionModeGuard::new(
+                    &session.id,
+                    Some(mode),
+                ))
             } else {
                 None
             }
