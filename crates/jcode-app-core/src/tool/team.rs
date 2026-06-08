@@ -21,7 +21,12 @@ use crate::team::{mailbox, runtime, spec::*, state, tasklist};
 struct JcodeMemberSpawner;
 
 impl runtime::MemberSpawner for JcodeMemberSpawner {
-    fn spawn(&self, run_id: &str, member: &TeamMemberSpec, prompt: &str) -> crate::team::spec::TeamResult<String> {
+    fn spawn(
+        &self,
+        run_id: &str,
+        member: &TeamMemberSpec,
+        prompt: &str,
+    ) -> crate::team::spec::TeamResult<String> {
         let member_name = member.name().to_string();
         let session_id = format!("jcode-team-{}-{}", &run_id[..8], member_name);
         crate::logging::info(&format!(
@@ -171,8 +176,13 @@ impl Tool for TeamCreateTool {
         .await
         .map_err(|e| anyhow::anyhow!("team creation panicked: {e}"))??;
 
-        Ok(ToolOutput::new(serde_json::to_string_pretty(&run)?)
-            .with_title(format!("Team '{}' active ({} members)", parsed.name, run.members.len())))
+        Ok(
+            ToolOutput::new(serde_json::to_string_pretty(&run)?).with_title(format!(
+                "Team '{}' active ({} members)",
+                parsed.name,
+                run.members.len()
+            )),
+        )
     }
 }
 
@@ -231,7 +241,9 @@ impl Tool for TeamDeleteTool {
             let found = runs
                 .into_iter()
                 .find(|r| r.team_name == run_id)
-                .ok_or_else(|| anyhow::anyhow!("no active team found with name or id '{run_id}'"))?;
+                .ok_or_else(|| {
+                    anyhow::anyhow!("no active team found with name or id '{run_id}'")
+                })?;
             found.team_run_id
         };
 
@@ -240,8 +252,7 @@ impl Tool for TeamDeleteTool {
             .await
             .map_err(|e| anyhow::anyhow!("team deletion panicked: {e}"))??;
 
-        Ok(ToolOutput::new(format!("Team run '{target}' deleted."))
-            .with_title("Team deleted"))
+        Ok(ToolOutput::new(format!("Team run '{target}' deleted.")).with_title("Team deleted"))
     }
 }
 

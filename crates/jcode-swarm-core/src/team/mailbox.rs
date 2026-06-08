@@ -272,9 +272,9 @@ mod tests {
         let run_id = base.run_id();
         // Create a minimal state file manually so mailbox tests don't depend
         // on the full create_runtime flow (which requires a TeamSpec).
+        use crate::team::locks::atomic_write;
         use crate::team::paths::runtime_dir;
         use crate::team::spec::*;
-        use crate::team::locks::atomic_write;
         let state = TeamRuntimeState {
             version: 1,
             team_run_id: run_id.clone(),
@@ -355,7 +355,12 @@ mod tests {
         let base = crate::team::test_support::guarded_base();
         let (run, tok) = setup_runtime(&base);
         let members = vec!["a".to_string(), "b".to_string()];
-        let res = send_message(&msg("bc", "*", "all"), &run, &SendContext::lead(&members, &tok)).unwrap();
+        let res = send_message(
+            &msg("bc", "*", "all"),
+            &run,
+            &SendContext::lead(&members, &tok),
+        )
+        .unwrap();
         assert_eq!(res.delivered_to.len(), 2);
         assert_eq!(list_unread(&run, "a").unwrap().len(), 1);
         assert_eq!(list_unread(&run, "b").unwrap().len(), 1);
@@ -367,8 +372,12 @@ mod tests {
         let (run, tok) = setup_runtime(&base);
         let members = vec!["w".to_string()];
         let big = "x".repeat(TEAM_MESSAGE_MAX_BYTES + 1);
-        let err =
-            send_message(&msg("p", "w", &big), &run, &SendContext::lead(&members, &tok)).unwrap_err();
+        let err = send_message(
+            &msg("p", "w", &big),
+            &run,
+            &SendContext::lead(&members, &tok),
+        )
+        .unwrap_err();
         assert!(matches!(err, TeamError::PayloadTooLarge));
     }
 
@@ -378,7 +387,12 @@ mod tests {
         let (run, tok) = setup_runtime(&base);
         let members = vec!["w".to_string()];
         // First message lands with a generous ceiling.
-        send_message(&msg("a", "w", "hello"), &run, &SendContext::lead(&members, &tok)).unwrap();
+        send_message(
+            &msg("a", "w", "hello"),
+            &run,
+            &SendContext::lead(&members, &tok),
+        )
+        .unwrap();
         // With unread > 0 and a tiny ceiling, the next send hits backpressure.
         let tiny = SendContext {
             is_lead: true,
@@ -412,7 +426,12 @@ mod tests {
         let base = crate::team::test_support::guarded_base();
         let (run, tok) = setup_runtime(&base);
         let members = vec!["w".to_string()];
-        send_message(&msg("ok", "w", "good"), &run, &SendContext::lead(&members, &tok)).unwrap();
+        send_message(
+            &msg("ok", "w", "good"),
+            &run,
+            &SendContext::lead(&members, &tok),
+        )
+        .unwrap();
         fs::write(inbox_dir(&run, "w").join("junk.json"), b"{not json").unwrap();
         let unread = list_unread(&run, "w").unwrap();
         assert_eq!(
@@ -427,8 +446,18 @@ mod tests {
         let base = crate::team::test_support::guarded_base();
         let (run, tok) = setup_runtime(&base);
         let members = vec!["w".to_string()];
-        send_message(&msg("m1", "w", "a"), &run, &SendContext::lead(&members, &tok)).unwrap();
-        send_message(&msg("m2", "w", "b"), &run, &SendContext::lead(&members, &tok)).unwrap();
+        send_message(
+            &msg("m1", "w", "a"),
+            &run,
+            &SendContext::lead(&members, &tok),
+        )
+        .unwrap();
+        send_message(
+            &msg("m2", "w", "b"),
+            &run,
+            &SendContext::lead(&members, &tok),
+        )
+        .unwrap();
         let fresh = poll_messages(&run, "w", &["m1".to_string()]).unwrap();
         assert_eq!(fresh.len(), 1);
         assert_eq!(fresh[0].message_id, "m2");

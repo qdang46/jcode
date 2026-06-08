@@ -435,9 +435,7 @@ pub fn resolve_resume_target_to_jcode(
             import_opencode_session_from_path(Path::new(session_path), Some(session_id))?;
             imported_opencode_session_id(session_id)
         }
-        ResumeTarget::ForeignSession { session_id, .. } => {
-            session_id.clone()
-        }
+        ResumeTarget::ForeignSession { session_id, .. } => session_id.clone(),
     };
 
     Ok(ResumeTarget::JcodeSession { session_id })

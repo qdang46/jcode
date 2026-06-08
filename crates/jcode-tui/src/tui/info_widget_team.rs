@@ -62,7 +62,11 @@ pub(super) fn render_team_widget(data: &InfoWidgetData, inner: Rect) -> Vec<Line
     let mut lines = Vec::new();
 
     // Header: team name + member/task counts
-    let active = info.members.iter().filter(|m| m.status == "running").count();
+    let active = info
+        .members
+        .iter()
+        .filter(|m| m.status == "running")
+        .count();
     lines.push(Line::from(vec![
         Span::styled("👥 ", Style::default().fg(rgb(255, 200, 100))),
         Span::styled(
@@ -96,7 +100,10 @@ pub(super) fn render_team_widget(data: &InfoWidgetData, inner: Rect) -> Vec<Line
                 truncate_smart(&m.name, 14),
                 Style::default().fg(rgb(200, 200, 210)),
             ),
-            Span::styled(format!("  {detail}"), Style::default().fg(rgb(140, 140, 150))),
+            Span::styled(
+                format!("  {detail}"),
+                Style::default().fg(rgb(140, 140, 150)),
+            ),
         ]));
     }
 

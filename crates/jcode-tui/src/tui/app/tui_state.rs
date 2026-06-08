@@ -1322,7 +1322,7 @@ impl crate::tui::TuiState for App {
             },
             git_info: gather_git_info(),
             team_info: gather_team_info(),
-                   }
+        }
     }
 
     fn workspace_mode_enabled(&self) -> bool {

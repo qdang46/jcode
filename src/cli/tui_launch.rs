@@ -507,8 +507,16 @@ pub fn list_sessions() -> Result<()> {
             jcode_tui_session_picker::ResumeTarget::OpenCodeSession { session_id, .. } => {
                 format!("◌ OpenCode {}", &session_id[..session_id.len().min(8)])
             }
-            jcode_tui_session_picker::ResumeTarget::ForeignSession { provider_slug, session_id, .. } => {
-                format!("Foreign {}: {}", provider_slug, &session_id[..session_id.len().min(8)])
+            jcode_tui_session_picker::ResumeTarget::ForeignSession {
+                provider_slug,
+                session_id,
+                ..
+            } => {
+                format!(
+                    "Foreign {}: {}",
+                    provider_slug,
+                    &session_id[..session_id.len().min(8)]
+                )
             }
         };
         let command = crate::terminal_launch::TerminalCommand::new(program, args).title(title);
@@ -555,13 +563,14 @@ pub fn list_sessions() -> Result<()> {
                 let mut warned_no_terminal = false;
 
                 for target in targets {
-                    let resolved_target = match crate::import::resolve_resume_target_to_jcode(&target) {
-                        Ok(t) => t,
-                        Err(e) => {
-                            eprintln!("Failed to import session: {}", e);
-                            continue;
-                        }
-                    };
+                    let resolved_target =
+                        match crate::import::resolve_resume_target_to_jcode(&target) {
+                            Ok(t) => t,
+                            Err(e) => {
+                                eprintln!("Failed to import session: {}", e);
+                                continue;
+                            }
+                        };
 
                     let mut session_cwd = cwd.clone();
                     if let jcode_tui_session_picker::ResumeTarget::JcodeSession { session_id } =

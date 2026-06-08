@@ -18,6 +18,8 @@ mod memory_utils;
 mod model;
 #[path = "info_widget_swarm_background.rs"]
 mod swarm_background;
+#[path = "info_widget_team.rs"]
+mod team_render;
 #[path = "info_widget_text.rs"]
 mod text;
 #[path = "info_widget_tips.rs"]
@@ -26,10 +28,8 @@ mod tips;
 mod todos_render;
 #[path = "info_widget_usage.rs"]
 mod usage_render;
-#[path = "info_widget_team.rs"]
-mod team_render;
-use super::info_widget_overview::{InfoPageKind, MAX_TODO_LINES, compute_page_layout};
 pub use self::team_render::{TeamInfo, TeamMemberView, TeamTaskView};
+use super::info_widget_overview::{InfoPageKind, MAX_TODO_LINES, compute_page_layout};
 use super::workspace_map::VisibleWorkspaceRow;
 use crate::ambient::AmbientStatus;
 pub use crate::memory_types::{
@@ -127,7 +127,7 @@ impl WidgetKind {
             WidgetKind::TeamView => 6, // base; bumped to 2 when team is active
             WidgetKind::SwarmStatus => 12, // Session list - lower priority
             WidgetKind::AmbientMode => 13, // Scheduled agent - lower priority
-            WidgetKind::Tips => 14,        // Did you know - lowest
+            WidgetKind::Tips => 14,    // Did you know - lowest
         }
     }
 
@@ -961,11 +961,18 @@ pub(crate) fn calculate_widget_height(
             }
             lines.len() as u16
         }
-                WidgetKind::TeamView => {
-            if data.team_info.is_none() { return 0; }
+        WidgetKind::TeamView => {
+            if data.team_info.is_none() {
+                return 0;
+            }
             let info = data.team_info.as_ref().unwrap();
-            let h = 1 + info.members.len().min(5).min(7) as u16
-                + if info.tasks.is_empty() { 0 } else { 1 + info.tasks.len().min(3) as u16 };
+            let h = 1
+                + info.members.len().min(5).min(7) as u16
+                + if info.tasks.is_empty() {
+                    0
+                } else {
+                    1 + info.tasks.len().min(3) as u16
+                };
             h.min(max_height.saturating_sub(border_height))
         }
         WidgetKind::SwarmStatus => {

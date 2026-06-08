@@ -408,7 +408,9 @@ pub enum TeamError {
     Task(String),
     #[error("lock timeout acquiring {0}")]
     LockTimeout(String),
-    #[error("schema version {found} for run '{run_id}' is not supported (expected {expected}); a migration is required")]
+    #[error(
+        "schema version {found} for run '{run_id}' is not supported (expected {expected}); a migration is required"
+    )]
     UnsupportedSchemaVersion {
         run_id: String,
         found: u8,
