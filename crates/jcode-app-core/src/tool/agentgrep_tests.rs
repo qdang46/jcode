@@ -23,262 +23,6 @@ fn test_exposure(message_index: usize, total_messages: usize) -> ExposureDescrip
     }
 }
 
-fn grep_input(query: &str, max_regions: Option<usize>) -> AgentGrepInput {
-    AgentGrepInput {
-        mode: "grep".to_string(),
-        query: Some(query.to_string()),
-        file: None,
-        terms: None,
-        regex: Some(false),
-        path: None,
-        glob: None,
-        file_type: None,
-        hidden: None,
-        no_ignore: None,
-        max_files: None,
-        max_regions,
-        full_region: None,
-        debug_plan: None,
-        debug_score: None,
-        paths_only: None,
-    }
-}
-
-#[test]
-fn render_compacts_huge_grep_match_lines() {
-    let args = GrepArgs {
-        query: "set_status_notice".to_string(),
-        regex: false,
-        file_type: None,
-        json: false,
-        paths_only: false,
-        hidden: false,
-        no_ignore: false,
-        path: None,
-        glob: None,
-    };
-    let line = format!(
-        "{{\"output\":\"{}set_status_notice{}\"}}",
-        "a".repeat(800),
-        "b".repeat(800)
-    );
-
-    let compact = render::compact_rendered_match_line(&line, &args);
-
-    assert!(compact.contains("set_status_notice"));
-    assert!(compact.contains("[truncated:"), "{compact}");
-    assert!(
-        compact.chars().count() < 340,
-        "compact output should be bounded, got {} chars: {compact}",
-        compact.chars().count()
-    );
-}
-
-#[test]
-fn grep_max_regions_limits_rendered_match_excerpts() {
-    let temp = tempfile::tempdir().expect("tempdir");
-    fs::write(
-        temp.path().join("a.rs"),
-        "fn one() { status_notice(); }\nfn two() { status_notice(); }\nfn three() { status_notice(); }\n",
-    )
-    .expect("write file");
-
-    let output = execute_linked_agentgrep(
-        &grep_input("status_notice", Some(2)),
-        &test_ctx(temp.path()),
-        None,
-    )
-    .expect("agentgrep execute")
-    .output;
-
-    assert_eq!(output.matches("      - @ ").count(), 2, "{output}");
-    assert!(
-        output.contains("1 more matches omitted (max_regions=2)"),
-        "{output}"
-    );
-}
-
-#[test]
-fn grep_caps_non_code_file_match_excerpts_by_default() {
-    let temp = tempfile::tempdir().expect("tempdir");
-    fs::write(
-        temp.path().join("timeline.json"),
-        (0..5)
-            .map(|idx| format!("{{\"event\":\"status_notice {idx}\"}}\n"))
-            .collect::<String>(),
-    )
-    .expect("write file");
-
-    let output = execute_linked_agentgrep(
-        &grep_input("status_notice", None),
-        &test_ctx(temp.path()),
-        None,
-    )
-    .expect("agentgrep execute")
-    .output;
-
-    assert_eq!(output.matches("      - @ ").count(), 3, "{output}");
-    assert!(
-        output.contains("2 more non-code matches omitted"),
-        "{output}"
-    );
-}
-
-#[test]
-fn build_grep_args_includes_scope_flags() {
-    let ctx = test_ctx(Path::new("/tmp/root"));
-    let params = AgentGrepInput {
-        mode: "grep".to_string(),
-        query: Some("auth_status".to_string()),
-        file: None,
-        terms: None,
-        regex: Some(true),
-        path: Some("src".to_string()),
-        glob: Some("src/**/*.rs".to_string()),
-        file_type: Some("rs".to_string()),
-        hidden: Some(true),
-        no_ignore: Some(true),
-        max_files: None,
-        max_regions: None,
-        full_region: None,
-        debug_plan: None,
-        debug_score: None,
-        paths_only: Some(true),
-    };
-
-    let args = build_grep_args(&params, &ctx).unwrap();
-    assert_eq!(args.query, "auth_status");
-    assert!(args.regex);
-    assert_eq!(args.file_type.as_deref(), Some("rs"));
-    assert!(args.paths_only);
-    assert!(args.hidden);
-    assert!(args.no_ignore);
-    assert_eq!(args.path.as_deref(), Some("/tmp/root/src"));
-    assert_eq!(args.glob.as_deref(), Some("src/**/*.rs"));
-}
-
-#[test]
-fn build_grep_args_drops_match_all_glob() {
-    let ctx = test_ctx(Path::new("/tmp/root"));
-    let params = AgentGrepInput {
-        mode: "grep".to_string(),
-        query: Some("agentgrep".to_string()),
-        file: None,
-        terms: None,
-        regex: Some(false),
-        path: Some(".".to_string()),
-        glob: Some("**/*".to_string()),
-        file_type: Some("rs".to_string()),
-        hidden: None,
-        no_ignore: None,
-        max_files: None,
-        max_regions: None,
-        full_region: None,
-        debug_plan: None,
-        debug_score: None,
-        paths_only: None,
-    };
-
-    let args = build_grep_args(&params, &ctx).unwrap();
-    assert_eq!(args.query, "agentgrep");
-    assert_eq!(args.file_type.as_deref(), Some("rs"));
-    assert_eq!(args.path.as_deref(), Some("/tmp/root/."));
-    assert_eq!(args.glob, None);
-}
-
-#[test]
-fn build_grep_args_scopes_file_path_to_parent_and_exact_glob() {
-    let temp = tempfile::tempdir().expect("tempdir");
-    fs::create_dir_all(temp.path().join("src")).expect("mkdir");
-    fs::write(temp.path().join("src/app.rs"), "fn auth_status() {}\n").expect("write file");
-
-    let ctx = test_ctx(temp.path());
-    let params = AgentGrepInput {
-        mode: "grep".to_string(),
-        query: Some("auth_status".to_string()),
-        file: None,
-        terms: None,
-        regex: Some(false),
-        path: Some("src/app.rs".to_string()),
-        glob: Some("**/*.rs".to_string()),
-        file_type: Some("rs".to_string()),
-        hidden: None,
-        no_ignore: None,
-        max_files: None,
-        max_regions: None,
-        full_region: None,
-        debug_plan: None,
-        debug_score: None,
-        paths_only: None,
-    };
-
-    let args = build_grep_args(&params, &ctx).unwrap();
-    assert_eq!(
-        args.path.as_deref(),
-        Some(temp.path().join("src").to_string_lossy().as_ref())
-    );
-    assert_eq!(args.glob.as_deref(), Some("app.rs"));
-}
-
-#[test]
-fn build_find_args_allows_glob_only_search() {
-    let ctx = test_ctx(Path::new("/tmp/root"));
-    let params = AgentGrepInput {
-        mode: "find".to_string(),
-        query: None,
-        file: None,
-        terms: None,
-        regex: None,
-        path: Some(".".to_string()),
-        glob: Some("**/*release*".to_string()),
-        file_type: None,
-        hidden: None,
-        no_ignore: None,
-        max_files: Some(25),
-        max_regions: None,
-        full_region: None,
-        debug_plan: None,
-        debug_score: None,
-        paths_only: Some(true),
-    };
-
-    let args = build_find_args(&params, &ctx).expect("glob-only find should be valid");
-    assert!(args.query_parts.is_empty());
-    assert_eq!(args.path.as_deref(), Some("/tmp/root/."));
-    assert_eq!(args.glob.as_deref(), Some("**/*release*"));
-    assert_eq!(args.max_files, 25);
-    assert!(args.paths_only);
-}
-
-#[test]
-fn build_find_args_still_rejects_unscoped_empty_query() {
-    let ctx = test_ctx(Path::new("/tmp/root"));
-    let params = AgentGrepInput {
-        mode: "find".to_string(),
-        query: None,
-        file: None,
-        terms: None,
-        regex: None,
-        path: None,
-        glob: None,
-        file_type: None,
-        hidden: None,
-        no_ignore: None,
-        max_files: None,
-        max_regions: None,
-        full_region: None,
-        debug_plan: None,
-        debug_score: None,
-        paths_only: None,
-    };
-
-    let error = build_find_args(&params, &ctx).unwrap_err();
-    assert_eq!(
-        error.to_string(),
-        "agentgrep find requires 'query' unless path, glob, or type narrows the search"
-    );
-}
-
 #[test]
 fn build_smart_args_uses_terms() {
     let ctx = test_ctx(Path::new("/workspace"));
@@ -399,13 +143,11 @@ fn schema_only_advertises_common_public_fields() {
 
     assert!(
         !required.contains(&json!("mode")),
-        "agentgrep mode should be optional because omitted mode defaults to grep"
+        "agentgrep mode should be optional because omitted mode defaults to trace"
     );
     assert!(props.contains_key("mode"));
     assert!(props.contains_key("query"));
-    assert!(props.contains_key("file"));
     assert!(props.contains_key("terms"));
-    assert!(props.contains_key("regex"));
     assert!(props.contains_key("path"));
     assert!(props.contains_key("glob"));
     assert!(props.contains_key("type"));
@@ -415,132 +157,22 @@ fn schema_only_advertises_common_public_fields() {
     assert_eq!(
         mode_enum,
         &vec![
-            json!("grep"),
-            json!("find"),
-            json!("outline"),
-            json!("trace")
+            json!("trace"),
+            json!("smart"),
         ]
     );
-    assert!(!props.contains_key("hidden"));
-    assert!(!props.contains_key("no_ignore"));
-    assert!(!props.contains_key("full_region"));
-    assert!(!props.contains_key("debug_plan"));
-    assert!(!props.contains_key("debug_score"));
 }
 
 #[test]
-fn input_defaults_missing_mode_to_grep() {
+fn input_defaults_missing_mode_to_trace() {
     let params: AgentGrepInput = serde_json::from_value(json!({
         "query": "auth_status",
         "path": "src"
     }))
     .expect("agentgrep input without mode should deserialize");
 
-    assert_eq!(params.mode, "grep");
+    assert_eq!(params.mode, "trace");
     assert_eq!(params.query.as_deref(), Some("auth_status"));
-}
-
-#[test]
-fn build_outline_args_accepts_file_field() {
-    let ctx = test_ctx(Path::new("/workspace"));
-    let params = AgentGrepInput {
-        mode: "outline".to_string(),
-        query: None,
-        file: Some("src/tool/agentgrep.rs".to_string()),
-        terms: None,
-        regex: None,
-        path: Some("repo".to_string()),
-        glob: None,
-        file_type: None,
-        hidden: None,
-        no_ignore: None,
-        max_files: None,
-        max_regions: None,
-        full_region: None,
-        debug_plan: None,
-        debug_score: None,
-        paths_only: None,
-    };
-
-    let args = build_outline_args(&params, &ctx, None).unwrap();
-    assert_eq!(args.file, "src/tool/agentgrep.rs");
-    assert_eq!(args.path.as_deref(), Some("/workspace/repo"));
-}
-
-#[tokio::test]
-async fn execute_runs_linked_grep() {
-    let temp = tempfile::tempdir().expect("tempdir");
-    fs::create_dir_all(temp.path().join("src")).expect("mkdir");
-    fs::write(
-        temp.path().join("src/app.rs"),
-        "pub fn auth_status() {}\nfn render_status_bar() {}\n",
-    )
-    .expect("write file");
-
-    let tool = AgentGrepTool::new();
-    let ctx = test_ctx(temp.path());
-    let output = tool
-        .execute(
-            json!({"mode": "grep", "query": "auth_status", "path": ".", "type": "rs"}),
-            ctx,
-        )
-        .await
-        .expect("tool output");
-    assert!(output.output.contains("query: auth_status"));
-    assert!(output.output.contains("src/app.rs"));
-    assert!(output.output.contains("@ 1 pub fn auth_status() {}"));
-}
-
-#[tokio::test]
-async fn execute_runs_linked_grep_when_mode_is_omitted() {
-    let temp = tempfile::tempdir().expect("tempdir");
-    fs::create_dir_all(temp.path().join("src")).expect("mkdir");
-    fs::write(temp.path().join("src/app.rs"), "pub fn auth_status() {}\n").expect("write file");
-
-    let tool = AgentGrepTool::new();
-    let ctx = test_ctx(temp.path());
-    let output = tool
-        .execute(json!({"query": "auth_status", "path": "src"}), ctx)
-        .await
-        .expect("tool output");
-
-    assert!(output.output.contains("query: auth_status"));
-    assert!(output.output.contains("app.rs"));
-}
-
-#[tokio::test]
-async fn execute_runs_linked_grep_when_path_points_to_file() {
-    let temp = tempfile::tempdir().expect("tempdir");
-    fs::create_dir_all(temp.path().join("src")).expect("mkdir");
-    fs::write(
-        temp.path().join("src/app.rs"),
-        "pub fn auth_status() {}\nfn render_status_bar() {}\n",
-    )
-    .expect("write target file");
-    fs::write(
-        temp.path().join("src/other.rs"),
-        "pub fn auth_status() {}\nfn render_other() {}\n",
-    )
-    .expect("write sibling file");
-
-    let tool = AgentGrepTool::new();
-    let ctx = test_ctx(temp.path());
-    let output = tool
-        .execute(
-            json!({
-                "mode": "grep",
-                "query": "auth_status",
-                "path": "src/app.rs",
-                "glob": "**/*.rs",
-                "type": "rs"
-            }),
-            ctx,
-        )
-        .await
-        .expect("tool output for exact-file path");
-    assert!(output.output.contains("app.rs"));
-    assert!(!output.output.contains("src/other.rs"));
-    assert!(!output.output.contains("other.rs"));
 }
 
 #[tokio::test]
@@ -575,6 +207,55 @@ fn execute() { println!("implementation"); }
     assert!(output.output.contains("debug plan:"));
     assert!(output.output.contains("subject: lsp"));
     assert!(output.output.contains("relation: implementation"));
+}
+
+#[tokio::test]
+async fn execute_rejects_grep_mode_with_helpful_error() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    fs::create_dir_all(temp.path().join("src")).expect("mkdir");
+    fs::write(temp.path().join("src/app.rs"), "pub fn auth_status() {}\n").expect("write file");
+
+    let tool = AgentGrepTool::new();
+    let ctx = test_ctx(temp.path());
+    let result = tool
+        .execute(json!({"mode": "grep", "query": "auth_status", "path": "."}), ctx)
+        .await;
+    assert!(result.is_err());
+    let err = result.unwrap_err().to_string();
+    assert!(
+        err.contains("agentgrep only supports trace/smart mode"),
+        "should get helpful error message, got: {err}"
+    );
+}
+
+#[tokio::test]
+async fn execute_rejects_find_mode_with_helpful_error() {
+    let tool = AgentGrepTool::new();
+    let ctx = test_ctx(Path::new("/tmp"));
+    let result = tool
+        .execute(json!({"mode": "find", "query": "auth_status"}), ctx)
+        .await;
+    assert!(result.is_err());
+    let err = result.unwrap_err().to_string();
+    assert!(
+        err.contains("agentgrep only supports trace/smart mode"),
+        "should get helpful error message, got: {err}"
+    );
+}
+
+#[tokio::test]
+async fn execute_rejects_outline_mode_with_helpful_error() {
+    let tool = AgentGrepTool::new();
+    let ctx = test_ctx(Path::new("/tmp"));
+    let result = tool
+        .execute(json!({"mode": "outline", "file": "src/app.rs"}), ctx)
+        .await;
+    assert!(result.is_err());
+    let err = result.unwrap_err().to_string();
+    assert!(
+        err.contains("agentgrep only supports trace/smart mode"),
+        "should get helpful error message, got: {err}"
+    );
 }
 
 #[test]

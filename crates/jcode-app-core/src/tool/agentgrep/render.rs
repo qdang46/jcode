@@ -4,6 +4,7 @@ const MAX_RENDERED_MATCH_LINE_CHARS: usize = 240;
 const RENDERED_MATCH_PREFIX_CONTEXT_CHARS: usize = 80;
 const MAX_NON_CODE_MATCH_LINES_PER_FILE: usize = 3;
 
+#[allow(dead_code)]
 pub(super) fn render_grep_output(
     result: &GrepResult,
     args: &GrepArgs,
@@ -48,11 +49,13 @@ pub(super) fn render_grep_output(
     lines.join("\n")
 }
 
+#[allow(dead_code)]
 struct GrepRenderState {
     displayed_matches: usize,
     max_matches: Option<usize>,
 }
 
+#[allow(dead_code)]
 impl GrepRenderState {
     fn new(max_matches: Option<usize>) -> Self {
         Self {
@@ -77,6 +80,7 @@ impl GrepRenderState {
     }
 }
 
+#[allow(dead_code)]
 fn render_grep_file(
     file: &FileMatches,
     args: &GrepArgs,
@@ -165,6 +169,7 @@ fn render_grep_file(
     }
 }
 
+#[allow(dead_code)]
 fn non_code_match_cap(file: &FileMatches) -> Option<usize> {
     match file.language.as_str() {
         "json" | "yaml" | "markdown" | "text" | "" => Some(MAX_NON_CODE_MATCH_LINES_PER_FILE),
@@ -172,6 +177,7 @@ fn non_code_match_cap(file: &FileMatches) -> Option<usize> {
     }
 }
 
+#[allow(dead_code)]
 pub(super) fn compact_rendered_match_line(line: &str, args: &GrepArgs) -> String {
     let char_count = line.chars().count();
     if char_count <= MAX_RENDERED_MATCH_LINE_CHARS {
@@ -217,6 +223,7 @@ pub(super) fn compact_rendered_match_line(line: &str, args: &GrepArgs) -> String
     }
 }
 
+#[allow(dead_code)]
 pub(super) fn render_find_output(result: &FindResult, args: &FindArgs) -> String {
     if args.paths_only {
         return result
@@ -239,6 +246,7 @@ pub(super) fn render_find_output(result: &FindResult, args: &FindArgs) -> String
     lines.join("\n")
 }
 
+#[allow(dead_code)]
 fn render_find_file(idx: usize, file: &FindFile, args: &FindArgs, lines: &mut Vec<String>) {
     lines.push(String::new());
     lines.push(format!("{}. {}", idx + 1, file.path));
@@ -265,6 +273,7 @@ fn render_find_file(idx: usize, file: &FindFile, args: &FindArgs, lines: &mut Ve
     }
 }
 
+#[allow(dead_code)]
 pub(super) fn render_outline_output(result: &OutlineResult) -> String {
     let mut lines = vec![
         format!("file: {}", result.path),

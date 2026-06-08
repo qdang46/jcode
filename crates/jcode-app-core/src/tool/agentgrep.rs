@@ -4,9 +4,9 @@ use crate::session::Session;
 use crate::storage;
 use crate::{logging, util};
 use ::agentgrep::cli::{FindArgs, FullRegionMode, GrepArgs, OutlineArgs, SmartArgs};
-use ::agentgrep::find::{FindFile, FindResult, run_find};
-use ::agentgrep::outline::{OutlineResult, run_outline};
-use ::agentgrep::search::{FileMatches, GrepResult, run_grep};
+use ::agentgrep::find::{FindFile, FindResult};
+use ::agentgrep::outline::OutlineResult;
+use ::agentgrep::search::{FileMatches, GrepResult};
 use ::agentgrep::smart_dsl::{Relation, SmartQuery, parse_smart_query};
 use ::agentgrep::smart_engine::{SmartFile, SmartRegion, SmartResult, run_smart};
 use anyhow::Result;
@@ -26,17 +26,14 @@ mod render;
 #[cfg(test)]
 use self::args::trace_or_smart_terms_owned;
 use self::args::{
-    build_find_args, build_grep_args, build_outline_args, build_smart_args_and_query,
-    resolve_search_root, summarize_agentgrep_request,
+    build_smart_args_and_query, resolve_search_root, summarize_agentgrep_request,
 };
 use self::context::maybe_write_context_json;
 #[cfg(test)]
 use self::context::{
     collect_bash_exposure, collect_trace_exposure, tune_known_file, tune_known_region,
 };
-use self::render::{
-    render_find_output, render_grep_output, render_outline_output, render_smart_output,
-};
+use self::render::render_smart_output;
 
 #[derive(Debug, Deserialize)]
 struct AgentGrepInput {
@@ -75,7 +72,7 @@ struct AgentGrepInput {
 }
 
 fn default_agentgrep_mode() -> String {
-    "grep".to_string()
+    "trace".to_string()
 }
 
 #[derive(Debug, Serialize, Default)]
@@ -175,7 +172,7 @@ impl Tool for AgentGrepTool {
     }
 
     fn description(&self) -> &str {
-        "Search code and file names. Defaults to grep mode when mode is omitted."
+        "Relation-aware code trace search. Defaults to trace mode when mode is omitted."
     }
 
     fn parameters_schema(&self) -> Value {
@@ -185,25 +182,17 @@ impl Tool for AgentGrepTool {
                 "intent": super::intent_schema_property(),
                 "mode": {
                     "type": "string",
-                    "enum": ["grep", "find", "outline", "trace"],
-                    "description": "Optional search mode. Defaults to grep. Use grep for normal code/text search, find for file-name/path search, outline to summarize one file, and trace for DSL-based relationship search."
+                    "enum": ["trace", "smart"],
+                    "description": "Relation-aware code trace search. Use to find how symbols connect — for example, what renders auth_status, what calls a function, etc. For normal code search or file finding, use grep or glob instead."
                 },
                 "query": {
                     "type": "string",
-                    "description": "Search query. Required for grep. For find, provide query terms to rank matching file paths, or omit query when path, glob, or type already narrows the file list. Grep treats query as literal text unless regex=true."
-                },
-                "file": {
-                    "type": "string",
-                    "description": "Single file to inspect. Required for outline. For grep/find of a single file, path may also point directly to the file."
+                    "description": "Optional query string. In smart mode, query can be used as fallback for terms when terms is not set (for example, 'subject:auth_status relation:rendered')."
                 },
                 "terms": {
                     "type": "array",
                     "items": {"type": "string"},
-                    "description": "Trace DSL terms, for example [\"subject:auth_status\", \"relation:rendered\", \"support:ui\"]. Do not use this for normal grep/find searches; use query instead."
-                },
-                "regex": {
-                    "type": "boolean",
-                    "description": "When true in grep mode, interpret query as a regular expression. Defaults to false, which is safer for literal searches."
+                    "description": "Trace DSL terms, for example [\"subject:auth_status\", \"relation:rendered\", \"support:ui\"]. Required for trace mode. In smart mode, query may be used instead."
                 },
                 "path": {
                     "type": "string",
@@ -280,31 +269,6 @@ fn execute_linked_agentgrep(
 ) -> Result<ToolOutput> {
     let exact_file = exact_search_file_path(ctx, params.path.as_deref());
     match params.mode.as_str() {
-        "grep" => {
-            let args = build_grep_args(params, ctx)?;
-            let root = resolve_search_root(ctx, args.path.as_deref());
-            let result = filter_grep_result_to_exact_file(
-                run_grep(&root, &args).map_err(anyhow::Error::msg)?,
-                exact_file.as_deref(),
-            );
-            Ok(
-                ToolOutput::new(render_grep_output(&result, &args, params.max_regions))
-                    .with_title("agentgrep grep"),
-            )
-        }
-        "find" => {
-            let args = build_find_args(params, ctx)?;
-            let root = resolve_search_root(ctx, args.path.as_deref());
-            let result =
-                filter_find_result_to_exact_file(run_find(&root, &args), exact_file.as_deref());
-            Ok(ToolOutput::new(render_find_output(&result, &args)).with_title("agentgrep find"))
-        }
-        "outline" => {
-            let args = build_outline_args(params, ctx, context_json_path)?;
-            let root = resolve_search_root(ctx, args.path.as_deref());
-            let result = run_outline(&root, &args).map_err(anyhow::Error::msg)?;
-            Ok(ToolOutput::new(render_outline_output(&result)).with_title("agentgrep outline"))
-        }
         "trace" | "smart" => {
             let (args, query) = build_smart_args_and_query(params, ctx, context_json_path)?;
             let root = resolve_search_root(ctx, args.path.as_deref());
@@ -316,8 +280,7 @@ fn execute_linked_agentgrep(
                 .with_title(format!("agentgrep {}", params.mode)))
         }
         _ => Err(anyhow::anyhow!(
-            "Unsupported agentgrep mode: {}. Use grep, find, outline, or trace.",
-            params.mode
+            "agentgrep only supports trace/smart mode. For grep, find, or outline, use the grep, glob, or outline tools instead."
         )),
     }
 }
@@ -337,6 +300,7 @@ fn exact_search_file_path(ctx: &ToolContext, path: Option<&str>) -> Option<Strin
         .map(|name| name.to_string_lossy().into_owned())
 }
 
+#[allow(dead_code)]
 fn filter_grep_result_to_exact_file(
     mut result: GrepResult,
     exact_file: Option<&str>,
@@ -351,6 +315,7 @@ fn filter_grep_result_to_exact_file(
     result
 }
 
+#[allow(dead_code)]
 fn filter_find_result_to_exact_file(
     mut result: FindResult,
     exact_file: Option<&str>,

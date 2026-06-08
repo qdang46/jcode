@@ -39,6 +39,7 @@ fn resolved_search_scope(
     }
 }
 
+#[allow(dead_code)]
 pub(super) fn build_grep_args(params: &AgentGrepInput, ctx: &ToolContext) -> Result<GrepArgs> {
     let query = params
         .query
@@ -58,6 +59,7 @@ pub(super) fn build_grep_args(params: &AgentGrepInput, ctx: &ToolContext) -> Res
     })
 }
 
+#[allow(dead_code)]
 pub(super) fn build_find_args(params: &AgentGrepInput, ctx: &ToolContext) -> Result<FindArgs> {
     let query = params.query.as_deref().unwrap_or_default();
     if query.trim().is_empty()
@@ -84,6 +86,7 @@ pub(super) fn build_find_args(params: &AgentGrepInput, ctx: &ToolContext) -> Res
     })
 }
 
+#[allow(dead_code)]
 pub(super) fn build_outline_args(
     params: &AgentGrepInput,
     ctx: &ToolContext,
@@ -164,6 +167,7 @@ pub(super) fn trace_or_smart_terms_owned(params: &AgentGrepInput) -> Result<Vec<
     ))
 }
 
+#[allow(dead_code)]
 fn outline_file_arg(params: &AgentGrepInput) -> Result<String> {
     params
         .file

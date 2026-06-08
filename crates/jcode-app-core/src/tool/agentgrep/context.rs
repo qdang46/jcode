@@ -4,7 +4,7 @@ pub(super) fn maybe_write_context_json(
     params: &AgentGrepInput,
     ctx: &ToolContext,
 ) -> Result<Option<PathBuf>> {
-    if !matches!(params.mode.as_str(), "trace" | "smart" | "outline") {
+    if !matches!(params.mode.as_str(), "trace" | "smart") {
         return Ok(None);
     }
 
@@ -226,45 +226,6 @@ fn collect_agentgrep_exposure(
         return;
     };
     match mode {
-        "outline" => {
-            let file = tool
-                .input
-                .get("file")
-                .and_then(|value| value.as_str())
-                .or_else(|| tool.input.get("query").and_then(|value| value.as_str()));
-            let Some(file) = file else {
-                return;
-            };
-            let Some(path) = normalize_context_path(file, search_root, ctx) else {
-                return;
-            };
-            focus.insert(path.clone());
-            let known = tune_known_file(
-                AgentGrepKnownFile {
-                    path: path.clone(),
-                    structure_confidence: 0.95,
-                    body_confidence: 0.15,
-                    current_version_confidence: 0.82,
-                    prune_confidence: 0.86,
-                    source_strength: "outline_only",
-                    reasons: vec!["agentgrep_outline_result"],
-                },
-                exposure,
-                search_root,
-                ctx,
-                file_mtime_cache,
-            );
-            push_known_file(context, known);
-            collect_outline_symbols(
-                content,
-                &path,
-                context,
-                exposure,
-                search_root,
-                ctx,
-                file_mtime_cache,
-            );
-        }
         "trace" | "smart" => {
             if let Some(path_hint) = tool.input.get("path").and_then(|value| value.as_str())
                 && let Some(path) = normalize_context_path(path_hint, search_root, ctx)
@@ -411,6 +372,7 @@ fn normalize_read_range_from_tool_input(input: &Value) -> (usize, usize) {
     (start_line, end_line)
 }
 
+#[allow(dead_code)]
 fn collect_outline_symbols(
     content: &str,
     path: &str,
@@ -891,6 +853,7 @@ fn merge_reasons(existing: &mut Vec<&'static str>, new_reasons: Vec<&'static str
     }
 }
 
+#[allow(dead_code)]
 fn parse_structure_items(content: &str) -> Vec<(&'static str, String, usize, usize)> {
     content
         .lines()
