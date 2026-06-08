@@ -19,6 +19,23 @@ pub fn can_visualize() -> bool {
     std::env::var_os("TMUX").is_some()
 }
 
+/// Validate that `tmux_target` looks like a plausible tmux target string.
+/// Returns an error with a clear message if the target is obviously malformed
+/// (empty or contains control characters).
+fn validate_tmux_target(target: &str, label: &str) -> TeamResult<()> {
+    if target.is_empty() {
+        return Err(TeamError::Tmux(format!(
+            "{label} target string is empty; cannot issue tmux command",
+        )));
+    }
+    if target.contains(char::is_control) {
+        return Err(TeamError::Tmux(format!(
+            "{label} target '{target}' contains control characters",
+        )));
+    }
+    Ok(())
+}
+
 fn run_tmux(args: &[&str]) -> TeamResult<String> {
     let out = Command::new("tmux")
         .args(args)
@@ -64,6 +81,9 @@ pub fn create_team_layout(
     if !can_visualize() || members.is_empty() {
         return Ok(panes);
     }
+    // Coarse input validation on tmux target strings before issuing commands.
+    validate_tmux_target(window_target, "window")?;
+    validate_tmux_target(caller_pane, "caller_pane")?;
     let existing = list_panes(window_target)?;
     let mut teammates: Vec<String> = existing.into_iter().filter(|p| p != caller_pane).collect();
 
@@ -112,6 +132,7 @@ pub fn create_team_layout(
 }
 
 fn list_panes(window_target: &str) -> TeamResult<Vec<String>> {
+    validate_tmux_target(window_target, "window")?;
     let out = run_tmux(&["list-panes", "-t", window_target, "-F", "#{pane_id}"])?;
     Ok(out
         .lines()
@@ -131,6 +152,7 @@ pub fn remove_team_layout(
         return Ok(());
     }
     if owned_session {
+        validate_tmux_target(target_session, "session")?;
         let _ = run_tmux(&["kill-session", "-t", target_session]);
         return Ok(());
     }
@@ -154,7 +176,7 @@ pub fn rebalance(window_id: &str, tiled: bool) -> TeamResult<()> {
     if window_id.is_empty() || !can_visualize() {
         return Ok(());
     }
-    let layout = if tiled { "tiled" } else { "main-vertical" };
+    validate_tmux_target(window_id, "window")?;    let layout = if tiled { "tiled" } else { "main-vertical" };
     run_tmux(&["select-layout", "-t", window_id, layout])?;
     if !tiled {
         run_tmux(&[

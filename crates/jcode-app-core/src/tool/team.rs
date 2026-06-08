@@ -35,6 +35,10 @@ impl runtime::MemberSpawner for JcodeMemberSpawner {
         // Spawn a headless jcode server for this team member.
         // The process inherits the parent's PATH and runtime dir access so it
         // can read/write the shared file-based mailbox and task board.
+        // NOTE: env vars JCODE_TEAM_RUN_ID, JCODE_TEAM_MEMBER, and
+        // JCODE_TEAM_PROMPT are inherited by all spawned subprocesses.
+        // The capability token is deliberately NOT included. See security
+        // review finding M5 for the accepted disclosure surface.
         let bin = std::env::current_exe().unwrap_or_else(|_| std::path::PathBuf::from("jcode"));
         match std::process::Command::new(&bin)
             .arg("serve")
@@ -147,6 +151,9 @@ impl Tool for TeamCreateTool {
             team_allowed_paths: None,
             members,
         };
+
+        // Sweep stale tmux sessions from previous runs before creating a new team.
+        let _ = runtime::sweep_stale_sessions();
 
         let session_id = ctx.session_id.clone();
         let spawner = JcodeMemberSpawner;
@@ -301,7 +308,17 @@ impl Tool for TeamStatusTool {
         let parsed: TeamStatusInput = serde_json::from_value(input)?;
 
         let output = if let Some(run_id) = &parsed.team_run_id {
-            let state = state::load_runtime(run_id)?;
+            // Try as run_id first, then fall back to legacy name lookup
+            let state = if let Ok(st) = state::load_runtime(run_id) {
+                st
+            } else {
+                let runs = state::list_active_runs()?;
+                runs.into_iter()
+                    .find(|r| r.team_name == *run_id)
+                    .ok_or_else(|| {
+                        anyhow::anyhow!("no active team found with name or id '{run_id}'")
+                    })?
+            };
             serde_json::to_string_pretty(&state)?
         } else {
             let runs = state::list_active_runs()?;

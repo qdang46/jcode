@@ -5,9 +5,14 @@
 
 use std::fs;
 
-use crate::team::locks::{atomic_write, read_json, with_lock};
+use crate::team::locks::{atomic_write, read_json, with_lock_stale};
 use crate::team::paths::{runtime_dir, runtime_state_path, teams_base_dir};
 use crate::team::spec::*;
+use std::time::Duration;
+
+/// Stale threshold for per-run state lock: brief read-modify-write operations
+/// should recover quickly from a crash. 30s vs the default 300s.
+const STATE_LOCK_STALE: Duration = Duration::from_secs(30);
 
 /// Create the initial runtime state file (status = `Creating`).
 pub fn create_runtime(
@@ -100,7 +105,7 @@ where
     F: FnOnce(&mut TeamRuntimeState),
 {
     let lock = runtime_dir(run_id).join(".state.lock");
-    with_lock(&lock, &format!("transition:{run_id}"), || {
+    with_lock_stale(&lock, &format!("transition:{run_id}"), STATE_LOCK_STALE, Duration::from_secs(15), || {
         let mut state = load_runtime(run_id)?;
         mutate(&mut state);
         persist(&state)?;
@@ -122,12 +127,18 @@ pub fn list_active_runs() -> TeamResult<Vec<TeamRuntimeState>> {
             continue;
         }
         let run_id = entry.file_name().to_string_lossy().into_owned();
-        if let Ok(state) = load_runtime(&run_id)
-            && matches!(
-                state.status,
-                RuntimeStatus::Creating | RuntimeStatus::Active
-            )
-        {
+        // Runs with corrupt or unsupported-version state.json are silently
+        // skipped. An orphan run leaves files on disk but is unreachable
+        // via tools and invisible in the TUI; the stale-sweep callback
+        // should eventually clean it up.
+        let state = match load_runtime(&run_id) {
+            Ok(s) => s,
+            Err(_) => continue,
+        };
+        if matches!(
+            state.status,
+            RuntimeStatus::Creating | RuntimeStatus::Active
+        ) {
             out.push(state);
         }
     }

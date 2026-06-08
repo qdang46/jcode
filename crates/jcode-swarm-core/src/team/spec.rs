@@ -230,13 +230,10 @@ pub struct TeamRuntimeState {
     /// API call (send/list/ack) to prevent cross-team access by local
     /// processes that happen to know the run_id UUID. Generated at create
     /// time, persisted in `state.json` with `0o600` file mode.
-    #[serde(default = "random_capability_token")]
+    #[serde(default)]
     pub capability_token: String,
 }
 
-fn random_capability_token() -> String {
-    uuid::Uuid::new_v4().simple().to_string()
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -416,7 +413,7 @@ pub enum TeamError {
         found: u8,
         expected: u8,
     },
-    #[error("mailbox auth failed: capability token does not match run '{0}'")]
+    #[error("mailbox auth failed")]
     MailboxAuthFailed(String),
     #[error("invalid member name '{0}': {1}")]
     InvalidMemberName(String, String),

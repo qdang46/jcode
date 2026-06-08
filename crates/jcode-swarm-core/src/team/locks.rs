@@ -136,9 +136,23 @@ impl StaleVerdict {
 }
 
 /// Acquire an exclusive lockfile, run `body`, then release. Mirrors `withLock`.
+/// Uses `DEFAULT_STALE` (300s) as the stale-lock reaping threshold.
 pub fn with_lock<T>(
     lock_path: &Path,
     owner_tag: &str,
+    body: impl FnOnce() -> TeamResult<T>,
+) -> TeamResult<T> {
+    with_lock_stale(lock_path, owner_tag, DEFAULT_STALE, LOCK_WAIT_TIMEOUT, body)
+}
+
+/// Like `with_lock` but with explicit stale threshold and acquire timeout.
+/// Use a shorter `stale` for brief operations (e.g. state transitions) so
+/// crashed owners don't block recovery for the default 5 minutes.
+pub fn with_lock_stale<T>(
+    lock_path: &Path,
+    owner_tag: &str,
+    stale: Duration,
+    acquire_timeout: Duration,
     body: impl FnOnce() -> TeamResult<T>,
 ) -> TeamResult<T> {
     let start = Instant::now();
@@ -148,7 +162,7 @@ pub fn with_lock<T>(
         last_checked: Instant::now() - STALE_VERDICT_RECHECK,
     };
     loop {
-        if start.elapsed() > LOCK_WAIT_TIMEOUT {
+        if start.elapsed() > acquire_timeout {
             return Err(TeamError::LockTimeout(lock_path.display().to_string()));
         }
         match OpenOptions::new()
@@ -173,7 +187,7 @@ pub fn with_lock<T>(
             Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
                 if !verdict.fresh() {
                     verdict = StaleVerdict {
-                        is_stale: StaleVerdict::stale_check(lock_path, DEFAULT_STALE),
+                        is_stale: StaleVerdict::stale_check(lock_path, stale),
                         last_checked: Instant::now(),
                     };
                 }
@@ -194,13 +208,27 @@ pub fn with_lock<T>(
     result
 }
 
-/// Best-effort hostname lookup. Returns "unknown" if it cannot be determined
-/// (no `/etc/hostname`, or a sandbox blocks `gethostname`).
+/// Best-effort hostname lookup. Returns "unknown" if it cannot be determined.
+/// Tries `/etc/hostname` on Linux first (single-read), then falls back to
+/// `libc::gethostname` which works on macOS (no `/etc/hostname` on Darwin).
 fn hostname() -> String {
     #[cfg(unix)]
     {
         if let Ok(s) = fs::read_to_string("/etc/hostname") {
-            return s.trim().to_string();
+            let trimmed = s.trim();
+            if !trimmed.is_empty() {
+                return trimmed.to_string();
+            }
+        }
+        // On macOS (and some Linux) `/etc/hostname` doesn't exist; use
+        // libc::gethostname instead. SAFETY: gethostname writes up to 256
+        // bytes into a stack buffer; we zero it first and check for NUL.
+        let mut buf = [0u8; 256];
+        if unsafe { libc::gethostname(buf.as_mut_ptr() as *mut libc::c_char, buf.len()) == 0 } {
+            let end = buf.iter().position(|&b| b == 0).unwrap_or(buf.len());
+            if end > 0 {
+                return String::from_utf8_lossy(&buf[..end]).to_string();
+            }
         }
     }
     "unknown".to_string()

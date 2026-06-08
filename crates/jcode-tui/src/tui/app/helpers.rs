@@ -1360,22 +1360,58 @@ fn gather_git_info_inner() -> Option<GitInfo> {
 pub(super) fn gather_team_info() -> Option<crate::tui::info_widget::TeamInfo> {
     let runs = crate::team::state::list_active_runs().ok()?;
     let run = runs.into_iter().next()?;
+    // Compute live task/message counts for the TUI display.
+    let tasks = crate::team::tasklist::list_tasks(&run.team_run_id, None, None)
+        .unwrap_or_default();
+    let by_owner: std::collections::HashMap<&str, usize> = tasks
+        .iter()
+        .filter_map(|t| t.owner.as_deref().map(|o| (o, t)))
+        .fold(std::collections::HashMap::new(), |mut acc, (o, _)| {
+            *acc.entry(o).or_insert(0) += 1;
+            acc
+        });
     let members: Vec<crate::tui::info_widget::TeamMemberView> = run
         .members
         .iter()
-        .map(|m| crate::tui::info_widget::TeamMemberView {
-            name: m.name.clone(),
-            is_lead: m.agent_type == crate::team::spec::MemberAgentType::Leader,
-            status: m.status.as_str().to_string(),
-            task_count: 0,
-            message_count: 0,
-            color: m.color.clone(),
+        .map(|m| {
+            let msg_count =
+                crate::team::mailbox::list_unread(&run.team_run_id, &m.name)
+                    .map(|msgs| msgs.len())
+                    .unwrap_or(0);
+            crate::tui::info_widget::TeamMemberView {
+                name: m.name.clone(),
+                is_lead: m.agent_type == crate::team::spec::MemberAgentType::Leader,
+                status: m.status.as_str().to_string(),
+                task_count: *by_owner.get(m.name.as_str()).unwrap_or(&0),
+                message_count: msg_count,
+                color: m.color.clone(),
+            }
+        })
+        .collect();
+    let task_views: Vec<crate::tui::info_widget::TeamTaskView> = tasks
+        .into_iter()
+        .map(|t| {
+            use crate::team::spec::TaskStatus;
+            let status_s = match t.status {
+                TaskStatus::Pending => "pending",
+                TaskStatus::Claimed => "claimed",
+                TaskStatus::InProgress => "in_progress",
+                TaskStatus::Completed => "completed",
+                TaskStatus::Deleted => "deleted",
+            };
+            crate::tui::info_widget::TeamTaskView {
+                id: t.id,
+                subject: t.subject,
+                status: status_s.to_string(),
+                owner: t.owner,
+                blocked_by: t.blocked_by,
+            }
         })
         .collect();
     Some(crate::tui::info_widget::TeamInfo {
         team_name: run.team_name.clone(),
         member_total: run.members.len(),
         members,
-        tasks: vec![],
+        tasks: task_views,
     })
 }

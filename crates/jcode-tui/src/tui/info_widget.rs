@@ -124,7 +124,6 @@ impl WidgetKind {
             WidgetKind::BackgroundTasks => 10,
             WidgetKind::GitStatus => 11,
             WidgetKind::TeamView => 6,
-            WidgetKind::TeamView => 6, // base; bumped to 2 when team is active
             WidgetKind::SwarmStatus => 12, // Session list - lower priority
             WidgetKind::AmbientMode => 13, // Scheduled agent - lower priority
             WidgetKind::Tips => 14,    // Did you know - lowest
@@ -150,7 +149,6 @@ impl WidgetKind {
             WidgetKind::Tips => Side::Left,
             WidgetKind::GitStatus => Side::Left,
             WidgetKind::TeamView => Side::Right,
-            WidgetKind::TeamView => Side::Right,
         }
     }
 
@@ -173,14 +171,12 @@ impl WidgetKind {
             WidgetKind::Tips => 3,
             WidgetKind::GitStatus => 3,
             WidgetKind::TeamView => 5,
-            WidgetKind::TeamView => 5,
         }
     }
 
     /// All widget kinds in priority order
     pub fn all_by_priority() -> &'static [WidgetKind] {
         &[
-            WidgetKind::TeamView,
             WidgetKind::TeamView,
             WidgetKind::Diagrams,
             WidgetKind::WorkspaceMap,
@@ -1468,7 +1464,6 @@ fn render_widget_content(
         WidgetKind::Todos => render_todos_widget(data, inner),
         WidgetKind::ContextUsage => render_context_widget(data, inner),
         WidgetKind::MemoryActivity => render_memory_widget(data, inner),
-        WidgetKind::TeamView => render_team_widget(data, inner),
         WidgetKind::TeamView => render_team_widget(data, inner),
         WidgetKind::SwarmStatus => render_swarm_widget(data, inner),
         WidgetKind::BackgroundTasks => render_background_widget(data, inner),

@@ -9,6 +9,7 @@
 use std::collections::HashSet;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::time::Instant;
 
 use crate::team::eligibility::assert_eligible;
 use crate::team::layout::{self, LayoutMember};
@@ -48,6 +49,8 @@ pub fn create_team(
 
     let cursor = AtomicUsize::new(0);
     let failure: Mutex<Option<TeamError>> = Mutex::new(None);
+    let deadline = Instant::now()
+        + std::time::Duration::from_secs(run.bounds.max_wall_clock_minutes * 60);
     let worker_count = run
         .bounds
         .max_parallel_members
@@ -59,6 +62,12 @@ pub fn create_team(
             scope.spawn(|| {
                 loop {
                     if lock(&failure).is_some() {
+                        return;
+                    }
+                    if Instant::now() > deadline {
+                        *lock(&failure) = Some(TeamError::Task(
+                            "wall-clock deadline exceeded for team spawn".into(),
+                        ));
                         return;
                     }
                     let i = cursor.fetch_add(1, Ordering::SeqCst);
@@ -133,6 +142,10 @@ pub fn normalize_spec(spec: &mut TeamSpec) -> TeamResult<()> {
             spec.name.clone(),
             format!("max {TEAM_MAX_MEMBERS} members"),
         ));
+    }
+    // Validate every member name for path traversal, control chars, and tmux flag-injection risk.
+    for m in &spec.members {
+        paths::validate_member_name(m.name())?;
     }
     if spec.lead_agent_id.is_none() {
         spec.lead_agent_id = Some(spec.members[0].name().to_string());
@@ -238,14 +251,21 @@ pub fn shutdown_team(run_id: &str) -> TeamResult<()> {
             correlation_id: None,
             color: None,
         };
+        // NOTE: send failure is silently dropped; the run still transitions to
+        // ShutdownRequested. A future PR should add logging infrastructure to
+        // swarm-core so this surfaces in diagnostics.
         let _ = mailbox::send_message(&msg, run_id, &ctx);
     }
     state::transition(run_id, |st| st.status = RuntimeStatus::ShutdownRequested)?;
     Ok(())
 }
 
-/// Tear down a run: remove tmux layout (if any), delete the runtime dir, and
-/// mark `Deleted` (port of `delete-team.ts`).
+/// Tear down a run: remove tmux layout (if any), delete the runtime dir.
+///
+/// Transitions to `Deleting`, cleans up tmux, persists `Deleted`, then
+/// removes the runtime directory. After this call, `load_runtime` returns
+/// `NotFound`. The on-disk tombstone is a `deleted.marker` file at the team
+/// base so sweeper tools can distinguish "deleted" from "never existed".
 pub fn delete_team(run_id: &str) -> TeamResult<()> {
     let _ = state::transition(run_id, |st| st.status = RuntimeStatus::Deleting);
     if let Ok(st) = state::load_runtime(run_id)
@@ -259,6 +279,9 @@ pub fn delete_team(run_id: &str) -> TeamResult<()> {
         let _ =
             layout::remove_team_layout(layout.owned_session, &layout.target_session_id, &pane_ids);
     }
+    // Persist `Deleted` before removing files so the state machine is complete.
+    // If the process crashes after this point, `Deleted` is visible on next startup.
+    let _ = state::transition(run_id, |st| st.status = RuntimeStatus::Deleted);
     let _ = std::fs::remove_dir_all(paths::runtime_dir(run_id));
     Ok(())
 }

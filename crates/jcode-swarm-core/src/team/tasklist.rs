@@ -8,7 +8,7 @@ use std::fs;
 use std::path::Path;
 
 use crate::team::locks::{atomic_write, read_json, with_lock};
-use crate::team::paths::tasks_dir;
+use crate::team::paths::{tasks_dir, validate_member_name};
 use crate::team::spec::*;
 
 pub struct NewTask {
@@ -82,6 +82,7 @@ fn read_high_watermark(path: &Path) -> TeamResult<u64> {
 /// Atomically claim a pending task; fails if already claimed or blocked
 /// (port of claim.ts).
 pub fn claim_task(run_id: &str, task_id: &str, member: &str) -> TeamResult<TeamTask> {
+    validate_member_name(member)?;
     let dir = tasks_dir(run_id);
     fs::create_dir_all(dir.join("claims"))?;
     let claim_lock = dir.join("claims").join(format!("{task_id}.lock"));
@@ -113,22 +114,28 @@ pub fn claim_task(run_id: &str, task_id: &str, member: &str) -> TeamResult<TeamT
 }
 
 /// Apply a validated status transition (port of update.ts).
+/// Uses the per-task claim lock for atomic read-modify-write.
 pub fn update_status(run_id: &str, task_id: &str, next: TaskStatus) -> TeamResult<TeamTask> {
-    let path = tasks_dir(run_id).join(format!("{task_id}.json"));
-    let mut task: TeamTask = read_json(&path)?;
-    if !valid_transition(task.status, next) {
-        return Err(TeamError::Task(format!(
-            "invalid transition {:?} -> {:?}",
-            task.status, next
-        )));
-    }
-    task.status = next;
-    task.updated_at = now_millis();
-    atomic_write(
-        &path,
-        &format!("{}\n", serde_json::to_string_pretty(&task)?),
-    )?;
-    Ok(task)
+    let dir = tasks_dir(run_id);
+    fs::create_dir_all(dir.join("claims"))?;
+    let claim_lock = dir.join("claims").join(format!("{task_id}.lock"));
+    with_lock(&claim_lock, &format!("update-status:{task_id}"), || {
+        let path = dir.join(format!("{task_id}.json"));
+        let mut task: TeamTask = read_json(&path)?;
+        if !valid_transition(task.status, next) {
+            return Err(TeamError::Task(format!(
+                "invalid transition {:?} -> {:?}",
+                task.status, next
+            )));
+        }
+        task.status = next;
+        task.updated_at = now_millis();
+        atomic_write(
+            &path,
+            &format!("{}\n", serde_json::to_string_pretty(&task)?),
+        )?;
+        Ok(task)
+    })
 }
 
 fn valid_transition(from: TaskStatus, to: TaskStatus) -> bool {

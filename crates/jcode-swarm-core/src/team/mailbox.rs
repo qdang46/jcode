@@ -12,11 +12,13 @@ use crate::team::spec::*;
 use crate::team::state::load_runtime;
 
 /// Verify the caller's capability token matches the run's persisted token.
+/// Returns the loaded runtime state on success so callers can avoid a
+/// redundant second read.
 /// Any local process that can `ls` the runtime dir can discover `run_id`
 /// UUIDs, so `run_id` alone is not an auth boundary; the per-run
 /// `capability_token` (generated at create time, stored in `state.json`
 /// with 0o600) is the actual secret.
-fn verify_capability(run_id: &str, presented_token: &str) -> TeamResult<()> {
+fn verify_capability(run_id: &str, presented_token: &str) -> TeamResult<TeamRuntimeState> {
     // Special-case: a run that was created before the capability-token
     // feature shipped (version 1, no `capability_token` field) is loaded
     // with an empty default. We treat that as "no auth required" and only
@@ -25,10 +27,10 @@ fn verify_capability(run_id: &str, presented_token: &str) -> TeamResult<()> {
     // field but before the next migration.
     let state = load_runtime(run_id)?;
     if state.capability_token.is_empty() {
-        return Ok(());
+        return Ok(state);
     }
     if subtle_equals(&state.capability_token, presented_token) {
-        Ok(())
+        Ok(state)
     } else {
         Err(TeamError::MailboxAuthFailed(run_id.to_string()))
     }
@@ -80,7 +82,12 @@ pub struct SendResult {
 /// Send a message to one recipient (or broadcast with `to = "*"`, lead only).
 /// Validation order matches the reference exactly.
 pub fn send_message(msg: &TeamMessage, run_id: &str, ctx: &SendContext) -> TeamResult<SendResult> {
-    verify_capability(run_id, ctx.capability_token)?;
+    // verify_capability loads state.json; reuse it to avoid a redundant I/O.
+    let state = match verify_capability(run_id, ctx.capability_token) {
+        Ok(state) => Some(state),
+        Err(TeamError::NotFound(_)) => None,
+        Err(e) => return Err(e),
+    };
 
     // Validate all member names that will be used as path components or in
     // tmux send-keys argv. Reject before any disk work.
@@ -97,18 +104,14 @@ pub fn send_message(msg: &TeamMessage, run_id: &str, ctx: &SendContext) -> TeamR
         return Err(TeamError::PayloadTooLarge);
     }
 
-    // assertTeamAcceptsMessages: a missing state file is tolerated.
-    match load_runtime(run_id) {
-        Ok(state) => {
-            if matches!(
-                state.status,
-                RuntimeStatus::Deleting | RuntimeStatus::Deleted
-            ) {
-                return Err(TeamError::TeamDeleting);
-            }
+    // assertTeamAcceptsMessages: use the already-loaded state if available.
+    if let Some(state) = &state {
+        if matches!(
+            state.status,
+            RuntimeStatus::Deleting | RuntimeStatus::Deleted
+        ) {
+            return Err(TeamError::TeamDeleting);
         }
-        Err(TeamError::NotFound(_)) => {}
-        Err(e) => return Err(e),
     }
 
     if msg.to == "*" && !ctx.is_lead {
