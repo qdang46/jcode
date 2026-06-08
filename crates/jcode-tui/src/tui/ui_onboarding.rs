@@ -1,3 +1,4 @@
+#![allow(clippy::needless_borrow, clippy::unnecessary_min_or_max)]
 //! First-run onboarding welcome screen.
 //!
 //! Rendered in place of the normal empty-state transcript when

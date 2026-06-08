@@ -1,3 +1,4 @@
+#![allow(clippy::doc_overindented_list_items, clippy::needless_bool)]
 use super::*;
 
 /// Resolved per-million-token pricing for the active model, used to turn a

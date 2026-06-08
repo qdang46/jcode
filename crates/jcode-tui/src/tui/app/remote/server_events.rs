@@ -1,3 +1,4 @@
+#![allow(clippy::drop_non_drop, clippy::collapsible_if)]
 use super::*;
 use crate::tool::selfdev::ReloadContext;
 use crate::tui::TuiState;
