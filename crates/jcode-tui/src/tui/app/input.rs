@@ -1391,6 +1391,13 @@ pub(super) fn handle_alt_key(app: &mut App, code: KeyCode) -> bool {
             app.copy_chat_viewport_context_to_clipboard();
             true
         }
+        // Alt+P: cycle permission mode (Default → AcceptEdits → Plan → Auto → DontAsk → BypassPermissions)
+        KeyCode::Char('p') => {
+            let mode = crate::dcg_bridge::cycle_mode();
+            let mode_str = crate::dcg_bridge::mode_to_str(mode);
+            crate::logging::info(&format!("Permission mode switched to: {}", mode_str));
+            true
+        }
         _ => false,
     }
 }
@@ -1748,6 +1755,43 @@ pub(super) fn handle_modal_key(
         return Ok(true);
     }
 
+    // Permission dialog — handle approval/denial keys
+    if app.pending_permission_tool.is_some() {
+        match code {
+            KeyCode::Char('y') | KeyCode::Char('Y') => {
+                // Allow once — consume the allow-once code
+                if let Some(ref code_str) = app.pending_permission_code.take() {
+                    if !code_str.is_empty() {
+                        crate::dcg_bridge::consume_allow_once(code_str);
+                    }
+                }
+                app.pending_permission_tool = None;
+                app.pending_permission_reason = None;
+                app.pending_permission_code = None;
+                return Ok(true);
+            }
+            KeyCode::Char('a') | KeyCode::Char('A') => {
+                // Always allow for this session — set bypass mode
+                crate::dcg_bridge::set_mode_from_str("bypass-permissions");
+                app.pending_permission_tool = None;
+                app.pending_permission_reason = None;
+                app.pending_permission_code = None;
+                return Ok(true);
+            }
+            KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => {
+                // Deny or Cancel — just clear the dialog
+                app.pending_permission_tool = None;
+                app.pending_permission_reason = None;
+                app.pending_permission_code = None;
+                return Ok(true);
+            }
+            _ => {
+                // Any other key: just consume but keep dialog open
+                return Ok(true);
+            }
+        }
+    }
+
     if app.model_status_scroll.is_some() {
         app.handle_model_status_key(code)?;
         return Ok(true);
@@ -2061,7 +2105,18 @@ impl App {
             return Ok(());
         }
 
+        // BackTab (Shift+Tab): cycle permission mode
         if code == KeyCode::BackTab {
+            let mode = crate::dcg_bridge::cycle_mode();
+            crate::logging::info(&format!(
+                "Permission mode switched to: {}",
+                crate::dcg_bridge::mode_to_str(mode),
+            ));
+            return Ok(());
+        }
+
+        // Alt+F: cycle model favorite (moved from BackTab to free up Shift+Tab for permissions)
+        if code == KeyCode::Char('f') && modifiers == KeyModifiers::ALT {
             self.cycle_model_favorite_hotkey();
             return Ok(());
         }

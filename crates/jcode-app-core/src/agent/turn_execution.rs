@@ -485,6 +485,52 @@ impl Agent {
         if self.disabled_tools.contains(name) {
             return Err(anyhow::anyhow!("Tool '{}' is disabled", name));
         }
+        // Delegate to dcg_bridge for permission mode evaluation.
+        // This checks the current Mode against the action name:
+        // - Allow → proceed
+        // - Deny → block with error
+        // - Prompt → for now, block with permission required error
+        //   (TUI dialog integration will be added in Phase 3.2)
+        // Permission mode check via dcg_bridge
+        {
+            use crate::dcg_bridge::{self, BridgeDecision};
+            match dcg_bridge::classify(name) {
+                BridgeDecision::Deny { reason, alternatives, .. } => {
+                    let msg = if alternatives.is_empty() {
+                        format!("Tool '{}' blocked: {}. Current mode: {:?}", name, reason, crate::dcg_bridge::current_mode())
+                    } else {
+                        format!("Tool '{}' blocked: {}. Alternatives: {}. Current mode: {:?}", name, reason, alternatives.join(", "), crate::dcg_bridge::current_mode())
+                    };
+                    return Err(anyhow::anyhow!(msg));
+                }
+                BridgeDecision::Prompt { reason, allow_once_code, alternatives } => {
+                    let mut msg = format!(
+                        "Tool '{}' requires permission: {}. Current mode: {:?}",
+                        name, reason, crate::dcg_bridge::current_mode()
+                    );
+                    if !allow_once_code.is_empty() {
+                        msg.push_str(&format!(". Allow-once code: {}", allow_once_code));
+                    }
+                    if !alternatives.is_empty() {
+                        msg.push_str(&format!(". Alternatives: {}", alternatives.join(", ")));
+                    }
+                    // Publish bus event so TUI can show a permission dialog
+                    crate::bus::Bus::global().publish(
+                        crate::bus::BusEvent::PermissionRequested(
+                            crate::bus::PermissionRequested {
+                                session_id: self.session.id.clone(),
+                                tool_name: name.to_string(),
+                                reason: reason.clone(),
+                                allow_once_code: allow_once_code.clone(),
+                                alternatives: alternatives.clone(),
+                            }
+                        )
+                    );
+                    return Err(anyhow::anyhow!(msg));
+                }
+                BridgeDecision::Allow => {}
+            }
+        }
         Ok(())
     }
 

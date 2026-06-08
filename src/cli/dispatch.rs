@@ -7,7 +7,7 @@ use std::time::Instant;
 
 use super::args::{
     AmbientCommand, Args, AuthCommand, CloudCommand, CloudSessionsCommand, Command, MemoryCommand,
-    ModelCommand, ProviderCommand, RestartCommand, SecretsCommand, ServerCommand, SessionCommand,
+    ModelCommand, PermissionCommand, ProviderCommand, RestartCommand, SecretsCommand, ServerCommand, SessionCommand,
     TranscriptModeArg,
 };
 use crate::{
@@ -38,6 +38,12 @@ pub(crate) async fn run_main(mut args: Args) -> Result<()> {
     if let Some(tool_profile) = args.tool_profile.as_deref() {
         crate::env::set_var("JCODE_TOOL_PROFILE", tool_profile);
     }
+    if let Some(permission_mode) = args.permission_mode.as_deref() {
+        crate::env::set_var("JCODE_PERMISSION_MODE", permission_mode);
+    }
+    if args.dangerously_skip_permissions {
+        crate::env::set_var("JCODE_DANGEROUSLY_SKIP_PERMISSIONS", "1");
+    }
     if let Some(tools) = args.tools.as_deref() {
         crate::env::set_var("JCODE_TOOLS", tools);
     }
@@ -53,6 +59,20 @@ pub(crate) async fn run_main(mut args: Args) -> Result<()> {
         || args.disable_base_tools
     {
         crate::config::invalidate_config_cache();
+    }
+
+    // Initialize permission mode from config (TOML + env override)
+    // This reads from Config which merges JCODE_PERMISSION_MODE env var
+    // and the [permission_mode] TOML field.
+    {
+        let config = crate::config::config();
+        if let Some(ref mode_str) = config.permission_mode {
+            crate::dcg_bridge::set_mode_from_str(mode_str);
+        }
+        // --dangerously-skip-permissions overrides everything
+        if args.dangerously_skip_permissions {
+            crate::dcg_bridge::set_mode_from_str("bypass-permissions");
+        }
     }
 
     match args.command {
@@ -270,6 +290,26 @@ pub(crate) async fn run_main(mut args: Args) -> Result<()> {
             SecretsCommand::List { env, json } => super::secrets_cmd::run_list(env, json)?,
             SecretsCommand::Init { json } => super::secrets_cmd::run_init(json)?,
             SecretsCommand::Purge { yes, json } => super::secrets_cmd::run_purge(yes, json)?,
+        },
+        Some(Command::Permission(subcmd)) => match subcmd {
+            PermissionCommand::Allow { code } => {
+                if crate::dcg_bridge::consume_allow_once(&code) {
+                    println!("Allow-once code '{}' consumed successfully.", code);
+                } else {
+                    eprintln!("Error: allow-once code '{}' is invalid or expired.", code);
+                }
+            }
+            PermissionCommand::Mode => {
+                let mode = crate::dcg_bridge::current_mode();
+                println!("Current permission mode: {:?}", mode);
+            }
+            PermissionCommand::Set { mode } => {
+                if crate::dcg_bridge::set_mode_from_str(&mode) {
+                    println!("Permission mode set to: {}", mode);
+                } else {
+                    eprintln!("Error: unknown permission mode '{}'. Valid: default, accept-edits, plan, auto, dont-ask, bypass-permissions", mode);
+                }
+            }
         },
         Some(Command::Ambient(subcmd)) => {
             commands::run_ambient_command(map_ambient_subcommand(subcmd)).await?;

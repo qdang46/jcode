@@ -374,6 +374,12 @@ pub trait TuiState {
     fn account_picker_overlay(&self) -> Option<&std::cell::RefCell<account_picker::AccountPicker>>;
     /// Usage overlay for /usage command
     fn usage_overlay(&self) -> Option<&std::cell::RefCell<usage_overlay::UsageOverlay>>;
+    /// Permission dialog: tool name pending user approval (None = no dialog)
+    fn pending_permission_tool(&self) -> Option<&str>;
+    /// Permission dialog: reason for the prompt
+    fn pending_permission_reason(&self) -> Option<&str>;
+    /// Permission dialog: allow-once code (6 hex chars)
+    fn pending_permission_code(&self) -> Option<&str>;
     /// Working directory for this session
     // ---- Misc ----
     fn working_dir(&self) -> Option<String>;

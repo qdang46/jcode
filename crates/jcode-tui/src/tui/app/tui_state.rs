@@ -1487,6 +1487,18 @@ impl crate::tui::TuiState for App {
         self.session.working_dir.clone()
     }
 
+    fn pending_permission_tool(&self) -> Option<&str> {
+        self.pending_permission_tool.as_deref()
+    }
+
+    fn pending_permission_reason(&self) -> Option<&str> {
+        self.pending_permission_reason.as_deref()
+    }
+
+    fn pending_permission_code(&self) -> Option<&str> {
+        self.pending_permission_code.as_deref()
+    }
+
     fn now_millis(&self) -> u64 {
         self.app_started.elapsed().as_millis() as u64
     }

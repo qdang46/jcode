@@ -105,6 +105,8 @@ const CONFIG_ENV_KEYS: &[&str] = &[
     "JCODE_OPENAI_REASONING_EFFORT",
     "JCODE_OPENAI_SERVICE_TIER",
     "JCODE_OPENAI_TRANSPORT",
+    "JCODE_PERMISSION_MODE",
+    "JCODE_DANGEROUSLY_SKIP_PERMISSIONS",
     "JCODE_ANTHROPIC_REASONING_EFFORT",
     "JCODE_PRESERVE_REASONING_CONTEXT",
     "JCODE_PERFORMANCE",
@@ -433,6 +435,9 @@ pub struct Config {
 
     /// Power-management configuration (prevent sleep while streaming)
     pub power: PowerConfig,
+
+    /// Permission mode for tool execution (default, accept-edits, plan, auto, dont-ask, bypass-permissions)
+    pub permission_mode: Option<String>,
 
     /// Auto-review configuration
     pub autoreview: AutoReviewConfig,

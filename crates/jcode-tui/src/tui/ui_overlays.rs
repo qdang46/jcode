@@ -615,3 +615,60 @@ fn color_to_rgb(color: Color) -> Option<[u8; 3]> {
         _ => None,
     }
 }
+
+
+pub(super) fn draw_permission_dialog_overlay(frame: &mut Frame, area: Rect, app: &dyn crate::tui::TuiState) {
+    clear_area(frame, area);
+
+    let title_style = Style::default()
+        .fg(accent_color())
+        .add_modifier(Modifier::BOLD);
+    let text_style = Style::default().fg(rgb(210, 210, 220));
+    let dim_style = Style::default().fg(dim_color());
+    let warn_style = Style::default().fg(rgb(235, 190, 105));
+    let code_style = Style::default().fg(rgb(120, 220, 150));
+
+    let tool = app.pending_permission_tool().unwrap_or("unknown").to_owned();
+    let reason = app.pending_permission_reason().unwrap_or("").to_owned();
+    let code = app.pending_permission_code().unwrap_or("").to_owned();
+
+    let mut lines: Vec<Line<'static>> = Vec::new();
+    lines.push(Line::from(Span::styled(
+        "  \u{26a0} Permission Required",
+        warn_style.add_modifier(Modifier::BOLD),
+    )));
+    lines.push(Line::from(Span::styled(
+        "  A tool call needs your approval before it can execute.",
+        dim_style,
+    )));
+    lines.push(Line::from(""));
+    lines.push(Line::from(vec![
+        Span::styled("  Tool:  ", dim_style),
+        Span::styled(tool, title_style),
+    ]));
+    lines.push(Line::from(vec![
+        Span::styled("  Reason: ", dim_style),
+        Span::styled(reason, text_style),
+    ]));
+    if !code.is_empty() {
+        lines.push(Line::from(vec![
+            Span::styled("  Code:  ", dim_style),
+            Span::styled(code, code_style),
+        ]));
+    }
+    lines.push(Line::from(""));
+    lines.push(Line::from(Span::styled(
+        "  [y] Allow once    [a] Always allow (session)    [n] Deny    [Esc] Cancel",
+        dim_style,
+    )));
+
+    let paragraph = Paragraph::new(lines)
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title(" Permission Request ")
+                .border_style(warn_style),
+        )
+        .alignment(ratatui::prelude::Alignment::Left);
+    frame.render_widget(paragraph, area);
+}

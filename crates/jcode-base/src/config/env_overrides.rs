@@ -102,6 +102,11 @@ impl Config {
             self.dictation.timeout_secs = parsed;
         }
 
+        // Permission mode
+        if let Ok(v) = std::env::var("JCODE_PERMISSION_MODE") {
+            self.permission_mode = Some(v);
+        }
+
         // Tools
         if let Ok(v) = std::env::var("JCODE_TOOL_PROFILE") {
             self.tools.profile = v;

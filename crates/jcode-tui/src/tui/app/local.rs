@@ -238,6 +238,16 @@ pub(super) fn handle_bus_event(
             true
         }
         Ok(BusEvent::CompactionFinished) => app.poll_compaction_completion(),
+        Ok(BusEvent::PermissionRequested(req)) => {
+            app.pending_permission_tool = Some(req.tool_name.clone());
+            app.pending_permission_reason = Some(req.reason.clone());
+            app.pending_permission_code = Some(req.allow_once_code.clone());
+            crate::logging::info(&format!(
+                "[permission] Tool '{}' requires permission: {}. Allow-once code: {}",
+                req.tool_name, req.reason, req.allow_once_code,
+            ));
+            true
+        }
         Ok(BusEvent::SidePanelUpdated(update)) => {
             if update.session_id == app.session.id {
                 app.set_side_panel_snapshot(update.snapshot);
