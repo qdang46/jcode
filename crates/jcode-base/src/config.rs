@@ -440,6 +440,13 @@ pub struct Config {
     /// Permission mode for tool execution (default, accept-edits, plan, auto, dont-ask, bypass-permissions)
     pub permission_mode: Option<String>,
 
+    /// Skip all permission checks (overrides all other mode settings).
+    /// Read from `JCODE_DANGEROUSLY_SKIP_PERMISSIONS` env var or from a
+    /// non-CLI consumer (desktop, daemon, integration tests). The CLI
+    /// `--dangerously-skip-permissions` flag also sets this by populating
+    /// the env var.
+    pub dangerously_skip_permissions: bool,
+
     /// Auto-review configuration
     pub autoreview: AutoReviewConfig,
 

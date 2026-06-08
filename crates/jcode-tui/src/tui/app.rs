@@ -1237,6 +1237,10 @@ pub struct App {
     pub pending_permission_reason: Option<String>,
     /// Allow-once code for pending permission (6 hex chars, SHA-256 derived)
     pub pending_permission_code: Option<String>,
+    /// Safer alternatives for the pending permission, surfaced from dcg-core
+    /// in `Decision::Prompt.alternatives`. Rendered in the dialog so the
+    /// user can make an informed choice.
+    pub pending_permission_alternatives: Vec<String>,
 }
 
 /// Inert provider used by runtime modes whose output is supplied by another source.

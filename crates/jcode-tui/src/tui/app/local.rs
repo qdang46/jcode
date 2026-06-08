@@ -247,12 +247,27 @@ pub(super) fn handle_bus_event(
         }
         Ok(BusEvent::CompactionFinished) => app.poll_compaction_completion(),
         Ok(BusEvent::PermissionRequested(req)) => {
-            app.pending_permission_tool = Some(req.tool_name.clone());
-            app.pending_permission_reason = Some(req.reason.clone());
+            // Sanitize the tool name and reason before storing and logging.
+            // dcg-core can be influenced by tool-name inputs (MCP server
+            // names, registered tool names) that the user or a downstream
+            // contributor has supplied; treat them as untrusted.
+            let tool = sanitize_terminal_text(&req.tool_name);
+            let reason = sanitize_terminal_text(&req.reason);
+            app.pending_permission_tool = Some(tool.clone());
+            app.pending_permission_reason = Some(reason.clone());
             app.pending_permission_code = Some(req.allow_once_code.clone());
+            // Alternatives are static suggestions from dcg-core but apply
+            // the same sanitizer for defense in depth.
+            app.pending_permission_alternatives = req
+                .alternatives
+                .iter()
+                .map(|a| sanitize_terminal_text(a))
+                .collect();
+            // Redact the 6-hex allow-once code from the log line: codes are
+            // single-use secrets with 24h TTL and must not be persisted to
+            // the on-disk log file.
             crate::logging::info(&format!(
-                "[permission] Tool '{}' requires permission: {}. Allow-once code: {}",
-                req.tool_name, req.reason, req.allow_once_code,
+                "[permission] Tool '{tool}' requires permission: {reason} (code: <redacted>)",
             ));
             true
         }
@@ -502,4 +517,15 @@ pub(super) fn finish_turn(app: &mut App) {
         app.clear_visible_turn_started();
     }
     let _ = super::commands::maybe_begin_pending_local_transfer(app);
+}
+
+/// Strip ANSI/VT escape sequences and control characters from text before
+/// rendering it to the log or passing it to the TUI. This is defense-in-depth
+/// for strings that originate from dcg-core (tool names, reasons, MCP server
+/// names) which are technically trusted by the caller but could contain
+/// terminal injection sequences influenced by external input.
+fn sanitize_terminal_text(s: &str) -> String {
+    s.chars()
+        .filter(|&c| c >= ' ' || c == '\n' || c == '\t')
+        .collect()
 }

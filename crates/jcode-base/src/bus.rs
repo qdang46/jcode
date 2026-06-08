@@ -414,7 +414,7 @@ pub enum BusEvent {
 }
 
 /// A tool call that needs user approval.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PermissionRequested {
     pub session_id: String,
     pub tool_name: String,

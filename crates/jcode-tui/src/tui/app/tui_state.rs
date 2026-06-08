@@ -1542,6 +1542,10 @@ impl crate::tui::TuiState for App {
         self.pending_permission_code.as_deref()
     }
 
+    fn pending_permission_alternatives(&self) -> &[String] {
+        &self.pending_permission_alternatives
+    }
+
     fn now_millis(&self) -> u64 {
         self.app_started.elapsed().as_millis() as u64
     }

@@ -67,10 +67,16 @@ pub(crate) async fn run_main(mut args: Args) -> Result<()> {
     {
         let config = crate::config::config();
         if let Some(ref mode_str) = config.permission_mode {
-            crate::dcg_bridge::set_mode_from_str(mode_str);
+            if !crate::dcg_bridge::set_mode_from_str(mode_str) {
+                eprintln!("Warning: JCODE_PERMISSION_MODE='{mode_str}' is not a valid mode; using Default");
+            }
         }
-        // --dangerously-skip-permissions overrides everything
+        // --dangerously-skip-permissions CLI flag overrides everything
         if args.dangerously_skip_permissions {
+            crate::dcg_bridge::set_mode_from_str("bypass-permissions");
+        }
+        // JCODE_DANGEROUSLY_SKIP_PERMISSIONS env var (non-CLI consumers)
+        if config.dangerously_skip_permissions && !args.dangerously_skip_permissions {
             crate::dcg_bridge::set_mode_from_str("bypass-permissions");
         }
     }
@@ -301,7 +307,7 @@ pub(crate) async fn run_main(mut args: Args) -> Result<()> {
             }
             PermissionCommand::Mode => {
                 let mode = crate::dcg_bridge::current_mode();
-                println!("Current permission mode: {:?}", mode);
+                println!("Current permission mode: {}", crate::dcg_bridge::mode_to_str(mode));
             }
             PermissionCommand::Set { mode } => {
                 if crate::dcg_bridge::set_mode_from_str(&mode) {
@@ -321,7 +327,10 @@ pub(crate) async fn run_main(mut args: Args) -> Result<()> {
             commands::run_pair_command(list, revoke)?;
         }
         Some(Command::Permissions) => {
-            tui::permissions::run_permissions()?;
+            // Deprecated alias: show current mode (same as `jcode permission mode`).
+            let mode = crate::dcg_bridge::current_mode();
+            println!("Current permission mode: {:?}", mode);
+            println!("(The `jcode permissions` command is deprecated; use `jcode permission mode`)");
         }
         Some(Command::Transcript {
             text,

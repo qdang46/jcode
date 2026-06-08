@@ -158,17 +158,21 @@ impl Tool for SubagentTool {
         // This allows parent-child permission restriction: children can only
         // do LESS than the parent, never MORE (e.g., a Plan-mode parent spawns
         // a child that also runs in Plan mode).
-        {
+        // SessionModeGuard clears the per-session override on drop, so the
+        // SESSION_MODES map doesn't leak entries for short-lived subagents.
+        let _session_mode_guard = {
             let parent_mode = crate::dcg_bridge::session_mode(&ctx.session_id)
                 .or_else(|| Some(crate::dcg_bridge::current_mode()));
             if let Some(mode) = parent_mode {
-                crate::dcg_bridge::set_session_mode(&session.id, mode);
                 logging::info(&format!(
                     "[tool:subagent] session={} inherits permission mode {:?} from parent={}",
                     session.id, mode, ctx.session_id
                 ));
+                Some(crate::dcg_bridge::SessionModeGuard::new(&session.id, Some(mode)))
+            } else {
+                None
             }
-        }
+        };
 
         let mut allowed: HashSet<String> = self.registry.tool_names().await.into_iter().collect();
         for blocked in ["subagent", "task", "todo", "todowrite", "todoread"] {

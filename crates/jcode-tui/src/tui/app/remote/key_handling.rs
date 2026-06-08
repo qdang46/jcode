@@ -478,6 +478,16 @@ async fn handle_remote_key_internal(
     }
 
     if code == KeyCode::BackTab {
+        // Shift+Tab now cycles permission mode (moved from model-favorite).
+        let mode = crate::dcg_bridge::cycle_mode();
+        let mode_str = crate::dcg_bridge::mode_to_str(mode);
+        app.set_status_notice(&format!("Permission mode → {mode_str}"));
+        return Ok(());
+    }
+
+    // Alt+F: cycle model favorite (moved from Shift+Tab to free up
+    // BackTab for permission mode cycling, matching the local input.rs).
+    if code == KeyCode::Char('f') && modifiers == KeyModifiers::ALT {
         app.cycle_model_favorite_hotkey();
         return Ok(());
     }
