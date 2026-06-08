@@ -25,3 +25,4 @@ pub use jcode_app_core::*;
 // Presentation layer (kept in this crate).
 pub mod tui;
 pub mod video_export;
+pub mod casr_adapter;

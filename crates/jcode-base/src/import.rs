@@ -393,6 +393,9 @@ pub fn imported_session_id_for_target(
         jcode_session_types::ResumeTarget::OpenCodeSession { session_id, .. } => {
             Some(imported_opencode_session_id(session_id))
         }
+        jcode_session_types::ResumeTarget::ForeignSession { session_id, .. } => {
+            Some(session_id.clone())
+        }
     }
 }
 
@@ -431,6 +434,9 @@ pub fn resolve_resume_target_to_jcode(
         } => {
             import_opencode_session_from_path(Path::new(session_path), Some(session_id))?;
             imported_opencode_session_id(session_id)
+        }
+        ResumeTarget::ForeignSession { session_id, .. } => {
+            session_id.clone()
         }
     };
 

@@ -507,6 +507,9 @@ pub fn list_sessions() -> Result<()> {
             jcode_tui_session_picker::ResumeTarget::OpenCodeSession { session_id, .. } => {
                 format!("◌ OpenCode {}", &session_id[..session_id.len().min(8)])
             }
+            jcode_tui_session_picker::ResumeTarget::ForeignSession { provider_slug, session_id, .. } => {
+                format!("Foreign {}: {}", provider_slug, &session_id[..session_id.len().min(8)])
+            }
         };
         let command = crate::terminal_launch::TerminalCommand::new(program, args).title(title);
         crate::terminal_launch::spawn_command_in_new_terminal(&command, cwd)
@@ -522,31 +525,12 @@ pub fn list_sessions() -> Result<()> {
 
             if targets.len() == 1 {
                 let target = &targets[0];
-                let resolved_target = match target {
-                    jcode_tui_session_picker::ResumeTarget::JcodeSession { session_id } => {
-                        session_id.clone()
+                let resolved_target = match crate::import::resolve_resume_target_to_jcode(&target) {
+                    Ok(t) => t,
+                    Err(e) => {
+                        eprintln!("Failed to import selected session: {}", e);
+                        return Ok(());
                     }
-                    jcode_tui_session_picker::ResumeTarget::ClaudeCodeSession {
-                        session_id,
-                        ..
-                    } => crate::casr_adapter::imported_claude_code_session_id(session_id),
-                    jcode_tui_session_picker::ResumeTarget::CodexSession { session_id, .. } => {
-                        crate::casr_adapter::imported_codex_session_id(session_id)
-                    }
-                    jcode_tui_session_picker::ResumeTarget::PiSession { session_path } => {
-                        crate::casr_adapter::imported_pi_session_id(session_path)
-                    }
-                    jcode_tui_session_picker::ResumeTarget::OpenCodeSession {
-                        session_id, ..
-                    } => crate::casr_adapter::imported_opencode_session_id(session_id),
-                    jcode_tui_session_picker::ResumeTarget::ForeignSession {
-                        provider_slug,
-                        session_id,
-                        ..
-                    } => crate::casr_adapter::imported_session_id_for_provider(
-                        provider_slug,
-                        session_id,
-                    ),
                 };
 
                 let mut session_cwd = cwd.clone();
@@ -571,32 +555,12 @@ pub fn list_sessions() -> Result<()> {
                 let mut warned_no_terminal = false;
 
                 for target in targets {
-                    let resolved_target = match &target {
-                        jcode_tui_session_picker::ResumeTarget::JcodeSession { session_id } => {
-                            session_id.clone()
+                    let resolved_target = match crate::import::resolve_resume_target_to_jcode(&target) {
+                        Ok(t) => t,
+                        Err(e) => {
+                            eprintln!("Failed to import session: {}", e);
+                            continue;
                         }
-                        jcode_tui_session_picker::ResumeTarget::ClaudeCodeSession {
-                            session_id,
-                            ..
-                        } => crate::casr_adapter::imported_claude_code_session_id(session_id),
-                        jcode_tui_session_picker::ResumeTarget::CodexSession {
-                            session_id, ..
-                        } => crate::casr_adapter::imported_codex_session_id(session_id),
-                        jcode_tui_session_picker::ResumeTarget::PiSession { session_path } => {
-                            crate::casr_adapter::imported_pi_session_id(session_path)
-                        }
-                        jcode_tui_session_picker::ResumeTarget::OpenCodeSession {
-                            session_id,
-                            ..
-                        } => crate::casr_adapter::imported_opencode_session_id(session_id),
-                        jcode_tui_session_picker::ResumeTarget::ForeignSession {
-                            provider_slug,
-                            session_id,
-                            ..
-                        } => crate::casr_adapter::imported_session_id_for_provider(
-                            provider_slug,
-                            session_id,
-                        ),
                     };
 
                     let mut session_cwd = cwd.clone();
@@ -652,27 +616,6 @@ pub fn list_sessions() -> Result<()> {
                         eprintln!("Failed to import selected session: {}", e);
                         continue;
                     }
-                    jcode_tui_session_picker::ResumeTarget::ClaudeCodeSession {
-                        session_id,
-                        ..
-                    } => crate::casr_adapter::imported_claude_code_session_id(session_id),
-                    jcode_tui_session_picker::ResumeTarget::CodexSession { session_id, .. } => {
-                        crate::casr_adapter::imported_codex_session_id(session_id)
-                    }
-                    jcode_tui_session_picker::ResumeTarget::PiSession { session_path } => {
-                        crate::casr_adapter::imported_pi_session_id(session_path)
-                    }
-                    jcode_tui_session_picker::ResumeTarget::OpenCodeSession {
-                        session_id, ..
-                    } => crate::casr_adapter::imported_opencode_session_id(session_id),
-                    jcode_tui_session_picker::ResumeTarget::ForeignSession {
-                        provider_slug,
-                        session_id,
-                        ..
-                    } => crate::casr_adapter::imported_session_id_for_provider(
-                        provider_slug,
-                        session_id,
-                    ),
                 };
                 let mut session_cwd = cwd.clone();
                 if let jcode_tui_session_picker::ResumeTarget::JcodeSession { session_id } =

@@ -33,77 +33,7 @@ impl Agent {
         self.run_turn(false).await
     }
 
-    /// Run a single message with events streamed to a broadcast channel (for server mode)
-    pub async fn run_once_streaming(
-        &mut self,
-        user_message: &str,
-        event_tx: broadcast::Sender<ServerEvent>,
-    ) -> Result<()> {
-        // Inject any pending notifications before the user message
-        let alerts = self.take_alerts();
-        if !alerts.is_empty() {
-            let alert_text = format!(
-                "[NOTIFICATION]\nYou received {} notification(s) from other agents working in this codebase:\n\n{}\n\nUse the communicate tool (actions: list, read, message/broadcast, dm, channel, share) to coordinate with other agents.",
-                alerts.len(),
-                alerts.join("\n\n---\n\n")
-            );
-            self.add_message(
-                Role::User,
-                vec![ContentBlock::Text {
-                    text: alert_text,
-                    cache_control: None,
-                }],
-            );
-        }
-
-        // UserPromptSubmit hook — BLOCKING: can deny the prompt before it enters the conversation
-        {
-            let session_id = self.session.id.clone();
-            let cwd = self.session.working_dir.clone().unwrap_or_default();
-            let hook_ctx = HookContext::new(&session_id, "", &cwd, "UserPromptSubmit");
-            let handlers = self
-                .hook_registry
-                .get_matching(&HookEvent::UserPromptSubmit, &hook_ctx);
-            if !handlers.is_empty() {
-                let hook_input = HookInputBuilder::new()
-                    .session(&session_id, &cwd)
-                    .event("UserPromptSubmit")
-                    .prompt(user_message)
-                    .build();
-                let stats = jcode_hooks::dispatch_hooks(
-                    &HookEvent::UserPromptSubmit,
-                    &hook_input,
-                    &handlers,
-                    &self.dispatch_config,
-                )
-                .await;
-                if stats.any_denied() {
-                    let deny_reason = stats
-                        .results
-                        .iter()
-                        .find(|r| matches!(r.outcome, jcode_hooks::ClassifiedOutcome::Deny { .. }))
-                        .map(|r| match &r.outcome {
-                            jcode_hooks::ClassifiedOutcome::Deny { reason } => reason.clone(),
-                            _ => String::new(),
-                        })
-                        .unwrap_or_else(|| "blocked by hook".to_string());
-                    return Err(anyhow::anyhow!("Prompt blocked by hook: {}", deny_reason));
-                }
-            }
-        }
-
-        self.add_message(
-            Role::User,
-            vec![ContentBlock::Text {
-                text: user_message.to_string(),
-                cache_control: None,
-            }],
-        );
-        self.session.save()?;
-        self.run_turn_streaming(event_tx).await
-    }
-
-    /// Run one conversation turn with streaming events via mpsc channel (per-client)
+    /// Run one conversation turn with streaming events via mpsc channel (per-client)    /// Run one conversation turn with streaming events via mpsc channel (per-client)
     pub async fn run_once_streaming_mpsc(
         &mut self,
         user_message: &str,

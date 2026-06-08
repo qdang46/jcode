@@ -28,10 +28,8 @@ mod todos_render;
 mod usage_render;
 #[path = "info_widget_team.rs"]
 mod team_render;
-#[path = "info_widget_team.rs"]
-mod team_render;
 use super::info_widget_overview::{InfoPageKind, MAX_TODO_LINES, compute_page_layout};
-use super::info_widget_team::{TeamInfo, TeamMemberView, TeamTaskView};
+pub use self::team_render::{TeamInfo, TeamMemberView, TeamTaskView};
 use super::workspace_map::VisibleWorkspaceRow;
 use crate::ambient::AmbientStatus;
 pub use crate::memory_types::{
@@ -105,8 +103,6 @@ pub enum WidgetKind {
     Tips,
     /// Git status
     GitStatus,
-    /// Team run roster + task DAG
-    TeamView,
     /// Team run roster + task DAG
     TeamView,
 }
@@ -624,8 +620,6 @@ pub struct InfoWidgetData {
     pub is_compacting: bool,
     /// Git repository status
     pub git_info: Option<GitInfo>,
-    pub team_info: Option<TeamInfo>,
-    /// Team run status
     pub team_info: Option<TeamInfo>,
 }
 
@@ -1721,7 +1715,7 @@ fn render_ambient_widget(data: &InfoWidgetData, inner: Rect) -> Vec<Line<'static
             "⏸",
             format!(
                 "Paused: {}",
-                truncate_smart(reason, inner.width.saturating_sub(12) as usize)
+                truncate_smart(&reason, inner.width.saturating_sub(12) as usize)
             ),
             rgb(255, 200, 100),
         ),
