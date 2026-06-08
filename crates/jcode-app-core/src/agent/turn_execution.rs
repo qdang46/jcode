@@ -422,6 +422,8 @@ impl Agent {
             stdin_request_tx: self.stdin_request_tx.clone(),
             graceful_shutdown_signal: Some(self.graceful_shutdown.clone()),
             execution_mode: ToolExecutionMode::Direct,
+            best_of_n_run_id: self.best_of_n_run_id.clone(),
+            best_of_n_candidate_id: self.best_of_n_candidate_id.clone(),
         };
         self.registry.execute(name, input, ctx).await
     }
@@ -925,7 +927,10 @@ impl Agent {
                         .with_source(&self.session.id)
                         .with_trust(trust);
 
-                    if manager.remember_project(entry).is_ok() {
+                    // Use the MemoryProvider trait method so this works with
+                    // any backend (legacy MemoryManager or MempalaceAdapter).
+                    use jcode_memory_types::{MemoryProvider, MemoryScope};
+                    if manager.remember(entry, MemoryScope::Project).await.is_ok() {
                         stored_count += 1;
                     }
                 }

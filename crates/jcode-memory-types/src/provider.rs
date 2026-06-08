@@ -87,4 +87,17 @@ pub trait MemoryProvider: Send + Sync {
         limit: usize,
         scope: MemoryScope,
     ) -> Result<Vec<MemoryEntry>>;
+
+    /// Get graph statistics: (total_memories, total_tags, total_edges, total_clusters).
+    async fn graph_stats(&self) -> Result<(usize, usize, usize, usize)> {
+        let all = self.list_all(MemoryScope::All).await?;
+        let count = all.len();
+        let tags = all.iter().flat_map(|e| e.tags.iter()).count();
+        Ok((count, tags, 0, 0))
+    }
+
+    /// Load all memory entries across both project and global scopes.
+    async fn load_all_entries(&self) -> Result<Vec<MemoryEntry>> {
+        self.list_all(MemoryScope::All).await
+    }
 }

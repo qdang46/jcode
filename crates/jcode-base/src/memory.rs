@@ -1921,6 +1921,10 @@ impl jcode_memory_types::MemoryProvider for MemoryManager {
             .collect();
         Ok(entries)
     }
+
+    async fn graph_stats(&self) -> anyhow::Result<(usize, usize, usize, usize)> {
+        self.graph_stats()
+    }
 }
 
 /// Embedding similarity threshold (0.0 - 1.0)

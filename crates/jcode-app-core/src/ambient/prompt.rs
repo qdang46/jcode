@@ -102,6 +102,30 @@ pub fn gather_memory_graph_health(
     health
 }
 
+/// Gather memory graph health stats from a generic MemoryProvider (async).
+pub async fn gather_memory_graph_health_provider(
+    provider: &dyn jcode_memory_types::MemoryProvider,
+) -> MemoryGraphHealth {
+    let mut health = MemoryGraphHealth::default();
+    if let Ok(entries) = provider.list_all(jcode_memory_types::MemoryScope::All).await {
+        for entry in &entries {
+            health.total += 1;
+            if entry.active {
+                health.active += 1;
+            } else {
+                health.inactive += 1;
+            }
+            if entry.active && entry.effective_confidence() < 0.1 {
+                health.low_confidence += 1;
+            }
+            if entry.active && entry.embedding.is_none() {
+                health.missing_embeddings += 1;
+            }
+        }
+    }
+    health
+}
+
 /// Gather feedback memories relevant to ambient mode.
 ///
 /// Pulls from two sources:
@@ -162,6 +186,61 @@ pub fn gather_feedback_memories(memory_manager: &crate::memory::MemoryManager) -
             let has_ambient_tag = memory.tags.iter().any(|t| t == "ambient" || t == "system");
             if has_ambient_tag {
                 feedback.push(format!("Memory [{}]: {}", memory.id, memory.content));
+            }
+        }
+    }
+
+    feedback
+}
+
+/// Gather feedback memories from a generic MemoryProvider (async).
+pub async fn gather_feedback_memories_provider(
+    provider: &dyn jcode_memory_types::MemoryProvider,
+) -> Vec<String> {
+    let mut feedback = Vec::new();
+
+    // Source 1: Recent ambient transcripts
+    let transcripts_dir = match crate::storage::jcode_dir() {
+        Ok(d) => d.join("ambient").join("transcripts"),
+        Err(_) => return feedback,
+    };
+
+    if transcripts_dir.exists()
+        && let Ok(dir) = std::fs::read_dir(&transcripts_dir)
+    {
+        let mut files: Vec<_> = dir.flatten().collect();
+        files.sort_by_key(|entry| std::cmp::Reverse(entry.file_name()));
+        files.truncate(5);
+
+        for entry in files {
+            if let Ok(content) = std::fs::read_to_string(entry.path())
+                && let Ok(transcript) =
+                    serde_json::from_str::<crate::safety::AmbientTranscript>(&content)
+            {
+                let status = format!("{:?}", transcript.status);
+                let summary = transcript.summary.as_deref().unwrap_or("no summary");
+                let age = format_duration_rough(Utc::now() - transcript.started_at);
+                feedback.push(format!(
+                    "Past cycle ({} ago, {}): {} memories modified, {} compactions — {}",
+                    age,
+                    status.to_lowercase(),
+                    transcript.memories_modified,
+                    transcript.compactions,
+                    summary,
+                ));
+            }
+        }
+    }
+
+    // Source 2: Memory graph entries tagged "ambient" or "system"
+    if let Ok(entries) = provider.list_all(jcode_memory_types::MemoryScope::All).await {
+        for entry in &entries {
+            if !entry.active {
+                continue;
+            }
+            let has_ambient_tag = entry.tags.iter().any(|t| t == "ambient" || t == "system");
+            if has_ambient_tag {
+                feedback.push(format!("Memory [{}]: {}", entry.id, entry.content));
             }
         }
     }
