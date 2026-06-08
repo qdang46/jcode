@@ -5950,8 +5950,16 @@ dependencies = [
 name = "jcode-swarm-core"
 version = "0.1.0"
 dependencies = [
+ "chrono",
+ "dirs 5.0.1",
  "jcode-plan",
+ "libc",
+ "regex",
  "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 1.0.69",
+ "uuid",
 ]
 
 [[package]]
