@@ -1,6 +1,7 @@
 {
-  "total": 24,
+  "total": 35,
   "tracked_files": {
+    "crates/jcode-app-core/src/doctor/render.rs": 2,
     "crates/jcode-app-core/src/export.rs": 5,
     "crates/jcode-app-core/src/yolo_classifier.rs": 1,
     "crates/jcode-base/src/auth/lifecycle_driver.rs": 2,
@@ -10,13 +11,13 @@
     "crates/jcode-hooks/src/cli.rs": 1,
     "crates/jcode-hooks/src/dispatch.rs": 4,
     "crates/jcode-hooks/src/execute.rs": 2,
-    "crates/jcode-tui/src/tui/app/helpers.rs": 1,
-    "src/cli/commands.rs": 1,
-    "src/orchestration_api.rs": 1,
+    "crates/jcode-hooks/src/matcher.rs": 2,
+    "crates/jcode-plugin-core/src/config.rs": 1,
+    "crates/jcode-plugin-runtime/src/tui_api.rs": 4,
     "crates/jcode-productivity-core/src/aggregate.rs": 1,
     "crates/jcode-productivity-core/src/scan.rs": 2,
-    "crates/jcode-tui/src/tui/app/helpers.rs": 1
+    "crates/jcode-tui/src/tui/app/helpers.rs": 1,
+    "src/orchestration_api.rs": 1
   },
-  "version": 1,
-  "total_panic_prone_count": 20
+  "version": 1
 }
