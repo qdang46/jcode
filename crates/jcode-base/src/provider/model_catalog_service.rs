@@ -123,6 +123,7 @@ impl ModelCatalogService {
     ) -> Option<RuntimeModelUnavailability> {
         let mut unavailable = self.runtime_unavailable_models.write().ok()?;
         let models = unavailable.get_mut(scope)?;
+        #[allow(clippy::collapsible_if)]
         if let Some(entry) = models.get(model) {
             if entry.recorded_at.elapsed() <= self.runtime_unavailable_ttl {
                 return Some(entry.clone());
@@ -136,6 +137,7 @@ impl ModelCatalogService {
     }
 
     pub(crate) fn clear_runtime_model_unavailable(&self, scope: &str, model: &str) {
+        #[allow(clippy::collapsible_if)]
         if let Ok(mut unavailable) = self.runtime_unavailable_models.write() {
             if let Some(models) = unavailable.get_mut(scope) {
                 models.remove(model);

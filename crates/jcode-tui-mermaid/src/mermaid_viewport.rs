@@ -1,3 +1,8 @@
+// `Cell::set_skip` was renamed to `set_diff_option(CellDiffOption::Skip)` in
+// ratatui 0.30 but the boolean equivalent has no direct replacement. Pin the
+// old API and migrate in one batch when convenient.
+#![allow(deprecated)]
+
 use super::*;
 
 fn load_source_image(hash: u64, path: &Path) -> Option<Arc<DynamicImage>> {

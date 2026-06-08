@@ -39,6 +39,7 @@ use anyhow::Result;
 use futures::StreamExt;
 use jcode_hooks::{DispatchConfig, HookContext, HookEvent, HookInputBuilder, HookRegistry};
 #[cfg(feature = "dcp")]
+#[allow(unused_imports)]
 use std::cell::Cell;
 
 use std::collections::{HashMap, HashSet};

@@ -442,6 +442,7 @@ impl GmailClient {
         }
         let envelope: Value = serde_json::from_str(&text)?;
         // Composio wraps the upstream response as { data, status, headers }.
+        #[allow(clippy::collapsible_if)]
         if let Some(inner) = envelope.get("status").and_then(|s| s.as_u64()) {
             if inner >= 400 {
                 return Err(anyhow::anyhow!(

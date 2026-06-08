@@ -58,7 +58,7 @@ pub fn matches(matcher: &HookMatcher, ctx: &MatcherContext) -> bool {
                                 "[jcode-hooks] invalid regex pattern {:?}: {} — using never-match placeholder",
                                 pattern, e
                             );
-                            Regex::new(r"(?!)a").unwrap()
+                            Regex::new(r"[^\s\S]").expect("never-match placeholder is valid")
                         }),
                     ))
                 });

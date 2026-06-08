@@ -1,3 +1,4 @@
+#![allow(clippy::question_mark)]
 use super::*;
 #[path = "ui_messages_cache.rs"]
 mod cache_support;

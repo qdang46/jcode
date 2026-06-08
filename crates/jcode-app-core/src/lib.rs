@@ -28,6 +28,7 @@ pub mod ambient_scheduler;
 pub mod build;
 pub mod catchup;
 pub mod channel;
+pub mod doctor;
 pub mod external_auth;
 pub mod mission;
 pub mod network_retry;
@@ -50,6 +51,8 @@ pub mod update;
 
 #[cfg(feature = "dcp")]
 pub mod dcp_bridge;
+#[cfg(feature = "dcp")]
+pub mod dcp_plugin;
 
 #[cfg(feature = "rtco")]
 pub mod rtco_filter;

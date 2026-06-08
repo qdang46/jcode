@@ -353,6 +353,7 @@ fn load_oauth_credentials_internal(return_expired: bool) -> Result<CodexCredenti
         expired_candidates.push(("jcode", creds));
     }
 
+    #[allow(clippy::collapsible_if)]
     if legacy_allowed {
         if let Ok(creds) = load_legacy_oauth_credentials() {
             if creds

@@ -1,3 +1,7 @@
+// `Cell::set_skip` was renamed in ratatui 0.30; see the matching note in
+// crates/jcode-tui-mermaid/src/mermaid_viewport.rs. Pin the old API.
+#![allow(deprecated)]
+
 //! Build a shareable dashboard as an SVG and rasterize it to PNG.
 //!
 //! The SVG is assembled by hand (no templating dep) into a dark, card-based
@@ -81,6 +85,7 @@ impl Svg {
         ));
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn rect_op(&mut self, x: f32, y: f32, w: f32, h: f32, r: f32, fill: &str, opacity: f32) {
         self.body.push_str(&format!(
             "<rect x='{x:.1}' y='{y:.1}' width='{w:.1}' height='{h:.1}' rx='{r:.1}' ry='{r:.1}' fill='{fill}' fill-opacity='{opacity:.2}'/>"

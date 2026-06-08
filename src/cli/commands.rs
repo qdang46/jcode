@@ -160,18 +160,16 @@ fn run_cloud_sessions_command(action: CloudSessionsSubcommand) -> Result<()> {
             user_id,
             helper,
             clear,
-        } => {
-            return run_cloud_sessions_configure(
-                api_base,
-                api_token,
-                api_token_env,
-                api_token_id,
-                user_id,
-                helper,
-                clear,
-            );
-        }
-        CloudSessionsSubcommand::Status { json } => return run_cloud_sessions_status(json),
+        } => run_cloud_sessions_configure(
+            api_base,
+            api_token,
+            api_token_env,
+            api_token_id,
+            user_id,
+            helper,
+            clear,
+        ),
+        CloudSessionsSubcommand::Status { json } => run_cloud_sessions_status(json),
         CloudSessionsSubcommand::Dashboard {
             limit,
             output,
@@ -181,18 +179,16 @@ fn run_cloud_sessions_command(action: CloudSessionsSubcommand) -> Result<()> {
             profile,
             region,
             helper,
-        } => {
-            return run_cloud_sessions_dashboard(CloudSessionsDashboardRequest {
-                limit,
-                output,
-                open,
-                with_view,
-                user_id,
-                profile,
-                region,
-                helper,
-            });
-        }
+        } => run_cloud_sessions_dashboard(CloudSessionsDashboardRequest {
+            limit,
+            output,
+            open,
+            with_view,
+            user_id,
+            profile,
+            region,
+            helper,
+        }),
         CloudSessionsSubcommand::Sync {
             sessions_dir,
             since_days,
@@ -207,23 +203,21 @@ fn run_cloud_sessions_command(action: CloudSessionsSubcommand) -> Result<()> {
             profile,
             region,
             helper,
-        } => {
-            return run_cloud_sessions_sync(CloudSessionsSyncRequest {
-                sessions_dir,
-                since_days,
-                all,
-                max,
-                min_interval_mins,
-                raw,
-                dry_run,
-                force,
-                json,
-                user_id,
-                profile,
-                region,
-                helper,
-            });
-        }
+        } => run_cloud_sessions_sync(CloudSessionsSyncRequest {
+            sessions_dir,
+            since_days,
+            all,
+            max,
+            min_interval_mins,
+            raw,
+            dry_run,
+            force,
+            json,
+            user_id,
+            profile,
+            region,
+            helper,
+        }),
         other => run_cloud_sessions_helper_command(other),
     }
 }
@@ -802,7 +796,7 @@ fn run_cloud_sessions_sync(request: CloudSessionsSyncRequest) -> Result<()> {
             report.scanned, verb, report.uploaded, report.skipped_unchanged, report.failed
         );
         if report.reached_max {
-            println!("note: reached --max {}; rerun to continue", request.max);
+            println!("note: reached --max {}; rerun to continue", request.max)
         }
         for entry in &report.entries {
             match entry.error.as_deref() {
@@ -1481,7 +1475,7 @@ pub fn run_session_rename_command(
         session.rename_title(None);
     } else {
         let Some(name) = name.map(str::trim).filter(|name| !name.is_empty()) else {
-            anyhow::bail!("Provide a session name or use --clear");
+            anyhow::bail!("Provide a session name or use --clear")
         };
         session.rename_title(Some(name.to_string()));
     }
@@ -1713,7 +1707,7 @@ pub fn run_memory_command(cmd: MemorySubcommand) -> Result<()> {
 
             let json = serde_json::to_string_pretty(&all_memories)?;
             std::fs::write(&output, json)?;
-            println!("Exported {} memories to {}", all_memories.len(), output);
+            println!("Exported {} memories to {}", all_memories.len(), output)
         }
 
         MemorySubcommand::Import {
@@ -1753,7 +1747,7 @@ pub fn run_memory_command(cmd: MemorySubcommand) -> Result<()> {
                 }
             }
 
-            println!("Imported {} memories ({} skipped)", imported, skipped);
+            println!("Imported {} memories ({} skipped)", imported, skipped)
         }
 
         MemorySubcommand::Stats => {
@@ -1814,7 +1808,7 @@ pub fn run_pair_command(list: bool, revoke: Option<String>) -> Result<()> {
 
     if list {
         if registry.devices.is_empty() {
-            eprintln!("No paired devices.");
+            eprintln!("No paired devices.")
         } else {
             eprintln!("\x1b[1mPaired devices:\x1b[0m\n");
             for device in &registry.devices {
@@ -1837,9 +1831,9 @@ pub fn run_pair_command(list: bool, revoke: Option<String>) -> Result<()> {
             .retain(|d| d.id != *target && d.name != *target);
         if registry.devices.len() < before {
             registry.save()?;
-            eprintln!("\x1b[32m✓\x1b[0m Revoked device: {}", target);
+            eprintln!("\x1b[32m✓\x1b[0m Revoked device: {}", target)
         } else {
-            eprintln!("\x1b[31m✗\x1b[0m No device found matching: {}", target);
+            eprintln!("\x1b[31m✗\x1b[0m No device found matching: {}", target)
         }
         return Ok(());
     }
@@ -2016,7 +2010,7 @@ pub async fn run_browser(action: &str) -> Result<()> {
         other => {
             eprintln!("Unknown browser action: {}", other);
             eprintln!("Available: setup, status");
-            std::process::exit(1);
+            std::process::exit(1)
         }
     }
     Ok(())
@@ -2124,9 +2118,9 @@ pub async fn run_server_reload_command(force: bool, emit_json: bool) -> Result<(
 
     let emit = |report: ServerReloadReport| -> Result<()> {
         if emit_json {
-            println!("{}", serde_json::to_string_pretty(&report)?);
+            println!("{}", serde_json::to_string_pretty(&report)?)
         } else if !report.detail.is_empty() {
-            println!("{}", report.detail);
+            println!("{}", report.detail)
         }
         Ok(())
     };
@@ -2167,19 +2161,15 @@ pub async fn run_server_reload_command(force: bool, emit_json: bool) -> Result<(
         Ok(crate::build::SharedServerRepair::Repaired {
             repaired_to,
             previous,
-        }) => {
-            crate::logging::info(&format!(
-                "server reload: repaired stale shared-server channel {:?} -> {} before reload",
-                previous, repaired_to
-            ));
-        }
+        }) => crate::logging::info(&format!(
+            "server reload: repaired stale shared-server channel {:?} -> {} before reload",
+            previous, repaired_to
+        )),
         Ok(crate::build::SharedServerRepair::AlreadyCurrent) => {}
-        Err(err) => {
-            crate::logging::warn(&format!(
-                "server reload: shared-server channel repair failed (continuing): {}",
-                err
-            ));
-        }
+        Err(err) => crate::logging::warn(&format!(
+            "server reload: shared-server channel repair failed (continuing): {}",
+            err
+        )),
     }
 
     let request_id = client.reload_with_force(force).await?;
@@ -2279,9 +2269,9 @@ Re-run with `--force` if you really want to stop the server.";
                     "force_required": true,
                     "detail": msg,
                 })
-            );
+            )
         } else {
-            eprintln!("{msg}");
+            eprintln!("{msg}")
         }
         return Ok(());
     }
@@ -2334,7 +2324,7 @@ Re-run with `--force` if you really want to stop the server.";
                 }
             }
         } else {
-            detail = format!("Registered jcode server (pid {pid}) is not running.");
+            detail = format!("Registered jcode server (pid {pid}) is not running.")
         }
     } else if had_listener {
         // A listener answers but no registry entry maps to it. We deliberately
@@ -2395,19 +2385,19 @@ Re-run with `--force` if you really want to stop the server.";
         println!("{}", serde_json::to_string_pretty(&report)?);
     } else {
         if !detail.is_empty() {
-            println!("{detail}");
+            println!("{detail}")
         }
         if stopped && signaled_pid.is_some() {
-            println!("jcode server stopped.");
+            println!("jcode server stopped.")
         } else if stopped && !had_listener && signaled_pid.is_none() {
             // Nothing was running; this is still a success for an installer.
         } else if !stopped {
             println!(
                 "jcode server did not exit cleanly; it may still be shutting down. Re-run if needed."
-            );
+            )
         }
         if reaped {
-            println!("Cleared a stale jcode socket.");
+            println!("Cleared a stale jcode socket.")
         }
     }
 
@@ -3160,10 +3150,10 @@ pub async fn run_model_command(
             );
             println!("Selected model: {}", provider.model());
             println!("Available models: {}", models.len());
-            println!();
+            println!()
         }
         for model in models {
-            println!("{}", model);
+            println!("{}", model)
         }
     }
 
@@ -3198,7 +3188,7 @@ fn collect_cli_model_names(
             return;
         }
         if seen.insert(trimmed.to_string()) {
-            deduped.push(trimmed.to_string());
+            deduped.push(trimmed.to_string())
         }
     }
 
@@ -3208,7 +3198,7 @@ fn collect_cli_model_names(
 
     if deduped.is_empty() {
         for route in routes {
-            push_model(&mut deduped, &mut seen, &route.model);
+            push_model(&mut deduped, &mut seen, &route.model)
         }
     }
 

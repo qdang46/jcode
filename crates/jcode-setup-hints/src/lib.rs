@@ -8,10 +8,10 @@
 //! Each nudge can be dismissed permanently with "Don't ask again".
 //! State is persisted in `~/.jcode/setup_hints.json`.
 
-use jcode_storage as storage;
 #[cfg(target_os = "macos")]
 use anyhow::Context;
 use anyhow::Result;
+use jcode_storage as storage;
 use serde::{Deserialize, Serialize};
 use std::io::{self, IsTerminal};
 use std::path::PathBuf;
@@ -284,7 +284,9 @@ fn startup_hints_for_launch(state: &SetupHintsState) -> Option<StartupHints> {
     }
 
     if state.launch_count <= 3 {
-        let config_path = storage::jcode_dir().ok().map(|d| d.join("config.toml"))
+        let config_path = storage::jcode_dir()
+            .ok()
+            .map(|d| d.join("config.toml"))
             .map(|path| path.display().to_string())
             .unwrap_or_else(|| "~/.jcode/config.toml".to_string());
 
@@ -394,7 +396,7 @@ pub fn run_setup_hotkey(_listen_macos_hotkey: bool) -> Result<()> {
                     "  Press \x1b[1mCmd+;\x1b[0m anywhere, system-wide, to launch a new jcode in {}.",
                     installed_terminal.label()
                 );
-                return Ok(());
+                Ok(())
             }
             Err(e) => {
                 eprintln!("  \x1b[31m✗\x1b[0m Failed: {}", e);
@@ -671,7 +673,7 @@ pub fn maybe_show_setup_hints() -> Option<StartupHints> {
 
     #[cfg(target_os = "macos")]
     {
-        if state.launch_count % 3 != 0 {
+        if !state.launch_count.is_multiple_of(3) {
             return startup_hints;
         }
 
@@ -690,7 +692,7 @@ pub fn maybe_show_setup_hints() -> Option<StartupHints> {
             return nudge_macos_ghostty(&mut state);
         }
 
-        return startup_hints;
+        startup_hints
     }
 
     #[cfg(windows)]
@@ -726,7 +728,7 @@ pub fn run_setup_launcher() -> Result<()> {
                 );
                 eprintln!();
                 eprintln!("  Tip: pin Jcode.app to your Dock or launch it with Cmd+Space.");
-                return Ok(());
+                Ok(())
             }
             Err(e) => {
                 eprintln!("  \x1b[31m✗\x1b[0m Failed: {}", e);

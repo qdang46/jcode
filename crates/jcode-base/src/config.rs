@@ -363,6 +363,7 @@ fn notify_config_reloaded() {
 /// subsystems (auth cache, event bus) on reload, those subsystems register a
 /// reaction here at startup. This keeps config free of upward dependencies and
 /// breaks the config -> auth / config -> bus cycle edges.
+#[allow(clippy::type_complexity)]
 static CONFIG_RELOAD_LISTENERS: LazyLock<RwLock<Vec<fn()>>> =
     LazyLock::new(|| RwLock::new(Vec::new()));
 

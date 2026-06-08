@@ -115,6 +115,7 @@ use changelog::get_grouped_changelog;
 use changelog::{ChangelogEntry, group_changelog_entries, parse_changelog_from};
 use debug_capture::{
     build_info_widget_summary, capture_widget_placements, rect_within_bounds, rects_overlap,
+    widget_overlaps_content,
 };
 pub use diagram_pane::{
     PinnedDiagramLiveDebugSnapshot, PinnedDiagramProbeRect, debug_probe_pinned_diagram,
@@ -933,6 +934,7 @@ struct FullPrepCacheKey {
     streaming_text_len: usize,
     streaming_text_hash: u64,
     batch_progress_hash: u64,
+    reasoning_trace_hash: u64,
 }
 
 #[derive(Clone)]
@@ -1858,15 +1860,15 @@ pub(crate) fn copy_selection_text(range: crate::tui::CopySelectionRange) -> Opti
                 continue;
             }
         }
-        let line_width = line_display_width(&text);
+        let line_width = line_display_width(text);
         let copy_start = snapshot.wrapped_copy_offset(abs_line).unwrap_or(0);
         let start_col = if abs_line == start.abs_line {
-            clamp_display_col(&text, start.column).max(copy_start)
+            clamp_display_col(text, start.column).max(copy_start)
         } else {
             copy_start
         };
         let end_col = if abs_line == end.abs_line {
-            clamp_display_col(&text, end.column).max(copy_start)
+            clamp_display_col(text, end.column).max(copy_start)
         } else {
             line_width
         };
@@ -1875,11 +1877,11 @@ pub(crate) fn copy_selection_text(range: crate::tui::CopySelectionRange) -> Opti
             continue;
         }
 
-        let slice = display_col_slice(&text, start_col, end_col);
+        let slice = display_col_slice(text, start_col, end_col);
         if abs_line == start.abs_line {
             out.reserve(slice.len().saturating_mul(selected_lines.min(8)));
         }
-        out.push_str(&slice);
+        out.push_str(slice);
     }
 
     Some(out)
@@ -1930,22 +1932,22 @@ pub(crate) fn copy_selection_metrics(
                 continue;
             }
         }
-        let line_width = line_display_width(&text);
+        let line_width = line_display_width(text);
         let copy_start = snapshot.wrapped_copy_offset(abs_line).unwrap_or(0);
         let start_col = if abs_line == start.abs_line {
-            clamp_display_col(&text, start.column).max(copy_start)
+            clamp_display_col(text, start.column).max(copy_start)
         } else {
             copy_start
         };
         let end_col = if abs_line == end.abs_line {
-            clamp_display_col(&text, end.column).max(copy_start)
+            clamp_display_col(text, end.column).max(copy_start)
         } else {
             line_width
         };
         if end_col < start_col {
             continue;
         }
-        chars += display_col_slice(&text, start_col, end_col).chars().count();
+        chars += display_col_slice(text, start_col, end_col).chars().count();
     }
 
     Some((chars, lines.max(1)))
@@ -2504,6 +2506,7 @@ fn draw_inner(frame: &mut Frame, app: &dyn TuiState) {
             right_widths: Vec::new(),
             left_widths: Vec::new(),
             centered: app.centered_mode(),
+            ..Default::default()
         }
     } else {
         draw_messages(
@@ -2645,12 +2648,15 @@ fn draw_inner(frame: &mut Frame, app: &dyn TuiState) {
                 placements: placement_captures,
             });
 
-            // Detect overlaps with message area
+            // Detect overlaps with used content. Info widgets live inside the
+            // messages rectangle by design, so a whole-area overlap check is
+            // always true and useless; instead verify each placement still fits
+            // within the free margin the layout reported for the rows it covers.
             for placement in &placements {
-                if rects_overlap(placement.rect, widget_bounds) {
+                if widget_overlaps_content(placement, widget_bounds, &margins) {
                     capture.anomaly(format!(
-                        "Info widget {:?} overlaps messages area",
-                        placement.kind
+                        "Info widget {:?} intrudes into content (rect {:?})",
+                        placement.kind, placement.rect
                     ));
                 }
                 if !rect_within_bounds(placement.rect, area) {

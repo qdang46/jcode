@@ -186,6 +186,7 @@ async fn resolve_coordinator_spawn_identity(
         let agent_sessions = sessions.read().await;
         agent_sessions.get(req_session_id).cloned()
     } {
+        #[allow(clippy::collapsible_if)]
         if let Ok(agent_guard) = agent.try_lock() {
             return CoordinatorSpawnIdentity {
                 model: Some(agent_guard.provider_model()),

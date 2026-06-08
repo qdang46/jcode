@@ -517,6 +517,7 @@ impl Agent {
                     StreamEvent::ToolUseSignature(signature) => {
                         // Attach Gemini 3 thought signature to the most recent
                         // tool call so it can be persisted and replayed.
+                        #[allow(clippy::collapsible_if)]
                         if let Some(tool) = tool_calls.last_mut() {
                             if !signature.is_empty() {
                                 tool.thought_signature = Some(signature);

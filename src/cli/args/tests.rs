@@ -551,6 +551,58 @@ fn auth_doctor_subcommand_parses() {
 }
 
 #[test]
+fn doctor_subcommand_parses_flags_and_only() {
+    let args = Args::try_parse_from([
+        "jcode", "doctor", "--json", "--fix", "--yes", "--only", "auth", "--only", "config",
+    ])
+    .unwrap();
+    match args.command {
+        Some(Command::Doctor {
+            json,
+            fix,
+            yes,
+            only,
+        }) => {
+            assert!(json);
+            assert!(fix);
+            assert!(yes);
+            assert_eq!(only, vec!["auth".to_string(), "config".to_string()]);
+        }
+        other => panic!("unexpected command: {:?}", other),
+    }
+}
+
+#[test]
+fn doctor_yes_requires_fix() {
+    // `--yes` without `--fix` is rejected by clap (requires = "fix").
+    assert!(Args::try_parse_from(["jcode", "doctor", "--yes"]).is_err());
+}
+
+#[test]
+fn doctor_defaults_are_read_only() {
+    let args = Args::try_parse_from(["jcode", "doctor"]).unwrap();
+    match args.command {
+        Some(Command::Doctor {
+            json,
+            fix,
+            yes,
+            only,
+        }) => {
+            assert!(!json);
+            assert!(!fix);
+            assert!(!yes);
+            assert!(only.is_empty());
+        }
+        other => panic!("unexpected command: {:?}", other),
+    }
+}
+
+#[test]
+fn doctor_only_rejects_unknown_category() {
+    assert!(Args::try_parse_from(["jcode", "doctor", "--only", "bogus"]).is_err());
+}
+
+#[test]
 fn provider_list_subcommand_parses() {
     let args = Args::try_parse_from(["jcode", "provider", "list", "--json"]).unwrap();
     match args.command {

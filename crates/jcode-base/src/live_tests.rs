@@ -1,3 +1,9 @@
+// live_tests is a test-fixture file with many helpers, fixtures, and
+// pipeline stages. Lints are intentionally relaxed here because the file is
+// scaffolding for the live provider verification pipeline; the meaningful
+// invariants live in the surrounding types and the integration tests.
+#![allow(dead_code, clippy::all)]
+
 use anyhow::{Context, Result};
 use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
@@ -2833,8 +2839,14 @@ mod tests {
         skipped.recorded_at = Utc::now();
 
         let mut latest = BTreeMap::new();
-        latest.insert("anthropic-api::claude-opus-4-8::passing".to_string(), passing);
-        latest.insert("anthropic-api::claude-opus-4-8::skipped".to_string(), skipped);
+        latest.insert(
+            "anthropic-api::claude-opus-4-8::passing".to_string(),
+            passing,
+        );
+        latest.insert(
+            "anthropic-api::claude-opus-4-8::skipped".to_string(),
+            skipped,
+        );
         let coverage = LiveVerificationCoverage {
             schema_version: SCHEMA_VERSION,
             updated_at: Utc::now(),

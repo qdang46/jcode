@@ -367,6 +367,7 @@ pub fn cursor_auth_file_path() -> Result<PathBuf> {
     }
 
     #[cfg(target_os = "macos")]
+    #[allow(clippy::needless_return)]
     {
         return crate::storage::user_home_path(".cursor/auth.json")
             .context("No home directory found for Cursor auth.json");

@@ -1,3 +1,4 @@
+#![allow(clippy::needless_borrow, clippy::unnecessary_min_or_max)]
 //! First-run onboarding welcome screen.
 //!
 //! Rendered in place of the normal empty-state transcript when
@@ -182,14 +183,11 @@ fn welcome_body_lines(app: &dyn TuiState) -> Vec<Line<'static>> {
             }
             return lines;
         }
-        OnboardingWelcomeKind::TelemetryConsent {
-            yes_highlighted,
-            seconds_left,
-        } => {
+        OnboardingWelcomeKind::LoginOpenAi { yes_highlighted } => {
             lines.push(Line::from(""));
             lines.push(
                 Line::from(Span::styled(
-                    "Help improve jcode?",
+                    "First, log in to get started.",
                     Style::default()
                         .fg(welcome_accent())
                         .add_modifier(Modifier::BOLD),
@@ -199,14 +197,16 @@ fn welcome_body_lines(app: &dyn TuiState) -> Vec<Line<'static>> {
             lines.push(Line::from(""));
             lines.push(
                 Line::from(Span::styled(
-                    "Share your prompts and transcripts so we can improve the product.",
-                    Style::default().fg(rgb(200, 200, 200)),
+                    "Log in to OpenAI?",
+                    Style::default()
+                        .fg(welcome_accent())
+                        .add_modifier(Modifier::BOLD),
                 ))
                 .alignment(align),
             );
             lines.push(
                 Line::from(Span::styled(
-                    "This is optional and off by default. You can change it later.",
+                    "Choose \"No\" to pick a different provider.",
                     Style::default().fg(dim_color()),
                 ))
                 .alignment(align),
@@ -241,13 +241,6 @@ fn welcome_body_lines(app: &dyn TuiState) -> Vec<Line<'static>> {
             lines.push(
                 Line::from(Span::styled(
                     "Left/right or h/l to move, Enter or Space to choose (y / n also work).",
-                    Style::default().fg(dim_color()),
-                ))
-                .alignment(align),
-            );
-            lines.push(
-                Line::from(Span::styled(
-                    format!("Declines automatically in {seconds_left}s."),
                     Style::default().fg(dim_color()),
                 ))
                 .alignment(align),

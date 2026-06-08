@@ -63,6 +63,7 @@ pub fn wait_plan() -> NetworkWaitPlan {
         }
     }
     #[cfg(target_os = "macos")]
+    #[allow(clippy::needless_return)]
     {
         return NetworkWaitPlan {
             reason: "stream interrupted by a likely network disconnect".to_string(),

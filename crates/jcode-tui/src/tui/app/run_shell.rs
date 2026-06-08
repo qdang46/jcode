@@ -1,3 +1,4 @@
+#![allow(clippy::drop_non_drop)]
 use super::*;
 use crate::tui::TuiState;
 use crossterm::cursor::{RestorePosition, SavePosition};

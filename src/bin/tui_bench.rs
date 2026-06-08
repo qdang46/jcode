@@ -638,7 +638,8 @@ fn stored_message_visible_text(message: &jcode::session::StoredMessage) -> Strin
             }
             ContentBlock::OpenAICompaction { .. }
             | ContentBlock::AnthropicThinking { .. }
-            | ContentBlock::OpenAIReasoning { .. } => {}
+            | ContentBlock::OpenAIReasoning { .. }
+            | ContentBlock::ReasoningTrace { .. } => {}
         }
     }
     parts.join("\n\n")
@@ -1066,6 +1067,11 @@ impl TuiState for BenchState {
 
     fn diagram_pane_ratio(&self) -> u8 {
         40
+    }
+
+    fn diagram_pane_ratio_user_adjusted(&self) -> bool {
+        // Bench never has user interaction; matches the ui_tests default.
+        false
     }
 
     fn diagram_pane_animating(&self) -> bool {
