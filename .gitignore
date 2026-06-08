@@ -13,3 +13,7 @@ ios_simulator_screenshot.png
 /telemetry-worker/backups/
 .claude/worktrees/
 .beads/
+# Local session artifacts (opencode IDE cache, OMO continuation logs, session markdown dumps)
+.opencode/
+.omo/
+session-ses_*.md
