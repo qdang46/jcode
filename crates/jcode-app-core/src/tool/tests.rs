@@ -3,6 +3,8 @@ use crate::message::{Message, ToolDefinition};
 use crate::provider::{EventStream, Provider};
 use async_trait::async_trait;
 use serde_json::Value;
+use std::sync::Arc;
+use tokio::sync::RwLock;
 
 struct MockProvider;
 
@@ -172,6 +174,8 @@ async fn test_batch_resolves_oauth_names() {
         stdin_request_tx: None,
         graceful_shutdown_signal: None,
         execution_mode: ToolExecutionMode::Direct,
+        best_of_n_run_id: None,
+        best_of_n_candidate_id: None,
     };
 
     let result = registry
@@ -200,6 +204,8 @@ async fn registry_execute_enforces_session_tool_policy_after_alias_resolution() 
         stdin_request_tx: None,
         graceful_shutdown_signal: None,
         execution_mode: ToolExecutionMode::Direct,
+        best_of_n_run_id: None,
+        best_of_n_candidate_id: None,
     };
 
     let result = registry
@@ -377,6 +383,7 @@ async fn test_context_guard_small_output_passes_through() {
             jcode_hooks::HookRegistry::default(),
         )),
         dispatch_config: jcode_hooks::DispatchConfig::default(),
+        best_of_n: Arc::new(RwLock::new(None)),
         #[cfg(feature = "dcp")]
         dcp: None,
     };
@@ -397,6 +404,7 @@ async fn test_context_guard_truncates_huge_single_output() {
             jcode_hooks::HookRegistry::default(),
         )),
         dispatch_config: jcode_hooks::DispatchConfig::default(),
+        best_of_n: Arc::new(RwLock::new(None)),
         #[cfg(feature = "dcp")]
         dcp: None,
     };
@@ -431,6 +439,7 @@ async fn test_context_guard_truncates_when_context_nearly_full() {
             jcode_hooks::HookRegistry::default(),
         )),
         dispatch_config: jcode_hooks::DispatchConfig::default(),
+        best_of_n: Arc::new(RwLock::new(None)),
         #[cfg(feature = "dcp")]
         dcp: None,
     };
@@ -455,6 +464,7 @@ async fn test_context_guard_zero_budget_passes_through() {
             jcode_hooks::HookRegistry::default(),
         )),
         dispatch_config: jcode_hooks::DispatchConfig::default(),
+        best_of_n: Arc::new(RwLock::new(None)),
         #[cfg(feature = "dcp")]
         dcp: None,
     };
@@ -520,6 +530,8 @@ async fn unknown_tool_error_lists_available_tools_and_suggestions() {
         stdin_request_tx: None,
         graceful_shutdown_signal: None,
         execution_mode: ToolExecutionMode::Direct,
+        best_of_n_run_id: None,
+        best_of_n_candidate_id: None,
     };
     let err = registry
         .execute("ToolSearch", serde_json::json!({}), ctx)

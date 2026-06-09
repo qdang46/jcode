@@ -19,6 +19,8 @@ async fn initiative_tool_create_and_resume_round_trip() {
         stdin_request_tx: None,
         graceful_shutdown_signal: None,
         execution_mode: crate::tool::ToolExecutionMode::AgentTurn,
+        best_of_n_run_id: None,
+        best_of_n_candidate_id: None,
     };
 
     let mut bus_rx = Bus::global().subscribe();
@@ -99,6 +101,8 @@ async fn initiative_tool_list_opens_goals_overview_by_default() {
         stdin_request_tx: None,
         graceful_shutdown_signal: None,
         execution_mode: crate::tool::ToolExecutionMode::AgentTurn,
+        best_of_n_run_id: None,
+        best_of_n_candidate_id: None,
     };
 
     let list = tool
@@ -147,6 +151,8 @@ async fn initiative_tool_update_refreshes_open_overview_without_stealing_focus()
         stdin_request_tx: None,
         graceful_shutdown_signal: None,
         execution_mode: crate::tool::ToolExecutionMode::AgentTurn,
+        best_of_n_run_id: None,
+        best_of_n_candidate_id: None,
     };
 
     tool.execute(json!({"action": "list"}), ctx.clone())

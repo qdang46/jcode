@@ -156,6 +156,18 @@ pub trait Provider: Send + Sync {
         ))
     }
 
+    /// Override the temperature for this provider instance.
+    ///
+    /// Used by best-of-N strategy generation to give each candidate
+    /// a different temperature. Returns an error if the provider does
+    /// not support runtime temperature changes (the orchestrator logs
+    /// and continues with the default temperature).
+    fn set_temperature(&self, _temperature: f32) -> Result<()> {
+        Err(anyhow::anyhow!(
+            "This provider does not support runtime temperature changes"
+        ))
+    }
+
     /// Select a structured model route.
     ///
     /// Most single-runtime providers can treat this as `set_model(model)`. Provider

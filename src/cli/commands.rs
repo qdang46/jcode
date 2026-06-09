@@ -1580,7 +1580,7 @@ pub fn run_memory_command(cmd: MemorySubcommand) -> Result<()> {
     };
     use std::sync::Arc;
 
-    let provider: Arc<MemoryManager> = Arc::new(memory::MemoryManager::new());
+    let provider: Arc<dyn MemoryProvider> = Arc::new(memory::MemoryManager::new());
 
     // Bridge sync → async. Try to get current runtime handle; if none, create a one-shot.
     let handle = tokio::runtime::Handle::try_current().unwrap_or_else(|_| {

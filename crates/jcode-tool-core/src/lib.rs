@@ -35,16 +35,37 @@ pub struct ToolContext {
     pub stdin_request_tx: Option<tokio::sync::mpsc::UnboundedSender<StdinInputRequest>>,
     pub graceful_shutdown_signal: Option<InterruptSignal>,
     pub execution_mode: ToolExecutionMode,
-    /// Best-of-N run ID, set when executing within a best-of-N candidate cycle.
+    /// Best-of-N run ID, set by the orchestrator before spawning
+    /// candidate subagents. Used by propose_* tools to attribute
+    /// proposals to the correct run.
     pub best_of_n_run_id: Option<String>,
-    /// Best-of-N candidate ID, set when executing within a best-of-N candidate cycle.
+    /// Best-of-N candidate ID, set by the orchestrator before spawning
+    /// each candidate subagent. Used by propose_* tools to attribute
+    /// proposals to the correct candidate.
     pub best_of_n_candidate_id: Option<String>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ToolExecutionMode {
+    #[default]
     AgentTurn,
     Direct,
+}
+
+impl Default for ToolContext {
+    fn default() -> Self {
+        Self {
+            session_id: String::new(),
+            message_id: String::new(),
+            tool_call_id: String::new(),
+            working_dir: None,
+            stdin_request_tx: None,
+            graceful_shutdown_signal: None,
+            execution_mode: ToolExecutionMode::AgentTurn,
+            best_of_n_run_id: None,
+            best_of_n_candidate_id: None,
+        }
+    }
 }
 
 impl ToolContext {
