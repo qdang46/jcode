@@ -1575,24 +1575,18 @@ pub enum MemorySubcommand {
 }
 
 pub fn run_memory_command(cmd: MemorySubcommand) -> Result<()> {
-    use memory::{MemoryEntry, MemoryManager};
+    use jcode_memory_types::{MemoryEntry as MemEntry, MemoryProvider, MemoryScope};
+    use std::sync::Arc;
 
-    let manager = MemoryManager::new();
+    let provider: Arc<dyn MemoryProvider> = Arc::new(memory::MemoryManager::new());
+
+    // Bridge sync → async. Callers are inside an async context so Handle is available.
+    let handle = tokio::runtime::Handle::current();
 
     match cmd {
         MemorySubcommand::List { scope, tag } => {
-            let mut all_memories: Vec<MemoryEntry> = Vec::new();
-
-            if (scope == "all" || scope == "project")
-                && let Ok(graph) = manager.load_project_graph()
-            {
-                all_memories.extend(graph.all_memories().cloned());
-            }
-            if (scope == "all" || scope == "global")
-                && let Ok(graph) = manager.load_global_graph()
-            {
-                all_memories.extend(graph.all_memories().cloned());
-            }
+            let entries = handle.block_on(provider.list_all(MemoryScope::All))?;
+            let mut all_memories: Vec<MemEntry> = entries;
 
             if let Some(tag_filter) = tag {
                 all_memories.retain(|m| m.tags.contains(&tag_filter));
@@ -1627,84 +1621,66 @@ pub fn run_memory_command(cmd: MemorySubcommand) -> Result<()> {
 
         MemorySubcommand::Search { query, semantic } => {
             if semantic {
-                match manager.find_similar(&query, 0.3, 20) {
-                    Ok(results) => {
-                        if results.is_empty() {
-                            println!("No memories found matching '{}'", query);
+                let results = handle
+                    .block_on(provider.recall(&query, MemoryScope::All, 20, "semantic"))?;
+                if results.is_empty() {
+                    println!("No memories found matching '{}'", query);
+                } else {
+                    println!(
+                        "Found {} memories matching '{}' (semantic):\n",
+                        results.len(),
+                        query
+                    );
+                    for (entry, score) in results {
+                        let tags_str = if entry.tags.is_empty() {
+                            String::new()
                         } else {
-                            println!(
-                                "Found {} memories matching '{}' (semantic):\n",
-                                results.len(),
-                                query
-                            );
-                            for (entry, score) in results {
-                                let tags_str = if entry.tags.is_empty() {
-                                    String::new()
-                                } else {
-                                    format!(" [{}]", entry.tags.join(", "))
-                                };
-                                println!(
-                                    "- [{}] {}{}\n  id: {} (score: {:.0}%)",
-                                    entry.category,
-                                    entry.content,
-                                    tags_str,
-                                    entry.id,
-                                    score * 100.0
-                                );
-                                println!();
-                            }
-                        }
-                    }
-                    Err(e) => {
-                        eprintln!("Search failed: {}", e);
+                            format!(" [{}]", entry.tags.join(", "))
+                        };
+                        println!(
+                            "- [{}] {}{}\n  id: {} (score: {:.0}%)",
+                            entry.category,
+                            entry.content,
+                            tags_str,
+                            entry.id,
+                            score * 100.0
+                        );
+                        println!();
                     }
                 }
             } else {
-                match manager.search(&query) {
-                    Ok(results) => {
-                        if results.is_empty() {
-                            println!("No memories found matching '{}'", query);
+                let results = handle.block_on(provider.search(&query, MemoryScope::All))?;
+                if results.is_empty() {
+                    println!("No memories found matching '{}'", query);
+                } else {
+                    println!(
+                        "Found {} memories matching '{}' (keyword):\n",
+                        results.len(),
+                        query
+                    );
+                    for entry in results {
+                        let tags_str = if entry.tags.is_empty() {
+                            String::new()
                         } else {
-                            println!(
-                                "Found {} memories matching '{}' (keyword):\n",
-                                results.len(),
-                                query
-                            );
-                            for entry in results {
-                                let tags_str = if entry.tags.is_empty() {
-                                    String::new()
-                                } else {
-                                    format!(" [{}]", entry.tags.join(", "))
-                                };
-                                println!(
-                                    "- [{}] {}{}\n  id: {}",
-                                    entry.category, entry.content, tags_str, entry.id
-                                );
-                                println!();
-                            }
-                        }
-                    }
-                    Err(e) => {
-                        eprintln!("Search failed: {}", e);
+                            format!(" [{}]", entry.tags.join(", "))
+                        };
+                        println!(
+                            "- [{}] {}{}\n  id: {}",
+                            entry.category, entry.content, tags_str, entry.id
+                        );
+                        println!();
                     }
                 }
             }
         }
 
         MemorySubcommand::Export { output, scope } => {
-            let mut all_memories: Vec<memory::MemoryEntry> = Vec::new();
-
-            if (scope == "all" || scope == "project")
-                && let Ok(graph) = manager.load_project_graph()
-            {
-                all_memories.extend(graph.all_memories().cloned());
-            }
-            if (scope == "all" || scope == "global")
-                && let Ok(graph) = manager.load_global_graph()
-            {
-                all_memories.extend(graph.all_memories().cloned());
-            }
-
+            let mem_scope = match scope.as_str() {
+                "project" => MemoryScope::Project,
+                "global" => MemoryScope::Global,
+                _ => MemoryScope::All,
+            };
+            let all_memories = handle.block_on(provider.list_all(mem_scope))?;
             let json = serde_json::to_string_pretty(&all_memories)?;
             std::fs::write(&output, json)?;
             println!("Exported {} memories to {}", all_memories.len(), output)
@@ -1713,75 +1689,35 @@ pub fn run_memory_command(cmd: MemorySubcommand) -> Result<()> {
         MemorySubcommand::Import {
             input,
             scope,
-            overwrite,
+            overwrite: _,
         } => {
             let content = std::fs::read_to_string(&input)?;
-            let memories: Vec<memory::MemoryEntry> = serde_json::from_str(&content)?;
-
+            let memories: Vec<MemEntry> = serde_json::from_str(&content)?;
+            let mem_scope = match scope.as_str() {
+                "global" => MemoryScope::Global,
+                _ => MemoryScope::Project,
+            };
             let mut imported = 0;
-            let mut skipped = 0;
-
             for entry in memories {
-                let result = if scope == "global" {
-                    if !overwrite
-                        && let Ok(graph) = manager.load_global_graph()
-                        && graph.get_memory(&entry.id).is_some()
-                    {
-                        skipped += 1;
-                        continue;
-                    }
-                    manager.remember_global(entry)
-                } else {
-                    if !overwrite
-                        && let Ok(graph) = manager.load_project_graph()
-                        && graph.get_memory(&entry.id).is_some()
-                    {
-                        skipped += 1;
-                        continue;
-                    }
-                    manager.remember_project(entry)
-                };
-
-                if result.is_ok() {
+                if handle.block_on(provider.remember(entry, mem_scope)).is_ok() {
                     imported += 1;
                 }
             }
-
-            println!("Imported {} memories ({} skipped)", imported, skipped)
+            println!("Imported {} memories", imported)
         }
 
         MemorySubcommand::Stats => {
-            let mut project_count = 0;
-            let mut global_count = 0;
-            let mut total_tags = std::collections::HashSet::new();
+            let (total, tags, _edges, _clusters) =
+                handle.block_on(provider.graph_stats())?;
+            let entries = handle.block_on(provider.list_all(MemoryScope::All))?;
             let mut categories: std::collections::HashMap<String, usize> =
                 std::collections::HashMap::new();
-
-            if let Ok(graph) = manager.load_project_graph() {
-                project_count = graph.memory_count();
-                for entry in graph.all_memories() {
-                    for tag in &entry.tags {
-                        total_tags.insert(tag.clone());
-                    }
-                    *categories.entry(entry.category.to_string()).or_default() += 1;
-                }
+            for entry in &entries {
+                *categories.entry(entry.category.to_string()).or_default() += 1;
             }
-
-            if let Ok(graph) = manager.load_global_graph() {
-                global_count = graph.memory_count();
-                for entry in graph.all_memories() {
-                    for tag in &entry.tags {
-                        total_tags.insert(tag.clone());
-                    }
-                    *categories.entry(entry.category.to_string()).or_default() += 1;
-                }
-            }
-
             println!("Memory Statistics:");
-            println!("  Project memories: {}", project_count);
-            println!("  Global memories:  {}", global_count);
-            println!("  Total:            {}", project_count + global_count);
-            println!("  Unique tags:      {}", total_tags.len());
+            println!("  Total memories:  {}", total);
+            println!("  Unique tags:      {}", tags);
             println!("\nBy category:");
             for (cat, count) in &categories {
                 println!("  {}: {}", cat, count);
