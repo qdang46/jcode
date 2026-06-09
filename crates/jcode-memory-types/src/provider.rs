@@ -30,7 +30,7 @@ use async_trait::async_trait;
 /// - `MemoryManager` (jcode-base) — legacy JSON-based storage
 /// - `MempalaceAdapter` (jcode-mempalace-adapter) — SQLite + vector search
 #[async_trait]
-pub trait MemoryProvider: Send + Sync {
+pub trait MemoryProvider: Send + Sync + GraphOperations {
     /// Store a new memory entry.
     async fn remember(
         &self,
