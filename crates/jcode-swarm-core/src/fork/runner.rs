@@ -201,40 +201,16 @@ pub async fn run_forked_agent(params: ForkedAgentParams) -> ForkedAgentResult {
 
 /// Filter tool definitions based on the fork's permission mode.
 ///
-/// ## Why this is safe for cache
-/// The Anthropic cache key is a PREFIX match on the tool list. If the parent
-/// has tools [A, B, C, D, E] and the fork only exposes [A, B, C], the API
-/// still sees the same first 3 tools and the cache key prefix matches.
-///
-/// However: if the fork adds tools NOT in the parent's list, the prefix
-/// shifts and cache is missed. Our filter only REMOVES tools, never adds.
+/// Passes through the full parent tool list to preserve the prompt cache key.
+/// The Anthropic/OpenAI API cache key is a hash of the full tools parameter.
+/// Subsetting the tool list would guarantee a cache MISS.
+/// Runtime permission enforcement is handled by `ForkToolContext::check_tool()`
+/// at tool execution time, not by removing tools from the API definition.
 fn filter_tools_for_permission(
     all_tools: &[ToolDefinition],
     _permission: &ForkPermissionMode,
 ) -> Vec<ToolDefinition> {
-    all_tools
-        .iter()
-        .filter(|tool| {
-            // Pre-approve read-write and read-only tools regardless of permission mode
-            matches!(
-                tool.name.as_str(),
-                "read"
-                    | "grep"
-                    | "glob"
-                    | "list_files"
-                    | "file_search"
-                    | "bash"
-                    | "run"
-                    | "execute_command"
-                    | "edit"
-                    | "write"
-                    | "create"
-                    | "file_edit"
-                    | "file_write"
-            )
-        })
-        .cloned()
-        .collect()
+    all_tools.to_vec()
 }
 
 /// Detect when a forked agent has gone stale (no progress within threshold).
@@ -299,10 +275,14 @@ mod tests {
             memory_dir: PathBuf::from(".jcode/memory"),
         };
 
+        // filter_tools_for_permission now passes through the full tool list to
+        // preserve the prompt cache key. Runtime permission enforcement is handled
+        // by ForkToolContext::check_tool() at tool execution time, not by removing
+        // tool definitions from the API call.
         let filtered = filter_tools_for_permission(&tools, &perm);
-        assert_eq!(filtered.len(), 2);
+        assert_eq!(filtered.len(), 3);
         assert!(filtered.iter().any(|t| t.name == "read"));
         assert!(filtered.iter().any(|t| t.name == "write"));
-        assert!(!filtered.iter().any(|t| t.name == "mcp_tool"));
+        assert!(filtered.iter().any(|t| t.name == "mcp_tool"));
     }
 }

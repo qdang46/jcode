@@ -1098,7 +1098,10 @@ impl Agent {
         }
 
         let tools = self.tool_definitions_for_debug().await;
-        let system_prompt = crate::prompt::build_system_prompt(None, &[]);
+        // Use the parent's actual compiled system prompt (static part) for cache key matching.
+        // The fork must use the same system prompt the parent sent to get a cache hit.
+        let split = self.build_system_prompt_split(None);
+        let system_prompt = split.static_part;
 
         save_cache_safe_params(CacheSafeParams {
             system_prompt: Arc::from(system_prompt),
@@ -1125,11 +1128,10 @@ impl Agent {
                 };
 
                 let messages = cache_safe.fork_context_messages.to_vec();
-                let new_count = messages.len();
-                if new_count < min_new_messages {
+                if messages.len() < min_new_messages {
                     logging::info(&format!(
                         "Memory extraction: only {} messages, need {}",
-                        new_count,
+                        messages.len(),
                         min_new_messages
                     ));
                     return;
@@ -1166,9 +1168,11 @@ impl Agent {
                     return;
                 }
 
-                let prompt = format!(
-                    "Extract key information from the most recent {} messages into memory files.",
-                    new_count
+                let prompt = jcode_memory_types::extraction_prompts::build_extraction_prompt(
+                    &jcode_memory_types::extraction::ExtractionPromptVariant::Auto,
+                    messages.len(),
+                    "",
+                    true, // skip_index
                 );
 
                 let params = jcode_swarm_core::fork::ForkedAgentParams {
@@ -1195,7 +1199,7 @@ impl Agent {
 
         // Spawn auto-dream (if enabled and due)
         let dream_config = &cfg.forked_agent.auto_dream;
-        if dream_config.enabled {
+        if dream_config.enabled && dream_config.turn_interval > 0 {
             let abort = self.graceful_shutdown.clone();
             let allowed_dirs = dream_config.allowed_dirs.clone();
             let max_turns = dream_config.max_turns;

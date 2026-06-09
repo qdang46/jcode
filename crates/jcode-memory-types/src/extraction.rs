@@ -139,7 +139,8 @@ pub fn has_memory_writes_since(
                         .or_else(|| input.get("path"))
                         .and_then(|p| p.as_str())
                     {
-                        let p = PathBuf::from(path);
+                        // Normalize to prevent ../ path traversal bypass
+                        let p = normalize_path_for_extraction(&PathBuf::from(path));
                         if p.starts_with(memory_dir) {
                             return true;
                         }
@@ -165,6 +166,29 @@ fn count_model_visible_messages_since(messages: &[Message], since_index: usize) 
             )
         })
         .count()
+}
+
+/// Normalize a path by resolving "." and ".." components without filesystem access.
+/// Prevents path traversal attacks via "../" segments.
+fn normalize_path_for_extraction(path: &PathBuf) -> PathBuf {
+    use std::path::Component;
+    let mut components = Vec::new();
+    for component in path.components() {
+        match component {
+            Component::ParentDir => {
+                components.pop();
+            }
+            Component::CurDir => {}
+            other => {
+                components.push(other.as_os_str().to_os_string());
+            }
+        }
+    }
+    let mut result = PathBuf::new();
+    for c in components {
+        result.push(c);
+    }
+    result
 }
 
 #[cfg(test)]

@@ -273,7 +273,7 @@ impl ForkPermissionMode {
                     .or_else(|| input.get("path"))
                     .and_then(|p| p.as_str())
                     .map(PathBuf::from);
-                path.map(|p| p.starts_with(memory_dir)).unwrap_or(false)
+                path.map(|p| normalize_path(&p).starts_with(memory_dir)).unwrap_or(false)
             }
 
             // Everything else denied
@@ -313,14 +313,45 @@ impl ForkPermissionMode {
         input: &serde_json::Value,
         dirs: &[PathBuf],
     ) -> bool {
+        use std::path::Component;
         let path = input
             .get("file_path")
             .or_else(|| input.get("path"))
             .and_then(|p| p.as_str())
             .map(PathBuf::from);
-        path.map(|p| dirs.iter().any(|d| p.starts_with(d)))
-            .unwrap_or(false)
+        path.map(|p| {
+            // Resolve .. segments to prevent path traversal
+            let resolved = normalize_path(&p);
+            dirs.iter().any(|d| resolved.starts_with(d))
+        })
+        .unwrap_or(false)
     }
+}
+
+/// Normalize a path by resolving "." and ".." components without requiring
+/// filesystem access (unlike canonicalize which needs the file to exist).
+/// This prevents path traversal attacks via "../" segments in tool inputs.
+fn normalize_path(path: &PathBuf) -> PathBuf {
+    use std::path::Component;
+    let mut components = Vec::new();
+    for component in path.components() {
+        match component {
+            Component::ParentDir => {
+                components.pop();
+            }
+            Component::CurDir => {
+                // Skip "."
+            }
+            other => {
+                components.push(other.as_os_str().to_os_string());
+            }
+        }
+    }
+    let mut result = PathBuf::new();
+    for component in components {
+        result.push(component);
+    }
+    result
 }
 
 /// Result of a forked agent query loop.

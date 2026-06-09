@@ -1013,6 +1013,9 @@ impl Agent {
     }
 
     pub fn mark_crashed(&mut self, message: Option<String>) {
+        #[cfg(feature = "forked-agent")]
+        jcode_swarm_core::fork::clear_cache_safe_params();
+
         crate::telemetry::record_crash(
             self.provider.name(),
             &self.provider.model(),

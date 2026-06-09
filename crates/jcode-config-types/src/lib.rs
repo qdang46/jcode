@@ -1130,7 +1130,7 @@ pub struct MemoryExtractionConfig {
 impl Default for MemoryExtractionConfig {
     fn default() -> Self {
         Self {
-            enabled: true,
+            enabled: false,
             memory_dir: PathBuf::from(".jcode/memory"),
             max_turns: 3,
             max_output_tokens: 4096,
@@ -1168,7 +1168,7 @@ pub struct AutoDreamConfig {
 impl Default for AutoDreamConfig {
     fn default() -> Self {
         Self {
-            enabled: true,
+            enabled: false,
             turn_interval: 10,
             max_turns: 2,
             max_output_tokens: 2048,
