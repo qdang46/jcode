@@ -21,8 +21,7 @@ impl MemoryTool {
     /// Create a memory tool in test mode (isolated storage)
     pub fn new_test() -> Self {
         Self {
-            manager: Arc::new(crate::memory::MemoryManager::new_test())
-                as Arc<dyn MemoryProvider>,
+            manager: Arc::new(crate::memory::MemoryManager::new_test()) as Arc<dyn MemoryProvider>,
         }
     }
 

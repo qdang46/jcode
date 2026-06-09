@@ -32,11 +32,7 @@ use async_trait::async_trait;
 #[async_trait]
 pub trait MemoryProvider: Send + Sync + GraphOperations {
     /// Store a new memory entry.
-    async fn remember(
-        &self,
-        entry: MemoryEntry,
-        scope: MemoryScope,
-    ) -> Result<String>;
+    async fn remember(&self, entry: MemoryEntry, scope: MemoryScope) -> Result<String>;
 
     /// Recall memories matching a query.
     ///
@@ -53,17 +49,10 @@ pub trait MemoryProvider: Send + Sync + GraphOperations {
     ) -> Result<Vec<(MemoryEntry, f32)>>;
 
     /// Search memories by keyword/text match.
-    async fn search(
-        &self,
-        query: &str,
-        scope: MemoryScope,
-    ) -> Result<Vec<MemoryEntry>>;
+    async fn search(&self, query: &str, scope: MemoryScope) -> Result<Vec<MemoryEntry>>;
 
     /// List all memories in the given scope.
-    async fn list_all(
-        &self,
-        scope: MemoryScope,
-    ) -> Result<Vec<MemoryEntry>>;
+    async fn list_all(&self, scope: MemoryScope) -> Result<Vec<MemoryEntry>>;
 
     /// Remove a memory by ID.
     async fn forget(&self, id: &str) -> Result<bool>;
@@ -75,11 +64,7 @@ pub trait MemoryProvider: Send + Sync + GraphOperations {
     async fn link(&self, from_id: &str, to_id: &str, weight: f32) -> Result<()>;
 
     /// Get memories related to the given memory via graph traversal.
-    async fn related(
-        &self,
-        id: &str,
-        depth: usize,
-    ) -> Result<Vec<MemoryEntry>>;
+    async fn related(&self, id: &str, depth: usize) -> Result<Vec<MemoryEntry>>;
 
     /// Get memories formatted for prompt injection.
     async fn get_prompt_memories(

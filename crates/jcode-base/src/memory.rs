@@ -1862,11 +1862,7 @@ impl jcode_memory_types::MemoryProvider for MemoryManager {
                 // get_prompt_memories_scoped returns formatted text; for
                 // the trait we return raw entries sorted by recency.
                 let all = self.list_all_scoped(scope)?;
-                let entries: Vec<_> = all
-                    .into_iter()
-                    .take(limit)
-                    .map(|e| (e, 1.0_f32))
-                    .collect();
+                let entries: Vec<_> = all.into_iter().take(limit).map(|e| (e, 1.0_f32)).collect();
                 Ok(entries)
             }
             "cascade" => self.find_similar_with_cascade_scoped(query, 0.5, limit, scope),
@@ -1915,10 +1911,7 @@ impl jcode_memory_types::MemoryProvider for MemoryManager {
         scope: jcode_memory_types::MemoryScope,
     ) -> anyhow::Result<Vec<jcode_memory_types::MemoryEntry>> {
         let entries = self.list_all_scoped(scope)?;
-        let entries: Vec<_> = entries
-            .into_iter()
-            .take(limit)
-            .collect();
+        let entries: Vec<_> = entries.into_iter().take(limit).collect();
         Ok(entries)
     }
 

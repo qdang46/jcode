@@ -107,7 +107,10 @@ pub async fn gather_memory_graph_health_provider(
     provider: &dyn jcode_memory_types::MemoryProvider,
 ) -> MemoryGraphHealth {
     let mut health = MemoryGraphHealth::default();
-    if let Ok(entries) = provider.list_all(jcode_memory_types::MemoryScope::All).await {
+    if let Ok(entries) = provider
+        .list_all(jcode_memory_types::MemoryScope::All)
+        .await
+    {
         for entry in &entries {
             health.total += 1;
             if entry.active {
@@ -233,7 +236,10 @@ pub async fn gather_feedback_memories_provider(
     }
 
     // Source 2: Memory graph entries tagged "ambient" or "system"
-    if let Ok(entries) = provider.list_all(jcode_memory_types::MemoryScope::All).await {
+    if let Ok(entries) = provider
+        .list_all(jcode_memory_types::MemoryScope::All)
+        .await
+    {
         for entry in &entries {
             if !entry.active {
                 continue;

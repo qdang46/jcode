@@ -1,13 +1,15 @@
 use crate::message::{ContentBlock, ToolCall};
-use crate::tool::ToolOutput;
 #[cfg(feature = "rtco")]
 use crate::rtco_filter::RtcoFilterResult;
+use crate::tool::ToolOutput;
 
 pub(super) const MAX_TOOL_OUTPUT_CHARS_FOR_HISTORY: usize = 512 * 1024;
 
 pub(super) fn cap_tool_output_for_history(tool_name: &str, mut output: ToolOutput) -> ToolOutput {
     #[cfg(feature = "rtco")]
-    if let Some(rtco_result) = crate::rtco_filter::filter_tool_output(tool_name, &output.output, 10.0) {
+    if let Some(rtco_result) =
+        crate::rtco_filter::filter_tool_output(tool_name, &output.output, 10.0)
+    {
         // Push to the global accumulator before taking ownership of fields.
         push_rtco_stats(RtcoFilterResult {
             text: rtco_result.text.clone(),
@@ -151,7 +153,8 @@ pub(super) fn print_tool_summary(tool: &ToolCall) {
 #[cfg(feature = "rtco")]
 use std::sync::{LazyLock, Mutex};
 #[cfg(feature = "rtco")]
-static RTCO_STATS: LazyLock<Mutex<Vec<RtcoFilterResult>>> = LazyLock::new(|| Mutex::new(Vec::new()));
+static RTCO_STATS: LazyLock<Mutex<Vec<RtcoFilterResult>>> =
+    LazyLock::new(|| Mutex::new(Vec::new()));
 
 /// Drain all accumulated RTCO stats from the current session and return them.
 #[cfg(feature = "rtco")]
