@@ -23,7 +23,7 @@ use crate::memory::{self, MemoryEntry, MemoryManager};
 use crate::memory_graph::{ClusterEntry, EdgeKind, MemoryGraph};
 use crate::memory_types::{MemoryEventKind, MemoryState, StepResult, StepStatus};
 use crate::sidecar::Sidecar;
-use jcode_memory_types::{GraphOperations, MemoryProvider, MemoryScope};
+use jcode_memory_types::{MemoryProvider, MemoryScope};
 
 /// Context from a retrieval operation for post-retrieval maintenance
 #[derive(Debug, Clone)]

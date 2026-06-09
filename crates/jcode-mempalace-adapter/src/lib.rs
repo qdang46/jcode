@@ -442,6 +442,66 @@ impl jcode_memory_types::MemoryProvider for MempalaceAdapter {
     }
 }
 
+// =====================================================================
+// GraphOperations trait implementation (behind "backend")
+// =====================================================================
+//
+// Loads all drawers from the Palace via search/list_all and constructs
+// a MemoryGraph. This is less efficient than the MemoryManager's direct
+// graph access but maintains API compatibility.
+
+#[cfg(feature = "backend")]
+#[async_trait::async_trait]
+impl jcode_memory_types::GraphOperations for MempalaceAdapter {
+    async fn load_project_graph(&self) -> anyhow::Result<jcode_memory_types::MemoryGraph> {
+        let entries = MempalaceAdapter::list_all(
+            self,
+            jcode_memory_types::MemoryScope::Project,
+        )
+        .await?;
+        let mut graph = jcode_memory_types::MemoryGraph::new();
+        for (text, _kind, _extra) in entries {
+            let entry = jcode_memory_types::MemoryEntry::new(
+                jcode_memory_types::MemoryCategory::Fact,
+                &text,
+            );
+            graph.add_memory(entry);
+        }
+        Ok(graph)
+    }
+
+    async fn load_global_graph(&self) -> anyhow::Result<jcode_memory_types::MemoryGraph> {
+        let entries = MempalaceAdapter::list_all(
+            self,
+            jcode_memory_types::MemoryScope::Global,
+        )
+        .await?;
+        let mut graph = jcode_memory_types::MemoryGraph::new();
+        for (text, _kind, _extra) in entries {
+            let entry = jcode_memory_types::MemoryEntry::new(
+                jcode_memory_types::MemoryCategory::Fact,
+                &text,
+            );
+            graph.add_memory(entry);
+        }
+        Ok(graph)
+    }
+
+    async fn save_project_graph(
+        &self,
+        _graph: &jcode_memory_types::MemoryGraph,
+    ) -> anyhow::Result<()> {
+        anyhow::bail!("save_project_graph not supported by MempalaceAdapter; memories are stored as Drawers in the Palace")
+    }
+
+    async fn save_global_graph(
+        &self,
+        _graph: &jcode_memory_types::MemoryGraph,
+    ) -> anyhow::Result<()> {
+        anyhow::bail!("save_global_graph not supported by MempalaceAdapter; memories are stored as Drawers in the Palace")
+    }
+}
+
 // ---- tests ------------------------------------------------------------
 
 #[cfg(test)]
