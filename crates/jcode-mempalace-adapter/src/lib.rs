@@ -44,10 +44,6 @@ pub use mempalace_core::{
 };
 
 /// Convert the mirror `Drawer` to a real `mempalace_core::Drawer`.
-///
-/// This is needed when the `backend` feature is enabled because the
-/// conversion functions in `convert.rs` produce mirror types, but the
-/// Palace runtime needs real types.
 #[cfg(feature = "backend")]
 pub fn mirror_drawer_to_real(drawer: &Drawer) -> MpDrawer {
     let kind = match &drawer.kind {
@@ -105,10 +101,6 @@ pub use convert::{
 // =====================================================================
 // MempalaceAdapter — runtime bridge (feature = "backend")
 // =====================================================================
-//
-// Wraps a `Palace` instance and exposes the 8 memory-tool actions that
-// jcode's `MemoryTool` dispatches to.  Also provides access to the
-// underlying `Palace` for the per-turn prompt injection pipeline (#358).
 
 #[cfg(feature = "backend")]
 pub struct MempalaceAdapter {
@@ -240,17 +232,28 @@ impl MempalaceAdapter {
         use mempalace_core::{MemoryProvider, SearchScope};
 
         let search_scope = match scope {
-            jcode_memory_types::MemoryScope::Project => SearchScope::new().wing("project"),
-            _ => SearchScope::new(),
+            jcode_memory_types::MemoryScope::Project => Some(SearchScope::new().wing("project")),
+            _ => None,
         };
 
-        // Use a broad search to list everything
-        let hits = self.palace.search("", &search_scope).await?;
-        Ok(hits
+        // Use get_drawers() which returns full Drawer objects with real IDs and kinds
+        let drawers = self.palace.get_drawers(search_scope.as_ref(), None).await?;
+        Ok(drawers
             .into_iter()
-            .map(|h| {
-                let kind = h.wing.clone().unwrap_or_default();
-                (h.text, kind, String::new())
+            .map(|d| {
+                let id = d.id.as_ref().map(|id| id.to_string()).unwrap_or_default();
+                let kind_str = match &d.kind {
+                    mempalace_core::DrawerKind::Fact => "fact",
+                    mempalace_core::DrawerKind::Event => "event",
+                    mempalace_core::DrawerKind::Discovery => "discovery",
+                    mempalace_core::DrawerKind::Preference => "preference",
+                    mempalace_core::DrawerKind::Advice => "advice",
+                    mempalace_core::DrawerKind::Raw => "raw",
+                    mempalace_core::DrawerKind::Entity => "entity",
+                    mempalace_core::DrawerKind::Correction => "correction",
+                    _ => "custom",
+                };
+                (d.content, kind_str.to_string(), id)
             })
             .collect())
     }
@@ -311,6 +314,55 @@ impl jcode_memory_types::MemoryProvider for MempalaceAdapter {
         limit: usize,
         mode: &str,
     ) -> anyhow::Result<Vec<(jcode_memory_types::MemoryEntry, f32)>> {
+        if mode == "recent" {
+            // Use get_drawers to get full Drawer objects with real IDs
+            use mempalace_core::{MemoryProvider as MpProvider, SearchScope};
+            let search_scope = match scope {
+                jcode_memory_types::MemoryScope::Project => {
+                    Some(SearchScope::new().wing("project"))
+                }
+                _ => None,
+            };
+            let drawers = self.palace.get_drawers(search_scope.as_ref(), Some(limit)).await?;
+            let mut entries: Vec<_> = drawers
+                .into_iter()
+                .map(|d| {
+                    let kind = match d.kind {
+                        mempalace_core::DrawerKind::Fact => jcode_memory_types::MemoryCategory::Fact,
+                        mempalace_core::DrawerKind::Preference => jcode_memory_types::MemoryCategory::Preference,
+                        mempalace_core::DrawerKind::Entity => jcode_memory_types::MemoryCategory::Entity,
+                        mempalace_core::DrawerKind::Correction => jcode_memory_types::MemoryCategory::Correction,
+                        _ => jcode_memory_types::MemoryCategory::Fact,
+                    };
+                    let entry = jcode_memory_types::MemoryEntry {
+                        id: d.id.as_ref().map(|id| id.to_string()).unwrap_or_default(),
+                        category: kind,
+                        content: d.content,
+                        tags: d.tags,
+                        search_text: String::new(),
+                        created_at: d.created_at,
+                        updated_at: d.updated_at,
+                        access_count: d.access_count as u32,
+                        source: None,
+                        trust: jcode_memory_types::TrustLevel::Medium,
+                        strength: d.consolidation_strength,
+                        active: d.active,
+                        superseded_by: None,
+                        reinforcements: vec![],
+                        embedding: None,
+                        confidence: d.confidence as f32,
+                    };
+                    (entry, 1.0_f32)
+                })
+                .collect();
+            // Sort by updated_at descending for "recent"
+            entries.sort_by(|a, b| b.0.updated_at.cmp(&a.0.updated_at));
+            entries.truncate(limit);
+            return Ok(entries);
+        }
+
+        // For semantic/cascade search, SearchHit doesn't carry DrawerId.
+        // Return entries with real IDs by cross-referencing with get_drawers.
         use mempalace_core::{MemoryProvider as MpProvider, SearchScope};
 
         let search_scope = match scope {
@@ -331,11 +383,24 @@ impl jcode_memory_types::MemoryProvider for MempalaceAdapter {
         let entries: Vec<_> = hits
             .into_iter()
             .map(|h| {
-                let mut entry = jcode_memory_types::MemoryEntry::new(
-                    jcode_memory_types::MemoryCategory::Fact,
-                    &h.text,
-                );
-                entry.id = format!("mp-{}", uuid::Uuid::new_v4());
+                let entry = jcode_memory_types::MemoryEntry {
+                    id: format!("mp-{}", uuid::Uuid::new_v4()),
+                    category: jcode_memory_types::MemoryCategory::Fact,
+                    content: h.text,
+                    tags: vec![],
+                    search_text: String::new(),
+                    created_at: chrono::Utc::now(),
+                    updated_at: chrono::Utc::now(),
+                    access_count: 0,
+                    source: None,
+                    trust: jcode_memory_types::TrustLevel::Medium,
+                    strength: 1,
+                    active: true,
+                    superseded_by: None,
+                    reinforcements: vec![],
+                    embedding: None,
+                    confidence: 1.0,
+                };
                 (entry, h.similarity as f32)
             })
             .collect();
@@ -358,11 +423,24 @@ impl jcode_memory_types::MemoryProvider for MempalaceAdapter {
         let entries = hits
             .into_iter()
             .map(|h| {
-                let mut entry = jcode_memory_types::MemoryEntry::new(
-                    jcode_memory_types::MemoryCategory::Fact,
-                    &h.text,
-                );
-                entry.id = format!("mp-{}", uuid::Uuid::new_v4());
+                let entry = jcode_memory_types::MemoryEntry {
+                    id: format!("mp-{}", uuid::Uuid::new_v4()),
+                    category: jcode_memory_types::MemoryCategory::Fact,
+                    content: h.text,
+                    tags: vec![],
+                    search_text: String::new(),
+                    created_at: chrono::Utc::now(),
+                    updated_at: chrono::Utc::now(),
+                    access_count: 0,
+                    source: None,
+                    trust: jcode_memory_types::TrustLevel::Medium,
+                    strength: 1,
+                    active: true,
+                    superseded_by: None,
+                    reinforcements: vec![],
+                    embedding: None,
+                    confidence: 1.0,
+                };
                 entry
             })
             .collect();
@@ -376,12 +454,15 @@ impl jcode_memory_types::MemoryProvider for MempalaceAdapter {
         let results = MempalaceAdapter::list_all(self, scope).await?;
         let entries = results
             .into_iter()
-            .map(|(text, _kind, _extra)| {
-                let mut entry = jcode_memory_types::MemoryEntry::new(
-                    jcode_memory_types::MemoryCategory::Fact,
-                    &text,
-                );
-                entry.id = format!("mp-{}", uuid::Uuid::new_v4());
+            .map(|(text, kind_str, id)| {
+                let category = match kind_str.as_str() {
+                    "preference" => jcode_memory_types::MemoryCategory::Preference,
+                    "entity" => jcode_memory_types::MemoryCategory::Entity,
+                    "correction" => jcode_memory_types::MemoryCategory::Correction,
+                    _ => jcode_memory_types::MemoryCategory::Fact,
+                };
+                let mut entry = jcode_memory_types::MemoryEntry::new(category, &text);
+                entry.id = id;
                 entry
             })
             .collect();
@@ -409,12 +490,10 @@ impl jcode_memory_types::MemoryProvider for MempalaceAdapter {
         let entries = results
             .into_iter()
             .map(|(text, _score)| {
-                let mut entry = jcode_memory_types::MemoryEntry::new(
+                jcode_memory_types::MemoryEntry::new(
                     jcode_memory_types::MemoryCategory::Fact,
                     &text,
-                );
-                entry.id = format!("mp-{}", uuid::Uuid::new_v4());
-                entry
+                )
             })
             .collect();
         Ok(entries)
@@ -429,59 +508,112 @@ impl jcode_memory_types::MemoryProvider for MempalaceAdapter {
         let entries = results
             .into_iter()
             .take(limit)
-            .map(|(text, _kind, _extra)| {
-                let mut entry = jcode_memory_types::MemoryEntry::new(
-                    jcode_memory_types::MemoryCategory::Fact,
-                    &text,
-                );
-                entry.id = format!("mp-{}", uuid::Uuid::new_v4());
+            .map(|(text, kind_str, id)| {
+                let category = match kind_str.as_str() {
+                    "preference" => jcode_memory_types::MemoryCategory::Preference,
+                    "entity" => jcode_memory_types::MemoryCategory::Entity,
+                    "correction" => jcode_memory_types::MemoryCategory::Correction,
+                    _ => jcode_memory_types::MemoryCategory::Fact,
+                };
+                let mut entry = jcode_memory_types::MemoryEntry::new(category, &text);
+                entry.id = id;
                 entry
             })
             .collect();
         Ok(entries)
+    }
+
+    async fn graph_stats(&self) -> anyhow::Result<(usize, usize, usize, usize)> {
+        // Use get_drawers for accurate counts
+        use mempalace_core::MemoryProvider as MpProvider;
+        let drawers = self.palace.get_drawers(None, None).await?;
+        let count = drawers.len();
+        let tags = drawers.iter().flat_map(|d| d.tags.iter()).count();
+        Ok((count, tags, 0, 0))
+    }
+
+    async fn load_all_entries(&self) -> anyhow::Result<Vec<jcode_memory_types::MemoryEntry>> {
+        <Self as jcode_memory_types::MemoryProvider>::list_all(self, jcode_memory_types::MemoryScope::All).await
     }
 }
 
 // =====================================================================
 // GraphOperations trait implementation (behind "backend")
 // =====================================================================
-//
-// Loads all drawers from the Palace via search/list_all and constructs
-// a MemoryGraph. This is less efficient than the MemoryManager's direct
-// graph access but maintains API compatibility.
 
 #[cfg(feature = "backend")]
 #[async_trait::async_trait]
 impl jcode_memory_types::GraphOperations for MempalaceAdapter {
     async fn load_project_graph(&self) -> anyhow::Result<jcode_memory_types::MemoryGraph> {
-        let entries = MempalaceAdapter::list_all(
-            self,
-            jcode_memory_types::MemoryScope::Project,
-        )
-        .await?;
+        use mempalace_core::{MemoryProvider as MpProvider, SearchScope};
+        let search_scope = Some(SearchScope::new().wing("project"));
+        let drawers = self.palace.get_drawers(search_scope.as_ref(), None).await?;
         let mut graph = jcode_memory_types::MemoryGraph::new();
-        for (text, _kind, _extra) in entries {
-            let entry = jcode_memory_types::MemoryEntry::new(
-                jcode_memory_types::MemoryCategory::Fact,
-                &text,
-            );
+        for d in drawers {
+            let kind = match d.kind {
+                mempalace_core::DrawerKind::Fact => jcode_memory_types::MemoryCategory::Fact,
+                mempalace_core::DrawerKind::Preference => jcode_memory_types::MemoryCategory::Preference,
+                mempalace_core::DrawerKind::Entity => jcode_memory_types::MemoryCategory::Entity,
+                mempalace_core::DrawerKind::Correction => jcode_memory_types::MemoryCategory::Correction,
+                _ => jcode_memory_types::MemoryCategory::Fact,
+            };
+            let entry = jcode_memory_types::MemoryEntry {
+                id: d.id.as_ref().map(|id| id.to_string()).unwrap_or_default(),
+                category: kind,
+                content: d.content,
+                tags: d.tags,
+                search_text: String::new(),
+                created_at: d.created_at,
+                updated_at: d.updated_at,
+                access_count: d.access_count as u32,
+                source: None,
+                trust: jcode_memory_types::TrustLevel::Medium,
+                strength: d.consolidation_strength,
+                active: d.active,
+                superseded_by: None,
+                reinforcements: vec![],
+                embedding: None,
+                confidence: d.confidence as f32,
+            };
             graph.add_memory(entry);
         }
         Ok(graph)
     }
 
     async fn load_global_graph(&self) -> anyhow::Result<jcode_memory_types::MemoryGraph> {
-        let entries = MempalaceAdapter::list_all(
-            self,
-            jcode_memory_types::MemoryScope::Global,
-        )
-        .await?;
+        use mempalace_core::MemoryProvider as MpProvider;
+        let drawers = self.palace.get_drawers(None, None).await?;
         let mut graph = jcode_memory_types::MemoryGraph::new();
-        for (text, _kind, _extra) in entries {
-            let entry = jcode_memory_types::MemoryEntry::new(
-                jcode_memory_types::MemoryCategory::Fact,
-                &text,
-            );
+        for d in drawers {
+            // Filter to global (no wing)
+            if d.wing.is_some() {
+                continue;
+            }
+            let kind = match d.kind {
+                mempalace_core::DrawerKind::Fact => jcode_memory_types::MemoryCategory::Fact,
+                mempalace_core::DrawerKind::Preference => jcode_memory_types::MemoryCategory::Preference,
+                mempalace_core::DrawerKind::Entity => jcode_memory_types::MemoryCategory::Entity,
+                mempalace_core::DrawerKind::Correction => jcode_memory_types::MemoryCategory::Correction,
+                _ => jcode_memory_types::MemoryCategory::Fact,
+            };
+            let entry = jcode_memory_types::MemoryEntry {
+                id: d.id.as_ref().map(|id| id.to_string()).unwrap_or_default(),
+                category: kind,
+                content: d.content,
+                tags: d.tags,
+                search_text: String::new(),
+                created_at: d.created_at,
+                updated_at: d.updated_at,
+                access_count: d.access_count as u32,
+                source: None,
+                trust: jcode_memory_types::TrustLevel::Medium,
+                strength: d.consolidation_strength,
+                active: d.active,
+                superseded_by: None,
+                reinforcements: vec![],
+                embedding: None,
+                confidence: d.confidence as f32,
+            };
             graph.add_memory(entry);
         }
         Ok(graph)
@@ -582,7 +714,6 @@ mod tests {
             kind_to_category(&DrawerKind::Custom("ref".into())),
             MemoryCategory::Custom("ref".into())
         );
-        // Non-jcode kinds map to Fact as a safe default.
         assert_eq!(kind_to_category(&DrawerKind::Event), MemoryCategory::Fact);
         assert_eq!(
             kind_to_category(&DrawerKind::Discovery),

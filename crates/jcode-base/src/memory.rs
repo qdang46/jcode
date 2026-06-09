@@ -1925,6 +1925,10 @@ impl jcode_memory_types::MemoryProvider for MemoryManager {
     async fn graph_stats(&self) -> anyhow::Result<(usize, usize, usize, usize)> {
         self.graph_stats()
     }
+
+    async fn backfill_embeddings(&self) -> anyhow::Result<(usize, usize)> {
+        self.backfill_embeddings()
+    }
 }
 
 // =====================================================================

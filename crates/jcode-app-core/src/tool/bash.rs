@@ -1,4 +1,4 @@
-use super::{StdinInputRequest, Tool, ToolContext, ToolOutput};
+use super::{StdinInputRequest, Tool, ToolContext, ToolExecutionMode, ToolOutput};
 use crate::background::TaskResult;
 use crate::bus::{
     BackgroundTaskProgress, BackgroundTaskProgressKind, BackgroundTaskProgressSource,
@@ -638,6 +638,73 @@ impl BashTool {
                 .await;
         }
 
+        // ── Stage 2: Command-level permission gate ─────────────────────
+        // Evaluate the actual command string against the execution policy engine
+        // and dcg-core's built-in safe/dangerous command classifiers.
+        // This is the core of issue #377 — per-command rules evaluation.
+        //
+        // Skipped when:
+        // - Execution mode is Direct (debug tool calls)
+        // - DANGEROUSLY_SKIP_PERMISSIONS env is set
+        // - Permission mode is BypassPermissions
+        if ctx.execution_mode == ToolExecutionMode::AgentTurn
+            && std::env::var("JCODE_DANGEROUSLY_SKIP_PERMISSIONS").is_err()
+        {
+            // Check the current permission mode — skip if bypassed
+            let mode = crate::dcg_bridge::current_mode();
+            if mode != dcg_core::Mode::BypassPermissions {
+                match crate::dcg_bridge::classify_command("bash", &params.command, &ctx.session_id)
+                {
+                    crate::dcg_bridge::BridgeDecision::Allow => {
+                        // Proceed with execution
+                    }
+                    crate::dcg_bridge::BridgeDecision::Deny {
+                        reason,
+                        alternatives,
+                        ..
+                    } => {
+                        let alt_text = if alternatives.is_empty() {
+                            String::new()
+                        } else {
+                            format!(
+                                "
+Alternatives: {}",
+                                alternatives.join(", ")
+                            )
+                        };
+                        return Err(anyhow::anyhow!(
+                            "Command blocked by policy: {}{}",
+                            reason,
+                            alt_text
+                        ));
+                    }
+                    crate::dcg_bridge::BridgeDecision::Prompt {
+                        reason,
+                        allow_once_code,
+                        ..
+                    } => {
+                        // Publish bus event so the TUI can show a permission dialog
+                        crate::bus::Bus::global().publish(
+                            crate::bus::BusEvent::PermissionRequested(
+                                crate::bus::PermissionRequested {
+                                    session_id: ctx.session_id.clone(),
+                                    tool_name: "bash".to_string(),
+                                    reason: format!("{} (command: {})", reason, params.command),
+                                    allow_once_code,
+                                    alternatives: vec![],
+                                },
+                            ),
+                        );
+                        return Err(anyhow::anyhow!(
+                            "Command requires permission: {}\n\nWaiting for approval in TUI...",
+                            reason
+                        ));
+                    }
+                }
+            }
+        }
+        // ── End permission gate ────────────────────────────────────────
+
         let timeout_ms = params.timeout.unwrap_or(DEFAULT_TIMEOUT_MS).min(600000);
         let timeout_duration = Duration::from_millis(timeout_ms);
 
@@ -852,6 +919,73 @@ impl BashTool {
         params: &BashInput,
         ctx: &ToolContext,
     ) -> Result<ToolOutput> {
+        // ── Stage 2: Command-level permission gate ─────────────────────
+        // Evaluate the actual command string against the execution policy engine
+        // and dcg-core's built-in safe/dangerous command classifiers.
+        // This is the core of issue #377 — per-command rules evaluation.
+        //
+        // Skipped when:
+        // - Execution mode is Direct (debug tool calls)
+        // - DANGEROUSLY_SKIP_PERMISSIONS env is set
+        // - Permission mode is BypassPermissions
+        if ctx.execution_mode == ToolExecutionMode::AgentTurn
+            && std::env::var("JCODE_DANGEROUSLY_SKIP_PERMISSIONS").is_err()
+        {
+            // Check the current permission mode — skip if bypassed
+            let mode = crate::dcg_bridge::current_mode();
+            if mode != dcg_core::Mode::BypassPermissions {
+                match crate::dcg_bridge::classify_command("bash", &params.command, &ctx.session_id)
+                {
+                    crate::dcg_bridge::BridgeDecision::Allow => {
+                        // Proceed with execution
+                    }
+                    crate::dcg_bridge::BridgeDecision::Deny {
+                        reason,
+                        alternatives,
+                        ..
+                    } => {
+                        let alt_text = if alternatives.is_empty() {
+                            String::new()
+                        } else {
+                            format!(
+                                "
+Alternatives: {}",
+                                alternatives.join(", ")
+                            )
+                        };
+                        return Err(anyhow::anyhow!(
+                            "Command blocked by policy: {}{}",
+                            reason,
+                            alt_text
+                        ));
+                    }
+                    crate::dcg_bridge::BridgeDecision::Prompt {
+                        reason,
+                        allow_once_code,
+                        ..
+                    } => {
+                        // Publish bus event so the TUI can show a permission dialog
+                        crate::bus::Bus::global().publish(
+                            crate::bus::BusEvent::PermissionRequested(
+                                crate::bus::PermissionRequested {
+                                    session_id: ctx.session_id.clone(),
+                                    tool_name: "bash".to_string(),
+                                    reason: format!("{} (command: {})", reason, params.command),
+                                    allow_once_code,
+                                    alternatives: vec![],
+                                },
+                            ),
+                        );
+                        return Err(anyhow::anyhow!(
+                            "Command requires permission: {}\n\nWaiting for approval in TUI...",
+                            reason
+                        ));
+                    }
+                }
+            }
+        }
+        // ── End permission gate ────────────────────────────────────────
+
         let timeout_ms = params.timeout.unwrap_or(DEFAULT_TIMEOUT_MS).min(600000);
         let timeout_duration = Duration::from_millis(timeout_ms);
         let started_at = Utc::now().to_rfc3339();

@@ -1149,29 +1149,25 @@ async fn gather_memory_info_with_provider(
         None
     };
 
-    let project_entries = provider
-        .list_all(jcode_memory_types::MemoryScope::Project)
-        .await
-        .ok()
-        .unwrap_or_default();
-    let global_entries = provider
-        .list_all(jcode_memory_types::MemoryScope::Global)
-        .await
-        .ok()
-        .unwrap_or_default();
+    let project_graph = provider.load_project_graph().await.ok();
+    let global_graph = provider.load_global_graph().await.ok();
 
-    let project_count = project_entries.len();
-    let global_count = global_entries.len();
+    let project_count = project_graph.as_ref().map(|g| g.memory_count()).unwrap_or(0);
+    let global_count = global_graph.as_ref().map(|g| g.memory_count()).unwrap_or(0);
 
     let mut by_category = std::collections::HashMap::new();
-    for entry in project_entries.iter().chain(global_entries.iter()) {
-        *by_category.entry(entry.category.to_string()).or_insert(0) += 1;
+    if let Some(ref pg) = project_graph {
+        for entry in pg.all_memories() {
+            *by_category.entry(entry.category.to_string()).or_insert(0) += 1;
+        }
+    }
+    if let Some(ref gg) = global_graph {
+        for entry in gg.all_memories() {
+            *by_category.entry(entry.category.to_string()).or_insert(0) += 1;
+        }
     }
 
     let total_count = project_count + global_count;
-
-    let project_graph = provider.load_project_graph().await.ok();
-    let global_graph = provider.load_global_graph().await.ok();
 
     let (graph_nodes, graph_edges) = crate::tui::info_widget::build_graph_topology(
         project_graph.as_ref(),

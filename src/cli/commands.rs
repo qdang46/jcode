@@ -1575,13 +1575,17 @@ pub enum MemorySubcommand {
 }
 
 pub fn run_memory_command(cmd: MemorySubcommand) -> Result<()> {
-    use jcode_memory_types::{MemoryEntry as MemEntry, MemoryProvider, MemoryScope};
+    use jcode_memory_types::{GraphOperations, MemoryEntry as MemEntry, MemoryProvider, MemoryScope};
     use std::sync::Arc;
 
     let provider: Arc<dyn MemoryProvider> = Arc::new(memory::MemoryManager::new());
 
-    // Bridge sync → async. Callers are inside an async context so Handle is available.
-    let handle = tokio::runtime::Handle::current();
+    // Bridge sync → async. Try to get current runtime handle; if none, create a one-shot.
+    let handle = tokio::runtime::Handle::try_current()
+        .unwrap_or_else(|_| {
+            let rt = tokio::runtime::Runtime::new().expect("failed to create tokio runtime");
+            rt.handle().clone()
+        });
 
     match cmd {
         MemorySubcommand::List { scope, tag } => {
@@ -1689,7 +1693,7 @@ pub fn run_memory_command(cmd: MemorySubcommand) -> Result<()> {
         MemorySubcommand::Import {
             input,
             scope,
-            overwrite: _,
+            overwrite,
         } => {
             let content = std::fs::read_to_string(&input)?;
             let memories: Vec<MemEntry> = serde_json::from_str(&content)?;
@@ -1698,12 +1702,28 @@ pub fn run_memory_command(cmd: MemorySubcommand) -> Result<()> {
                 _ => MemoryScope::Project,
             };
             let mut imported = 0;
+            let mut skipped = 0;
+
+            // Build set of existing IDs for dedup
+            let existing_ids: std::collections::HashSet<String> = if !overwrite {
+                let graph = handle.block_on(provider.load_project_graph()).ok()
+                    .or_else(|| handle.block_on(provider.load_global_graph()).ok())
+                    .unwrap_or_default();
+                graph.all_memories().map(|m| m.id.clone()).collect()
+            } else {
+                std::collections::HashSet::new()
+            };
+
             for entry in memories {
+                if !overwrite && existing_ids.contains(&entry.id) {
+                    skipped += 1;
+                    continue;
+                }
                 if handle.block_on(provider.remember(entry, mem_scope)).is_ok() {
                     imported += 1;
                 }
             }
-            println!("Imported {} memories", imported)
+            println!("Imported {} memories ({} skipped)", imported, skipped)
         }
 
         MemorySubcommand::Stats => {

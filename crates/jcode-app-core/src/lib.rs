@@ -41,6 +41,7 @@ pub mod catchup;
 pub mod channel;
 pub mod dcg_bridge;
 pub mod doctor;
+pub mod execution_policy;
 pub mod external_auth;
 pub mod mission;
 pub mod network_retry;

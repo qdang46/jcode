@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 
 /// Compaction mode
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
@@ -1078,6 +1079,191 @@ impl Default for PowerConfig {
     fn default() -> Self {
         Self {
             prevent_sleep_while_streaming: true,
+        }
+    }
+}
+// ── Execution Policy Config ────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "kebab-case")]
+pub struct ExecutionPolicyConfig {
+    /// Enable command-level policy evaluation (default: true).
+    #[serde(default = "default_policy_enabled")]
+    pub enabled: bool,
+    /// Custom policy rules.
+    #[serde(default)]
+    pub rules: Vec<PolicyRuleDef>,
+    /// Protected patterns (always prompt regardless of mode).
+    #[serde(default)]
+    pub protected_patterns: Vec<String>,
+    /// Circuit breaker thresholds.
+    #[serde(default)]
+    pub circuit_breaker: CircuitBreakerConfig,
+}
+
+fn default_policy_enabled() -> bool {
+    true
+}
+
+impl Default for ExecutionPolicyConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            rules: Vec::new(),
+            protected_patterns: Vec::new(),
+            circuit_breaker: CircuitBreakerConfig::default(),
+        }
+    }
+}
+
+/// Configuration for the forked agent system.
+///
+/// When `enabled = false` (the default), no forks are created regardless of
+/// sub-feature settings. This is a master switch for all background agent
+/// features.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ForkedAgentConfig {
+    /// Master switch — when false, all fork features are disabled.
+    pub enabled: bool,
+    /// Memory extraction sub-config.
+    pub memory_extraction: MemoryExtractionConfig,
+    /// Auto-dream sub-config.
+    pub auto_dream: AutoDreamConfig,
+}
+
+impl Default for ForkedAgentConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            memory_extraction: MemoryExtractionConfig::default(),
+            auto_dream: AutoDreamConfig::default(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "kebab-case")]
+pub struct CircuitBreakerConfig {
+    #[serde(default = "default_max_consecutive")]
+    pub max_consecutive_denials: u32,
+    #[serde(default = "default_max_total")]
+    pub max_total_denials: u32,
+}
+
+fn default_max_consecutive() -> u32 {
+    3
+}
+
+fn default_max_total() -> u32 {
+    20
+}
+
+impl Default for CircuitBreakerConfig {
+    fn default() -> Self {
+        Self {
+            max_consecutive_denials: 3,
+            max_total_denials: 20,
+        }
+    }
+}
+
+/// Memory extraction configuration for forked agents.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct MemoryExtractionConfig {
+    /// Enable automatic memory extraction.
+    pub enabled: bool,
+    /// Memory directory path (relative to working dir).
+    pub memory_dir: PathBuf,
+    /// Max turns for the extraction agent.
+    pub max_turns: u32,
+    /// Max output tokens per turn.
+    pub max_output_tokens: u32,
+    /// Minimum number of new (unprocessed) messages before triggering extraction.
+    pub min_new_messages: usize,
+    /// The extraction prompt template variant.
+    pub prompt_variant: ExtractionPromptVariant,
+}
+
+impl Default for MemoryExtractionConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            memory_dir: PathBuf::from(".jcode/memory"),
+            max_turns: 3,
+            max_output_tokens: 4096,
+            min_new_messages: 5,
+            prompt_variant: ExtractionPromptVariant::Auto,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum PolicyRuleAction {
+    /// Always allow commands matching this pattern.
+    Allow,
+    /// Always deny commands matching this pattern.
+    Deny,
+    /// Always prompt for commands matching this pattern.
+    Prompt,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "kebab-case")]
+pub struct PolicyRuleDef {
+    /// Unique rule identifier (for audit logging).
+    pub id: String,
+    /// Human-readable description.
+    pub description: String,
+    /// Regex pattern to match against the command string.
+    pub pattern: String,
+    /// What to do when this rule matches.
+    pub action: PolicyRuleAction,
+    /// Optional: tool name to scope the rule to (e.g., "bash", "write").
+    /// None means applies to all tools.
+    #[serde(default)]
+    pub tool: Option<String>,
+    /// Optional: suggested alternatives when action is Deny.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub alternatives: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ExtractionPromptVariant {
+    Auto,
+    Combined,
+}
+
+/// Auto-dream configuration for forked agents.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct AutoDreamConfig {
+    /// Enable auto-dream.
+    pub enabled: bool,
+    /// Run dream every N turns.
+    pub turn_interval: usize,
+    /// Max turns for the dream agent.
+    pub max_turns: u32,
+    /// Max output tokens per turn.
+    pub max_output_tokens: u32,
+    /// Directories where the dream agent is allowed to write.
+    pub allowed_dirs: Vec<PathBuf>,
+    /// Dream output directory.
+    pub dream_dir: PathBuf,
+}
+
+impl Default for AutoDreamConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            turn_interval: 10,
+            max_turns: 2,
+            max_output_tokens: 2048,
+            allowed_dirs: vec![PathBuf::from(".jcode/dreams")],
+            dream_dir: PathBuf::from(".jcode/dreams"),
         }
     }
 }
