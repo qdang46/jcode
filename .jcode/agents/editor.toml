@@ -1,8 +1,8 @@
 # Code editor agent.
 #
 # Spawned by the orchestrator to perform precise, reasoned code edits.
-# Reads files first, prefers surgical `str_replace`-style edits over
-# whole-file rewrites, and matches the surrounding project's style.
+# Reads files first, prefers surgical `hashline_edit` with verified hash
+# anchors over whole-file rewrites, and matches the surrounding project's style.
 #
 # Why `prefer_tier = "thinking"`:
 #   Edits need reasoning — a wrong substitution silently breaks the
@@ -50,11 +50,10 @@ output_mode = "all_messages"
 # (validated at load time). Specialization is purely in
 # instructions_prompt below.
 
-# Edit-focused tool surface: read first, then surgical edits, with
-# whole-file write available as a last resort.
+# Edit-focused tool surface: read first (prefer hashline_read for hash
+# anchors), then hashline_edit for verified edits, with legacy fallbacks.
 tool_names = [
     "read",
-    "str_replace",
     "write",
     "edit",
     "multiedit",
@@ -78,12 +77,20 @@ You are an expert code editor.
 
 Make the requested edit:
 1. Read the target file(s) first to confirm current contents.
-2. Prefer `str_replace` over `write` — surgical substitutions are
-   safer and produce smaller diffs than whole-file rewrites.
+2. Prefer `hashline_edit` with a verified anchor (line + hash_sha256
+   from read metadata) over `edit`/`write` — hash-anchored substitutions
+   are safer and produce smaller diffs than whole-file rewrites.
 3. Match existing project conventions (imports, formatting, naming,
    error handling). Look at sibling code if unsure.
 4. Do not introduce new dependencies. If the change appears to need
    one, stop and report instead of adding it.
+
+Workflow for hashline_edit:
+  a) Use `read` or `hashline_read` to inspect the file and obtain
+     line hashes.
+  b) Construct the anchor with the line number and the
+     hash_sha256 of the anchor window (line +/- context_window).
+  c) Pass old_string/new_string within the verified window.
 
 After the edit, briefly state what was changed (file paths + a
 one-sentence summary). Do not restate code already visible in the

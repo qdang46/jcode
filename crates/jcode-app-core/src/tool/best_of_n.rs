@@ -259,6 +259,9 @@ impl BestOfNRunner {
             store: store_arc.clone(),
         };
         set_best_of_n_handle(static_handle);
+        // Drop guard auto-clears the static handle even on panic,
+        // preventing a stale handle from leaking across turns.
+        let _handle_guard = StaticHandleGuard;
 
         // Publish onto the shared registry so downstream clones
         // (subagent's registry) see the per-run handle. The candidate
@@ -316,6 +319,8 @@ impl BestOfNRunner {
         original_files: &[jcode_best_of_n::store::OriginalFileEntry],
     ) -> Result<Vec<CandidateDiff>> {
         let mut tasks = Vec::with_capacity(strategies.len());
+        // Hoist: build the allowed-tool set once, clone per candidate.
+        let allowed_tool_set = build_allowed_tool_set(&parent_registry).await;
 
         for (index, strategy) in strategies.iter().enumerate() {
             let candidate_id = jcode_best_of_n::CandidateId::new(index);
@@ -344,7 +349,7 @@ impl BestOfNRunner {
                 }
             }
 
-            let allowed = build_allowed_tool_set(&registry).await;
+            let allowed = allowed_tool_set.clone();
 
             let session_title = match strategy.model {
                 Some(ref m) => format!(
@@ -437,12 +442,13 @@ impl BestOfNRunner {
         Ok(diffs)
     }
 
-    /// Clear the per-run state from the store, the registry, and the static handle.
+    /// Clear the per-run state from the store and the registry.
+    /// The static best-of-n handle is cleared by `StaticHandleGuard`'s Drop
+    /// when `run()` returns, so we don't duplicate it here.
     async fn cleanup(&self, run_id: &jcode_best_of_n::RunId, registry: &Registry) {
         self.orchestrator.store.clear_run(run_id);
         let mut guard = registry.best_of_n.write().await;
         *guard = None;
-        clear_best_of_n_handle();
     }
 
     /// Apply the winner's diffs to real files on disk.
@@ -480,8 +486,15 @@ impl BestOfNRunner {
         ));
 
         for diff in &winner.file_diffs {
-            // Bug #6: allowlist — skip any path not in the original file_paths.
-            let is_allowed = allowed_paths.iter().any(|p| p == &diff.file_path);
+            // allowlist: skip any path not in the original file_paths.
+            // Paths are resolved and canonicalized before comparison to handle
+            // case-insensitive filesystems and path-format differences (./ vs
+            // absolute, symlinks, case variation on macOS).
+            let is_allowed = allowed_paths.iter().any(|p| {
+                let allowed = ctx.resolve_path(std::path::Path::new(p));
+                let candidate = ctx.resolve_path(std::path::Path::new(&diff.file_path));
+                paths_match(&allowed, &candidate)
+            });
             if !is_allowed {
                 let skip_msg = format!(
                     "  ! skip '{}' (not in allowed paths)", diff.file_path
@@ -707,4 +720,22 @@ pub(crate) fn format_show_result(result: &BestOfNResult) -> ToolOutput {
     let _ = writeln!(md, "**Recommendation**: {}", result.selection_reason.as_deref().unwrap_or("no winner"));
 
     ToolOutput::new(md).with_title("Best-of-N candidates (show mode)")
+}
+
+/// Drop guard that clears the global BEST_OF_N_HANDLE on scope exit,
+/// even during a panic. Prevents stale handle leakage across turns.
+struct StaticHandleGuard;
+
+impl Drop for StaticHandleGuard {
+    fn drop(&mut self) {
+        clear_best_of_n_handle();
+    }
+}
+
+/// Compare two paths for equality, using canonicalization to handle
+/// case-insensitive filesystems, symlinks, and path-format differences.
+fn paths_match(a: &std::path::Path, b: &std::path::Path) -> bool {
+    let a_canon = std::fs::canonicalize(a).unwrap_or_else(|_| a.to_path_buf());
+    let b_canon = std::fs::canonicalize(b).unwrap_or_else(|_| b.to_path_buf());
+    a_canon == b_canon
 }

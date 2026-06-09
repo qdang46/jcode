@@ -27,7 +27,7 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use tokio::sync::{RwLock, mpsc};
 use tokio_stream::wrappers::ReceiverStream;
 use uuid::Uuid;
@@ -475,9 +475,11 @@ pub struct AnthropicProvider {
     oauth_session_id: String,
     oauth_preflight_done: Arc<AtomicBool>,
     /// Optional temperature override for best-of-N strategy diversity.
-    /// When `None`, the provider computes temperature from the OAuth/thinking
-    /// context. When `Some(v)`, the value is forwarded to the API verbatim.
-    temperature: Arc<std::sync::RwLock<Option<f32>>>,
+    /// When `None` (encoded as f32::NAN bits), the provider computes temperature
+    /// from the OAuth/thinking context. When set, the value is forwarded to
+    /// the API verbatim. Uses `AtomicU32` (lock-free) since this is read on
+    /// every `complete()` call.
+    temperature: Arc<AtomicU32>,
 }
 
 impl AnthropicProvider {
@@ -580,7 +582,7 @@ impl AnthropicProvider {
             max_tokens,
             oauth_session_id: Uuid::new_v4().to_string(),
             oauth_preflight_done: Arc::new(AtomicBool::new(false)),
-            temperature: Arc::new(std::sync::RwLock::new(None)),
+            temperature: Arc::new(AtomicU32::new(f32::NAN.to_bits())),
         }
     }
 
@@ -745,14 +747,15 @@ impl AnthropicProvider {
         // normally mirrors Claude Code's temperature=1.0, so omit it when thinking is active.
         // If set_temperature() was called (e.g. by best-of-N strategy generation), use that
         // override instead of the default OAuth logic.
-        let temperature_override = *self
-            .temperature
-            .read()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-        let temperature = match temperature_override {
-            Some(v) => Some(v),
-            None if is_oauth && thinking.is_none() => Some(1.0),
-            _ => None,
+        let temperature_raw = self.temperature.load(Ordering::Acquire);
+        let temperature = if temperature_raw == f32::NAN.to_bits() {
+            // No override: fall back to OAuth default (1.0) when thinking is inactive.
+            match (is_oauth, thinking.is_some()) {
+                (true, false) => Some(1.0),
+                _ => None,
+            }
+        } else {
+            Some(f32::from_bits(temperature_raw))
         };
 
         (thinking, output_config, temperature)
@@ -1123,11 +1126,8 @@ impl Provider for AnthropicProvider {
     }
 
     fn set_temperature(&self, temperature: f32) -> Result<()> {
-        let clamped = temperature.clamp(0.0, 1.0);
-        *self
-            .temperature
-            .write()
-            .unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(clamped);
+        self.temperature
+            .store(temperature.clamp(0.0, 1.0).to_bits(), Ordering::Release);
         Ok(())
     }
 
@@ -1280,11 +1280,8 @@ impl Provider for AnthropicProvider {
             oauth_preflight_done: Arc::new(AtomicBool::new(
                 self.oauth_preflight_done.load(Ordering::Relaxed),
             )),
-            temperature: Arc::new(std::sync::RwLock::new(
-                *self
-                    .temperature
-                    .read()
-                    .unwrap_or_else(|poisoned| poisoned.into_inner()),
+            temperature: Arc::new(AtomicU32::new(
+                self.temperature.load(Ordering::Acquire),
             )),
         })
     }

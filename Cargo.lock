@@ -4606,13 +4606,14 @@ dependencies = [
 [[package]]
 name = "hashline"
 version = "0.2.2"
-source = "git+https://github.com/quangdang46/hashline.git?tag=v0.2.2#abf914f5bd673315cd9d419cf41af46abe2118b2"
+source = "git+https://github.com/quangdang46/hashline.git?tag=v0.3.0#20308bbaca5e01171ca36ad5affe64d8053dc5de"
 dependencies = [
  "anyhow",
  "clap",
  "crossbeam",
  "ignore",
  "itoa",
+ "libc",
  "memchr",
  "memmap2 0.9.9",
  "notify 6.1.1",

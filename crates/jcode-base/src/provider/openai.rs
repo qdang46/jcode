@@ -533,8 +533,9 @@ pub struct OpenAIProvider {
     /// Persistent WebSocket connection for incremental continuation
     persistent_ws: Arc<Mutex<Option<PersistentWsState>>>,
     /// Optional temperature override for best-of-N strategy diversity.
-    /// When `None`, the provider uses the API default.
-    temperature: Arc<StdRwLock<Option<f32>>>,
+    /// When `None` (encoded as f32::NAN bits), the provider uses the API default.
+    /// Uses `AtomicU32` (lock-free) since this is read on every `complete()` call.
+    temperature: Arc<std::sync::atomic::AtomicU32>,
 }
 
 impl OpenAIProvider {
@@ -640,7 +641,7 @@ impl OpenAIProvider {
             websocket_cooldowns: Arc::clone(&WEBSOCKET_COOLDOWNS),
             websocket_failure_streaks: Arc::clone(&WEBSOCKET_FAILURE_STREAKS),
             persistent_ws: Arc::new(Mutex::new(None)),
-            temperature: Arc::new(StdRwLock::new(None)),
+            temperature: Arc::new(std::sync::atomic::AtomicU32::new(f32::NAN.to_bits())),
         }
     }
 

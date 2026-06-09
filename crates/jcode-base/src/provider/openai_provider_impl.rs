@@ -32,11 +32,12 @@ impl Provider for OpenAIProvider {
             .unwrap_or_else(|poisoned| poisoned.into_inner().clone());
         let native_compaction_threshold =
             self.native_compaction_threshold_for_context_window(self.context_window());
-        let temperature = self
-            .temperature
-            .read()
-            .map(|g| *g)
-            .unwrap_or_else(|poisoned| *poisoned.into_inner());
+        let temperature = self.temperature.load(std::sync::atomic::Ordering::Acquire);
+        let temperature = if temperature == f32::NAN.to_bits() {
+            None
+        } else {
+            Some(f32::from_bits(temperature))
+        };
         let request = Self::build_response_request(
             &model_id,
             instructions,
@@ -614,10 +615,8 @@ impl Provider for OpenAIProvider {
     }
 
     fn set_temperature(&self, temperature: f32) -> Result<()> {
-        *self
-            .temperature
-            .write()
-            .unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(temperature);
+        self.temperature
+            .store(temperature.clamp(0.0, 1.0).to_bits(), std::sync::atomic::Ordering::Release);
         Ok(())
     }
 
@@ -897,11 +896,8 @@ impl Provider for OpenAIProvider {
             websocket_cooldowns: Arc::clone(&self.websocket_cooldowns),
             websocket_failure_streaks: Arc::clone(&self.websocket_failure_streaks),
             persistent_ws: Arc::new(Mutex::new(None)),
-            temperature: Arc::new(StdRwLock::new(
-                *self
-                    .temperature
-                    .read()
-                    .unwrap_or_else(|poisoned| poisoned.into_inner()),
+            temperature: Arc::new(std::sync::atomic::AtomicU32::new(
+                self.temperature.load(std::sync::atomic::Ordering::Acquire),
             )),
         })
     }
