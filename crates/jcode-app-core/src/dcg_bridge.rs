@@ -1099,3 +1099,131 @@ mod tests {
         );
     }
 }
+
+/// Evaluate a command string against the execution policy engine, then
+/// fall through to dcg-core's mode evaluation if no policy rule matched.
+///
+/// This is the **Stage 2** permission gate, called from inside tool
+/// execution (e.g. `BashTool::execute()`) where the real command string
+/// is available. It complements the Stage 1 tool-name gate in
+/// `validate_tool_allowed()`.
+///
+/// # Precedence
+///
+/// 1. **Session allow-list** — if the tool was approved for the session
+///    (via TUI "y" key), returns `Allow` immediately, bypassing all
+///    further checks. This means session-level approval always beats
+///    command-level rules. For command-level enforcement, use
+///    allow-once codes instead of session approval.
+/// 2. **Custom policy rules** — TOML-configured allow/deny/prompt patterns.
+/// 3. **dcg-core fallthrough** — passes `ToolCall::Bash { cmd }` to
+///    dcg-core's built-in safe whitelist and dangerous patterns.
+/// 4. **Mode fallback** — returns `Allow`/`Deny`/`Prompt` based on the
+///    current permission mode.
+///
+/// # Flow
+///
+/// 1. Session allow-list check (short-circuit)
+/// 2. ExecutionPolicyEngine (custom TOML rules)
+/// 3. dcg-core with real command string (safe whitelist + dangerous patterns)
+/// 4. Mode-based fallthrough (Allow / Deny / Prompt)
+#[must_use]
+pub fn classify_command(tool_name: &str, command: &str, session_id: &str) -> BridgeDecision {
+    // Short-circuit: session allow-list already approved this tool
+    if session_allows_action(session_id, tool_name) {
+        return BridgeDecision::Allow;
+    }
+
+    // Stage 2a: Check execution policy engine (custom rules)
+    if let Some(decision) = crate::execution_policy::evaluate_command(tool_name, command) {
+        return match decision {
+            crate::execution_policy::PolicyDecision::Allow { reason } => BridgeDecision::Allow,
+            crate::execution_policy::PolicyDecision::Deny {
+                reason,
+                alternatives,
+                ..
+            } => BridgeDecision::Deny {
+                reason,
+                alternatives,
+            },
+            crate::execution_policy::PolicyDecision::Prompt {
+                reason,
+                allow_once_code,
+                alternatives,
+            } => BridgeDecision::Prompt {
+                reason,
+                allow_once_code,
+                alternatives,
+            },
+        };
+    }
+
+    // Stage 2b: Fall through to dcg-core with the real command string.
+    // This enables the built-in SafeCommandWhitelist and
+    // DangerousPatternRegistry to evaluate the actual command.
+    let mode = session_mode(session_id).unwrap_or_else(current_mode);
+
+    // Legacy auto-allow gating (same as classify_with_mode for Default/Auto)
+    if matches!(mode, Mode::Default | Mode::Auto) {
+        if is_legacy_auto_allowed(tool_name) {
+            return BridgeDecision::Allow;
+        }
+        if mode == Mode::Auto {
+            // YOLO classifier handles Mode::Auto
+            let classifier = crate::yolo_classifier::YoloClassifier::get_or_init();
+            let (_, effects) = action_to_tool_call(tool_name);
+            let effect_strings: Vec<String> = effects.iter().map(|e| format!("{:?}", e)).collect();
+            return classifier.evaluate(tool_name, tool_name, &effect_strings);
+        }
+        // Mode::Default non-legacy: prompt
+        return BridgeDecision::Prompt {
+            reason: format!(
+                "Tool '{}' requires permission in current mode {:?}",
+                tool_name,
+                current_mode()
+            ),
+            allow_once_code: String::new(),
+            alternatives: vec![],
+        };
+    }
+
+    // Build ToolCall with the REAL command string instead of placeholder.
+    // This is the key change: dcg-core's SafeCommandWhitelist and
+    // DangerousPatternRegistry will now see the actual command.
+    let (base_tool, effects) = action_to_tool_call(tool_name);
+    let tool = match base_tool {
+        ToolCall::Bash { .. } => ToolCall::bash(command),
+        _ => base_tool,
+    };
+
+    let decision = match SESSION.lock() {
+        Ok(mut session) => ENGINE.evaluate(&mut session, &tool, mode, &effects),
+        Err(_) => {
+            return BridgeDecision::Prompt {
+                reason: "Session poisoned".into(),
+                allow_once_code: String::new(),
+                alternatives: vec![],
+            };
+        }
+    };
+
+    match decision {
+        Decision::Allow => BridgeDecision::Allow,
+        Decision::Prompt {
+            reason,
+            allow_once_code,
+            alternatives,
+        } => BridgeDecision::Prompt {
+            reason,
+            allow_once_code,
+            alternatives,
+        },
+        Decision::Deny {
+            reason,
+            alternatives,
+        } => BridgeDecision::Deny {
+            reason,
+            alternatives,
+        },
+    }
+}

@@ -1081,3 +1081,94 @@ impl Default for PowerConfig {
         }
     }
 }
+
+// ── Execution Policy Config ────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "kebab-case")]
+pub struct ExecutionPolicyConfig {
+    /// Enable command-level policy evaluation (default: true).
+    #[serde(default = "default_policy_enabled")]
+    pub enabled: bool,
+    /// Custom policy rules.
+    #[serde(default)]
+    pub rules: Vec<PolicyRuleDef>,
+    /// Protected patterns (always prompt regardless of mode).
+    #[serde(default)]
+    pub protected_patterns: Vec<String>,
+    /// Circuit breaker thresholds.
+    #[serde(default)]
+    pub circuit_breaker: CircuitBreakerConfig,
+}
+
+fn default_policy_enabled() -> bool {
+    true
+}
+
+impl Default for ExecutionPolicyConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            rules: Vec::new(),
+            protected_patterns: Vec::new(),
+            circuit_breaker: CircuitBreakerConfig::default(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "kebab-case")]
+pub struct CircuitBreakerConfig {
+    #[serde(default = "default_max_consecutive")]
+    pub max_consecutive_denials: u32,
+    #[serde(default = "default_max_total")]
+    pub max_total_denials: u32,
+}
+
+fn default_max_consecutive() -> u32 {
+    3
+}
+
+fn default_max_total() -> u32 {
+    20
+}
+
+impl Default for CircuitBreakerConfig {
+    fn default() -> Self {
+        Self {
+            max_consecutive_denials: 3,
+            max_total_denials: 20,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum PolicyRuleAction {
+    /// Always allow commands matching this pattern.
+    Allow,
+    /// Always deny commands matching this pattern.
+    Deny,
+    /// Always prompt for commands matching this pattern.
+    Prompt,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "kebab-case")]
+pub struct PolicyRuleDef {
+    /// Unique rule identifier (for audit logging).
+    pub id: String,
+    /// Human-readable description.
+    pub description: String,
+    /// Regex pattern to match against the command string.
+    pub pattern: String,
+    /// What to do when this rule matches.
+    pub action: PolicyRuleAction,
+    /// Optional: tool name to scope the rule to (e.g., "bash", "write").
+    /// None means applies to all tools.
+    #[serde(default)]
+    pub tool: Option<String>,
+    /// Optional: suggested alternatives when action is Deny.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub alternatives: Vec<String>,
+}

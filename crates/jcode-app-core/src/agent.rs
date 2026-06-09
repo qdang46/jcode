@@ -345,6 +345,10 @@ impl Agent {
     }
 
     pub fn new(provider: Arc<dyn Provider>, registry: Registry) -> Self {
+        // Reset per-process policy session state (circuit breaker counters,
+        // allow-once cache) at the start of each new agent session.
+        crate::execution_policy::reset_policy_session();
+
         let tool_selection = crate::config::config().tools.selection();
         let mut agent = Self::build_base(
             provider,
