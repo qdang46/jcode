@@ -6077,9 +6077,12 @@ name = "jcode-memory-types"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "jcode-message-types",
+ "jcode-swarm-core",
  "rand 0.9.3",
  "serde",
  "serde_json",
+ "tracing",
 ]
 
 [[package]]
@@ -6472,15 +6475,24 @@ dependencies = [
 name = "jcode-swarm-core"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
+ "async-trait",
  "chrono",
  "dirs 5.0.1",
+ "futures",
+ "jcode-agent-runtime",
+ "jcode-message-types",
  "jcode-plan",
+ "jcode-provider-core",
+ "jcode-tool-core",
  "libc",
  "regex",
  "serde",
  "serde_json",
  "tempfile",
  "thiserror 1.0.69",
+ "tokio",
+ "tracing",
  "uuid",
 ]
 

@@ -4,6 +4,17 @@ version = "0.1.0"
 edition = "2024"
 publish = false
 
+[features]
+fork = [
+    "dep:jcode-agent-runtime",
+    "dep:jcode-message-types",
+    "dep:jcode-provider-core",
+    "dep:jcode-tool-core",
+    "dep:tracing",
+    "dep:futures",
+    "dep:tokio",
+]
+
 [dependencies]
 jcode-plan = { path = "../jcode-plan" }
 serde = { version = "1", features = ["derive"] }
@@ -15,5 +26,17 @@ thiserror = "1"
 regex = "1"
 libc = "0.2"
 
+# Fork dependencies (optional, behind "fork" feature)
+jcode-agent-runtime = { path = "../jcode-agent-runtime", optional = true }
+jcode-message-types = { path = "../jcode-message-types", optional = true }
+jcode-provider-core = { path = "../jcode-provider-core", optional = true }
+jcode-tool-core = { path = "../jcode-tool-core", optional = true }
+tracing = { version = "0.1", optional = true }
+futures = { version = "0.3", optional = true }
+tokio = { version = "1", features = ["sync"], optional = true }
+
 [dev-dependencies]
 tempfile = "3"
+# Needed by fork's test harness (mock Provider implementations)
+async-trait = "0.1"
+anyhow = "1"

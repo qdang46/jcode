@@ -170,6 +170,8 @@ rtco = ["dep:rtco-core"]
 test-support = ["jcode-base/test-support"]
 # mempalace backend: enables MempalaceAdapter for MemoryTool dispatch (#357).
 mempalace-backend = ["dep:jcode-mempalace-adapter", "jcode-mempalace-adapter/backend"]
+# forked-agent: enables the fork/agent runner backed by jcode-swarm-core "fork" mode.
+forked-agent = ["jcode-swarm-core/fork", "jcode-memory-types/extraction"]
 
 [dev-dependencies]
 # Used by async streaming tests (ambient/runner_tests, server/client_actions_tests).

@@ -4,8 +4,20 @@ version = "0.1.0"
 edition = "2024"
 publish = false
 
+[features]
+extraction = [
+    "dep:jcode-message-types",
+    "dep:jcode-swarm-core",
+    "dep:tracing",
+]
+
 [dependencies]
 chrono = { version = "0.4", features = ["serde"] }
 rand = "0.9.3"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+
+# Extraction dependencies (optional, behind "extraction" feature)
+jcode-message-types = { path = "../jcode-message-types", optional = true }
+jcode-swarm-core = { path = "../jcode-swarm-core", features = ["fork"], optional = true }
+tracing = { version = "0.1", optional = true }

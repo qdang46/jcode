@@ -1,4 +1,8 @@
 pub mod graph;
+#[cfg(feature = "extraction")]
+pub mod extraction;
+#[cfg(feature = "extraction")]
+pub mod extraction_prompts;
 pub use graph::{
     ClusterEntry, Edge, EdgeKind, GRAPH_VERSION, GraphMetadata, MemoryGraph, TagEntry,
 };

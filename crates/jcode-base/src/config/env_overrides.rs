@@ -654,6 +654,33 @@ impl Config {
                 crate::env::set_var("JCODE_COPILOT_PREMIUM", env_val);
             }
         }
+
+        // Forked agent
+        if let Ok(v) = std::env::var("JCODE_FORKED_AGENT_ENABLED") {
+            if let Some(parsed) = parse_env_bool(&v) {
+                self.forked_agent.enabled = parsed;
+            }
+        }
+        if let Ok(v) = std::env::var("JCODE_FORKED_AGENT_MEMORY_EXTRACTION_ENABLED") {
+            if let Some(parsed) = parse_env_bool(&v) {
+                self.forked_agent.memory_extraction.enabled = parsed;
+            }
+        }
+        if let Ok(v) = std::env::var("JCODE_FORKED_AGENT_AUTO_DREAM_ENABLED") {
+            if let Some(parsed) = parse_env_bool(&v) {
+                self.forked_agent.auto_dream.enabled = parsed;
+            }
+        }
+        if let Ok(v) = std::env::var("JCODE_FORKED_AGENT_MEMORY_EXTRACTION_MIN_NEW_MESSAGES")
+            && let Ok(parsed) = v.trim().parse::<usize>()
+        {
+            self.forked_agent.memory_extraction.min_new_messages = parsed;
+        }
+        if let Ok(v) = std::env::var("JCODE_FORKED_AGENT_AUTO_DREAM_TURN_INTERVAL")
+            && let Ok(parsed) = v.trim().parse::<usize>()
+        {
+            self.forked_agent.auto_dream.turn_interval = parsed;
+        }
     }
 }
 

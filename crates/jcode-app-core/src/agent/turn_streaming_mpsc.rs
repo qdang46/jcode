@@ -1391,6 +1391,10 @@ impl Agent {
             }
         }
 
+        // Fire stop hooks for background fork operations
+        #[cfg(feature = "forked-agent")]
+        self.handle_stop_hooks().await;
+
         Ok(())
     }
 }

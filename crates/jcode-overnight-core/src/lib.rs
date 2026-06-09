@@ -923,6 +923,8 @@ pub fn format_log_markdown_from_events(
 
 mod prompts;
 
+pub mod auto_dream;
+
 pub use prompts::{
     build_continuation_prompt, build_coordinator_prompt, build_final_wrapup_prompt,
     build_handoff_ready_prompt, build_morning_report_prompt, build_post_wake_continuation_prompt,

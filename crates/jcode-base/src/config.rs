@@ -4,13 +4,13 @@
 //! Environment variables override config file settings.
 
 pub use jcode_config_types::{
-    AgentsConfig, AmbientConfig, AuthConfig, AutoJudgeConfig, AutoReviewConfig, CompactionConfig,
-    CompactionMode, CrossProviderFailoverMode, DiagramDisplayMode, DiagramPanePosition,
-    DiffDisplayMode, DisplayConfig, FeatureConfig, GatewayConfig, KeybindingsConfig,
-    MarkdownSpacingMode, NamedProviderAuth, NamedProviderConfig, NamedProviderModelConfig,
-    NamedProviderType, NativeScrollbarConfig, PowerConfig, ProviderConfig, ReasoningDisplayMode,
-    SafetyConfig, SessionPickerResumeAction, SwarmSpawnMode, UpdateChannel, WebSearchConfig,
-    WebSearchEngine,
+    AgentsConfig, AmbientConfig, AuthConfig, AutoDreamConfig, AutoJudgeConfig, AutoReviewConfig,
+    CompactionConfig, CompactionMode, CrossProviderFailoverMode, DiagramDisplayMode,
+    DiagramPanePosition, DiffDisplayMode, DisplayConfig, ExtractionPromptVariant, FeatureConfig,
+    ForkedAgentConfig, GatewayConfig, KeybindingsConfig, MarkdownSpacingMode, MemoryExtractionConfig,
+    NamedProviderAuth, NamedProviderConfig, NamedProviderModelConfig, NamedProviderType,
+    NativeScrollbarConfig, PowerConfig, ProviderConfig, ReasoningDisplayMode, SafetyConfig,
+    SessionPickerResumeAction, SwarmSpawnMode, UpdateChannel, WebSearchConfig, WebSearchEngine,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet, HashSet};
@@ -74,6 +74,11 @@ const CONFIG_ENV_KEYS: &[&str] = &[
     "JCODE_EFFORT_INCREASE_KEY",
     "JCODE_EMAIL_REPLY_ENABLED",
     "JCODE_EMAIL_TO",
+    "JCODE_FORKED_AGENT_AUTO_DREAM_ENABLED",
+    "JCODE_FORKED_AGENT_AUTO_DREAM_TURN_INTERVAL",
+    "JCODE_FORKED_AGENT_ENABLED",
+    "JCODE_FORKED_AGENT_MEMORY_EXTRACTION_ENABLED",
+    "JCODE_FORKED_AGENT_MEMORY_EXTRACTION_MIN_NEW_MESSAGES",
     "JCODE_GATEWAY_BIND_ADDR",
     "JCODE_GATEWAY_ENABLED",
     "JCODE_GATEWAY_PORT",
@@ -438,6 +443,10 @@ pub struct Config {
 
     /// Power-management configuration (prevent sleep while streaming)
     pub power: PowerConfig,
+
+    /// Forked agent configuration (background memory extraction, auto-dream, etc.)
+    #[serde(default)]
+    pub forked_agent: ForkedAgentConfig,
 
     /// Permission mode for tool execution (default, accept-edits, plan, auto, dont-ask, bypass-permissions)
     pub permission_mode: Option<String>,

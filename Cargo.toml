@@ -327,6 +327,9 @@ dcp = ["jcode-tui/dcp"]
 rtco = ["jcode-tui/rtco"]
 mmdr-size-api = ["jcode-tui-mermaid/mmdr-size-api"]
 pdf = ["dep:jcode-pdf", "jcode-tui/pdf"]
+# Forked Agent — shared prompt cache for background operations.
+# Enables memory extraction and auto-dream features.
+forked-agent = ["jcode-swarm-core/fork", "jcode-memory-types/extraction"]
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_System_Threading", "Win32_System_Console", "Win32_Globalization"] }
