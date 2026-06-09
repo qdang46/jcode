@@ -1130,7 +1130,13 @@ pub(super) fn gather_memory_info(memory_enabled: bool) -> Option<MemoryInfo> {
     })
 }
 
-fn gather_memory_info_inner() -> Option<MemoryInfo> {
+/// Gather memory info using a trait-based provider instead of direct MemoryGraph access.
+///
+/// Uses `list_all()` and `graph_stats()` from the `MemoryProvider` trait, and
+/// `load_project_graph()`/`load_global_graph()` from `GraphOperations` for topology.
+async fn gather_memory_info_with_provider(
+    provider: std::sync::Arc<dyn jcode_memory_types::MemoryProvider + jcode_memory_types::GraphOperations>,
+) -> Option<MemoryInfo> {
     let activity = crate::memory::get_activity();
     let sidecar_model = if crate::memory::memory_sidecar_enabled() {
         let sidecar = crate::sidecar::Sidecar::new();
@@ -1143,36 +1149,30 @@ fn gather_memory_info_inner() -> Option<MemoryInfo> {
         None
     };
 
-    use crate::memory::MemoryManager;
+    let project_entries = provider
+        .list_all(jcode_memory_types::MemoryScope::Project)
+        .await
+        .ok()
+        .unwrap_or_default();
+    let global_entries = provider
+        .list_all(jcode_memory_types::MemoryScope::Global)
+        .await
+        .ok()
+        .unwrap_or_default();
 
-    let manager = MemoryManager::new();
-    let project_graph = manager.load_project_graph().ok();
-    let global_graph = manager.load_global_graph().ok();
+    let project_count = project_entries.len();
+    let global_count = global_entries.len();
 
-    let (project_count, global_count, by_category) = {
-        let mut by_category = std::collections::HashMap::new();
-        let project_count = project_graph
-            .as_ref()
-            .map(|p| {
-                for entry in p.memories.values() {
-                    *by_category.entry(entry.category.to_string()).or_insert(0) += 1;
-                }
-                p.memory_count()
-            })
-            .unwrap_or(0);
-        let global_count = global_graph
-            .as_ref()
-            .map(|g| {
-                for entry in g.memories.values() {
-                    *by_category.entry(entry.category.to_string()).or_insert(0) += 1;
-                }
-                g.memory_count()
-            })
-            .unwrap_or(0);
-        (project_count, global_count, by_category)
-    };
+    let mut by_category = std::collections::HashMap::new();
+    for entry in project_entries.iter().chain(global_entries.iter()) {
+        *by_category.entry(entry.category.to_string()).or_insert(0) += 1;
+    }
 
     let total_count = project_count + global_count;
+
+    let project_graph = provider.load_project_graph().await.ok();
+    let global_graph = provider.load_global_graph().await.ok();
+
     let (graph_nodes, graph_edges) = crate::tui::info_widget::build_graph_topology(
         project_graph.as_ref(),
         global_graph.as_ref(),
@@ -1193,6 +1193,17 @@ fn gather_memory_info_inner() -> Option<MemoryInfo> {
     } else {
         None
     }
+}
+
+/// Legacy wrapper that creates a `MemoryManager` and delegates to the trait-based path.
+///
+/// Kept for backward compatibility. Callers that already hold a provider should
+/// call `gather_memory_info_with_provider` directly.
+fn gather_memory_info_inner() -> Option<MemoryInfo> {
+    let provider: std::sync::Arc<
+        dyn jcode_memory_types::MemoryProvider + jcode_memory_types::GraphOperations,
+    > = std::sync::Arc::new(crate::memory::MemoryManager::new());
+    futures::executor::block_on(gather_memory_info_with_provider(provider))
 }
 
 pub(super) fn gather_ambient_info(ambient_enabled: bool) -> Option<AmbientWidgetData> {

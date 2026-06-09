@@ -1927,6 +1927,35 @@ impl jcode_memory_types::MemoryProvider for MemoryManager {
     }
 }
 
+// =====================================================================
+// GraphOperations trait implementation
+// =====================================================================
+
+#[async_trait::async_trait]
+impl jcode_memory_types::GraphOperations for MemoryManager {
+    async fn load_project_graph(&self) -> anyhow::Result<jcode_memory_types::MemoryGraph> {
+        self.load_project_graph()
+    }
+
+    async fn load_global_graph(&self) -> anyhow::Result<jcode_memory_types::MemoryGraph> {
+        self.load_global_graph()
+    }
+
+    async fn save_project_graph(
+        &self,
+        graph: &jcode_memory_types::MemoryGraph,
+    ) -> anyhow::Result<()> {
+        self.save_project_graph(graph)
+    }
+
+    async fn save_global_graph(
+        &self,
+        graph: &jcode_memory_types::MemoryGraph,
+    ) -> anyhow::Result<()> {
+        self.save_global_graph(graph)
+    }
+}
+
 /// Embedding similarity threshold (0.0 - 1.0)
 /// Lower = more candidates, higher = fewer but more relevant
 pub const EMBEDDING_SIMILARITY_THRESHOLD: f32 = 0.5;

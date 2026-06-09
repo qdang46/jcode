@@ -20,7 +20,7 @@
 //   tuples so callers can inspect all metadata (tags, category, trust,
 //   confidence, timestamps).
 
-use crate::{MemoryEntry, MemoryScope};
+use crate::{MemoryEntry, MemoryGraph, MemoryScope};
 use anyhow::Result;
 use async_trait::async_trait;
 
@@ -99,5 +99,33 @@ pub trait MemoryProvider: Send + Sync {
     /// Load all memory entries across both project and global scopes.
     async fn load_all_entries(&self) -> Result<Vec<MemoryEntry>> {
         self.list_all(MemoryScope::All).await
+    }
+}
+
+/// Trait for graph-level memory operations (load/save full MemoryGraph).
+///
+/// Separated from `MemoryProvider` because some backends (e.g. MempalaceAdapter)
+/// do not expose raw graph persistence. Default implementations return a
+/// "not supported" error, allowing each backend to opt in.
+#[async_trait]
+pub trait GraphOperations: Send + Sync {
+    /// Load the project-scoped memory graph.
+    async fn load_project_graph(&self) -> Result<MemoryGraph> {
+        anyhow::bail!("graph operations not supported by this backend")
+    }
+
+    /// Load the global-scoped memory graph.
+    async fn load_global_graph(&self) -> Result<MemoryGraph> {
+        anyhow::bail!("graph operations not supported by this backend")
+    }
+
+    /// Save the project-scoped memory graph.
+    async fn save_project_graph(&self, _graph: &MemoryGraph) -> Result<()> {
+        anyhow::bail!("graph operations not supported by this backend")
+    }
+
+    /// Save the global-scoped memory graph.
+    async fn save_global_graph(&self, _graph: &MemoryGraph) -> Result<()> {
+        anyhow::bail!("graph operations not supported by this backend")
     }
 }
