@@ -224,14 +224,13 @@ fn outline_blocking(content: &str, file_path: &Path, max_items: usize) -> Vec<Ou
 fn outline_kind_str(kind: OutlineKind) -> &'static str {
     match kind {
         OutlineKind::Function => "fn",
-        OutlineKind::TestCase | OutlineKind::TestSuite => "test",
         OutlineKind::Struct => "struct",
         OutlineKind::Class => "class",
         OutlineKind::Interface => "interface",
         OutlineKind::Enum => "enum",
         OutlineKind::TypeAlias => "type",
         OutlineKind::Constant => "const",
-        OutlineKind::Variable | OutlineKind::ImmutableVariable => "variable",
+        OutlineKind::Variable => "variable",
         OutlineKind::Export => "export",
         OutlineKind::Property => "property",
         OutlineKind::Module => "module",

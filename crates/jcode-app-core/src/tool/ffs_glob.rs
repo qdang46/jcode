@@ -1,7 +1,6 @@
 use super::{Tool, ToolContext, ToolOutput};
 use anyhow::Result;
 use async_trait::async_trait;
-use globset::GlobBuilder;
 use serde::Deserialize;
 use serde_json::{Value, json};
 use std::path::Path;
@@ -44,7 +43,7 @@ impl Tool for FfsGlobTool {
     }
 
     fn description(&self) -> &str {
-        "Find files by glob pattern or fuzzy name match. In glob mode (default), uses globset::Glob for pattern matching with gitignore-aware parallel walk. In fuzzy mode (fuzzy=true), does case-insensitive substring matching against filenames and paths, scoring results."
+        "Find files by glob pattern or fuzzy name match. In glob mode (default), uses zlob SIMD-accelerated glob matching with gitignore-aware walk. In fuzzy mode (fuzzy=true), does case-insensitive substring matching against filenames and paths, scoring results."
     }
 
     fn parameters_schema(&self) -> Value {
@@ -132,98 +131,14 @@ impl Tool for FfsGlobTool {
     }
 }
 
-/// Glob search using globset::Glob with gitignore-aware parallel walk.
+/// Glob search using zlob SIMD-accelerated matching (via ffs-search).
 fn glob_search_blocking(
     base: &Path,
     pattern: &str,
     max_files: usize,
 ) -> Result<Vec<(String, std::time::SystemTime)>> {
-    let glob = GlobBuilder::new(pattern)
-        .literal_separator(true)
-        .build()
-        .map_err(|e| anyhow::anyhow!("Invalid glob pattern '{}': {}", pattern, e))?;
-    let matcher = glob.compile_matcher();
-
-    let collect_limit = max_files * 2;
-    let results: Arc<Mutex<Vec<(String, std::time::SystemTime)>>> =
-        Arc::new(Mutex::new(Vec::with_capacity(max_files)));
-    let count: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
-
-    let walker = ignore::WalkBuilder::new(base)
-        .hidden(false)
-        .git_ignore(true)
-        .git_global(true)
-        .git_exclude(true)
-        .threads(
-            std::thread::available_parallelism()
-                .map(|n| n.get())
-                .unwrap_or(4)
-                .min(8),
-        )
-        .build_parallel();
-
-    let base_owned = base.to_path_buf();
-
-    walker.run(|| {
-        let matcher = matcher.clone();
-        let results = results.clone();
-        let count = count.clone();
-        let base = base_owned.clone();
-
-        Box::new(move |entry| {
-            if count.load(Ordering::Relaxed) >= collect_limit {
-                return ignore::WalkState::Quit;
-            }
-
-            let entry = match entry {
-                Ok(e) => e,
-                Err(_) => return ignore::WalkState::Continue,
-            };
-
-            let ft = match entry.file_type() {
-                Some(ft) => ft,
-                None => return ignore::WalkState::Continue,
-            };
-            if ft.is_dir() {
-                return ignore::WalkState::Continue;
-            }
-
-            let path = entry.path();
-            let relative = path.strip_prefix(&base).unwrap_or(path);
-            let path_str = relative.to_string_lossy();
-
-            if matcher.is_match(relative) {
-                let mtime = entry
-                    .metadata()
-                    .ok()
-                    .and_then(|m| m.modified().ok())
-                    .unwrap_or(std::time::UNIX_EPOCH);
-
-                count.fetch_add(1, Ordering::Relaxed);
-                let mut guard = results
-                    .lock()
-                    .unwrap_or_else(|poisoned| poisoned.into_inner());
-                guard.push((path_str.to_string(), mtime));
-            }
-
-            ignore::WalkState::Continue
-        })
-    });
-
-    let mut final_results = match Arc::try_unwrap(results) {
-        Ok(mutex) => mutex
-            .into_inner()
-            .unwrap_or_else(|poisoned| poisoned.into_inner()),
-        Err(arc) => arc
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
-            .clone(),
-    };
-
-    final_results.sort_by(|a, b| b.1.cmp(&a.1));
-    final_results.truncate(max_files);
-
-    Ok(final_results)
+    let files = ffs_search::glob_matcher::glob_files(base, pattern, max_files);
+    Ok(files.into_iter().map(|s| (s, std::time::UNIX_EPOCH)).collect())
 }
 
 /// Fuzzy search: case-insensitive substring matching with scoring.
@@ -417,9 +332,9 @@ mod tests {
     fn test_glob_invalid_pattern() {
         let dir = TempDir::new().unwrap();
         let base = dir.path().to_path_buf();
-        let result = glob_search_blocking(&base, "[invalid", DEFAULT_MAX_FILES);
-        assert!(result.is_err());
-        let err_msg = result.unwrap_err().to_string();
-        assert!(err_msg.contains("Invalid glob pattern") || err_msg.contains("\\[invalid"));
+        // zlob treats `[invalid` as a valid glob (empty character class) and
+        // returns no matches rather than an error.
+        let result = glob_search_blocking(&base, "[invalid", DEFAULT_MAX_FILES).unwrap();
+        assert!(result.is_empty());
     }
 }

@@ -3081,7 +3081,7 @@ dependencies = [
 [[package]]
 name = "ffs-grep"
 version = "0.1.6"
-source = "git+https://github.com/quangdang46/fast_file_search?rev=a8305de#a8305dedcd3a50c7a569de3fd385c2c53679dfee"
+source = "git+https://github.com/quangdang46/fast_file_search?rev=bad44ac#bad44ac15d1b9c6062d69a4d7287873c0b78adee"
 dependencies = [
  "bstr",
  "memchr",
@@ -3090,12 +3090,12 @@ dependencies = [
 [[package]]
 name = "ffs-query-parser"
 version = "0.1.6"
-source = "git+https://github.com/quangdang46/fast_file_search?rev=a8305de#a8305dedcd3a50c7a569de3fd385c2c53679dfee"
+source = "git+https://github.com/quangdang46/fast_file_search?rev=bad44ac#bad44ac15d1b9c6062d69a4d7287873c0b78adee"
 
 [[package]]
 name = "ffs-search"
 version = "0.1.6"
-source = "git+https://github.com/quangdang46/fast_file_search?rev=a8305de#a8305dedcd3a50c7a569de3fd385c2c53679dfee"
+source = "git+https://github.com/quangdang46/fast_file_search?rev=bad44ac#bad44ac15d1b9c6062d69a4d7287873c0b78adee"
 dependencies = [
  "ahash",
  "aho-corasick",
@@ -3137,7 +3137,7 @@ dependencies = [
 [[package]]
 name = "ffs-symbol"
 version = "0.1.6"
-source = "git+https://github.com/quangdang46/fast_file_search?rev=a8305de#a8305dedcd3a50c7a569de3fd385c2c53679dfee"
+source = "git+https://github.com/quangdang46/fast_file_search?rev=bad44ac#bad44ac15d1b9c6062d69a4d7287873c0b78adee"
 dependencies = [
  "aho-corasick",
  "dashmap",
@@ -5693,6 +5693,7 @@ dependencies = [
  "dcg-core",
  "dirs 5.0.1",
  "dynamic_context_pruning",
+ "ffs-search",
  "ffs-symbol",
  "flate2",
  "futures",
