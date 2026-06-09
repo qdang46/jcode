@@ -1,9 +1,27 @@
 use crate::message::{ContentBlock, ToolCall};
 use crate::tool::ToolOutput;
+#[cfg(feature = "rtco")]
+use crate::rtco_filter::RtcoFilterResult;
 
 pub(super) const MAX_TOOL_OUTPUT_CHARS_FOR_HISTORY: usize = 512 * 1024;
 
 pub(super) fn cap_tool_output_for_history(tool_name: &str, mut output: ToolOutput) -> ToolOutput {
+    #[cfg(feature = "rtco")]
+    if let Some(rtco_result) = crate::rtco_filter::filter_tool_output(tool_name, &output.output, 10.0) {
+        // Push to the global accumulator before taking ownership of fields.
+        push_rtco_stats(RtcoFilterResult {
+            text: rtco_result.text.clone(),
+            original_chars: rtco_result.original_chars,
+            filtered_chars: rtco_result.filtered_chars,
+            savings_percent: rtco_result.savings_percent,
+            marker_text: rtco_result.marker_text.clone(),
+        });
+        output.output = rtco_result.text;
+        if let Some(marker) = rtco_result.marker_text.filter(|m| !m.is_empty()) {
+            output.output.push_str(&format!("\n\n{}", marker));
+        }
+    }
+
     if output.output.chars().count() <= MAX_TOOL_OUTPUT_CHARS_FOR_HISTORY {
         return output;
     }
@@ -128,6 +146,42 @@ pub(super) fn print_tool_summary(tool: &ToolCall) {
         _ => {}
     }
 }
+
+/// Global accumulator for RTCO filter results, collected across the lifetime of a session.
+#[cfg(feature = "rtco")]
+use std::sync::{LazyLock, Mutex};
+#[cfg(feature = "rtco")]
+static RTCO_STATS: LazyLock<Mutex<Vec<RtcoFilterResult>>> = LazyLock::new(|| Mutex::new(Vec::new()));
+
+/// Drain all accumulated RTCO stats from the current session and return them.
+#[cfg(feature = "rtco")]
+pub fn take_rtco_stats() -> Vec<RtcoFilterResult> {
+    RTCO_STATS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .drain(..)
+        .collect()
+}
+
+/// No-op fallback when the rtco feature is disabled.
+#[cfg(not(feature = "rtco"))]
+#[allow(dead_code)]
+pub fn take_rtco_stats() -> Vec<()> {
+    Vec::new()
+}
+
+/// Push a single RTCO filter result into the global accumulator.
+#[cfg(feature = "rtco")]
+pub(super) fn push_rtco_stats(result: RtcoFilterResult) {
+    if let Ok(mut guard) = RTCO_STATS.lock() {
+        guard.push(result);
+    }
+}
+
+/// No-op fallback when the rtco feature is disabled.
+#[cfg(not(feature = "rtco"))]
+#[allow(dead_code)]
+pub(super) fn push_rtco_stats(_result: ()) {}
 
 #[cfg(test)]
 mod tests {

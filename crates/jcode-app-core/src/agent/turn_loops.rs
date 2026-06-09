@@ -768,6 +768,19 @@ impl Agent {
                     println!();
                 }
                 final_text = text_content;
+
+                // Drain and log RTCO stats accumulated during this turn
+                #[cfg(feature = "rtco")]
+                {
+                    let rtco_stats = super::tools::take_rtco_stats();
+                    if !rtco_stats.is_empty() {
+                        let summary = crate::rtco_filter::format_rtco_summary(&rtco_stats);
+                        if !summary.is_empty() {
+                            logging::info(&summary);
+                        }
+                    }
+                }
+
                 break;
             }
 
@@ -1071,6 +1084,18 @@ impl Agent {
                     injected.len(),
                     total_chars
                 ));
+            }
+        }
+
+        // Drain and log RTCO stats accumulated across all turns in this run_turn call
+        #[cfg(feature = "rtco")]
+        {
+            let rtco_stats = super::tools::take_rtco_stats();
+            if !rtco_stats.is_empty() {
+                let summary = crate::rtco_filter::format_rtco_summary(&rtco_stats);
+                if !summary.is_empty() {
+                    logging::info(&summary);
+                }
             }
         }
 
