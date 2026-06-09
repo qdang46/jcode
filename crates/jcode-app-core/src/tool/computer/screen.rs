@@ -7,6 +7,7 @@ use core_graphics::display::CGDisplay;
 use jcode_tool_types::ToolOutput;
 use serde_json::json;
 use std::process::Command;
+use std::time::Duration;
 
 /// Read width/height from a PNG IHDR chunk. Returns None if not a PNG.
 pub fn png_dimensions(bytes: &[u8]) -> Option<(u32, u32)> {
@@ -28,13 +29,15 @@ fn capture_to_temp(extra_args: &[&str]) -> Result<Vec<u8>> {
             .map(|d| d.as_millis())
             .unwrap_or(0)
     ));
-    let mut cmd = Command::new("/usr/sbin/screencapture");
-    cmd.arg("-x");
-    cmd.args(extra_args);
-    cmd.arg(&tmp);
-    let status = cmd.status().context("failed to run screencapture")?;
-    if !status.success() {
-        bail!("screencapture failed (exit {:?})", status.code());
+    let tmp_str = tmp.to_string_lossy().to_string();
+    let mut args: Vec<&str> = vec!["-x"];
+    args.extend_from_slice(extra_args);
+    args.push(&tmp_str);
+    let (ok, _out, err) =
+        osa::run_command_timed("/usr/sbin/screencapture", &args, Duration::from_secs(15))?;
+    if !ok {
+        let _ = std::fs::remove_file(&tmp);
+        bail!("screencapture failed: {}", err.trim());
     }
     let bytes = std::fs::read(&tmp).context("failed to read screenshot file")?;
     let _ = std::fs::remove_file(&tmp);
@@ -95,15 +98,17 @@ pub fn ocr(region: Option<[f64; 4]>) -> Result<ToolOutput> {
         vec![]
     };
     let tmp = std::env::temp_dir().join(format!("jcode_ocr_{}.png", std::process::id()));
-    let mut cmd = Command::new("/usr/sbin/screencapture");
-    cmd.arg("-x");
+    let tmp_str = tmp.to_string_lossy().to_string();
+    let mut args: Vec<&str> = vec!["-x"];
     for a in &region_args {
-        cmd.arg(a);
+        args.push(a);
     }
-    cmd.arg(&tmp);
-    let status = cmd.status().context("failed to run screencapture for OCR")?;
-    if !status.success() {
-        bail!("screencapture failed for OCR (exit {:?})", status.code());
+    args.push(&tmp_str);
+    let (ok, _o, err) =
+        osa::run_command_timed("/usr/sbin/screencapture", &args, Duration::from_secs(15))?;
+    if !ok {
+        let _ = std::fs::remove_file(&tmp);
+        bail!("screencapture failed for OCR: {}", err.trim());
     }
 
     let img_path = tmp.to_string_lossy().to_string();

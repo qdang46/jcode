@@ -115,6 +115,60 @@ struct ComputerInput {
     region: Option<[f64; 4]>,
     #[serde(default)]
     level: Option<f64>,
+    /// For mutating actions: resolve and report the target without acting.
+    #[serde(default)]
+    dry_run: Option<bool>,
+}
+
+/// Cap a tool output's text so a huge AX tree / clipboard / OCR dump cannot
+/// blow up the context. Keeps the head and notes how much was dropped.
+#[cfg(target_os = "macos")]
+fn cap_output(mut out: ToolOutput, max_chars: usize) -> ToolOutput {
+    if out.output.len() > max_chars {
+        let mut cut = max_chars;
+        while cut > 0 && !out.output.is_char_boundary(cut) {
+            cut -= 1;
+        }
+        let dropped = out.output.len() - cut;
+        let head = out.output[..cut].to_string();
+        out.output = format!("{head}\n… [truncated {dropped} chars]");
+    }
+    out
+}
+
+/// Actions that change desktop/app state. Used for dry_run gating.
+#[cfg(target_os = "macos")]
+fn is_mutating(action: &str) -> bool {
+    matches!(
+        action,
+        "move"
+            | "click"
+            | "double_click"
+            | "right_click"
+            | "drag"
+            | "scroll"
+            | "type"
+            | "key"
+            | "key_down"
+            | "key_up"
+            | "press"
+            | "set_value"
+            | "perform_action"
+            | "select_menu"
+            | "activate_app"
+            | "hide_app"
+            | "quit_app"
+            | "focus_window"
+            | "move_window"
+            | "resize_window"
+            | "minimize_window"
+            | "close_window"
+            | "set_clipboard"
+            | "run_applescript"
+            | "run_jxa"
+            | "notify"
+            | "set_brightness"
+    )
 }
 
 #[async_trait]
@@ -171,7 +225,8 @@ impl Tool for ComputerTool {
                     }
                 },
                 "script": { "type": "string", "description": "AppleScript (run_applescript) or JS (run_jxa) source." },
-                "depth": { "type": "integer", "description": "Max AX tree depth for ui/find_element (default 12)." }
+                "depth": { "type": "integer", "description": "Max AX tree depth for ui/find_element (default 12)." },
+                "dry_run": { "type": "boolean", "description": "For mutating actions: report the intended action without performing it." }
             }
         })
     }
@@ -193,6 +248,22 @@ fn run(_input: ComputerInput) -> Result<ToolOutput> {
 #[cfg(target_os = "macos")]
 fn run(input: ComputerInput) -> Result<ToolOutput> {
     let action = input.action.as_str();
+
+    // dry_run: for mutating actions, report the intended target and stop.
+    if input.dry_run == Some(true) && is_mutating(action) {
+        return Ok(ToolOutput::new(format!(
+            "[dry_run] would perform '{action}' (no action taken). \
+             Re-issue without dry_run to execute."
+        )));
+    }
+
+    let result = dispatch(action, &input);
+    // Cap large textual outputs to protect context (images are unaffected).
+    result.map(|o| cap_output(o, 16_000))
+}
+
+#[cfg(target_os = "macos")]
+fn dispatch(action: &str, input: &ComputerInput) -> Result<ToolOutput> {
     match action {
         // ---- discovery & setup ----
         "discover" => discover::discover(input.category.as_deref()),
@@ -215,7 +286,7 @@ fn run(input: ComputerInput) -> Result<ToolOutput> {
 
         // ---- coordinate input (visible) ----
         "move" => {
-            let (x, y) = require_xy(&input)?;
+            let (x, y) = require_xy(input)?;
             input::move_to(x, y)?;
             Ok(ToolOutput::new(format!("moved cursor to ({x:.0}, {y:.0})")))
         }
@@ -232,7 +303,7 @@ fn run(input: ComputerInput) -> Result<ToolOutput> {
             Ok(ToolOutput::new(format!("right-clicked at ({:.0}, {:.0})", p.x, p.y)))
         }
         "drag" => {
-            let (x, y) = require_xy(&input)?;
+            let (x, y) = require_xy(input)?;
             match (input.to_x, input.to_y) {
                 (Some(tx), Some(ty)) => {
                     input::drag(x, y, tx, ty)?;
@@ -293,18 +364,18 @@ fn run(input: ComputerInput) -> Result<ToolOutput> {
         }
         "element_at" => {
             let app = input.app.as_deref().context("element_at requires `app`")?;
-            let (x, y) = require_xy(&input)?;
+            let (x, y) = require_xy(input)?;
             ax::element_at(app, x, y)
         }
-        "press" => ax::press(&parse_element(&input)?),
-        "get_value" => ax::get_value(&parse_element(&input)?),
+        "press" => ax::press(&parse_element(input)?),
+        "get_value" => ax::get_value(&parse_element(input)?),
         "set_value" => {
             let v = input.value.as_deref().context("set_value requires `value`")?;
-            ax::set_value(&parse_element(&input)?, v)
+            ax::set_value(&parse_element(input)?, v)
         }
         "perform_action" => {
             let a = input.ax_action.as_deref().context("perform_action requires `ax_action`")?;
-            ax::perform_action(&parse_element(&input)?, a)
+            ax::perform_action(&parse_element(input)?, a)
         }
         "select_menu" => {
             let app = input.app.as_deref().context("select_menu requires `app`")?;
@@ -315,21 +386,21 @@ fn run(input: ComputerInput) -> Result<ToolOutput> {
         // ---- windows / apps (Tier 2) ----
         "list_apps" => win::list_apps(),
         "list_windows" => win::list_windows(),
-        "activate_app" => win::activate_app(req_app(&input)?),
-        "hide_app" => win::hide_app(req_app(&input)?),
-        "quit_app" => win::quit_app(req_app(&input)?),
-        "focus_window" => win::focus_window(req_app(&input)?),
+        "activate_app" => win::activate_app(req_app(input)?),
+        "hide_app" => win::hide_app(req_app(input)?),
+        "quit_app" => win::quit_app(req_app(input)?),
+        "focus_window" => win::focus_window(req_app(input)?),
         "move_window" => {
-            let (x, y) = require_xy(&input)?;
-            win::move_window(req_app(&input)?, x, y)
+            let (x, y) = require_xy(input)?;
+            win::move_window(req_app(input)?, x, y)
         }
         "resize_window" => {
             let w = input.w.context("resize_window requires `w`")?;
             let h = input.h.context("resize_window requires `h`")?;
-            win::resize_window(req_app(&input)?, w, h)
+            win::resize_window(req_app(input)?, w, h)
         }
-        "minimize_window" => win::minimize_window(req_app(&input)?),
-        "close_window" => win::close_window(req_app(&input)?),
+        "minimize_window" => win::minimize_window(req_app(input)?),
+        "close_window" => win::close_window(req_app(input)?),
 
         // ---- clipboard / scripting / system (Tier 3/4) ----
         "get_clipboard" => sys::get_clipboard(),
@@ -393,3 +464,5 @@ fn parse_element(input: &ComputerInput) -> Result<ax::ElementHandle> {
 
 #[cfg(all(test, target_os = "macos"))]
 mod tests;
+#[cfg(all(test, target_os = "macos"))]
+mod coverage_tests;

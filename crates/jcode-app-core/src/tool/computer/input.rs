@@ -203,12 +203,110 @@ pub fn key_chord(chord: &str) -> Result<()> {
     Ok(())
 }
 
+/// Parse a chord into (modifier flags, optional main keycode). Unlike
+/// `parse_chord`, a modifier-only chord (e.g. "shift") is allowed and returns
+/// `None` for the keycode. Used for key_down/key_up holds.
+pub fn parse_chord_opt(chord: &str) -> Result<(CGEventFlags, Option<u16>)> {
+    let mut flags = CGEventFlags::CGEventFlagNull;
+    let mut keycode: Option<u16> = None;
+    for raw in chord.split('+') {
+        let part = raw.trim().to_lowercase();
+        if part.is_empty() {
+            continue;
+        }
+        match part.as_str() {
+            "cmd" | "command" | "meta" | "super" => flags |= CGEventFlags::CGEventFlagCommand,
+            "ctrl" | "control" => flags |= CGEventFlags::CGEventFlagControl,
+            "alt" | "opt" | "option" => flags |= CGEventFlags::CGEventFlagAlternate,
+            "shift" => flags |= CGEventFlags::CGEventFlagShift,
+            "fn" => flags |= CGEventFlags::CGEventFlagSecondaryFn,
+            other => {
+                if keycode.is_some() {
+                    bail!("key chord '{chord}' has more than one non-modifier key");
+                }
+                keycode = Some(
+                    keys::keycode_for(other)
+                        .with_context(|| format!("unknown key '{other}' in chord '{chord}'"))?,
+                );
+            }
+        }
+    }
+    if keycode.is_none() && flags == CGEventFlags::CGEventFlagNull {
+        bail!("chord '{chord}' is empty");
+    }
+    Ok((flags, keycode))
+}
+
+/// Keycode for a single modifier name, for modifier-only holds.
+fn modifier_keycode(chord: &str) -> Option<u16> {
+    match chord.trim().to_lowercase().as_str() {
+        "cmd" | "command" | "meta" | "super" => Some(0x37),
+        "shift" => Some(0x38),
+        "alt" | "opt" | "option" => Some(0x3A),
+        "ctrl" | "control" => Some(0x3B),
+        "fn" => Some(0x3F),
+        _ => None,
+    }
+}
+
+/// Hold a key or chord down (down_state=true) or release it (false).
+/// Supports modifier-only holds (e.g. "shift") via a FlagsChanged event.
 pub fn key_hold(chord: &str, down_state: bool) -> Result<()> {
-    let (flags, code) = parse_chord(chord)?;
+    let (flags, keycode) = parse_chord_opt(chord)?;
     let src = source()?;
-    let evt = CGEvent::new_keyboard_event(src, code, down_state)
-        .map_err(|_| anyhow::anyhow!("failed to create key event"))?;
-    evt.set_flags(flags);
-    post(evt);
+    match keycode {
+        Some(code) => {
+            let evt = CGEvent::new_keyboard_event(src, code, down_state)
+                .map_err(|_| anyhow::anyhow!("failed to create key event"))?;
+            evt.set_flags(flags);
+            post(evt);
+        }
+        None => {
+            // Modifier-only: emit a FlagsChanged event carrying the modifier
+            // keycode, with the flags set while held and cleared on release.
+            let code = modifier_keycode(chord)
+                .with_context(|| format!("unsupported modifier-only hold '{chord}'"))?;
+            let evt = CGEvent::new_keyboard_event(src, code, down_state)
+                .map_err(|_| anyhow::anyhow!("failed to create modifier event"))?;
+            evt.set_type(CGEventType::FlagsChanged);
+            evt.set_flags(if down_state {
+                flags
+            } else {
+                CGEventFlags::CGEventFlagNull
+            });
+            post(evt);
+        }
+    }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_modifier_only_chord() {
+        let (flags, code) = parse_chord_opt("shift").unwrap();
+        assert!(flags.contains(CGEventFlags::CGEventFlagShift));
+        assert!(code.is_none());
+    }
+
+    #[test]
+    fn parses_chord_with_key() {
+        let (flags, code) = parse_chord_opt("cmd+a").unwrap();
+        assert!(flags.contains(CGEventFlags::CGEventFlagCommand));
+        assert_eq!(code, Some(0x00));
+    }
+
+    #[test]
+    fn rejects_empty_chord() {
+        assert!(parse_chord_opt("").is_err());
+    }
+
+    #[test]
+    fn modifier_keycodes_known() {
+        assert_eq!(modifier_keycode("cmd"), Some(0x37));
+        assert_eq!(modifier_keycode("shift"), Some(0x38));
+        assert_eq!(modifier_keycode("nope"), None);
+    }
 }

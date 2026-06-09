@@ -14,6 +14,7 @@ use anyhow::{Result, bail};
 use jcode_tool_types::ToolOutput;
 use serde::Deserialize;
 use serde_json::json;
+use std::time::Duration;
 
 /// A structural handle to an AX element.
 #[derive(Debug, Clone, Deserialize)]
@@ -211,7 +212,7 @@ end tell
 /// Perform AXPress on an element (background click).
 pub fn press(handle: &ElementHandle) -> Result<ToolOutput> {
     let body = format!("perform action \"AXPress\" of ({})", handle.resolve_script());
-    osa::run_applescript(&tell(&handle.app, &body))?;
+    osa::run_applescript_timeout(&tell(&handle.app, &body), Duration::from_secs(10))?;
     Ok(ToolOutput::new(format!(
         "pressed element {:?} in {} (no cursor movement)",
         handle.path, handle.app
@@ -225,7 +226,7 @@ pub fn perform_action(handle: &ElementHandle, ax_action: &str) -> Result<ToolOut
         osa::as_quote(ax_action),
         handle.resolve_script()
     );
-    osa::run_applescript(&tell(&handle.app, &body))?;
+    osa::run_applescript_timeout(&tell(&handle.app, &body), Duration::from_secs(10))?;
     Ok(ToolOutput::new(format!(
         "performed {ax_action} on element {:?} in {}",
         handle.path, handle.app
@@ -239,7 +240,7 @@ pub fn set_value(handle: &ElementHandle, value: &str) -> Result<ToolOutput> {
         handle.resolve_script(),
         osa::as_quote(value)
     );
-    osa::run_applescript(&tell(&handle.app, &body))?;
+    osa::run_applescript_timeout(&tell(&handle.app, &body), Duration::from_secs(10))?;
     Ok(ToolOutput::new(format!(
         "set value of element {:?} in {} to {} chars",
         handle.path,
@@ -251,7 +252,7 @@ pub fn set_value(handle: &ElementHandle, value: &str) -> Result<ToolOutput> {
 /// Read the value of an element.
 pub fn get_value(handle: &ElementHandle) -> Result<ToolOutput> {
     let body = format!("return value of ({}) as text", handle.resolve_script());
-    let v = osa::run_applescript(&tell(&handle.app, &body))?;
+    let v = osa::run_applescript_timeout(&tell(&handle.app, &body), Duration::from_secs(10))?;
     Ok(ToolOutput::new(v).with_title("get_value"))
 }
 
@@ -260,21 +261,26 @@ pub fn select_menu(app: &str, path: &[String]) -> Result<ToolOutput> {
     if path.len() < 2 {
         bail!("select_menu needs at least a top menu and one item, e.g. [\"File\",\"Save\"]");
     }
+    // The menu bar belongs to the process; menu access requires the app be
+    // frontmost, so activate it first.
     let top = &path[0];
-    // Build nested "menu item X of menu of menu item Y of ..." for submenus.
-    // Simple case: top menu -> item (optionally nested submenus).
     let mut expr = format!(
-        "menu bar item {top} of menu bar 1",
+        "menu bar item {top} of menu bar 1 of frontApp",
         top = osa::as_quote(top)
     );
-    // For each subsequent path component, descend into its menu.
-    for (i, item) in path.iter().enumerate().skip(1) {
-        expr = format!("menu item {item} of menu 1 of ({expr})", item = osa::as_quote(item), expr = expr);
-        // (for deeper submenus this nests again on the next iteration)
-        let _ = i;
+    for item in path.iter().skip(1) {
+        expr = format!(
+            "menu item {item} of menu 1 of ({expr})",
+            item = osa::as_quote(item),
+            expr = expr
+        );
     }
-    let body = format!("click ({expr})");
-    osa::run_applescript(&tell(app, &body))?;
+    let body = format!(
+        "set frontmost of frontApp to true\n\
+         delay 0.2\n\
+         click ({expr})"
+    );
+    osa::run_applescript_timeout(&tell(app, &body), Duration::from_secs(10))?;
     Ok(ToolOutput::new(format!(
         "selected menu {} in {app}",
         path.join(" > ")

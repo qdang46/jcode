@@ -62,6 +62,41 @@ async fn press_requires_element() {
     assert!(err.to_string().contains("element"));
 }
 
+#[tokio::test]
+async fn dry_run_skips_mutation() {
+    let out = run_action(json!({ "action": "click", "x": 10, "y": 10, "dry_run": true }))
+        .await
+        .unwrap();
+    assert!(out.output.contains("dry_run"));
+    assert!(out.output.contains("click"));
+}
+
+#[tokio::test]
+async fn dry_run_ignored_for_readonly() {
+    let out = run_action(json!({ "action": "discover", "category": "ax", "dry_run": true }))
+        .await
+        .unwrap();
+    assert!(out.output.contains("find_element"));
+}
+
+#[test]
+fn cap_output_truncates() {
+    let big = "x".repeat(20_000);
+    let capped = super::cap_output(ToolOutput::new(big), 16_000);
+    assert!(capped.output.len() < 16_200);
+    assert!(capped.output.contains("truncated"));
+}
+
+#[test]
+fn is_mutating_classifies() {
+    assert!(super::is_mutating("click"));
+    assert!(super::is_mutating("quit_app"));
+    assert!(super::is_mutating("set_value"));
+    assert!(!super::is_mutating("screenshot"));
+    assert!(!super::is_mutating("ui"));
+    assert!(!super::is_mutating("discover"));
+}
+
 #[test]
 fn schema_is_compact() {
     // Guard against context bloat: the always-on schema + description must stay

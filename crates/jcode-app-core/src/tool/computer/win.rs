@@ -26,8 +26,19 @@ pub fn hide_app(app: &str) -> Result<ToolOutput> {
 }
 
 pub fn quit_app(app: &str) -> Result<ToolOutput> {
-    osa::run_applescript(&format!("tell application {} to quit", osa::as_quote(app)))?;
-    Ok(ToolOutput::new(format!("quit {app}")))
+    // `quit` blocks if the app shows a modal (e.g. an unsaved-changes sheet), so
+    // use a short timeout and report that case instead of hanging the agent.
+    match osa::run_applescript_timeout(
+        &format!("tell application {} to quit", osa::as_quote(app)),
+        std::time::Duration::from_secs(8),
+    ) {
+        Ok(_) => Ok(ToolOutput::new(format!("quit {app}"))),
+        Err(e) if e.to_string().contains("timed out") => Ok(ToolOutput::new(format!(
+            "{app} did not quit within 8s — it is likely showing a dialog (e.g. unsaved changes). \
+             Handle the dialog (screenshot + click, or press a key), then quit again."
+        ))),
+        Err(e) => Err(e),
+    }
 }
 
 /// List on-screen windows with CG window ids, owners, titles, and bounds.
