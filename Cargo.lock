@@ -274,7 +274,7 @@ dependencies = [
  "objc2-foundation",
  "parking_lot 0.12.5",
  "percent-encoding",
- "windows-sys 0.60.2",
+ "windows-sys 0.52.0",
  "wl-clipboard-rs",
  "x11rb",
 ]
@@ -1699,7 +1699,7 @@ version = "3.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "faf9468729b8cbcea668e36183cb69d317348c2e08e994829fb56ebfdfbaac34"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -2678,7 +2678,7 @@ dependencies = [
  "libc",
  "option-ext",
  "redox_users 0.5.2",
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -2913,7 +2913,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -3110,7 +3110,7 @@ dependencies = [
 [[package]]
 name = "ffs-grep"
 version = "0.1.6"
-source = "git+https://github.com/quangdang46/fast_file_search?rev=bad44ac#bad44ac15d1b9c6062d69a4d7287873c0b78adee"
+source = "git+https://github.com/quangdang46/fast_file_search?rev=28aef7c#28aef7c40bbca50eb1068dc000b19c56289024ea"
 dependencies = [
  "bstr",
  "memchr",
@@ -3119,12 +3119,12 @@ dependencies = [
 [[package]]
 name = "ffs-query-parser"
 version = "0.1.6"
-source = "git+https://github.com/quangdang46/fast_file_search?rev=bad44ac#bad44ac15d1b9c6062d69a4d7287873c0b78adee"
+source = "git+https://github.com/quangdang46/fast_file_search?rev=28aef7c#28aef7c40bbca50eb1068dc000b19c56289024ea"
 
 [[package]]
 name = "ffs-search"
 version = "0.1.6"
-source = "git+https://github.com/quangdang46/fast_file_search?rev=bad44ac#bad44ac15d1b9c6062d69a4d7287873c0b78adee"
+source = "git+https://github.com/quangdang46/fast_file_search?rev=28aef7c#28aef7c40bbca50eb1068dc000b19c56289024ea"
 dependencies = [
  "ahash",
  "aho-corasick",
@@ -3166,7 +3166,7 @@ dependencies = [
 [[package]]
 name = "ffs-symbol"
 version = "0.1.6"
-source = "git+https://github.com/quangdang46/fast_file_search?rev=bad44ac#bad44ac15d1b9c6062d69a4d7287873c0b78adee"
+source = "git+https://github.com/quangdang46/fast_file_search?rev=28aef7c#28aef7c40bbca50eb1068dc000b19c56289024ea"
 dependencies = [
  "aho-corasick",
  "dashmap",
@@ -5121,7 +5121,7 @@ dependencies = [
  "js-sys",
  "log",
  "wasm-bindgen",
- "windows-core 0.62.2",
+ "windows-core 0.58.0",
 ]
 
 [[package]]
@@ -5710,7 +5710,6 @@ name = "jcode-app-core"
 version = "0.1.0"
 dependencies = [
  "agentgrep",
- "aho-corasick",
  "anyhow",
  "arboard",
  "async-stream",
@@ -5729,7 +5728,6 @@ dependencies = [
  "futures",
  "glob",
  "global-hotkey",
- "globset",
  "hashline",
  "hex",
  "ignore",
@@ -5779,7 +5777,6 @@ dependencies = [
  "jcode-update-core",
  "jcode-usage-types",
  "libc",
- "memchr",
  "open",
  "proctitle",
  "qrcode",
@@ -7848,7 +7845,7 @@ version = "0.50.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7957b9740744892f114936ab4a57b3f487491bbeafaf8083688b16841a4240e5"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -8268,7 +8265,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7d8fae84b431384b68627d0f9b3b1245fcf9f46f6c0e3dc902e9dce64edd1967"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.45.0",
 ]
 
 [[package]]
@@ -9006,7 +9003,7 @@ dependencies = [
  "once_cell",
  "socket2 0.6.1",
  "tracing",
- "windows-sys 0.60.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -9843,7 +9840,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys 0.11.0",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -9972,7 +9969,7 @@ dependencies = [
  "security-framework 3.6.0",
  "security-framework-sys",
  "webpki-root-certs",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -11350,7 +11347,7 @@ dependencies = [
  "getrandom 0.3.4",
  "once_cell",
  "rustix 1.1.3",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -13201,7 +13198,7 @@ dependencies = [
  "js-sys",
  "log",
  "naga",
- "parking_lot 0.12.5",
+ "parking_lot 0.11.2",
  "profiling",
  "raw-window-handle",
  "smallvec",
@@ -13229,7 +13226,7 @@ dependencies = [
  "log",
  "naga",
  "once_cell",
- "parking_lot 0.12.5",
+ "parking_lot 0.11.2",
  "profiling",
  "raw-window-handle",
  "rustc-hash 1.1.0",
@@ -13271,7 +13268,7 @@ dependencies = [
  "ndk-sys",
  "objc",
  "once_cell",
- "parking_lot 0.12.5",
+ "parking_lot 0.11.2",
  "profiling",
  "range-alloc",
  "raw-window-handle",
@@ -13366,7 +13363,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -13410,24 +13407,11 @@ version = "0.58.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6ba6d44ec8c2591c134257ce647b7ea6b20335bf6379a27dac5f1641fcf59f99"
 dependencies = [
- "windows-implement 0.58.0",
- "windows-interface 0.58.0",
+ "windows-implement",
+ "windows-interface",
  "windows-result 0.2.0",
  "windows-strings 0.1.0",
  "windows-targets 0.52.6",
-]
-
-[[package]]
-name = "windows-core"
-version = "0.62.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b8e83a14d34d0623b51dce9581199302a221863196a1dde71a7663a4c2be9deb"
-dependencies = [
- "windows-implement 0.60.2",
- "windows-interface 0.59.3",
- "windows-link",
- "windows-result 0.4.1",
- "windows-strings 0.5.1",
 ]
 
 [[package]]
@@ -13442,32 +13426,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "windows-implement"
-version = "0.60.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "053e2e040ab57b9dc951b72c264860db7eb3b0200ba345b4e4c3b14f67855ddf"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.117",
-]
-
-[[package]]
 name = "windows-interface"
 version = "0.58.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "053c4c462dc91d3b1504c6fe5a726dd15e216ba718e84a0e46a88fbe5ded3515"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.117",
-]
-
-[[package]]
-name = "windows-interface"
-version = "0.59.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3f316c4a2570ba26bbec722032c4099d8c8bc095efccdc15688708623367e358"
 dependencies = [
  "proc-macro2",
  "quote",

@@ -88,7 +88,7 @@ impl Tool for FfsGrepTool {
         let matches: Vec<DirectoryGrepMatch> = tokio::task::spawn_blocking(move || {
             grep_directory(&base_owned, &effective_pattern, MAX_RESULTS)
         })
-        .await;
+        .await?;
 
         let mut output = String::new();
         output.push_str(&format!(

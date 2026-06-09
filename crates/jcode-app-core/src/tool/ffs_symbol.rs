@@ -1,5 +1,4 @@
 use super::{Tool, ToolContext, ToolOutput};
-use super::binary_ext::is_binary_extension;
 use anyhow::Result;
 use async_trait::async_trait;
 use ffs_symbol::symbol_index::{SymbolIndex, SymbolLocation};
@@ -277,7 +276,7 @@ fn build_symbol_index(root: &Path) -> Result<SymbolIndex> {
             // images, archives, etc.  (index_file also handles this via
             // detect_file_type, but catching the extension early avoids the
             // read + tree-sitter overhead for non-UTF-8 binaries.)
-            if is_binary_extension(path) {
+            if ffs_search::file_picker::is_known_binary_extension(path) {
                 return ignore::WalkState::Continue;
             }
 

@@ -4,9 +4,6 @@ use async_trait::async_trait;
 use serde::Deserialize;
 use serde_json::{Value, json};
 use std::path::Path;
-use std::sync::Arc;
-use std::sync::Mutex;
-use std::sync::atomic::{AtomicUsize, Ordering};
 
 const DEFAULT_MAX_FILES: usize = 100;
 
@@ -141,90 +138,23 @@ fn glob_search_blocking(
     Ok(files.into_iter().map(|s| (s, std::time::UNIX_EPOCH)).collect())
 }
 
-/// Fuzzy search: case-insensitive substring matching with scoring.
-/// Uses sequential walk to avoid closure type issues.
+/// Fuzzy search via ffs-search's fuzzy_file_search (case-insensitive
+/// substring matching with filename-boost scoring and binary-file skipping).
 fn fuzzy_search_blocking(
     base: &Path,
     query: &str,
     max_files: usize,
 ) -> Result<Vec<(String, std::time::SystemTime)>> {
-    let query_lower = query.to_ascii_lowercase();
-    let collect_limit = max_files * 2;
-
-    struct Scored {
-        path: String,
-        mtime: std::time::SystemTime,
-        score: usize,
-    }
-
-    let mut results: Vec<Scored> = Vec::new();
-
-    let walker = ignore::WalkBuilder::new(base)
-        .hidden(false)
-        .git_ignore(true)
-        .git_global(true)
-        .git_exclude(true)
-        .build();
-
-    for entry in walker {
-        if results.len() >= collect_limit {
-            break;
-        }
-
-        let entry = match entry {
-            Ok(e) => e,
-            Err(_) => continue,
-        };
-
-        let path = entry.path();
-        let ft = match entry.file_type() {
-            Some(ft) => ft,
-            None => continue,
-        };
-        if ft.is_dir() {
-            continue;
-        }
-
-        let relative = path.strip_prefix(base).unwrap_or(path);
-        let path_str = relative.to_string_lossy();
-        let path_lower = path_str.to_ascii_lowercase();
-
-        let filename = relative
-            .file_name()
-            .map(|n| n.to_string_lossy().to_ascii_lowercase())
-            .unwrap_or_default();
-
-        let score = if filename.contains(&query_lower) {
-            2
-        } else if path_lower.contains(&query_lower) {
-            1
-        } else {
-            continue;
-        };
-
-        let mtime = entry
-            .metadata()
-            .ok()
-            .and_then(|m| m.modified().ok())
-            .unwrap_or(std::time::UNIX_EPOCH);
-
-        results.push(Scored {
-            path: path_str.to_string(),
-            mtime,
-            score,
-        });
-    }
-
-    // Sort by score (higher first), then mtime (newer first), then path
-    results.sort_by(|a, b| {
-        b.score
-            .cmp(&a.score)
-            .then(b.mtime.cmp(&a.mtime))
-            .then(a.path.cmp(&b.path))
-    });
-    results.truncate(max_files);
-
-    Ok(results.into_iter().map(|s| (s.path, s.mtime)).collect())
+    use ffs_search::fuzzy_file_search::{fuzzy_search_files, FuzzySearchOptions};
+    let matches = fuzzy_search_files(
+        base,
+        query,
+        FuzzySearchOptions {
+            max_results: max_files,
+            ..Default::default()
+        },
+    );
+    Ok(matches.into_iter().map(|m| (m.path, std::time::UNIX_EPOCH)).collect())
 }
 
 #[cfg(test)]
