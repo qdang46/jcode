@@ -26,13 +26,23 @@ struct HashlineEditInput {
     #[serde(default)]
     intent: Option<String>,
     file_path: String,
-    anchor: Anchor,
-    old_string: String,
+    anchor: AnchorInput,
+    #[serde(default)]
+    old_string: Option<String>,
     new_string: String,
 }
 
+/// Anchor can be a structured JSON object (backward-compat) or a
+/// hashline-style string like `"12:ab"` or `"12:ab..15:cd"`.
 #[derive(Deserialize)]
-struct Anchor {
+#[serde(untagged)]
+enum AnchorInput {
+    Structured(AnchorBody),
+    AnchorStr(String),
+}
+
+#[derive(Deserialize)]
+struct AnchorBody {
     line: usize,
     hash_sha256: String,
     #[serde(default = "default_context_window")]
@@ -89,6 +99,57 @@ fn apply_edit_within_window(
     .map_err(|e| anyhow::anyhow!("{e}"))
 }
 
+/// Write `content` to `path` atomically via temp file + rename.
+///
+/// Preserves the original extension in the temp name (e.g. `foo.rs` ->
+/// `foo.rs.jcode-tmp`) so file watchers / build systems that filter by
+/// extension don't trip on the temp file. Append a process-id suffix so
+/// concurrent edits to different files don't collide.
+async fn atomic_write(path: &Path, content: &str) -> Result<()> {
+    let pid = std::process::id();
+    let temp_name = match path.file_name().and_then(|n| n.to_str()) {
+        Some(name) => format!("{name}.jcode-tmp.{pid}"),
+        None => format!("jcode-tmp.{pid}"),
+    };
+    let temp_path = path.with_file_name(temp_name);
+    if let Err(e) = tokio::fs::write(&temp_path, content).await {
+        let _ = tokio::fs::remove_file(&temp_path).await;
+        return Err(anyhow::anyhow!(
+            "failed to write temp file {}: {}",
+            temp_path.display(),
+            e
+        ));
+    }
+    if let Err(e) = tokio::fs::rename(&temp_path, path).await {
+        let _ = tokio::fs::remove_file(&temp_path).await;
+        return Err(anyhow::anyhow!(
+            "failed to atomically rename {} -> {}: {}",
+            temp_path.display(),
+            path.display(),
+            e
+        ));
+    }
+    Ok(())
+}
+
+fn publish_edit_event(
+    ctx: &ToolContext,
+    intent: Option<String>,
+    path: &Path,
+    start_line: usize,
+    end_line: usize,
+    detail: Option<String>,
+) {
+    Bus::global().publish(BusEvent::FileTouch(FileTouch {
+        session_id: ctx.session_id.clone(),
+        path: path.to_path_buf(),
+        op: FileOp::Edit,
+        intent: intent.filter(|value| !value.trim().is_empty()),
+        summary: Some(format!("hashline edit lines {}-{}", start_line, end_line)),
+        detail,
+    }));
+}
+
 #[async_trait]
 impl Tool for HashlineEditTool {
     fn name(&self) -> &str {
@@ -102,7 +163,7 @@ impl Tool for HashlineEditTool {
     fn parameters_schema(&self) -> Value {
         json!({
             "type": "object",
-            "required": ["file_path", "anchor", "old_string", "new_string"],
+            "required": ["file_path", "anchor", "new_string"],
             "properties": {
                 "intent": super::intent_schema_property(),
                 "file_path": {
@@ -110,27 +171,35 @@ impl Tool for HashlineEditTool {
                     "description": "File path."
                 },
                 "anchor": {
-                    "type": "object",
-                    "required": ["line", "hash_sha256"],
-                    "description": "Line hash anchor for edit verification.",
-                    "properties": {
-                        "line": {
-                            "type": "integer",
-                            "description": "1-based line number in the file."
+                    "oneOf": [
+                        {
+                            "type": "object",
+                            "required": ["line", "hash_sha256"],
+                            "description": "Structured anchor with SHA-256 line hash. Use with old_string for substring replacement.",
+                            "properties": {
+                                "line": {
+                                    "type": "integer",
+                                    "description": "1-based line number in the file."
+                                },
+                                "hash_sha256": {
+                                    "type": "string",
+                                    "description": "SHA-256 hash of the anchor window (line +/- context_window)."
+                                },
+                                "context_window": {
+                                    "type": "integer",
+                                    "description": "Number of surrounding lines to include in hash (default: 0)."
+                                }
+                            }
                         },
-                        "hash_sha256": {
+                        {
                             "type": "string",
-                            "description": "SHA-256 hash of the anchor window (line ± context_window)."
-                        },
-                        "context_window": {
-                            "type": "integer",
-                            "description": "Number of surrounding lines to include in hash (default: 0)."
+                            "description": "Hashline anchor string like '12:ab' for a single line or '12:ab..15:cd' for a range. Uses xxh32 short hashes. Only valid when old_string is omitted."
                         }
-                    }
+                    ]
                 },
                 "old_string": {
                     "type": "string",
-                    "description": "Exact text to replace within the verified anchor window."
+                    "description": "Exact text to replace within the verified anchor window. Omit or set to null for anchor-only line replacement."
                 },
                 "new_string": {
                     "type": "string",
@@ -143,12 +212,6 @@ impl Tool for HashlineEditTool {
     async fn execute(&self, input: Value, ctx: ToolContext) -> Result<ToolOutput> {
         let params: HashlineEditInput = serde_json::from_value(input)?;
 
-        if params.old_string == params.new_string {
-            return Err(anyhow::anyhow!(
-                "old_string and new_string must be different"
-            ));
-        }
-
         let path = ctx.resolve_path(Path::new(&params.file_path));
 
         if !path.exists() {
@@ -157,82 +220,230 @@ impl Tool for HashlineEditTool {
 
         let content = tokio::fs::read_to_string(&path).await?;
 
-        // Step 1: Verify the anchor hash
-        verify_anchor(
-            &content,
-            params.anchor.line,
-            &params.anchor.hash_sha256,
-            params.anchor.context_window,
-        )?;
+        match params.anchor {
+            AnchorInput::Structured(anchor) => {
+                // ── Structured anchor (backward-compat sha256_window path) ──
+                if let Some(ref old_string) = params.old_string {
+                    // Old flow: verify sha256 anchor, then substring-search-and-replace
+                    // within the verified window.
+                    if old_string.is_empty() {
+                        return Err(anyhow::anyhow!("old_string must not be empty"));
+                    }
+                    if old_string == &params.new_string {
+                        return Err(anyhow::anyhow!(
+                            "old_string and new_string must be different"
+                        ));
+                    }
 
-        // Step 2: Apply edit within the anchor window
-        let (new_content, start_line, end_line) = apply_edit_within_window(
-            &content,
-            params.anchor.line,
-            &params.old_string,
-            &params.new_string,
-            params.anchor.context_window,
-        )?;
+                    verify_anchor(
+                        &content,
+                        anchor.line,
+                        &anchor.hash_sha256,
+                        anchor.context_window,
+                    )?;
 
-        // Step 3: Write back atomically via temp file + rename. Preserve
-        // the original extension in the temp name (e.g. `foo.rs` →
-        // `foo.rs.jcode-tmp`) so file watchers / build systems that filter
-        // by extension don't trip on the temp file. Append a process-id
-        // suffix so concurrent edits to different files don't collide.
-        let pid = std::process::id();
-        let temp_name = match path.file_name().and_then(|n| n.to_str()) {
-            Some(name) => format!("{name}.jcode-tmp.{pid}"),
-            None => format!("jcode-tmp.{pid}"),
-        };
-        let temp_path = path.with_file_name(temp_name);
-        if let Err(e) = tokio::fs::write(&temp_path, &new_content).await {
-            // Best-effort cleanup if write partially succeeded.
-            let _ = tokio::fs::remove_file(&temp_path).await;
-            return Err(anyhow::anyhow!(
-                "failed to write temp file {}: {}",
-                temp_path.display(),
-                e
-            ));
+                    let (new_content, start_line, end_line) = apply_edit_within_window(
+                        &content,
+                        anchor.line,
+                        old_string,
+                        &params.new_string,
+                        anchor.context_window,
+                    )?;
+
+                    atomic_write(&path, &new_content).await?;
+
+                    let detail = Some(format!(
+                        "lines {}-{}: {} -> {}",
+                        start_line,
+                        end_line,
+                        old_string.lines().next().unwrap_or(""),
+                        params.new_string.lines().next().unwrap_or("")
+                    ));
+                    publish_edit_event(
+                        &ctx,
+                        params.intent,
+                        &path,
+                        start_line,
+                        end_line,
+                        detail,
+                    );
+
+                    Ok(ToolOutput::new(format!(
+                        "Edited {}: lines {}-{} (anchor verified)\n  old: {}\n  new: {}",
+                        params.file_path,
+                        start_line,
+                        end_line,
+                        old_string.lines().next().unwrap_or(""),
+                        params.new_string.lines().next().unwrap_or("")
+                    ))
+                    .with_title(params.file_path.clone()))
+                } else {
+                    // Anchor-only flow (structured): verify sha256, replace
+                    // the entire anchor line with new_string.
+                    verify_anchor(
+                        &content,
+                        anchor.line,
+                        &anchor.hash_sha256,
+                        anchor.context_window,
+                    )?;
+
+                    let line_idx = anchor.line.saturating_sub(1);
+                    let old_line = content
+                        .lines()
+                        .nth(line_idx)
+                        .ok_or_else(|| {
+                            anyhow::anyhow!(
+                                "Line {} out of range (file has {} lines)",
+                                anchor.line,
+                                content.lines().count()
+                            )
+                        })?
+                        .to_string();
+
+                    // Rebuild the file with the anchor line replaced, preserving
+                    // trailing newline.
+                    let has_trailing_newline = content.ends_with('\n');
+                    let mut new_content = String::with_capacity(content.len());
+                    for (i, line) in content.lines().enumerate() {
+                        if i > 0 {
+                            new_content.push('\n');
+                        }
+                        if i == line_idx {
+                            new_content.push_str(&params.new_string);
+                        } else {
+                            new_content.push_str(line);
+                        }
+                    }
+                    if has_trailing_newline && !new_content.ends_with('\n') {
+                        new_content.push('\n');
+                    }
+
+                    atomic_write(&path, &new_content).await?;
+
+                    publish_edit_event(
+                        &ctx,
+                        params.intent,
+                        &path,
+                        anchor.line,
+                        anchor.line,
+                        Some(format!("line {}: replaced entire line", anchor.line)),
+                    );
+
+                    Ok(ToolOutput::new(format!(
+                        "Edited {}: line {} (anchor verified)\n  old: {}\n  new: {}",
+                        params.file_path, anchor.line, old_line, params.new_string
+                    ))
+                    .with_title(params.file_path.clone()))
+                }
+            }
+            AnchorInput::AnchorStr(anchor_str) => {
+                // ── Hashline string anchor (xxh32 short-hash path) ──
+                // This path never uses old_string.
+                if params.old_string.is_some() {
+                    return Err(anyhow::anyhow!(
+                        "old_string is not supported with a hashline string anchor; \
+                         use a structured anchor for substring replacement"
+                    ));
+                }
+
+                let mut doc = hashline::document::Document::from_str(&path, &content)
+                    .map_err(|e| anyhow::anyhow!("failed to parse document: {e}"))?;
+
+                if hashline::anchor::looks_like_range_anchor(&anchor_str) {
+                    // ── Range anchor: "12:ab..15:cd" ──
+                    let range = hashline::anchor::parse_range(&anchor_str)
+                        .map_err(|e| anyhow::anyhow!("invalid range anchor {anchor_str:?}: {e}"))?;
+                    let index = doc.build_index();
+                    let (start_resolved, end_resolved) =
+                        hashline::anchor::resolve_range(&range, &doc, &index)
+                            .map_err(|e| {
+                                anyhow::anyhow!("failed to resolve range {anchor_str:?}: {e}")
+                            })?;
+
+                    let start_line = start_resolved.line_no;
+                    let end_line = end_resolved.line_no;
+                    let old_lines: Vec<String> = doc
+                        .lines
+                        .iter()
+                        .skip(start_resolved.index)
+                        .take(end_resolved.index - start_resolved.index + 1)
+                        .map(|l| l.content.to_string())
+                        .collect();
+
+                    hashline::mutation::replace_range(
+                        &mut doc,
+                        start_resolved.index,
+                        end_resolved.index,
+                        &params.new_string,
+                    )
+                    .map_err(|e| anyhow::anyhow!("failed to replace range: {e}"))?;
+
+                    let rendered = doc.render();
+                    let new_content_utf8 = String::from_utf8(rendered)
+                        .map_err(|_| anyhow::anyhow!("render produced invalid UTF-8"))?;
+
+                    atomic_write(&path, &new_content_utf8).await?;
+
+                    publish_edit_event(
+                        &ctx,
+                        params.intent,
+                        &path,
+                        start_line,
+                        end_line,
+                        Some(format!("lines {}-{}: range replacement", start_line, end_line)),
+                    );
+
+                    let old_preview = old_lines
+                        .iter()
+                        .map(|l| format!("  - {l:?}"))
+                        .collect::<Vec<_>>()
+                        .join("\n");
+                    Ok(ToolOutput::new(format!(
+                        "Edited {}: lines {}-{} (range anchor)\n{}\n  + {:?}",
+                        params.file_path, start_line, end_line, old_preview, params.new_string
+                    ))
+                    .with_title(params.file_path.clone()))
+                } else {
+                    // ── Single line anchor: "12:ab" ──
+                    let anchor = hashline::anchor::parse_anchor(&anchor_str)
+                        .map_err(|e| anyhow::anyhow!("invalid anchor {anchor_str:?}: {e}"))?;
+                    let index = doc.build_index();
+                    let resolved = hashline::anchor::resolve(&anchor, &doc, &index)
+                        .map_err(|e| anyhow::anyhow!("failed to resolve anchor {anchor_str:?}: {e}"))?;
+
+                    let old_line = doc.lines[resolved.index].content.to_string();
+
+                    hashline::mutation::replace_range(
+                        &mut doc,
+                        resolved.index,
+                        resolved.index,
+                        &params.new_string,
+                    )
+                    .map_err(|e| anyhow::anyhow!("failed to replace line: {e}"))?;
+
+                    let rendered = doc.render();
+                    let new_content_utf8 = String::from_utf8(rendered)
+                        .map_err(|_| anyhow::anyhow!("render produced invalid UTF-8"))?;
+
+                    atomic_write(&path, &new_content_utf8).await?;
+
+                    publish_edit_event(
+                        &ctx,
+                        params.intent,
+                        &path,
+                        resolved.line_no,
+                        resolved.line_no,
+                        Some(format!("line {}: replaced entire line", resolved.line_no)),
+                    );
+
+                    Ok(ToolOutput::new(format!(
+                        "Edited {}: line {} (anchor verified)\n  old: {}\n  new: {}",
+                        params.file_path, resolved.line_no, old_line, params.new_string
+                    ))
+                    .with_title(params.file_path.clone()))
+                }
+            }
         }
-        if let Err(e) = tokio::fs::rename(&temp_path, &path).await {
-            let _ = tokio::fs::remove_file(&temp_path).await;
-            return Err(anyhow::anyhow!(
-                "failed to atomically rename {} → {}: {}",
-                temp_path.display(),
-                path.display(),
-                e
-            ));
-        }
-
-        // Publish file touch event for swarm coordination
-        let detail = Some(format!(
-            "lines {}-{}: {} → {}",
-            start_line,
-            end_line,
-            params.old_string.lines().next().unwrap_or(""),
-            params.new_string.lines().next().unwrap_or("")
-        ));
-        Bus::global().publish(BusEvent::FileTouch(FileTouch {
-            session_id: ctx.session_id.clone(),
-            path: path.to_path_buf(),
-            op: FileOp::Edit,
-            intent: params
-                .intent
-                .clone()
-                .filter(|value| !value.trim().is_empty()),
-            summary: Some(format!("hashline edit lines {}-{}", start_line, end_line)),
-            detail,
-        }));
-
-        Ok(ToolOutput::new(format!(
-            "Edited {}: lines {}-{} (anchor verified)\n  old: {}\n  new: {}",
-            params.file_path,
-            start_line,
-            end_line,
-            params.old_string.lines().next().unwrap_or(""),
-            params.new_string.lines().next().unwrap_or("")
-        ))
-        .with_title(params.file_path.clone()))
     }
 }
 

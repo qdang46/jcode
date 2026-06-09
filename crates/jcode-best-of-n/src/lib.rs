@@ -47,6 +47,7 @@ pub use types::{
     BestOfNResult, CandidateDiff, CandidateId, CandidateStatus, CandidateStrategy, FileDiff, RunId,
     SelectScore,
 };
+pub use types::{HashlineAnchor, ProposeOp, ProposeOpKind};
 
 /// High-level entry point for running a best-of-N edit cycle.
 ///

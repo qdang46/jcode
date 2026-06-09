@@ -209,7 +209,6 @@ fn editor_sample_has_expected_shape() {
     assert_eq!(agent.output_mode, OutputMode::AllMessages);
     for expected in [
         "read",
-        "str_replace",
         "write",
         "edit",
         "multiedit",

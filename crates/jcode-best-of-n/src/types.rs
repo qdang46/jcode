@@ -171,6 +171,10 @@ pub struct ProposeOp {
     pub old_string: Option<String>,
     /// The new content / replacement.
     pub new_string: String,
+    /// Anchor metadata for hashline edit (only used when kind is HashlineEdit).
+    pub anchor_line: Option<usize>,
+    pub anchor_hash_sha256: Option<String>,
+    pub anchor_context_window: Option<usize>,
 }
 
 /// Kind of proposed operation.
@@ -180,6 +184,24 @@ pub enum ProposeOpKind {
     Edit,
     /// Write entire file.
     Write,
+    /// Hashline-anchored edit (old_string + new_string within verified window).
+    HashlineEdit,
+}
+
+/// Anchor metadata for a hashline-anchored edit proposal.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HashlineAnchor {
+    pub file_path: String,
+    pub line: usize,
+    pub hash_sha256: String,
+    #[serde(default = "default_context_window")]
+    pub context_window: usize,
+    pub old_string: String,
+    pub new_string: String,
+}
+
+fn default_context_window() -> usize {
+    0
 }
 
 impl ProposeOp {
@@ -193,6 +215,9 @@ impl ProposeOp {
             file_path: file_path.into(),
             old_string: Some(old_string.into()),
             new_string: new_string.into(),
+            anchor_line: None,
+            anchor_hash_sha256: None,
+            anchor_context_window: None,
         }
     }
 
@@ -202,6 +227,26 @@ impl ProposeOp {
             file_path: file_path.into(),
             old_string: None,
             new_string: content.into(),
+            anchor_line: None,
+            anchor_hash_sha256: None,
+            anchor_context_window: None,
+        }
+    }
+
+    pub fn hashline_edit(
+        file_path: impl Into<String>,
+        anchor: HashlineAnchor,
+        old_string: impl Into<String>,
+        new_string: impl Into<String>,
+    ) -> Self {
+        Self {
+            kind: ProposeOpKind::HashlineEdit,
+            file_path: file_path.into(),
+            old_string: Some(old_string.into()),
+            new_string: new_string.into(),
+            anchor_line: Some(anchor.line),
+            anchor_hash_sha256: Some(anchor.hash_sha256),
+            anchor_context_window: Some(anchor.context_window),
         }
     }
 }

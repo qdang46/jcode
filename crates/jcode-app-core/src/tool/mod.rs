@@ -31,6 +31,7 @@ mod notepad;
 mod open;
 mod patch;
 mod propose_edit;
+mod propose_hashline_edit;
 mod propose_write;
 mod read;
 pub mod selfdev;
@@ -289,6 +290,12 @@ impl Registry {
                 &mut timings,
                 "propose_edit",
                 propose_edit::ProposeEditTool::new,
+            );
+            Self::insert_tool_timed(
+                &mut m,
+                &mut timings,
+                "propose_hashline_edit",
+                propose_hashline_edit::ProposeHashlineEditTool::new,
             );
             Self::insert_tool_timed(
                 &mut m,
