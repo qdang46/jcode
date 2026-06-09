@@ -46,6 +46,8 @@ async fn side_panel_tool_writes_page() {
                 stdin_request_tx: None,
                 graceful_shutdown_signal: None,
                 execution_mode: crate::tool::ToolExecutionMode::AgentTurn,
+                best_of_n_run_id: None,
+                best_of_n_candidate_id: None,
             },
         )
         .await
@@ -77,6 +79,8 @@ async fn side_panel_tool_loads_file_with_derived_page_id() {
                 stdin_request_tx: None,
                 graceful_shutdown_signal: None,
                 execution_mode: crate::tool::ToolExecutionMode::AgentTurn,
+                best_of_n_run_id: None,
+                best_of_n_candidate_id: None,
             },
         )
         .await

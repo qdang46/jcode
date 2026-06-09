@@ -1390,3 +1390,6 @@ fn levenshtein(a: &str, b: &str) -> usize {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod best_of_n_tests;

@@ -532,6 +532,9 @@ pub struct OpenAIProvider {
     websocket_failure_streaks: Arc<RwLock<HashMap<String, u32>>>,
     /// Persistent WebSocket connection for incremental continuation
     persistent_ws: Arc<Mutex<Option<PersistentWsState>>>,
+    /// Optional temperature override for best-of-N strategy diversity.
+    /// When `None`, the provider uses the API default.
+    temperature: Arc<StdRwLock<Option<f32>>>,
 }
 
 impl OpenAIProvider {
@@ -637,6 +640,7 @@ impl OpenAIProvider {
             websocket_cooldowns: Arc::clone(&WEBSOCKET_COOLDOWNS),
             websocket_failure_streaks: Arc::clone(&WEBSOCKET_FAILURE_STREAKS),
             persistent_ws: Arc::new(Mutex::new(None)),
+            temperature: Arc::new(StdRwLock::new(None)),
         }
     }
 
@@ -866,6 +870,7 @@ impl OpenAIProvider {
         api_tools: &[Value],
         is_chatgpt_mode: bool,
         max_output_tokens: Option<u32>,
+        temperature: Option<f32>,
         reasoning_effort: Option<&str>,
         service_tier: Option<&str>,
         prompt_cache_key: Option<&str>,
@@ -891,6 +896,10 @@ impl OpenAIProvider {
 
         if !is_chatgpt_mode && let Some(max_output_tokens) = max_output_tokens {
             request["max_output_tokens"] = serde_json::json!(max_output_tokens);
+        }
+
+        if let Some(temp) = temperature {
+            request["temperature"] = serde_json::json!(temp);
         }
 
         if let Some(effort) = reasoning_effort {

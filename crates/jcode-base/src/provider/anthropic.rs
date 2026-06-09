@@ -474,6 +474,10 @@ pub struct AnthropicProvider {
     max_tokens: u32,
     oauth_session_id: String,
     oauth_preflight_done: Arc<AtomicBool>,
+    /// Optional temperature override for best-of-N strategy diversity.
+    /// When `None`, the provider computes temperature from the OAuth/thinking
+    /// context. When `Some(v)`, the value is forwarded to the API verbatim.
+    temperature: Arc<std::sync::RwLock<Option<f32>>>,
 }
 
 impl AnthropicProvider {
@@ -576,6 +580,7 @@ impl AnthropicProvider {
             max_tokens,
             oauth_session_id: Uuid::new_v4().to_string(),
             oauth_preflight_done: Arc::new(AtomicBool::new(false)),
+            temperature: Arc::new(std::sync::RwLock::new(None)),
         }
     }
 
@@ -738,10 +743,16 @@ impl AnthropicProvider {
 
         // Extended/adaptive thinking is incompatible with temperature. OAuth path
         // normally mirrors Claude Code's temperature=1.0, so omit it when thinking is active.
-        let temperature = if is_oauth && thinking.is_none() {
-            Some(1.0)
-        } else {
-            None
+        // If set_temperature() was called (e.g. by best-of-N strategy generation), use that
+        // override instead of the default OAuth logic.
+        let temperature_override = *self
+            .temperature
+            .read()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let temperature = match temperature_override {
+            Some(v) => Some(v),
+            None if is_oauth && thinking.is_none() => Some(1.0),
+            _ => None,
         };
 
         (thinking, output_config, temperature)
@@ -1111,6 +1122,15 @@ impl Provider for AnthropicProvider {
         Ok(())
     }
 
+    fn set_temperature(&self, temperature: f32) -> Result<()> {
+        let clamped = temperature.clamp(0.0, 1.0);
+        *self
+            .temperature
+            .write()
+            .unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(clamped);
+        Ok(())
+    }
+
     fn available_models(&self) -> Vec<&'static str> {
         AVAILABLE_MODELS.to_vec()
     }
@@ -1259,6 +1279,12 @@ impl Provider for AnthropicProvider {
             oauth_session_id: self.oauth_session_id.clone(),
             oauth_preflight_done: Arc::new(AtomicBool::new(
                 self.oauth_preflight_done.load(Ordering::Relaxed),
+            )),
+            temperature: Arc::new(std::sync::RwLock::new(
+                *self
+                    .temperature
+                    .read()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner()),
             )),
         })
     }

@@ -7,6 +7,7 @@ publish = false
 [dependencies]
 anyhow = "1"
 keyring = { version = "3", features = ["apple-native", "linux-native-async-persistent", "windows-native"] }
+secret-service = { version = "4", features = ["rt-tokio-crypto-rust"] }
 tracing = "0.1"
 
 [dev-dependencies]

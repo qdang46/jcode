@@ -583,7 +583,7 @@ impl BestOfNRunner {
 /// Starts from the registry's full tool name list, removes tools in
 /// `FORBIDDEN_TOOLS` and `AMBIENT_TOOLS`, and ensures the propose tools
 /// are present.
-async fn build_allowed_tool_set(registry: &Registry) -> HashSet<String> {
+pub(crate) async fn build_allowed_tool_set(registry: &Registry) -> HashSet<String> {
     let mut allowed: HashSet<String> = registry.tool_names().await.into_iter().collect();
     for blocked in FORBIDDEN_TOOLS {
         allowed.remove(*blocked);
@@ -605,7 +605,7 @@ const FILE_TOUCH_PREVIEW_MAX_BYTES: usize = 240;
 
 /// Build a compact preview string from a unified diff for bus events.
 /// Mirrors the same helper in edit.rs / write.rs / apply_patch.rs.
-fn build_file_touch_preview(diff: &str) -> Option<String> {
+pub(crate) fn build_file_touch_preview(diff: &str) -> Option<String> {
     let trimmed = diff.trim();
     if trimmed.is_empty() {
         return None;
@@ -633,7 +633,7 @@ fn build_file_touch_preview(diff: &str) -> Option<String> {
     Some(preview)
 }
 
-fn format_show_result(result: &BestOfNResult) -> ToolOutput {
+pub(crate) fn format_show_result(result: &BestOfNResult) -> ToolOutput {
     use std::fmt::Write;
     let mut md = String::new();
 

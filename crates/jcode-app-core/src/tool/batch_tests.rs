@@ -1,5 +1,7 @@
 use super::*;
 use serde_json::json;
+use std::sync::Arc;
+use tokio::sync::RwLock;
 
 #[test]
 fn test_normalize_flat_params() {
@@ -113,6 +115,7 @@ fn test_schema_only_requires_tool() {
             jcode_hooks::HookRegistry::default(),
         )),
         dispatch_config: jcode_hooks::DispatchConfig::default(),
+        best_of_n: Arc::new(RwLock::new(None)),
         #[cfg(feature = "dcp")]
         dcp: None,
     })

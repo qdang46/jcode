@@ -32,6 +32,11 @@ impl Provider for OpenAIProvider {
             .unwrap_or_else(|poisoned| poisoned.into_inner().clone());
         let native_compaction_threshold =
             self.native_compaction_threshold_for_context_window(self.context_window());
+        let temperature = self
+            .temperature
+            .read()
+            .map(|g| *g)
+            .unwrap_or_else(|poisoned| *poisoned.into_inner());
         let request = Self::build_response_request(
             &model_id,
             instructions,
@@ -39,6 +44,7 @@ impl Provider for OpenAIProvider {
             &api_tools,
             is_chatgpt_mode,
             self.max_output_tokens,
+            temperature,
             reasoning_effort.as_deref(),
             service_tier.as_deref(),
             self.prompt_cache_key.as_deref(),
@@ -607,6 +613,14 @@ impl Provider for OpenAIProvider {
         }
     }
 
+    fn set_temperature(&self, temperature: f32) -> Result<()> {
+        *self
+            .temperature
+            .write()
+            .unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(temperature);
+        Ok(())
+    }
+
     fn available_models(&self) -> Vec<&'static str> {
         crate::provider::ALL_OPENAI_MODELS.to_vec()
     }
@@ -883,6 +897,12 @@ impl Provider for OpenAIProvider {
             websocket_cooldowns: Arc::clone(&self.websocket_cooldowns),
             websocket_failure_streaks: Arc::clone(&self.websocket_failure_streaks),
             persistent_ws: Arc::new(Mutex::new(None)),
+            temperature: Arc::new(StdRwLock::new(
+                *self
+                    .temperature
+                    .read()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner()),
+            )),
         })
     }
 

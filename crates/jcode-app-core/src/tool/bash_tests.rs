@@ -14,6 +14,8 @@ fn make_ctx(stdin_tx: Option<mpsc::UnboundedSender<StdinInputRequest>>) -> ToolC
         stdin_request_tx: stdin_tx,
         graceful_shutdown_signal: None,
         execution_mode: crate::tool::ToolExecutionMode::Direct,
+        best_of_n_run_id: None,
+        best_of_n_candidate_id: None,
     }
 }
 
@@ -26,6 +28,8 @@ fn make_agent_ctx(signal: jcode_agent_runtime::InterruptSignal) -> ToolContext {
         stdin_request_tx: None,
         graceful_shutdown_signal: Some(signal),
         execution_mode: crate::tool::ToolExecutionMode::AgentTurn,
+        best_of_n_run_id: None,
+        best_of_n_candidate_id: None,
     }
 }
 
