@@ -6,8 +6,8 @@
 use std::collections::HashMap;
 
 use crate::types::{
-    BenchmarkResult, BenchmarkSummary, CategorySummary, DifficultySummary,
-    TaskResult, TaskRunResult, TokenStats, ToolCallStats,
+    BenchmarkResult, BenchmarkSummary, CategorySummary, DifficultySummary, TaskResult,
+    TaskRunResult, TokenStats, ToolCallStats,
 };
 
 // ── Build summary from raw results ──────────────────────────────────
@@ -37,18 +37,19 @@ fn compute_summary(tasks: &[TaskResult]) -> BenchmarkSummary {
     let non_ghost: Vec<&&TaskRunResult> = all_runs.iter().filter(|r| !is_ghost(r)).collect();
     let timeout_runs = non_ghost
         .iter()
-        .filter(|r| r.error.as_deref().map(|e| e.contains("Timeout")).unwrap_or(false))
+        .filter(|r| {
+            r.error
+                .as_deref()
+                .map(|e| e.contains("Timeout"))
+                .unwrap_or(false)
+        })
         .count();
     let ghost_runs = all_runs.iter().filter(|r| is_ghost(r)).count();
 
     // Best run aggregates
     let best_runs: Vec<&TaskRunResult> = tasks
         .iter()
-        .filter_map(|t| {
-            t.runs
-                .iter()
-                .find(|r| r.run_index == t.best_run_index)
-        })
+        .filter_map(|t| t.runs.iter().find(|r| r.run_index == t.best_run_index))
         .collect();
 
     let total_tokens = TokenStats {
@@ -69,10 +70,7 @@ fn compute_summary(tasks: &[TaskResult]) -> BenchmarkSummary {
     let total_duration_ms: u64 = best_runs.iter().map(|r| r.duration_ms).sum();
     let avg_duration_per_task_ms = total_duration_ms / best_denom as u64;
 
-    let indent_scores: Vec<f64> = best_runs
-        .iter()
-        .filter_map(|r| r.indent_score)
-        .collect();
+    let indent_scores: Vec<f64> = best_runs.iter().filter_map(|r| r.indent_score).collect();
     let avg_indent_score = if indent_scores.is_empty() {
         0.0
     } else {
@@ -86,7 +84,10 @@ fn compute_summary(tasks: &[TaskResult]) -> BenchmarkSummary {
         edit_successes: best_runs.iter().map(|r| r.tool_calls.edit_successes).sum(),
         edit_failures: best_runs.iter().map(|r| r.tool_calls.edit_failures).sum(),
         edit_warnings: best_runs.iter().map(|r| r.tool_calls.edit_warnings).sum(),
-        edit_autocorrects: best_runs.iter().map(|r| r.tool_calls.edit_autocorrects).sum(),
+        edit_autocorrects: best_runs
+            .iter()
+            .map(|r| r.tool_calls.edit_autocorrects)
+            .sum(),
     };
 
     let total_edits = total_tool_calls.edit as f64;
@@ -110,11 +111,7 @@ fn compute_summary(tasks: &[TaskResult]) -> BenchmarkSummary {
             let passed = tsks.iter().filter(|t| t.success).count();
             let avg_difficulty_score = tsks
                 .iter()
-                .filter_map(|t| {
-                    t.runs
-                        .first()
-                        .and_then(|r| r.difficulty_score)
-                })
+                .filter_map(|t| t.runs.first().and_then(|r| r.difficulty_score))
                 .sum::<u32>() as f64
                 / total.max(1) as f64;
             (
@@ -247,15 +244,17 @@ pub fn generate_markdown_report(result: &BenchmarkResult) -> String {
     md.push_str(&format!("**Date:** {}\n\n", result.end_time));
     md.push_str(&format!(
         "**Config:** model=`{}`, runs_per_task=`, total_tasks=`{}`\n\n",
-        result.config.get("model").and_then(|v| v.as_str()).unwrap_or("?"),
+        result
+            .config
+            .get("model")
+            .and_then(|v| v.as_str())
+            .unwrap_or("?"),
         result.summary.total_tasks,
     ));
 
     // Summary
     md.push_str("## Summary\n\n");
-    md.push_str(&format!(
-        "| Metric | Value |\n|--------|-------|\n"
-    ));
+    md.push_str(&format!("| Metric | Value |\n|--------|-------|\n"));
     md.push_str(&format!(
         "| Task Success Rate | {:.1}% ({} / {}) |\n",
         result.summary.task_success_rate * 100.0,
@@ -272,17 +271,13 @@ pub fn generate_markdown_report(result: &BenchmarkResult) -> String {
     ));
     md.push_str(&format!(
         "| Total Tokens | {} in / {} out |\n",
-        result.summary.total_tokens.input,
-        result.summary.total_tokens.output,
+        result.summary.total_tokens.input, result.summary.total_tokens.output,
     ));
     md.push_str(&format!(
         "| Avg Duration/Task | {}ms |\n",
         result.summary.avg_duration_per_task_ms,
     ));
-    md.push_str(&format!(
-        "| Ghost Runs | {} |\n",
-        result.summary.ghost_runs,
-    ));
+    md.push_str(&format!("| Ghost Runs | {} |\n", result.summary.ghost_runs,));
     md.push_str(&format!(
         "| Timeout Runs | {} |\n\n",
         result.summary.timeout_runs,
@@ -306,7 +301,9 @@ pub fn generate_markdown_report(result: &BenchmarkResult) -> String {
 
     // Tool calls
     md.push_str("### Tool Calls\n\n");
-    md.push_str("| Tool | Calls | Successes | Failures |\n|------|-------|-----------|----------|\n");
+    md.push_str(
+        "| Tool | Calls | Successes | Failures |\n|------|-------|-----------|----------|\n",
+    );
     md.push_str(&format!(
         "| Read | {} | — | — |\n",
         result.summary.total_tool_calls.read,
@@ -346,11 +343,7 @@ pub fn generate_markdown_report(result: &BenchmarkResult) -> String {
         let status = if task.success { "✅ PASS" } else { "❌ FAIL" };
         md.push_str(&format!(
             "| {} | {} | {}ms | {} | {:.0} |\n",
-            task.id,
-            status,
-            task.duration_ms,
-            task.tokens.total,
-            task.tool_calls.edit,
+            task.id, status, task.duration_ms, task.tokens.total, task.tool_calls.edit,
         ));
     }
 
@@ -376,7 +369,11 @@ mod tests {
                 mutation_category: Some("operator".into()),
                 difficulty_score: Some(3),
                 error: Some("Timeout".into()),
-                tokens: TokenStats { input: 0, output: 0, total: 0 },
+                tokens: TokenStats {
+                    input: 0,
+                    output: 0,
+                    total: 0,
+                },
                 duration_ms: 1000,
                 indent_score: None,
                 formatted_equivalent: None,
@@ -394,15 +391,23 @@ mod tests {
                 mutation_category: Some("operator".into()),
                 difficulty_score: Some(3),
                 error: None,
-                tokens: TokenStats { input: 100, output: 50, total: 150 },
+                tokens: TokenStats {
+                    input: 100,
+                    output: 50,
+                    total: 150,
+                },
                 duration_ms: 5000,
                 indent_score: Some(0.5),
                 formatted_equivalent: Some(true),
                 diff: None,
                 tool_calls: ToolCallStats {
-                    read: 2, edit: 1, write: 0,
-                    edit_successes: 1, edit_failures: 0,
-                    edit_warnings: 0, edit_autocorrects: 0,
+                    read: 2,
+                    edit: 1,
+                    write: 0,
+                    edit_successes: 1,
+                    edit_failures: 0,
+                    edit_warnings: 0,
+                    edit_autocorrects: 0,
                 },
                 edit_failures: vec![],
                 edit_autocorrect_count: 0,
@@ -431,7 +436,11 @@ mod tests {
     fn test_is_ghost_detection() {
         let ghost = TaskRunResult {
             success: false,
-            tokens: TokenStats { input: 0, output: 0, total: 0 },
+            tokens: TokenStats {
+                input: 0,
+                output: 0,
+                total: 0,
+            },
             tool_calls: ToolCallStats::default(),
             run_index: 0,
             verification_passed: false,

@@ -177,9 +177,7 @@ fn error_code_by_name(name: &str) -> Option<ErrorCode> {
     let normalised = name
         .trim()
         .to_ascii_lowercase()
-        .replace('-', "")
-        .replace('_', "")
-        .replace(' ', "");
+        .replace(['-', '_', ' '], "");
 
     Some(match normalised.as_str() {
         // Retryable
@@ -933,7 +931,7 @@ mod tests {
         assert_eq!(decision, FailoverDecision::Halt);
         // Halt because STOP pattern matched first, retry_after_secs is ignored
         // after checking Tier 0 against stop patterns.
-        assert!(code.map_or(false, |c| c.is_stop()));
+        assert!(code.is_some_and(|c| c.is_stop()));
     }
 
     // --- Chinese pattern tests ---------------------------------------------

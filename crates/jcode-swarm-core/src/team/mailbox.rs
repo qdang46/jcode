@@ -105,13 +105,13 @@ pub fn send_message(msg: &TeamMessage, run_id: &str, ctx: &SendContext) -> TeamR
     }
 
     // assertTeamAcceptsMessages: use the already-loaded state if available.
-    if let Some(state) = &state {
-        if matches!(
+    if let Some(state) = &state
+        && matches!(
             state.status,
             RuntimeStatus::Deleting | RuntimeStatus::Deleted
-        ) {
-            return Err(TeamError::TeamDeleting);
-        }
+        )
+    {
+        return Err(TeamError::TeamDeleting);
     }
 
     if msg.to == "*" && !ctx.is_lead {

@@ -112,7 +112,10 @@ pub fn analyze_file(path: &std::path::Path, content: &str) -> FileEntry {
     for (i, line) in lines.iter().enumerate() {
         let trimmed = line.trim();
         if trimmed.len() >= 10 && trimmed != "{" && trimmed != "}" && trimmed != "};" {
-            repeated_lines.entry(trimmed.to_string()).or_default().push(i + 1);
+            repeated_lines
+                .entry(trimmed.to_string())
+                .or_default()
+                .push(i + 1);
         }
     }
     // Remove singletons

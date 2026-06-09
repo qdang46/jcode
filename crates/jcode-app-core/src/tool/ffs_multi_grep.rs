@@ -91,16 +91,19 @@ impl Tool for FfsMultiGrepTool {
             return Err(anyhow::anyhow!("Directory not found: {}", base_path_str));
         }
 
-        let results = tokio::task::spawn_blocking(move || {
-            multi_grep_blocking(&base, &patterns, &mode)
-        })
-        .await??;
+        let results =
+            tokio::task::spawn_blocking(move || multi_grep_blocking(&base, &patterns, &mode))
+                .await??;
 
         let mut output = String::new();
         output.push_str(&format!(
             "Found {} matches for {} '{}'\n\n",
             results.len(),
-            if mode_for_display == "all" { "all of" } else { "any of" },
+            if mode_for_display == "all" {
+                "all of"
+            } else {
+                "any of"
+            },
             patterns_for_display.join("', '")
         ));
 
@@ -289,13 +292,14 @@ mod tests {
         let temp_dir = tempfile::tempdir().unwrap();
         let file_path = temp_dir.path().join("test.rs");
         let mut file = std::fs::File::create(&file_path).unwrap();
-        write!(
-            file,
-            "fn foo() {{\n}}\n\nfn bar() {{\n}}\n"
+        write!(file, "fn foo() {{\n}}\n\nfn bar() {{\n}}\n").unwrap();
+
+        let results = multi_grep_blocking(
+            temp_dir.path(),
+            &["foo".to_string(), "bar".to_string()],
+            "any",
         )
         .unwrap();
-
-        let results = multi_grep_blocking(temp_dir.path(), &["foo".to_string(), "bar".to_string()], "any").unwrap();
         assert_eq!(results.len(), 2, "should match both foo and bar lines");
     }
 
@@ -310,10 +314,17 @@ mod tests {
         )
         .unwrap();
 
-        let results = multi_grep_blocking(temp_dir.path(), &["foo".to_string(), "bar".to_string()], "all").unwrap();
+        let results = multi_grep_blocking(
+            temp_dir.path(),
+            &["foo".to_string(), "bar".to_string()],
+            "all",
+        )
+        .unwrap();
         // The last comment line contains both "foo" and "bar", and the "// foo and bar" line does too
         assert!(
-            results.iter().any(|r| r.line.contains("foo and bar") || r.line.contains("foo bar")),
+            results
+                .iter()
+                .any(|r| r.line.contains("foo and bar") || r.line.contains("foo bar")),
             "should find line with both patterns"
         );
     }
@@ -323,11 +334,13 @@ mod tests {
         let temp_dir = tempfile::tempdir().unwrap();
         let file_path = temp_dir.path().join("test.rs");
         let mut file = std::fs::File::create(&file_path).unwrap();
-        write!(file, "fn existing() {{}}\n").unwrap();
+        writeln!(file, "fn existing() {{}}").unwrap();
 
-        let results =
-            multi_grep_blocking(temp_dir.path(), &["xyzzy".to_string()], "any").unwrap();
-        assert!(results.is_empty(), "should find nothing for non-matching pattern");
+        let results = multi_grep_blocking(temp_dir.path(), &["xyzzy".to_string()], "any").unwrap();
+        assert!(
+            results.is_empty(),
+            "should find nothing for non-matching pattern"
+        );
     }
 
     #[test]
@@ -335,10 +348,9 @@ mod tests {
         let temp_dir = tempfile::tempdir().unwrap();
         let file_path = temp_dir.path().join("test.rs");
         let mut file = std::fs::File::create(&file_path).unwrap();
-        write!(file, "fn test() {{}}\n").unwrap();
+        writeln!(file, "fn test() {{}}").unwrap();
 
-        let results =
-            multi_grep_blocking(temp_dir.path(), &["".to_string()], "any").unwrap();
+        let results = multi_grep_blocking(temp_dir.path(), &["".to_string()], "any").unwrap();
         assert!(!results.is_empty(), "empty pattern should match every line");
     }
 
@@ -359,7 +371,11 @@ mod tests {
         let temp_dir = tempfile::tempdir().unwrap();
         let file_path = temp_dir.path().join("app.rs");
         let mut file = std::fs::File::create(&file_path).unwrap();
-        write!(file, "pub fn main() {{\n    let msg = \"hello\";\n    println!(\"{{}}\", msg);\n}}\n").unwrap();
+        write!(
+            file,
+            "pub fn main() {{\n    let msg = \"hello\";\n    println!(\"{{}}\", msg);\n}}\n"
+        )
+        .unwrap();
 
         let ctx = ToolContext {
             session_id: "test".to_string(),

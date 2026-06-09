@@ -327,7 +327,6 @@ dcp = ["jcode-tui/dcp"]
 rtco = ["jcode-tui/rtco"]
 mmdr-size-api = ["jcode-tui-mermaid/mmdr-size-api"]
 pdf = ["dep:jcode-pdf", "jcode-tui/pdf"]
-dcp = ["jcode-tui/dcp"]
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_System_Threading", "Win32_System_Console", "Win32_Globalization"] }

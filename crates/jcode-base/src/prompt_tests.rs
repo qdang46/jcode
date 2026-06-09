@@ -223,7 +223,8 @@ fn test_selfdev_prompt_uses_full_selfdev_instructions() {
 #[test]
 fn test_selfdev_prompt_uses_desktop_focus_for_desktop_working_dir() {
     let desktop_dir = std::path::Path::new("/tmp/jcode/crates/jcode-desktop/src");
-    let (prompt, _info) = build_system_prompt_full(None, &[], true, None, Some(desktop_dir), None, None);
+    let (prompt, _info) =
+        build_system_prompt_full(None, &[], true, None, Some(desktop_dir), None, None);
     assert!(prompt.contains("launched from the desktop app context"));
     assert!(prompt.contains("selfdev build target=desktop"));
     assert!(!prompt.contains("launched from the TUI/root jcode context"));
@@ -232,7 +233,8 @@ fn test_selfdev_prompt_uses_desktop_focus_for_desktop_working_dir() {
 #[test]
 fn test_split_selfdev_prompt_defaults_to_tui_focus_for_repo_root() {
     let repo_dir = std::path::Path::new("/tmp/jcode");
-    let (split, _info) = build_system_prompt_split(None, &[], true, None, Some(repo_dir), None, None);
+    let (split, _info) =
+        build_system_prompt_split(None, &[], true, None, Some(repo_dir), None, None);
     assert!(
         split
             .static_part
@@ -297,7 +299,10 @@ fn build_system_prompt_full_uses_jcode_system_md_root() {
     // prompt without panicking.
     let (prompt, info) = build_system_prompt_full(None, &[], false, None, None, None, None);
     assert!(!prompt.is_empty(), "prompt should not be empty");
-    assert!(info.system_prompt_chars > 0, "system_prompt_chars should be > 0");
+    assert!(
+        info.system_prompt_chars > 0,
+        "system_prompt_chars should be > 0"
+    );
 }
 
 #[test]
@@ -307,15 +312,8 @@ fn test_full_prompt_includes_notepad_block_when_provided() {
     // in the prompt. A regression that accidentally drops the param
     // would break the entire feature.
     let notepad = "# Priority Notes\n\n```\ndo not forget: ship the feature\n```";
-    let (prompt, _info) = build_system_prompt_full(
-        None,
-        &[],
-        false,
-        None,
-        None,
-        None,
-        Some(notepad),
-    );
+    let (prompt, _info) =
+        build_system_prompt_full(None, &[], false, None, None, None, Some(notepad));
     assert!(
         prompt.contains("ship the feature"),
         "notepad block should appear in prompt: {prompt}"
@@ -341,15 +339,8 @@ fn test_split_prompt_puts_notepad_in_dynamic_part() {
     // per-turn re-injection that gives priority content its
     // "survives compaction" property.
     let notepad = "# Priority Notes\n\n```\npin me across compaction\n```";
-    let (split, _info) = build_system_prompt_split(
-        None,
-        &[],
-        false,
-        None,
-        None,
-        None,
-        Some(notepad),
-    );
+    let (split, _info) =
+        build_system_prompt_split(None, &[], false, None, None, None, Some(notepad));
     assert!(
         split.dynamic_part.contains("pin me across compaction"),
         "notepad block should be in dynamic_part: {}",
@@ -364,8 +355,7 @@ fn test_split_prompt_puts_notepad_in_dynamic_part() {
 
 #[test]
 fn test_split_prompt_omits_notepad_when_none() {
-    let (split, _info) =
-        build_system_prompt_split(None, &[], false, None, None, None, None);
+    let (split, _info) = build_system_prompt_split(None, &[], false, None, None, None, None);
     assert!(
         !split.dynamic_part.contains("# Priority Notes"),
         "no notepad block when None is passed: {}",
@@ -392,10 +382,7 @@ fn test_context_files_disabled_returns_true_when_env_set() {
     let _guard = crate::storage::lock_test_env();
     let prev_val = std::env::var("JCODE_NO_CONTEXT_FILES");
     crate::env::set_var("JCODE_NO_CONTEXT_FILES", "1");
-    assert_eq!(
-        std::env::var("JCODE_NO_CONTEXT_FILES").as_deref(),
-        Ok("1")
-    );
+    assert_eq!(std::env::var("JCODE_NO_CONTEXT_FILES").as_deref(), Ok("1"));
     // Restore previous state
     match prev_val {
         Ok(val) => crate::env::set_var("JCODE_NO_CONTEXT_FILES", val),
@@ -466,4 +453,3 @@ fn test_load_agents_md_from_dir_loads_files_when_not_disabled() {
 // own tests.
 // (Removed: test_cli_flag_no_short_alias)
 // (Removed: test_cli_flag_no_context_files_parsed)
-

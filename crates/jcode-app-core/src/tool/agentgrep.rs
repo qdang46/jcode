@@ -25,9 +25,7 @@ mod render;
 
 #[cfg(test)]
 use self::args::trace_or_smart_terms_owned;
-use self::args::{
-    build_smart_args_and_query, resolve_search_root, summarize_agentgrep_request,
-};
+use self::args::{build_smart_args_and_query, resolve_search_root, summarize_agentgrep_request};
 use self::context::maybe_write_context_json;
 #[cfg(test)]
 use self::context::{

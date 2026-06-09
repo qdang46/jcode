@@ -481,7 +481,7 @@ async fn handle_remote_key_internal(
         // Shift+Tab now cycles permission mode (moved from model-favorite).
         let mode = crate::dcg_bridge::cycle_mode();
         let mode_str = crate::dcg_bridge::mode_to_str(mode);
-        app.set_status_notice(&format!("Permission mode → {mode_str}"));
+        app.set_status_notice(format!("Permission mode → {mode_str}"));
         return Ok(());
     }
 

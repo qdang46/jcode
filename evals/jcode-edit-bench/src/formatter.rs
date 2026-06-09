@@ -105,8 +105,17 @@ pub fn compute_indent_score(raw: &str, formatted: &str) -> f64 {
                         .take_while(|c| c.is_whitespace())
                         .count();
                     // Weight tabs as 2 spaces
-                    let removed_weight = line.chars().take(indent).map(|c| if c == '\t' { 2 } else { 1 }).sum::<usize>();
-                    let added_weight = next_add.value().chars().take(add_indent).map(|c| if c == '\t' { 2 } else { 1 }).sum::<usize>();
+                    let removed_weight = line
+                        .chars()
+                        .take(indent)
+                        .map(|c| if c == '\t' { 2 } else { 1 })
+                        .sum::<usize>();
+                    let added_weight = next_add
+                        .value()
+                        .chars()
+                        .take(add_indent)
+                        .map(|c| if c == '\t' { 2 } else { 1 })
+                        .sum::<usize>();
                     total_distance += (removed_weight as f64 - added_weight as f64).abs();
                     samples += 1;
                 }

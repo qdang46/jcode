@@ -12,13 +12,15 @@ use crate::types::CandidateStrategy;
 ///
 /// Modeled after codebuff's strategy diversity approach, adapted
 /// for temperature-only diversity (model diversity is a future option).
-pub fn generate_strategies(count: usize, config: &TemperatureStrategyConfig) -> Vec<CandidateStrategy> {
+pub fn generate_strategies(
+    count: usize,
+    config: &TemperatureStrategyConfig,
+) -> Vec<CandidateStrategy> {
     let temperatures = resolve_temperatures(count, config);
 
     temperatures
         .into_iter()
-        .enumerate()
-        .map(|(_i, temp)| {
+        .map(|temp| {
             let label = if temp < 0.01 {
                 "precise".to_string()
             } else if temp < 0.4 {
@@ -42,13 +44,7 @@ pub fn generate_strategies(count: usize, config: &TemperatureStrategyConfig) -> 
 fn resolve_temperatures(count: usize, config: &TemperatureStrategyConfig) -> Vec<f64> {
     if !config.values.is_empty() {
         // Use configured values (cycling if fewer values than count).
-        config
-            .values
-            .iter()
-            .cycle()
-            .take(count)
-            .copied()
-            .collect()
+        config.values.iter().cycle().take(count).copied().collect()
     } else {
         // Auto-generate evenly-spaced temperatures across the range.
         let min = config.min.max(0.0);

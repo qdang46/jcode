@@ -8,15 +8,17 @@ mod browser;
 mod codesearch;
 mod communicate;
 mod conversation_search;
+#[cfg(feature = "dcp")]
+mod dcp_compress;
 mod debug_socket;
 mod edit;
 mod ffs_glob;
 mod ffs_grep;
-mod gmail;
-mod goal;
+mod ffs_multi_grep;
 mod ffs_outline;
 mod ffs_symbol;
-mod ffs_multi_grep;
+mod gmail;
+mod goal;
 mod hashline_edit;
 mod invalid;
 mod ls;
@@ -38,8 +40,6 @@ mod team;
 mod todo;
 mod webfetch;
 mod websearch;
-#[cfg(feature = "dcp")]
-mod dcp_compress;
 mod write;
 
 use crate::compaction::CompactionManager;
@@ -300,10 +300,20 @@ impl Registry {
                 goal::InitiativeTool::new,
             );
             Self::insert_tool_timed(&mut m, &mut timings, "gmail", gmail::GmailTool::new);
-            Self::insert_tool_timed(&mut m, &mut timings, "hashline_edit", hashline_edit::HashlineEditTool::new);
+            Self::insert_tool_timed(
+                &mut m,
+                &mut timings,
+                "hashline_edit",
+                hashline_edit::HashlineEditTool::new,
+            );
             Self::insert_tool_timed(&mut m, &mut timings, "schedule", ambient::ScheduleTool::new);
             #[cfg(feature = "dcp")]
-            Self::insert_tool_timed(&mut m, &mut timings, "dcp_compress", dcp_compress::DcpCompressTool::new);
+            Self::insert_tool_timed(
+                &mut m,
+                &mut timings,
+                "dcp_compress",
+                dcp_compress::DcpCompressTool::new,
+            );
             Self::insert_tool_timed(&mut m, &mut timings, "selfdev", selfdev::SelfDevTool::new);
             // Notepad tools (compaction-resistant notes)
             // Names are namespaced (`notepad_*`) to avoid collision
@@ -357,9 +367,24 @@ impl Registry {
                 notepad::NotepadStatsTool::new,
             );
             // Team tools (multi-agent orchestration)
-            Self::insert_tool_timed(&mut m, &mut timings, "team_create", team::TeamCreateTool::new);
-            Self::insert_tool_timed(&mut m, &mut timings, "team_delete", team::TeamDeleteTool::new);
-            Self::insert_tool_timed(&mut m, &mut timings, "team_status", team::TeamStatusTool::new);
+            Self::insert_tool_timed(
+                &mut m,
+                &mut timings,
+                "team_create",
+                team::TeamCreateTool::new,
+            );
+            Self::insert_tool_timed(
+                &mut m,
+                &mut timings,
+                "team_delete",
+                team::TeamDeleteTool::new,
+            );
+            Self::insert_tool_timed(
+                &mut m,
+                &mut timings,
+                "team_status",
+                team::TeamStatusTool::new,
+            );
             Self::insert_tool_timed(
                 &mut m,
                 &mut timings,

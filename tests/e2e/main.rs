@@ -18,5 +18,3 @@ mod session_flow;
 mod transport;
 #[cfg(windows)]
 mod windows_lifecycle;
-#[cfg(feature = "dcp")]
-mod dcp_integration;

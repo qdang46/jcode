@@ -141,6 +141,9 @@ tar = "0.4"
 tempfile = "3"
 hashline = { git = "https://github.com/quangdang46/hashline.git", tag = "v0.2.2", default-features = false, features = ["sha256-anchors"] }
 agentgrep = { git = "https://github.com/1jehuang/agentgrep.git", tag = "v0.1.2" }
+globset = "0.4"
+aho-corasick = "1"
+memchr = "2"
 qrcode = { version = "0.14.1", default-features = false }
 # DCP integration (dynamic context pruning)
 dynamic_context_pruning = { git = "https://github.com/quangdang46/dynamic_context_pruning", branch = "main", package = "dynamic_context_pruning", optional = true }

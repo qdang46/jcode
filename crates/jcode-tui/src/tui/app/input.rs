@@ -1396,7 +1396,7 @@ pub(super) fn handle_alt_key(app: &mut App, code: KeyCode) -> bool {
         KeyCode::Char('p') => {
             let mode = crate::dcg_bridge::cycle_mode();
             let mode_str = crate::dcg_bridge::mode_to_str(mode);
-            app.set_status_notice(&format!("Permission mode → {mode_str}"));
+            app.set_status_notice(format!("Permission mode → {mode_str}"));
             true
         }
         _ => false,
@@ -1778,8 +1778,12 @@ pub(super) fn handle_modal_key(
                     crate::dcg_bridge::consume_allow_once(code_str);
                 }
                 app.reset_permission_dialog();
-                let tool = if tool_name.is_empty() { "tool".to_string() } else { tool_name };
-                app.set_status_notice(&format!("Approved '{tool}' for this session."));
+                let tool = if tool_name.is_empty() {
+                    "tool".to_string()
+                } else {
+                    tool_name
+                };
+                app.set_status_notice(format!("Approved '{tool}' for this session."));
                 return Ok(true);
             }
             KeyCode::Char('a') | KeyCode::Char('A') => {
@@ -2123,7 +2127,7 @@ impl App {
         if code == KeyCode::BackTab {
             let mode = crate::dcg_bridge::cycle_mode();
             let mode_str = crate::dcg_bridge::mode_to_str(mode);
-            self.set_status_notice(&format!("Permission mode → {mode_str}"));
+            self.set_status_notice(format!("Permission mode → {mode_str}"));
             return Ok(());
         }
 

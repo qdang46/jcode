@@ -16,8 +16,10 @@ use std::time::{Duration, Instant};
 use tokio::sync::Semaphore;
 
 use crate::fixtures::{list_files, load_tasks_from_dir};
-use crate::types::{BenchmarkConfig, EditTask, EditFailure, TaskResult, TaskRunResult, TokenStats, ToolCallStats};
 use crate::report::{build_benchmark_result, pick_best_run_index, summarize_task};
+use crate::types::{
+    BenchmarkConfig, EditFailure, EditTask, TaskResult, TaskRunResult, TokenStats, ToolCallStats,
+};
 
 /// Maximum concurrent agent subprocesses.
 const MAX_CONCURRENCY: usize = 8;
@@ -34,7 +36,9 @@ pub async fn run_benchmark(
 
     eprintln!(
         "Edit Benchmark\n==============\nModel: {}\nRuns per task: {}\nTasks: {}\n",
-        config.model, config.runs_per_task, tasks.len()
+        config.model,
+        config.runs_per_task,
+        tasks.len()
     );
 
     let start_time = chrono_now();
@@ -76,14 +80,16 @@ pub async fn run_benchmark(
 }
 
 /// Run all N runs for a single task and return the summarized result.
-async fn run_task_with_retries(
-    task: EditTask,
-    config: &BenchmarkConfig,
-) -> Option<TaskResult> {
+async fn run_task_with_retries(task: EditTask, config: &BenchmarkConfig) -> Option<TaskResult> {
     let mut all_runs: Vec<TaskRunResult> = Vec::new();
 
     for run_idx in 0..config.runs_per_task {
-        eprintln!("  [{}/{}] {}...", run_idx + 1, config.runs_per_task, task.id);
+        eprintln!(
+            "  [{}/{}] {}...",
+            run_idx + 1,
+            config.runs_per_task,
+            task.id
+        );
 
         // Create temp working directory
         let work_dir = tempfile::tempdir().ok()?;
@@ -91,7 +97,10 @@ async fn run_task_with_retries(
         // Copy fixture files to working dir
         if let Err(e) = copy_fixtures(&task.input_dir, work_dir.path()).await {
             eprintln!("    Failed to copy fixtures: {e}");
-            all_runs.push(build_failure_result(run_idx, &format!("Fixture copy error: {e}")));
+            all_runs.push(build_failure_result(
+                run_idx,
+                &format!("Fixture copy error: {e}"),
+            ));
             continue;
         }
 
@@ -132,10 +141,18 @@ async fn run_single_attempt(
             Ok((events, agent_error)) => {
                 // Parse events for tool calls and tokens
                 for event in &events {
-                    if event.starts_with("read:") { tool_calls.read += 1; }
-                    if event.starts_with("edit:") { tool_calls.edit += 1; }
-                    if event.starts_with("write:") { tool_calls.write += 1; }
-                    if event.starts_with("edit_success:") { tool_calls.edit_successes += 1; }
+                    if event.starts_with("read:") {
+                        tool_calls.read += 1;
+                    }
+                    if event.starts_with("edit:") {
+                        tool_calls.edit += 1;
+                    }
+                    if event.starts_with("write:") {
+                        tool_calls.write += 1;
+                    }
+                    if event.starts_with("edit_success:") {
+                        tool_calls.edit_successes += 1;
+                    }
                     if event.starts_with("edit_failure:") {
                         tool_calls.edit_failures += 1;
                         let parts: Vec<&str> = event.splitn(3, ':').collect();
@@ -154,11 +171,9 @@ async fn run_single_attempt(
                 }
 
                 // Run verification
-                let verify_result = crate::verify::verify_files(
-                    &task.expected_dir,
-                    work_dir,
-                    Some(&task.files),
-                ).await;
+                let verify_result =
+                    crate::verify::verify_files(&task.expected_dir, work_dir, Some(&task.files))
+                        .await;
 
                 match verify_result {
                     Ok(vr) => {
@@ -234,18 +249,21 @@ async fn run_jcode_agent(
 
     // Write prompt to stdin
     if let Some(stdin) = child.stdin.as_mut() {
-        stdin.write_all(prompt.as_bytes()).await.map_err(|e| format!("stdin write error: {e}"))?;
-        stdin.flush().await.map_err(|e| format!("stdin flush error: {e}"))?;
+        stdin
+            .write_all(prompt.as_bytes())
+            .await
+            .map_err(|e| format!("stdin write error: {e}"))?;
+        stdin
+            .flush()
+            .await
+            .map_err(|e| format!("stdin flush error: {e}"))?;
     }
     // Drop stdin to signal EOF
     drop(child.stdin.take());
 
     // Wait with timeout
-    let timed_result = tokio::time::timeout(
-        Duration::from_millis(timeout_ms),
-        child.wait_with_output(),
-    )
-    .await;
+    let timed_result =
+        tokio::time::timeout(Duration::from_millis(timeout_ms), child.wait_with_output()).await;
 
     match timed_result {
         Ok(Ok(output)) => {

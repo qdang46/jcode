@@ -167,7 +167,9 @@ mod tests {
         let file_diffs: Vec<FileDiff> = (0..file_count)
             .map(|i| FileDiff {
                 file_path: format!("file-{i}.rs"),
-                unified_diff: format!("--- a/file-{i}.rs\n+++ b/file-{i}.rs\n@@ -1 +1 @@\n-old\n+new\n"),
+                unified_diff: format!(
+                    "--- a/file-{i}.rs\n+++ b/file-{i}.rs\n@@ -1 +1 @@\n-old\n+new\n"
+                ),
                 old_content: "old".to_string(),
                 new_content: "new".to_string(),
                 is_new_file: false,

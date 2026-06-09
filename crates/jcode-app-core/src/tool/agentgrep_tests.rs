@@ -154,13 +154,7 @@ fn schema_only_advertises_common_public_fields() {
     assert!(props.contains_key("max_files"));
     assert!(props.contains_key("max_regions"));
     assert!(props.contains_key("paths_only"));
-    assert_eq!(
-        mode_enum,
-        &vec![
-            json!("trace"),
-            json!("smart"),
-        ]
-    );
+    assert_eq!(mode_enum, &vec![json!("trace"), json!("smart"),]);
 }
 
 #[test]
@@ -218,7 +212,10 @@ async fn execute_rejects_grep_mode_with_helpful_error() {
     let tool = AgentGrepTool::new();
     let ctx = test_ctx(temp.path());
     let result = tool
-        .execute(json!({"mode": "grep", "query": "auth_status", "path": "."}), ctx)
+        .execute(
+            json!({"mode": "grep", "query": "auth_status", "path": "."}),
+            ctx,
+        )
         .await;
     assert!(result.is_err());
     let err = result.unwrap_err().to_string();

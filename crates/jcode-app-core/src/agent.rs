@@ -317,11 +317,12 @@ impl Agent {
             agent.allowed_tools.clone(),
             agent.disabled_tools.clone(),
         );
-        #[cfg(feature = "dcp")] {
-            if let Ok(dcp) = crate::dcp_plugin::DcpPlugin::new() {
-                if let Ok(mut guard) = CURRENT_DCP.lock() {
-                    *guard = Some(Arc::new(StdMutex::new(dcp)));
-                }
+        #[cfg(feature = "dcp")]
+        {
+            if let Ok(dcp) = crate::dcp_plugin::DcpPlugin::new()
+                && let Ok(mut guard) = CURRENT_DCP.lock()
+            {
+                *guard = Some(Arc::new(StdMutex::new(dcp)));
             }
         }
         agent
@@ -689,21 +690,20 @@ impl Agent {
 
         // Step 2: Optionally run DCP transform before compaction.
         #[cfg(feature = "dcp")]
-        if let Some(dcp_plugin) = Self::get_current_dcp() {
-            if let Ok(mut dcp) = dcp_plugin.lock() {
-                if dcp.is_enabled() {
-                    match dcp.transform(&messages) {
-                        Ok(output) if output.changed => {
-                            logging::info(&format!(
-                                "DCP: transformed messages, saved {} tokens",
-                                output.tokens_saved
-                            ));
-                            messages = output.messages;
-                        }
-                        Ok(_) => {}
-                        Err(e) => logging::warn(&format!("DCP transform error: {e}")),
-                    }
+        if let Some(dcp_plugin) = Self::get_current_dcp()
+            && let Ok(mut dcp) = dcp_plugin.lock()
+            && dcp.is_enabled()
+        {
+            match dcp.transform(&messages) {
+                Ok(output) if output.changed => {
+                    logging::info(&format!(
+                        "DCP: transformed messages, saved {} tokens",
+                        output.tokens_saved
+                    ));
+                    messages = output.messages;
                 }
+                Ok(_) => {}
+                Err(e) => logging::warn(&format!("DCP transform error: {e}")),
             }
         }
 

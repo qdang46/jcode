@@ -73,17 +73,13 @@ impl Tool for FfsSymbolTool {
             return Err(anyhow::anyhow!("Directory not found: {}", base_path_str));
         }
 
-        let results = tokio::task::spawn_blocking(move || {
-            symbol_search_blocking(&base, &symbol_name)
-        })
-        .await??;
+        let results =
+            tokio::task::spawn_blocking(move || symbol_search_blocking(&base, &symbol_name))
+                .await??;
 
         let mut output = String::new();
         if results.is_empty() {
-            output.push_str(&format!(
-                "No symbols found matching '{}'\n",
-                params.name
-            ));
+            output.push_str(&format!("No symbols found matching '{}'\n", params.name));
             return Ok(ToolOutput::new(output));
         }
 
@@ -127,33 +123,159 @@ fn symbol_search_blocking(base: &Path, symbol_name: &str) -> Result<Vec<SymbolRe
     // Compile language-specific patterns that match Rust-like symbol definitions
     let patterns: Vec<(Regex, &str)> = vec![
         // Rust
-        (Regex::new(&format!(r"^\s*pub\s+(unsafe\s+)?fn\s+{}[\s<(]", regex::escape(symbol_name)))?, "fn"),
-        (Regex::new(&format!(r"^\s*(unsafe\s+)?fn\s+{}[\s<(]", regex::escape(symbol_name)))?, "fn"),
-        (Regex::new(&format!(r"^\s*pub\s+struct\s+{}\b", regex::escape(symbol_name)))?, "struct"),
-        (Regex::new(&format!(r"^\s*struct\s+{}\b", regex::escape(symbol_name)))?, "struct"),
-        (Regex::new(&format!(r"^\s*pub\s+enum\s+{}\b", regex::escape(symbol_name)))?, "enum"),
-        (Regex::new(&format!(r"^\s*enum\s+{}\b", regex::escape(symbol_name)))?, "enum"),
-        (Regex::new(&format!(r"^\s*pub\s+trait\s+{}\b", regex::escape(symbol_name)))?, "trait"),
-        (Regex::new(&format!(r"^\s*trait\s+{}\b", regex::escape(symbol_name)))?, "trait"),
-        (Regex::new(&format!(r"^\s*(pub\s+)?(unsafe\s+)?impl\s+.*{}[\s<]", regex::escape(symbol_name)))?, "impl"),
-        (Regex::new(&format!(r"^\s*pub\s+(type|mod)\s+{}\b", regex::escape(symbol_name)))?, "type"),
-        (Regex::new(&format!(r"^\s*(type|mod)\s+{}\b", regex::escape(symbol_name)))?, "type"),
-        (Regex::new(&format!(r"^\s*pub\s+(const|static)\s+{}\b", regex::escape(symbol_name)))?, "const"),
-        (Regex::new(&format!(r"^\s*(const|static)\s+{}\b", regex::escape(symbol_name)))?, "const"),
+        (
+            Regex::new(&format!(
+                r"^\s*pub\s+(unsafe\s+)?fn\s+{}[\s<(]",
+                regex::escape(symbol_name)
+            ))?,
+            "fn",
+        ),
+        (
+            Regex::new(&format!(
+                r"^\s*(unsafe\s+)?fn\s+{}[\s<(]",
+                regex::escape(symbol_name)
+            ))?,
+            "fn",
+        ),
+        (
+            Regex::new(&format!(
+                r"^\s*pub\s+struct\s+{}\b",
+                regex::escape(symbol_name)
+            ))?,
+            "struct",
+        ),
+        (
+            Regex::new(&format!(r"^\s*struct\s+{}\b", regex::escape(symbol_name)))?,
+            "struct",
+        ),
+        (
+            Regex::new(&format!(
+                r"^\s*pub\s+enum\s+{}\b",
+                regex::escape(symbol_name)
+            ))?,
+            "enum",
+        ),
+        (
+            Regex::new(&format!(r"^\s*enum\s+{}\b", regex::escape(symbol_name)))?,
+            "enum",
+        ),
+        (
+            Regex::new(&format!(
+                r"^\s*pub\s+trait\s+{}\b",
+                regex::escape(symbol_name)
+            ))?,
+            "trait",
+        ),
+        (
+            Regex::new(&format!(r"^\s*trait\s+{}\b", regex::escape(symbol_name)))?,
+            "trait",
+        ),
+        (
+            Regex::new(&format!(
+                r"^\s*(pub\s+)?(unsafe\s+)?impl\s+.*{}[\s<]",
+                regex::escape(symbol_name)
+            ))?,
+            "impl",
+        ),
+        (
+            Regex::new(&format!(
+                r"^\s*pub\s+(type|mod)\s+{}\b",
+                regex::escape(symbol_name)
+            ))?,
+            "type",
+        ),
+        (
+            Regex::new(&format!(
+                r"^\s*(type|mod)\s+{}\b",
+                regex::escape(symbol_name)
+            ))?,
+            "type",
+        ),
+        (
+            Regex::new(&format!(
+                r"^\s*pub\s+(const|static)\s+{}\b",
+                regex::escape(symbol_name)
+            ))?,
+            "const",
+        ),
+        (
+            Regex::new(&format!(
+                r"^\s*(const|static)\s+{}\b",
+                regex::escape(symbol_name)
+            ))?,
+            "const",
+        ),
         // TS/JS
-        (Regex::new(&format!(r"^\s*(export\s+)?(async\s+)?function\s+{}\s*\(", regex::escape(symbol_name)))?, "function"),
-        (Regex::new(&format!(r"^\s*(export\s+)?class\s+{}\b", regex::escape(symbol_name)))?, "class"),
-        (Regex::new(&format!(r"^\s*(export\s+)?interface\s+{}\b", regex::escape(symbol_name)))?, "interface"),
-        (Regex::new(&format!(r"^\s*(export\s+)?type\s+{}\b", regex::escape(symbol_name)))?, "type"),
-        (Regex::new(&format!(r"^\s*(export\s+)?enum\s+{}\b", regex::escape(symbol_name)))?, "enum"),
-        (Regex::new(&format!(r"^\s*(export\s+)?(default\s+)?const\s+{}\s*=", regex::escape(symbol_name)))?, "const"),
+        (
+            Regex::new(&format!(
+                r"^\s*(export\s+)?(async\s+)?function\s+{}\s*\(",
+                regex::escape(symbol_name)
+            ))?,
+            "function",
+        ),
+        (
+            Regex::new(&format!(
+                r"^\s*(export\s+)?class\s+{}\b",
+                regex::escape(symbol_name)
+            ))?,
+            "class",
+        ),
+        (
+            Regex::new(&format!(
+                r"^\s*(export\s+)?interface\s+{}\b",
+                regex::escape(symbol_name)
+            ))?,
+            "interface",
+        ),
+        (
+            Regex::new(&format!(
+                r"^\s*(export\s+)?type\s+{}\b",
+                regex::escape(symbol_name)
+            ))?,
+            "type",
+        ),
+        (
+            Regex::new(&format!(
+                r"^\s*(export\s+)?enum\s+{}\b",
+                regex::escape(symbol_name)
+            ))?,
+            "enum",
+        ),
+        (
+            Regex::new(&format!(
+                r"^\s*(export\s+)?(default\s+)?const\s+{}\s*=",
+                regex::escape(symbol_name)
+            ))?,
+            "const",
+        ),
         // Python
-        (Regex::new(&format!(r"^\s*(async\s+)?def\s+{}\s*\(", regex::escape(symbol_name)))?, "def"),
-        (Regex::new(&format!(r"^\s*class\s+{}\b", regex::escape(symbol_name)))?, "class"),
+        (
+            Regex::new(&format!(
+                r"^\s*(async\s+)?def\s+{}\s*\(",
+                regex::escape(symbol_name)
+            ))?,
+            "def",
+        ),
+        (
+            Regex::new(&format!(r"^\s*class\s+{}\b", regex::escape(symbol_name)))?,
+            "class",
+        ),
         // Go
-        (Regex::new(&format!(r"^\s*func\s+{}\s*\(", regex::escape(symbol_name)))?, "func"),
-        (Regex::new(&format!(r"^\s*func\s+\([^)]*\)\s+{}\s*\(", regex::escape(symbol_name)))?, "method"),
-        (Regex::new(&format!(r"^\s*type\s+{}\b", regex::escape(symbol_name)))?, "type"),
+        (
+            Regex::new(&format!(r"^\s*func\s+{}\s*\(", regex::escape(symbol_name)))?,
+            "func",
+        ),
+        (
+            Regex::new(&format!(
+                r"^\s*func\s+\([^)]*\)\s+{}\s*\(",
+                regex::escape(symbol_name)
+            ))?,
+            "method",
+        ),
+        (
+            Regex::new(&format!(r"^\s*type\s+{}\b", regex::escape(symbol_name)))?,
+            "type",
+        ),
     ];
 
     let hit_count = Arc::new(AtomicUsize::new(0));
@@ -213,7 +335,7 @@ fn symbol_search_blocking(base: &Path, symbol_name: &str) -> Result<Vec<SymbolRe
                     }
 
                     for (re, kind) in &patterns {
-                        if let Some(caps) = re.captures(line) {
+                        if let Some(_caps) = re.captures(line) {
                             let relative = path
                                 .strip_prefix(&base)
                                 .unwrap_or(path)
@@ -314,7 +436,7 @@ mod tests {
         let temp_dir = tempfile::tempdir().unwrap();
         let file_path = temp_dir.path().join("lib.rs");
         let mut file = std::fs::File::create(&file_path).unwrap();
-        write!(file, "pub fn existing() {{}}\n").unwrap();
+        writeln!(file, "pub fn existing() {{}}").unwrap();
 
         let results = symbol_search_blocking(temp_dir.path(), "NonExistentSymbol").unwrap();
         assert!(results.is_empty(), "should find nothing");
@@ -339,7 +461,7 @@ mod tests {
         let temp_dir = tempfile::tempdir().unwrap();
         let file_path = temp_dir.path().join("mod.rs");
         let mut file = std::fs::File::create(&file_path).unwrap();
-        write!(file, "pub struct TestSymbol;\n").unwrap();
+        writeln!(file, "pub struct TestSymbol;").unwrap();
 
         let ctx = ToolContext {
             session_id: "test".to_string(),

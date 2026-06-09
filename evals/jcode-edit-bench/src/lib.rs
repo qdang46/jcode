@@ -17,20 +17,20 @@
 
 #![forbid(unsafe_code)]
 
-pub mod types;
-pub mod mutation;
 pub mod difficulty;
-pub mod formatter;
 pub mod fixtures;
+pub mod formatter;
 pub mod generate;
-pub mod verify;
+pub mod mutation;
 pub mod report;
 pub mod runner;
+pub mod types;
+pub mod verify;
 
-pub use types::*;
 use crate::types::SourceEdit;
-pub use mutation::{all_mutations, Mutation, apply_source_edits};
 pub use difficulty::score_difficulty;
 pub use generate::generate_tasks;
-pub use verify::verify_files;
+pub use mutation::{Mutation, all_mutations, apply_source_edits};
 pub use runner::run_benchmark;
+pub use types::*;
+pub use verify::verify_files;

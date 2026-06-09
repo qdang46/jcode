@@ -285,10 +285,10 @@ pub fn build_system_prompt_full(
     }
 
     // Priority notepad content (injected every turn, survives compaction)
-    if let Some(notepad) = notepad_prompt {
-        if !notepad.is_empty() {
-            parts.push(notepad.to_string());
-        }
+    if let Some(notepad) = notepad_prompt
+        && !notepad.is_empty()
+    {
+        parts.push(notepad.to_string());
     }
 
     // Add available skills list
@@ -405,10 +405,10 @@ pub fn build_system_prompt_split(
     }
 
     // Priority notepad content – injected every turn so it survives compaction.
-    if let Some(notepad) = notepad_prompt {
-        if !notepad.is_empty() {
-            dynamic_parts.push(notepad.to_string());
-        }
+    if let Some(notepad) = notepad_prompt
+        && !notepad.is_empty()
+    {
+        dynamic_parts.push(notepad.to_string());
     }
 
     let static_part = static_parts.join("\n\n");

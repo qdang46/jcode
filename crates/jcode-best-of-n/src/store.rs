@@ -7,7 +7,7 @@ use std::sync::Arc;
 /// Modeled after codebuff's `proposed-content-store.ts`:
 /// a Map<runId, Record<path, content>> that holds draft file content
 /// before any candidate is selected. The orchestrator writes proposed
- /// content here, the selector reads from here, and the winner's content
+/// content here, the selector reads from here, and the winner's content
 /// is applied to real files.
 ///
 /// This store uses DashMap for concurrent access since multiple
@@ -48,10 +48,7 @@ impl ProposedContentStore {
         candidate_id: impl Into<String>,
         is_new_file: bool,
     ) {
-        let mut run_map = self
-            .inner
-            .entry(run_id.to_string())
-            .or_insert_with(DashMap::new);
+        let run_map = self.inner.entry(run_id.to_string()).or_default();
         run_map.insert(
             file_path.into(),
             ProposedEntry {
@@ -119,18 +116,14 @@ impl ProposedContentStore {
 
             let file_path = entry.key().clone();
             let proposed = entry.value();
-            let original = original_contents
-                .iter()
-                .find(|o| o.file_path == file_path);
+            let original = original_contents.iter().find(|o| o.file_path == file_path);
 
-            let old_content = original
-                .map(|o| o.content.clone())
-                .unwrap_or_default();
+            let old_content = original.map(|o| o.content.clone()).unwrap_or_default();
             let new_content = proposed.content.clone();
 
             let unified_diff = make_unified_diff(&file_path, &old_content, &new_content);
 
-            if !has_meaningful_changes(&old_content, &new_content, &unified_diff) {
+            if old_content == new_content {
                 continue;
             }
 

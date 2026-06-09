@@ -85,10 +85,7 @@ impl Tool for FfsOutlineTool {
         let items = outline_blocking(&content, &file_path, max_items);
 
         let mut output = String::new();
-        output.push_str(&format!(
-            "Outline for: {}\n\n",
-            file_path.display()
-        ));
+        output.push_str(&format!("Outline for: {}\n\n", file_path.display()));
 
         if items.is_empty() {
             output.push_str("No structural items found.\n");
@@ -175,10 +172,7 @@ impl Tool for FfsOutlineTool {
         }
 
         if items.len() >= max_items {
-            output.push_str(&format!(
-                "... results truncated at {} items\n",
-                max_items
-            ));
+            output.push_str(&format!("... results truncated at {} items\n", max_items));
         }
 
         Ok(ToolOutput::new(output))
@@ -193,11 +187,23 @@ fn outline_blocking(content: &str, file_path: &Path, max_items: usize) -> Vec<Ou
 
     let patterns: Vec<(Regex, &str)> = match extension.as_str() {
         "rs" => vec![
-            (Regex::new(r"^\s*pub\s+(unsafe\s+)?fn\s+(\w+)").unwrap(), "fn"),
+            (
+                Regex::new(r"^\s*pub\s+(unsafe\s+)?fn\s+(\w+)").unwrap(),
+                "fn",
+            ),
             (Regex::new(r"^\s*(unsafe\s+)?fn\s+(\w+)").unwrap(), "fn"),
-            (Regex::new(r"^\s*pub\s+(unsafe\s+)?trait\s+(\w+)").unwrap(), "trait"),
-            (Regex::new(r"^\s*(unsafe\s+)?trait\s+(\w+)").unwrap(), "trait"),
-            (Regex::new(r"^\s*pub\s+(unsafe\s+)?impl\s+").unwrap(), "impl"),
+            (
+                Regex::new(r"^\s*pub\s+(unsafe\s+)?trait\s+(\w+)").unwrap(),
+                "trait",
+            ),
+            (
+                Regex::new(r"^\s*(unsafe\s+)?trait\s+(\w+)").unwrap(),
+                "trait",
+            ),
+            (
+                Regex::new(r"^\s*pub\s+(unsafe\s+)?impl\s+").unwrap(),
+                "impl",
+            ),
             (Regex::new(r"^\s*(unsafe\s+)?impl\s+").unwrap(), "impl"),
             (Regex::new(r"^\s*pub\s+struct\s+(\w+)").unwrap(), "struct"),
             (Regex::new(r"^\s*struct\s+(\w+)").unwrap(), "struct"),
@@ -206,24 +212,51 @@ fn outline_blocking(content: &str, file_path: &Path, max_items: usize) -> Vec<Ou
             (Regex::new(r"^\s*pub\s+(type|mod)\s+(\w+)").unwrap(), "type"),
             (Regex::new(r"^\s*(type|mod)\s+(\w+)").unwrap(), "type"),
             (Regex::new(r"^\s*#\[derive\(").unwrap(), "derive"),
-            (Regex::new(r"^\s*(pub\s+)?macro_rules!\s*!(\w+)").unwrap(), "macro"),
+            (
+                Regex::new(r"^\s*(pub\s+)?macro_rules!\s*!(\w+)").unwrap(),
+                "macro",
+            ),
             (Regex::new(r"^\s*pub\s+use\s+").unwrap(), "use"),
             (Regex::new(r"^\s*use\s+").unwrap(), "use"),
-            (Regex::new(r"^\s*pub\s+(const|static)\s+(\w+)").unwrap(), "const"),
+            (
+                Regex::new(r"^\s*pub\s+(const|static)\s+(\w+)").unwrap(),
+                "const",
+            ),
             (Regex::new(r"^\s*(const|static)\s+(\w+)").unwrap(), "const"),
         ],
         "js" | "jsx" | "ts" | "tsx" => vec![
-            (Regex::new(r"^\s*(export\s+)?(async\s+)?function\s+(\w+)").unwrap(), "function"),
-            (Regex::new(r"^\s*(export\s+)?(async\s+)?function\s*\*?\s*(\w+)").unwrap(), "function"),
-            (Regex::new(r"^\s*(export\s+)?class\s+(\w+)").unwrap(), "class"),
-            (Regex::new(r"^\s*(export\s+)?interface\s+(\w+)").unwrap(), "interface"),
+            (
+                Regex::new(r"^\s*(export\s+)?(async\s+)?function\s+(\w+)").unwrap(),
+                "function",
+            ),
+            (
+                Regex::new(r"^\s*(export\s+)?(async\s+)?function\s*\*?\s*(\w+)").unwrap(),
+                "function",
+            ),
+            (
+                Regex::new(r"^\s*(export\s+)?class\s+(\w+)").unwrap(),
+                "class",
+            ),
+            (
+                Regex::new(r"^\s*(export\s+)?interface\s+(\w+)").unwrap(),
+                "interface",
+            ),
             (Regex::new(r"^\s*(export\s+)?type\s+(\w+)").unwrap(), "type"),
             (Regex::new(r"^\s*(export\s+)?enum\s+(\w+)").unwrap(), "enum"),
-            (Regex::new(r"^\s*(export\s+)?(default\s+)?const\s+(\w+)\s*=").unwrap(), "const"),
-            (Regex::new(r"^\s*(export\s+)?let\s+(\w+)\s*=").unwrap(), "let"),
+            (
+                Regex::new(r"^\s*(export\s+)?(default\s+)?const\s+(\w+)\s*=").unwrap(),
+                "const",
+            ),
+            (
+                Regex::new(r"^\s*(export\s+)?let\s+(\w+)\s*=").unwrap(),
+                "let",
+            ),
             (Regex::new(r"^\s*import\s+").unwrap(), "import"),
             (Regex::new(r"^\s*require\s*\(").unwrap(), "require"),
-            (Regex::new(r"^\s*(export\s+)?(abstract\s+)?class\s+(\w+)").unwrap(), "class"),
+            (
+                Regex::new(r"^\s*(export\s+)?(abstract\s+)?class\s+(\w+)").unwrap(),
+                "class",
+            ),
         ],
         "py" => vec![
             (Regex::new(r"^\s*(async\s+)?def\s+(\w+)").unwrap(), "def"),
@@ -234,13 +267,23 @@ fn outline_blocking(content: &str, file_path: &Path, max_items: usize) -> Vec<Ou
         ],
         "go" => vec![
             (Regex::new(r"^\s*func\s+(\w+)").unwrap(), "func"),
-            (Regex::new(r"^\s*func\s+\([^)]*\)\s+(\w+)").unwrap(), "method"),
+            (
+                Regex::new(r"^\s*func\s+\([^)]*\)\s+(\w+)").unwrap(),
+                "method",
+            ),
             (Regex::new(r"^\s*type\s+(\w+)\s+struct").unwrap(), "struct"),
-            (Regex::new(r"^\s*type\s+(\w+)\s+interface").unwrap(), "interface"),
+            (
+                Regex::new(r"^\s*type\s+(\w+)\s+interface").unwrap(),
+                "interface",
+            ),
             (Regex::new(r"^\s*import\s+").unwrap(), "import"),
         ],
         "java" => vec![
-            (Regex::new(r"^\s*(public|private|protected)\s+(static\s+)?\w+\s+(\w+)\s*\(").unwrap(), "method"),
+            (
+                Regex::new(r"^\s*(public|private|protected)\s+(static\s+)?\w+\s+(\w+)\s*\(")
+                    .unwrap(),
+                "method",
+            ),
             (Regex::new(r"^\s*class\s+(\w+)").unwrap(), "class"),
             (Regex::new(r"^\s*interface\s+(\w+)").unwrap(), "interface"),
             (Regex::new(r"^\s*enum\s+(\w+)").unwrap(), "enum"),
@@ -248,7 +291,10 @@ fn outline_blocking(content: &str, file_path: &Path, max_items: usize) -> Vec<Ou
         ],
         "c" | "h" | "cpp" | "hpp" | "cc" | "cxx" => vec![
             (Regex::new(r"^\s*\w+\s+(\w+)\s*\(").unwrap(), "function"),
-            (Regex::new(r"^\s*(class|struct|enum|union)\s+(\w+)").unwrap(), "type"),
+            (
+                Regex::new(r"^\s*(class|struct|enum|union)\s+(\w+)").unwrap(),
+                "type",
+            ),
             (Regex::new(r"^\s*template\s*<").unwrap(), "template"),
             (Regex::new(r"^\s*#include").unwrap(), "include"),
             (Regex::new(r"^\s*#define").unwrap(), "define"),
@@ -266,7 +312,10 @@ fn outline_blocking(content: &str, file_path: &Path, max_items: usize) -> Vec<Ou
             (Regex::new(r"^\s*(pub\s+)?def\s+(\w+)").unwrap(), "def"),
             (Regex::new(r"^\s*import\s+").unwrap(), "import"),
             (Regex::new(r"^\s*use\s+").unwrap(), "use"),
-            (Regex::new(r"^\s*(pub\s+)?(const|static)\s+(\w+)").unwrap(), "const"),
+            (
+                Regex::new(r"^\s*(pub\s+)?(const|static)\s+(\w+)").unwrap(),
+                "const",
+            ),
             (Regex::new(r"^\s*#\s*include").unwrap(), "include"),
         ],
     };
@@ -281,8 +330,11 @@ fn outline_blocking(content: &str, file_path: &Path, max_items: usize) -> Vec<Ou
         }
 
         let trimmed = line.trim();
-        if trimmed.is_empty() || trimmed.starts_with("//") || trimmed.starts_with('#')
-            || trimmed.starts_with("/*") || trimmed.starts_with('*')
+        if trimmed.is_empty()
+            || trimmed.starts_with("//")
+            || trimmed.starts_with('#')
+            || trimmed.starts_with("/*")
+            || trimmed.starts_with('*')
         {
             continue;
         }
@@ -403,26 +455,14 @@ pub fn main() -> Result<()> {
         let items = outline_blocking(content, path, 20);
         assert!(!items.is_empty(), "should find items");
         let kinds: Vec<&str> = items.iter().map(|i| i.kind.as_str()).collect();
-        assert!(
-            kinds.contains(&"use"),
-            "should detect use: {:?}",
-            kinds
-        );
+        assert!(kinds.contains(&"use"), "should detect use: {:?}", kinds);
         assert!(
             kinds.contains(&"struct"),
             "should detect struct: {:?}",
             kinds
         );
-        assert!(
-            kinds.contains(&"impl"),
-            "should detect impl: {:?}",
-            kinds
-        );
-        assert!(
-            kinds.contains(&"fn"),
-            "should detect fn: {:?}",
-            kinds
-        );
+        assert!(kinds.contains(&"impl"), "should detect impl: {:?}", kinds);
+        assert!(kinds.contains(&"fn"), "should detect fn: {:?}", kinds);
     }
 
     #[test]
@@ -448,9 +488,21 @@ export class MyComponent implements Props {
         let items = outline_blocking(content, path, 20);
         assert!(!items.is_empty(), "should find items");
         let kinds: Vec<&str> = items.iter().map(|i| i.kind.as_str()).collect();
-        assert!(kinds.contains(&"import"), "should detect import: {:?}", kinds);
-        assert!(kinds.contains(&"interface"), "should detect interface: {:?}", kinds);
-        assert!(kinds.contains(&"function"), "should detect function: {:?}", kinds);
+        assert!(
+            kinds.contains(&"import"),
+            "should detect import: {:?}",
+            kinds
+        );
+        assert!(
+            kinds.contains(&"interface"),
+            "should detect interface: {:?}",
+            kinds
+        );
+        assert!(
+            kinds.contains(&"function"),
+            "should detect function: {:?}",
+            kinds
+        );
         assert!(kinds.contains(&"class"), "should detect class: {:?}", kinds);
     }
 
@@ -476,10 +528,7 @@ export class MyComponent implements Props {
     fn test_execute_finds_rust_structure() {
         let tool = FfsOutlineTool::new();
         // Create a temp file
-        let mut tmpfile = tempfile::Builder::new()
-            .suffix(".rs")
-            .tempfile()
-            .unwrap();
+        let mut tmpfile = tempfile::Builder::new().suffix(".rs").tempfile().unwrap();
         write!(
             tmpfile,
             "use std::fmt;\n\npub struct Point {{\n    x: i32,\n    y: i32,\n}}\n\nimpl Point {{\n    pub fn new(x: i32, y: i32) -> Self {{\n        Self {{ x, y }}\n    }}\n}}\n"
@@ -506,9 +555,14 @@ export class MyComponent implements Props {
             .block_on(tool.execute(input, ctx));
         assert!(result.is_ok(), "should succeed: {:?}", result.err());
         let output = result.unwrap();
-        assert!(output.output.contains("Point"), "should mention Point struct");
         assert!(
-            output.output.contains("use") || output.output.contains("struct") || output.output.contains("fn"),
+            output.output.contains("Point"),
+            "should mention Point struct"
+        );
+        assert!(
+            output.output.contains("use")
+                || output.output.contains("struct")
+                || output.output.contains("fn"),
             "output should contain kind labels: {}",
             output.output
         );

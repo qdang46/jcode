@@ -3,10 +3,12 @@ use serde::{Deserialize, Serialize};
 /// Best-of-N editing mode.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
+#[derive(Default)]
 pub enum BestOfNMode {
     /// Auto: transparently run N candidates and pick the best.
     /// The user only sees the final result.
     #[serde(alias = "auto")]
+    #[default]
     Auto,
     /// Show: present N candidates to the user and let them pick.
     /// Also shows the automatic selection as a recommendation.
@@ -39,12 +41,6 @@ impl BestOfNMode {
             "off" | "false" | "0" | "disabled" | "none" => Some(Self::Off),
             _ => None,
         }
-    }
-}
-
-impl Default for BestOfNMode {
-    fn default() -> Self {
-        Self::Auto
     }
 }
 

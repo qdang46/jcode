@@ -99,6 +99,7 @@ fn dock_widths_with_fallback(reliable: &[u16], instant: &[u16]) -> Vec<u16> {
 }
 
 /// Compute widget placements while keeping the caller-owned widget state stable.
+#[allow(dead_code)]
 pub(crate) fn calculate_placements(
     messages_area: Rect,
     margins: &Margins,
@@ -123,6 +124,7 @@ pub(crate) fn calculate_placements(
 /// shrinking (with hysteresis) or hiding-in-place when a wide line scrolls under
 /// it, and only re-homing via Phase 2 after the slot has been unusable for
 /// [`MAX_HIDDEN_FRAMES`]. This is what stops widgets from jumping while scrolling.
+#[allow(dead_code)]
 pub(crate) fn calculate_placements_anchored(
     messages_area: Rect,
     margins: &Margins,

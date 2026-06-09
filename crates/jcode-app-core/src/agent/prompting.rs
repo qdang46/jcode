@@ -147,11 +147,9 @@ impl Agent {
         };
 
         // Inject priority-tier notes into the system prompt so they survive compaction.
-        let notepad_prompt = crate::notepad::Notepad::new(
-            working_dir.as_deref(),
-            &crate::config::config().notepad,
-        )
-        .and_then(|n| n.priority_prompt_block());
+        let notepad_prompt =
+            crate::notepad::Notepad::new(working_dir.as_deref(), &crate::config::config().notepad)
+                .and_then(|n| n.priority_prompt_block());
 
         let (mut split, _context_info) = crate::prompt::build_system_prompt_split(
             skill_prompt.as_deref(),

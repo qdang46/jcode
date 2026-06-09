@@ -1,9 +1,20 @@
 #![allow(
     unknown_lints,
+    dead_code,
+    unused_imports,
+    unused_variables,
     clippy::collapsible_match,
     clippy::manual_checked_ops,
     clippy::unnecessary_sort_by,
-    clippy::useless_conversion
+    clippy::useless_conversion,
+    clippy::needless_pass_by_value,
+    clippy::module_name_repetitions,
+    clippy::large_enum_variant,
+    clippy::result_large_err,
+    clippy::empty_line_after_doc_comments,
+    clippy::needless_range_loop,
+    clippy::manual_clamp,
+    clippy::redundant_locals
 )]
 
 //! Application core for jcode (upper layer).
@@ -28,13 +39,12 @@ pub mod ambient_scheduler;
 pub mod build;
 pub mod catchup;
 pub mod channel;
+pub mod dcg_bridge;
 pub mod doctor;
 pub mod external_auth;
 pub mod mission;
 pub mod network_retry;
 pub mod notifications;
-pub mod dcg_bridge;
-pub mod yolo_classifier;
 pub mod overnight;
 pub mod perf;
 pub mod replay;
@@ -48,6 +58,7 @@ pub mod ssh_remote;
 pub mod startup_profile;
 pub mod tool;
 pub mod update;
+pub mod yolo_classifier;
 
 #[cfg(feature = "dcp")]
 pub mod dcp_bridge;

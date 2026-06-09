@@ -17,24 +17,32 @@ use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
 
-use crate::difficulty::{analyze_file, file_matches_difficulty, min_score_for_difficulty, score_difficulty};
+use crate::difficulty::{
+    analyze_file, file_matches_difficulty, min_score_for_difficulty, score_difficulty,
+};
 use crate::formatter::format_content;
-use crate::mutation::{all_mutations, Mutation};
+use crate::mutation::{Mutation, all_mutations};
 use crate::types::{EditTask, FileEntry, GenerateConfig, MutationInfo, TaskMetadata};
 
 /// Maximum generation attempts per mutation+candidate
 const MAX_ATTEMPTS: usize = 100;
 
 /// Supported source file extensions.
-static SUPPORTED_EXTENSIONS: LazyLock<HashSet<&'static str>> = LazyLock::new(|| {
-    ["rs"].into_iter().collect()
-});
+static SUPPORTED_EXTENSIONS: LazyLock<HashSet<&'static str>> =
+    LazyLock::new(|| ["rs"].into_iter().collect());
 
 /// Directories to exclude during file collection.
 static EXCLUDE_DIRS: LazyLock<HashSet<&'static str>> = LazyLock::new(|| {
-    ["target", "node_modules", ".git", "__pycache__", "dist", "build"]
-        .into_iter()
-        .collect()
+    [
+        "target",
+        "node_modules",
+        ".git",
+        "__pycache__",
+        "dist",
+        "build",
+    ]
+    .into_iter()
+    .collect()
 });
 
 /// Generate benchmark fixtures from Rust source files.
@@ -49,11 +57,7 @@ pub async fn generate_tasks(config: &GenerateConfig) -> anyhow::Result<Vec<EditT
     let entries = analyze_files(&files).await?;
     let eligible: Vec<FileEntry> = entries
         .into_iter()
-        .filter(|e| {
-            e.line_count >= 30
-                && e.line_count <= 800
-                && has_structure(&e.content)
-        })
+        .filter(|e| e.line_count >= 30 && e.line_count <= 800 && has_structure(&e.content))
         .collect();
 
     if eligible.is_empty() {
@@ -113,7 +117,9 @@ pub async fn generate_tasks(config: &GenerateConfig) -> anyhow::Result<Vec<EditT
             if task.is_none() {
                 // Try fallback difficulties
                 for fallback in &fallback_order {
-                    if *fallback == difficulty.as_str() { continue; }
+                    if *fallback == difficulty.as_str() {
+                        continue;
+                    }
                     task = try_generate(
                         mutation.as_ref(),
                         &eligible,
@@ -136,17 +142,29 @@ pub async fn generate_tasks(config: &GenerateConfig) -> anyhow::Result<Vec<EditT
             }
 
             if let Some(mut t) = task {
-                t.id = format!("{}-{}-{:03}", mutation.category(), mutation.name(), index + 1);
+                t.id = format!(
+                    "{}-{}-{:03}",
+                    mutation.category(),
+                    mutation.name(),
+                    index + 1
+                );
                 t.name = format!("{} {} {}", mutation.category(), mutation.name(), index + 1);
                 results.push(t);
                 generated += 1;
             } else {
-                eprintln!("Warning: Skipping {} case {} (no applicable files)", mutation.name(), index + 1);
+                eprintln!(
+                    "Warning: Skipping {} case {} (no applicable files)",
+                    mutation.name(),
+                    index + 1
+                );
             }
         }
 
         if generated == 0 {
-            eprintln!("Warning: No cases generated for {} (mutation may be too rare)", mutation.name());
+            eprintln!(
+                "Warning: No cases generated for {} (mutation may be too rare)",
+                mutation.name()
+            );
         }
     }
 
@@ -164,7 +182,10 @@ async fn collect_files(source_dirs: &[PathBuf]) -> anyhow::Result<Vec<PathBuf>> 
     let mut files = Vec::new();
     for dir in source_dirs {
         if !dir.exists() {
-            eprintln!("Warning: source directory does not exist: {}", dir.display());
+            eprintln!(
+                "Warning: source directory does not exist: {}",
+                dir.display()
+            );
             continue;
         }
         collect_files_recursive(dir, &mut files)?;
@@ -241,7 +262,10 @@ fn try_generate(
         .filter(|e| {
             let source = &e.content;
             let mut parser = tree_sitter::Parser::new();
-            if parser.set_language(&tree_sitter_rust::LANGUAGE.into()).is_err() {
+            if parser
+                .set_language(&tree_sitter_rust::LANGUAGE.into())
+                .is_err()
+            {
                 return false;
             }
             match parser.parse(source, None) {
@@ -259,8 +283,8 @@ fn try_generate(
         return None;
     }
 
-    let target_min_score = min_score_override
-        .unwrap_or_else(|| min_score_for_difficulty(difficulty));
+    let target_min_score =
+        min_score_override.unwrap_or_else(|| min_score_for_difficulty(difficulty));
 
     for _attempt in 0..MAX_ATTEMPTS {
         let idx = rng.gen_index(applicable.len());
@@ -316,15 +340,10 @@ fn try_generate(
         used.insert(info.line_number);
 
         // Build the task
-        let prompt = build_prompt(
-            &entry.path,
-            mutation,
-            &info,
-            difficulty,
-            entry,
-        );
+        let prompt = build_prompt(&entry.path, mutation, &info, difficulty, entry);
 
-        let file_name = entry.path
+        let file_name = entry
+            .path
             .file_name()
             .and_then(|n| n.to_str())
             .unwrap_or("source.rs")
@@ -344,7 +363,7 @@ fn try_generate(
         };
 
         return Some(EditTask {
-            id: String::new(), // filled in later
+            id: String::new(),   // filled in later
             name: String::new(), // filled in later
             prompt,
             files: vec![file_name],
@@ -368,7 +387,8 @@ fn build_prompt(
     difficulty: &str,
     _entry: &FileEntry,
 ) -> String {
-    let file_name = file_path.file_name()
+    let file_name = file_path
+        .file_name()
         .and_then(|n| n.to_str())
         .unwrap_or("source.rs");
 
@@ -378,7 +398,10 @@ fn build_prompt(
     match difficulty {
         "easy" => {
             let location = format!("The issue starts around line {}.", info.line_number);
-            format!("{header}\n\n{detail}\n\n{location}\n\n{}", mutation.fix_hint())
+            format!(
+                "{header}\n\n{detail}\n\n{location}\n\n{}",
+                mutation.fix_hint()
+            )
         }
         "medium" => {
             let location = format!("The issue is near line {}.", info.line_number);
@@ -387,24 +410,43 @@ fn build_prompt(
             } else {
                 ""
             };
-            format!("{header}\n\n{detail}\n\n{location}{multi}\n\n{}", mutation.fix_hint())
+            format!(
+                "{header}\n\n{detail}\n\n{location}{multi}\n\n{}",
+                mutation.fix_hint()
+            )
         }
         "hard" => {
             if mutation.category() == "identifier" {
-                format!("{header}\n\n{detail}\n\nFind and fix all occurrences of this issue.\n\n{}", mutation.fix_hint())
+                format!(
+                    "{header}\n\n{detail}\n\nFind and fix all occurrences of this issue.\n\n{}",
+                    mutation.fix_hint()
+                )
             } else if mutation.category() == "structural" {
-                format!("{header}\n\n{detail}\n\nThe fix may involve multiple lines.\n\n{}", mutation.fix_hint())
+                format!(
+                    "{header}\n\n{detail}\n\nThe fix may involve multiple lines.\n\n{}",
+                    mutation.fix_hint()
+                )
             } else {
-                format!("{header}\n\n{detail}\n\nFind and fix this issue.\n\n{}", mutation.fix_hint())
+                format!(
+                    "{header}\n\n{detail}\n\nFind and fix this issue.\n\n{}",
+                    mutation.fix_hint()
+                )
             }
         }
-        _ => { // nightmare
+        _ => {
+            // nightmare
             if mutation.category() == "structural" {
-                format!("{header}\n\nThere is a structural bug in this file.\n\nTrack it down and fix it with a minimal edit.")
+                format!(
+                    "{header}\n\nThere is a structural bug in this file.\n\nTrack it down and fix it with a minimal edit."
+                )
             } else if mutation.category() == "identifier" {
-                format!("{header}\n\nAn identifier is consistently misspelled throughout this file.\n\nFind all occurrences and fix them.")
+                format!(
+                    "{header}\n\nAn identifier is consistently misspelled throughout this file.\n\nFind all occurrences and fix them."
+                )
             } else {
-                format!("{header}\n\nThere is a subtle bug in this file.\n\nTrack it down and fix it with a minimal edit.")
+                format!(
+                    "{header}\n\nThere is a subtle bug in this file.\n\nTrack it down and fix it with a minimal edit."
+                )
             }
         }
     }
@@ -424,7 +466,11 @@ async fn write_fixtures(tasks: &[EditTask], output_dir: &Path) -> anyhow::Result
         let task_dir = output_dir.join(&task.id);
 
         // Find the task content by loading it from task metadata
-        let file_name = task.metadata.as_ref().map(|m| &m.file_name).cloned()
+        let file_name = task
+            .metadata
+            .as_ref()
+            .map(|m| &m.file_name)
+            .cloned()
             .unwrap_or_else(|| "source.rs".to_string());
 
         // Write prompt
@@ -450,7 +496,11 @@ async fn write_fixtures(tasks: &[EditTask], output_dir: &Path) -> anyhow::Result
         }
     }
 
-    eprintln!("Generated {} tasks in {}", tasks.len(), output_dir.display());
+    eprintln!(
+        "Generated {} tasks in {}",
+        tasks.len(),
+        output_dir.display()
+    );
     Ok(())
 }
 
@@ -458,7 +508,8 @@ fn print_dry_run(tasks: &[EditTask], difficulties: &[String]) {
     println!("\nDry run: {} potential tasks", tasks.len());
 
     for diff in difficulties {
-        let count = tasks.iter()
+        let count = tasks
+            .iter()
             .filter(|t| t.metadata.as_ref().map(|m| m.difficulty.as_str()) == Some(diff))
             .count();
         println!("  {diff}: {count} tasks");
@@ -477,7 +528,8 @@ fn print_dry_run(tasks: &[EditTask], difficulties: &[String]) {
     }
 
     // Score distribution
-    let scores: Vec<u32> = tasks.iter()
+    let scores: Vec<u32> = tasks
+        .iter()
         .filter_map(|t| t.metadata.as_ref().map(|m| m.difficulty_score))
         .collect();
     if !scores.is_empty() {

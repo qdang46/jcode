@@ -2,9 +2,9 @@
 //!
 //! All types are serializable for JSON round-trip with fixtures and reports.
 
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
-use serde::{Deserialize, Serialize};
 
 // ── Generation types ────────────────────────────────────────────────
 

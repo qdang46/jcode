@@ -10,7 +10,6 @@ use anyhow::Result;
 use async_trait::async_trait;
 use serde::Deserialize;
 use serde_json::{Value, json};
-use std::sync::Arc;
 
 use crate::team::{mailbox, runtime, spec::*, state, tasklist};
 
@@ -139,7 +138,7 @@ impl Tool for TeamCreateTool {
         let members: Vec<TeamMemberSpec> = parsed
             .members
             .into_iter()
-            .map(|v| serde_json::from_value(v))
+            .map(serde_json::from_value)
             .collect::<std::result::Result<_, _>>()?;
 
         let spec = TeamSpec {

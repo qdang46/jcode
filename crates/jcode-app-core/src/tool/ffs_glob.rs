@@ -1,13 +1,13 @@
 use super::{Tool, ToolContext, ToolOutput};
 use anyhow::Result;
 use async_trait::async_trait;
-use globset::{Glob, GlobBuilder, GlobMatcher};
+use globset::GlobBuilder;
 use serde::Deserialize;
 use serde_json::{Value, json};
 use std::path::Path;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 const DEFAULT_MAX_FILES: usize = 100;
 
@@ -133,7 +133,11 @@ impl Tool for FfsGlobTool {
 }
 
 /// Glob search using globset::Glob with gitignore-aware parallel walk.
-fn glob_search_blocking(base: &Path, pattern: &str, max_files: usize) -> Result<Vec<(String, std::time::SystemTime)>> {
+fn glob_search_blocking(
+    base: &Path,
+    pattern: &str,
+    max_files: usize,
+) -> Result<Vec<(String, std::time::SystemTime)>> {
     let glob = GlobBuilder::new(pattern)
         .literal_separator(true)
         .build()
@@ -141,7 +145,8 @@ fn glob_search_blocking(base: &Path, pattern: &str, max_files: usize) -> Result<
     let matcher = glob.compile_matcher();
 
     let collect_limit = max_files * 2;
-    let results: Arc<Mutex<Vec<(String, std::time::SystemTime)>>> = Arc::new(Mutex::new(Vec::with_capacity(max_files)));
+    let results: Arc<Mutex<Vec<(String, std::time::SystemTime)>>> =
+        Arc::new(Mutex::new(Vec::with_capacity(max_files)));
     let count: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
 
     let walker = ignore::WalkBuilder::new(base)
@@ -223,7 +228,11 @@ fn glob_search_blocking(base: &Path, pattern: &str, max_files: usize) -> Result<
 
 /// Fuzzy search: case-insensitive substring matching with scoring.
 /// Uses sequential walk to avoid closure type issues.
-fn fuzzy_search_blocking(base: &Path, query: &str, max_files: usize) -> Result<Vec<(String, std::time::SystemTime)>> {
+fn fuzzy_search_blocking(
+    base: &Path,
+    query: &str,
+    max_files: usize,
+) -> Result<Vec<(String, std::time::SystemTime)>> {
     let query_lower = query.to_ascii_lowercase();
     let collect_limit = max_files * 2;
 
@@ -284,11 +293,20 @@ fn fuzzy_search_blocking(base: &Path, query: &str, max_files: usize) -> Result<V
             .and_then(|m| m.modified().ok())
             .unwrap_or(std::time::UNIX_EPOCH);
 
-        results.push(Scored { path: path_str.to_string(), mtime, score });
+        results.push(Scored {
+            path: path_str.to_string(),
+            mtime,
+            score,
+        });
     }
 
     // Sort by score (higher first), then mtime (newer first), then path
-    results.sort_by(|a, b| b.score.cmp(&a.score).then(b.mtime.cmp(&a.mtime)).then(a.path.cmp(&b.path)));
+    results.sort_by(|a, b| {
+        b.score
+            .cmp(&a.score)
+            .then(b.mtime.cmp(&a.mtime))
+            .then(a.path.cmp(&b.path))
+    });
     results.truncate(max_files);
 
     Ok(results.into_iter().map(|s| (s.path, s.mtime)).collect())

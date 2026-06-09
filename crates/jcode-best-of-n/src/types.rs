@@ -1,6 +1,5 @@
 use serde::{Deserialize, Serialize};
 
-
 /// Unique identifier for a best-of-N run.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct RunId(pub String);
@@ -113,8 +112,7 @@ pub struct CandidateDiff {
 impl CandidateDiff {
     /// Returns true if the candidate produced any actual content changes.
     pub fn has_meaningful_changes(&self) -> bool {
-        self.status == CandidateStatus::Success
-            && self.file_diffs.iter().any(|d| d.has_changes())
+        self.status == CandidateStatus::Success && self.file_diffs.iter().any(|d| d.has_changes())
     }
 
     /// Number of files touched (with changes).
@@ -185,7 +183,11 @@ pub enum ProposeOpKind {
 }
 
 impl ProposeOp {
-    pub fn edit(file_path: impl Into<String>, old_string: impl Into<String>, new_string: impl Into<String>) -> Self {
+    pub fn edit(
+        file_path: impl Into<String>,
+        old_string: impl Into<String>,
+        new_string: impl Into<String>,
+    ) -> Self {
         Self {
             kind: ProposeOpKind::Edit,
             file_path: file_path.into(),

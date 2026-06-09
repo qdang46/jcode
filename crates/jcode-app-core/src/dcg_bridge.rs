@@ -37,9 +37,8 @@ use std::path::PathBuf;
 use std::sync::{LazyLock, Mutex};
 
 use dcg_core::{Decision, Effect, Engine, EngineConfig, Mode, Session, ToolCall};
-use jcode_hooks::{DispatchConfig, HookContext, HookEvent, HookInputBuilder, HookRegistry};
 use jcode_agent_runtime::PermissionMode;
-
+use jcode_hooks::{DispatchConfig, HookContext, HookEvent, HookInputBuilder, HookRegistry};
 
 pub use crate::yolo_classifier::YoloClassifier;
 
@@ -427,7 +426,11 @@ pub fn classify_with_mode(action: &str, mode: Mode) -> BridgeDecision {
         }
 
         return BridgeDecision::Prompt {
-            reason: format!("Tool action '{}' requires permission in current mode {:?}", lower, current_mode()),
+            reason: format!(
+                "Tool action '{}' requires permission in current mode {:?}",
+                lower,
+                current_mode()
+            ),
             allow_once_code: String::new(),
             alternatives: vec![],
         };
@@ -450,7 +453,13 @@ pub fn classify_with_mode(action: &str, mode: Mode) -> BridgeDecision {
         Ok(mut session) => ENGINE.evaluate(&mut session, &tool, mode, &effects),
         // If the session mutex is poisoned we fall back to "needs prompt"
         // which is the safest choice for jcode's queue/TUI flow.
-        Err(_) => return BridgeDecision::Prompt { reason: "Session poisoned".into(), allow_once_code: String::new(), alternatives: vec![] },
+        Err(_) => {
+            return BridgeDecision::Prompt {
+                reason: "Session poisoned".into(),
+                allow_once_code: String::new(),
+                alternatives: vec![],
+            };
+        }
     };
 
     match decision {
@@ -786,11 +795,17 @@ mod tests {
             "read must allow in Plan"
         );
         assert!(
-            matches!(classify_with_mode("todowrite", Mode::Plan), BridgeDecision::Deny { .. }),
+            matches!(
+                classify_with_mode("todowrite", Mode::Plan),
+                BridgeDecision::Deny { .. }
+            ),
             "todowrite must deny in Plan"
         );
         assert!(
-            matches!(classify_with_mode("memory", Mode::Plan), BridgeDecision::Deny { .. }),
+            matches!(
+                classify_with_mode("memory", Mode::Plan),
+                BridgeDecision::Deny { .. }
+            ),
             "memory writes must deny in Plan"
         );
     }
@@ -821,7 +836,10 @@ mod tests {
             "future_destructive_tool",
         ] {
             assert!(
-                matches!(classify_with_mode(action, Mode::Default), BridgeDecision::Prompt { .. }),
+                matches!(
+                    classify_with_mode(action, Mode::Default),
+                    BridgeDecision::Prompt { .. }
+                ),
                 "{action} must require permission in Default mode"
             );
         }
@@ -834,9 +852,10 @@ mod tests {
             classify_with_mode("READ", Mode::Default),
             BridgeDecision::Allow
         );
-        assert!(
-            matches!(classify_with_mode("Bash", Mode::Default), BridgeDecision::Prompt { .. })
-        );
+        assert!(matches!(
+            classify_with_mode("Bash", Mode::Default),
+            BridgeDecision::Prompt { .. }
+        ));
     }
 
     #[test]
@@ -874,7 +893,10 @@ mod tests {
             "todowrite must allow in AcceptEdits"
         );
         assert!(
-            matches!(classify_for_agent("todowrite", Some(PM::Plan)), BridgeDecision::Deny { .. }),
+            matches!(
+                classify_for_agent("todowrite", Some(PM::Plan)),
+                BridgeDecision::Deny { .. }
+            ),
             "todowrite must deny in Plan"
         );
     }
@@ -1066,12 +1088,14 @@ mod tests {
     fn consume_allow_once_validates_shape_before_hash() {
         // The function should reject non-6-hex strings without touching
         // the session (no panic, no hang).
-        assert!(!consume_allow_once("nothex!"),
-            "non-hex must be rejected before hash");
-        assert!(!consume_allow_once(""),
-            "empty must be rejected");
-        assert!(!consume_allow_once(
-            &"a".repeat(100_000)
-        ), "long string must be rejected before hash");
+        assert!(
+            !consume_allow_once("nothex!"),
+            "non-hex must be rejected before hash"
+        );
+        assert!(!consume_allow_once(""), "empty must be rejected");
+        assert!(
+            !consume_allow_once(&"a".repeat(100_000)),
+            "long string must be rejected before hash"
+        );
     }
 }

@@ -898,7 +898,7 @@ mod newest_reload_candidate_integration_tests {
     fn normal_user_daemon_detects_and_targets_update_after_update() {
         let _guard = crate::storage::lock_test_env();
         let temp = tempfile::TempDir::new().expect("temp dir");
-        let prev_home = std::env::var_os("JCODE_HOME");
+        let _prev_home = std::env::var_os("JCODE_HOME");
         crate::env::set_var("JCODE_HOME", temp.path());
 
         let base = SystemTime::UNIX_EPOCH + Duration::from_secs(1_000_000);

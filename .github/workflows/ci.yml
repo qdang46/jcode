@@ -165,7 +165,7 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
         with:
-          sharedKey: build-test-${{ matrix.os }}
+          shared-key: build-test-${{ matrix.os }}
           key: ${{ matrix.os }}-${{ steps.rustc-version.outputs.version }}
 
       - name: Install mold linker (Linux)

@@ -122,7 +122,12 @@ fn list_files_recursive(root: &Path, dir: &Path, files: &mut Vec<String>) -> any
 }
 
 /// Save a task to a directory structure.
-pub fn save_task(task_dir: &Path, task: &EditTask, mutated_content: &str, original_content: &str) -> anyhow::Result<()> {
+pub fn save_task(
+    task_dir: &Path,
+    task: &EditTask,
+    mutated_content: &str,
+    original_content: &str,
+) -> anyhow::Result<()> {
     let input_dir = task_dir.join("input");
     let expected_dir = task_dir.join("expected");
 
@@ -131,14 +136,8 @@ pub fn save_task(task_dir: &Path, task: &EditTask, mutated_content: &str, origin
 
     // Write mutated content to input/
     for file in &task.files {
-        std::fs::write(
-            input_dir.join(file),
-            mutated_content,
-        )?;
-        std::fs::write(
-            expected_dir.join(file),
-            original_content,
-        )?;
+        std::fs::write(input_dir.join(file), mutated_content)?;
+        std::fs::write(expected_dir.join(file), original_content)?;
     }
 
     // Write prompt

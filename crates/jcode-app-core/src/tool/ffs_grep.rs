@@ -78,7 +78,9 @@ impl Tool for FfsGrepTool {
             return Err(anyhow::anyhow!("Directory not found: {}", base_path_str));
         }
 
-        let use_regex = params.regex.unwrap_or_else(|| has_regex_metacharacters(&params.pattern));
+        let use_regex = params
+            .regex
+            .unwrap_or_else(|| has_regex_metacharacters(&params.pattern));
         let pattern = params.pattern.clone();
         let pattern_for_display = params.pattern.clone();
 
@@ -126,7 +128,9 @@ impl Tool for FfsGrepTool {
 
 /// Check if a pattern contains regex metacharacters.
 fn has_regex_metacharacters(pattern: &str) -> bool {
-    pattern.contains(|ch: char| matches!(ch, '.' | '*' | '+' | '?' | '(' | ')' | '[' | ']' | '{' | '}' | '^' | '$' | '|' | '\\'))
+    pattern.contains([
+        '.', '*', '+', '?', '(', ')', '[', ']', '{', '}', '^', '$', '|', '\\',
+    ])
 }
 
 /// Literal grep using SIMD-accelerated memchr::memmem::Finder.
@@ -192,7 +196,9 @@ fn grep_blocking_literal(base: &Path, pattern: &str) -> Result<Vec<GrepResult>> 
                     let matched = if is_case_sensitive {
                         finder.find(line.as_bytes()).is_some()
                     } else {
-                        finder_lower.find(line.to_ascii_lowercase().as_bytes()).is_some()
+                        finder_lower
+                            .find(line.to_ascii_lowercase().as_bytes())
+                            .is_some()
                     };
 
                     if matched {

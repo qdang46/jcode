@@ -82,11 +82,9 @@ impl App {
             .working_dir
             .as_deref()
             .map(std::path::Path::new);
-        let notepad_prompt = crate::notepad::Notepad::new(
-            working_dir,
-            &crate::config::config().notepad,
-        )
-        .and_then(|n| n.priority_prompt_block());
+        let notepad_prompt =
+            crate::notepad::Notepad::new(working_dir, &crate::config::config().notepad)
+                .and_then(|n| n.priority_prompt_block());
 
         let (mut split, context_info) = crate::prompt::build_system_prompt_split(
             skill_prompt.as_deref(),

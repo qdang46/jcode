@@ -105,7 +105,6 @@ mmdr-size-api = ["jcode-tui-mermaid/mmdr-size-api"]
 # jcode-base) so downstream crates' test targets can reach the whole stack's
 # test helpers. Never enabled in normal (non-test) builds.
 test-support = ["jcode-app-core/test-support"]
-dcp = ["jcode-app-core/dcp"]
 
 [dev-dependencies]
 # Enables the downstream test-support helpers for *this* crate's own test

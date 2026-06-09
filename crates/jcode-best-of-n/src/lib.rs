@@ -35,8 +35,8 @@
 
 pub mod config;
 pub mod selector;
-pub mod strategies;
 pub mod store;
+pub mod strategies;
 pub mod types;
 
 // Re-export key types at the crate root.

@@ -34,8 +34,7 @@ impl NotepadTool {
 
     fn disabled_message() -> ToolOutput {
         ToolOutput::new(
-            "Notepad is disabled. Enable it in your config (notepad.enabled: true)."
-                .to_string(),
+            "Notepad is disabled. Enable it in your config (notepad.enabled: true).".to_string(),
         )
     }
 
@@ -193,10 +192,7 @@ impl Tool for NotepadTool {
         // so wrapping the whole operation in spawn_blocking keeps the
         // async runtime healthy.
         let result = tokio::task::spawn_blocking(move || {
-            if name == TOOL_READ_PRIORITY
-                || name == TOOL_READ_WORKING
-                || name == TOOL_READ_MANUAL
-            {
+            if name == TOOL_READ_PRIORITY || name == TOOL_READ_WORKING || name == TOOL_READ_MANUAL {
                 Ok::<String, crate::notepad::NotepadError>(notepad.read(tier))
             } else {
                 notepad.write(tier, &content)?;
@@ -341,7 +337,11 @@ impl Tool for NotepadStatsTool {
                 "- {}: {} bytes {}",
                 t.name,
                 t.file_size_bytes,
-                if t.has_content { "(has content)" } else { "(empty)" }
+                if t.has_content {
+                    "(has content)"
+                } else {
+                    "(empty)"
+                }
             ));
         }
         Ok(ToolOutput::new(lines.join("\n")))
@@ -403,7 +403,10 @@ mod tests {
         assert!(output.output.contains("Wrote priority notepad"));
 
         let read_tool = NotepadTool::read_priority();
-        let output = read_tool.execute(json!({}), test_ctx(dir.path())).await.unwrap();
+        let output = read_tool
+            .execute(json!({}), test_ctx(dir.path()))
+            .await
+            .unwrap();
         assert!(output.output.contains("test content"));
     }
 
@@ -413,10 +416,7 @@ mod tests {
         let write_tool = NotepadTool::write_priority();
         // confirm: true is configured, so omitting it must refuse.
         let output = write_tool
-            .execute(
-                json!({"content": "sneaky content"}),
-                test_ctx(dir.path()),
-            )
+            .execute(json!({"content": "sneaky content"}), test_ctx(dir.path()))
             .await
             .unwrap();
         assert!(
@@ -443,7 +443,10 @@ mod tests {
                 "working" => NotepadTool::read_working(),
                 _ => NotepadTool::read_manual(),
             };
-            let output = read_tool.execute(json!({}), test_ctx(dir.path())).await.unwrap();
+            let output = read_tool
+                .execute(json!({}), test_ctx(dir.path()))
+                .await
+                .unwrap();
             assert!(output.output.contains(content));
         }
     }
@@ -492,7 +495,10 @@ mod tests {
         // All notepad tool names must be prefixed with `notepad_` to
         // avoid collisions with future built-in or MCP tools.
         assert_eq!(NotepadTool::read_priority().name(), "notepad_read_priority");
-        assert_eq!(NotepadTool::write_priority().name(), "notepad_write_priority");
+        assert_eq!(
+            NotepadTool::write_priority().name(),
+            "notepad_write_priority"
+        );
         assert_eq!(NotepadTool::read_working().name(), "notepad_read_working");
         assert_eq!(NotepadTool::write_working().name(), "notepad_write_working");
         assert_eq!(NotepadTool::read_manual().name(), "notepad_read_manual");

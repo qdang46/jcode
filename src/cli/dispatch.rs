@@ -7,12 +7,11 @@ use std::time::Instant;
 
 use super::args::{
     AmbientCommand, Args, AuthCommand, CloudCommand, CloudSessionsCommand, Command, MemoryCommand,
-    ModelCommand, PermissionCommand, ProviderCommand, RestartCommand, SecretsCommand, ServerCommand, SessionCommand,
-    TranscriptModeArg,
+    ModelCommand, PermissionCommand, ProviderCommand, RestartCommand, SecretsCommand,
+    ServerCommand, SessionCommand, TranscriptModeArg,
 };
 use crate::{
     agent, auth, build, provider, provider_catalog, server, session, setup_hints, startup_profile,
-    tui,
 };
 
 use super::{
@@ -66,10 +65,12 @@ pub(crate) async fn run_main(mut args: Args) -> Result<()> {
     // and the [permission_mode] TOML field.
     {
         let config = crate::config::config();
-        if let Some(ref mode_str) = config.permission_mode {
-            if !crate::dcg_bridge::set_mode_from_str(mode_str) {
-                eprintln!("Warning: JCODE_PERMISSION_MODE='{mode_str}' is not a valid mode; using Default");
-            }
+        if let Some(ref mode_str) = config.permission_mode
+            && !crate::dcg_bridge::set_mode_from_str(mode_str)
+        {
+            eprintln!(
+                "Warning: JCODE_PERMISSION_MODE='{mode_str}' is not a valid mode; using Default"
+            );
         }
         // --dangerously-skip-permissions CLI flag overrides everything
         if args.dangerously_skip_permissions {
@@ -307,13 +308,19 @@ pub(crate) async fn run_main(mut args: Args) -> Result<()> {
             }
             PermissionCommand::Mode => {
                 let mode = crate::dcg_bridge::current_mode();
-                println!("Current permission mode: {}", crate::dcg_bridge::mode_to_str(mode));
+                println!(
+                    "Current permission mode: {}",
+                    crate::dcg_bridge::mode_to_str(mode)
+                );
             }
             PermissionCommand::Set { mode } => {
                 if crate::dcg_bridge::set_mode_from_str(&mode) {
                     println!("Permission mode set to: {}", mode);
                 } else {
-                    eprintln!("Error: unknown permission mode '{}'. Valid: default, accept-edits, plan, auto, dont-ask, bypass-permissions", mode);
+                    eprintln!(
+                        "Error: unknown permission mode '{}'. Valid: default, accept-edits, plan, auto, dont-ask, bypass-permissions",
+                        mode
+                    );
                 }
             }
         },
@@ -330,7 +337,9 @@ pub(crate) async fn run_main(mut args: Args) -> Result<()> {
             // Deprecated alias: show current mode (same as `jcode permission mode`).
             let mode = crate::dcg_bridge::current_mode();
             println!("Current permission mode: {:?}", mode);
-            println!("(The `jcode permissions` command is deprecated; use `jcode permission mode`)");
+            println!(
+                "(The `jcode permissions` command is deprecated; use `jcode permission mode`)"
+            );
         }
         Some(Command::Transcript {
             text,

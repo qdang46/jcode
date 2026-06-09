@@ -1722,7 +1722,7 @@ fn render_ambient_widget(data: &InfoWidgetData, inner: Rect) -> Vec<Line<'static
             "⏸",
             format!(
                 "Paused: {}",
-                truncate_smart(&reason, inner.width.saturating_sub(12) as usize)
+                truncate_smart(reason, inner.width.saturating_sub(12) as usize)
             ),
             rgb(255, 200, 100),
         ),
