@@ -304,7 +304,8 @@ impl jcode_memory_types::MemoryProvider for MempalaceAdapter {
         let tags = entry.tags.clone();
         let source = entry.source.as_deref();
         let content = entry.content.clone();
-        self.remember(&content, category, &tags, scope, source).await
+        self.remember(&content, category, &tags, scope, source)
+            .await
     }
 
     async fn recall(
@@ -323,15 +324,26 @@ impl jcode_memory_types::MemoryProvider for MempalaceAdapter {
                 }
                 _ => None,
             };
-            let drawers = self.palace.get_drawers(search_scope.as_ref(), Some(limit)).await?;
+            let drawers = self
+                .palace
+                .get_drawers(search_scope.as_ref(), Some(limit))
+                .await?;
             let mut entries: Vec<_> = drawers
                 .into_iter()
                 .map(|d| {
                     let kind = match d.kind {
-                        mempalace_core::DrawerKind::Fact => jcode_memory_types::MemoryCategory::Fact,
-                        mempalace_core::DrawerKind::Preference => jcode_memory_types::MemoryCategory::Preference,
-                        mempalace_core::DrawerKind::Entity => jcode_memory_types::MemoryCategory::Entity,
-                        mempalace_core::DrawerKind::Correction => jcode_memory_types::MemoryCategory::Correction,
+                        mempalace_core::DrawerKind::Fact => {
+                            jcode_memory_types::MemoryCategory::Fact
+                        }
+                        mempalace_core::DrawerKind::Preference => {
+                            jcode_memory_types::MemoryCategory::Preference
+                        }
+                        mempalace_core::DrawerKind::Entity => {
+                            jcode_memory_types::MemoryCategory::Entity
+                        }
+                        mempalace_core::DrawerKind::Correction => {
+                            jcode_memory_types::MemoryCategory::Correction
+                        }
                         _ => jcode_memory_types::MemoryCategory::Fact,
                     };
                     let entry = jcode_memory_types::MemoryEntry {
@@ -533,7 +545,11 @@ impl jcode_memory_types::MemoryProvider for MempalaceAdapter {
     }
 
     async fn load_all_entries(&self) -> anyhow::Result<Vec<jcode_memory_types::MemoryEntry>> {
-        <Self as jcode_memory_types::MemoryProvider>::list_all(self, jcode_memory_types::MemoryScope::All).await
+        <Self as jcode_memory_types::MemoryProvider>::list_all(
+            self,
+            jcode_memory_types::MemoryScope::All,
+        )
+        .await
     }
 }
 
@@ -552,9 +568,13 @@ impl jcode_memory_types::GraphOperations for MempalaceAdapter {
         for d in drawers {
             let kind = match d.kind {
                 mempalace_core::DrawerKind::Fact => jcode_memory_types::MemoryCategory::Fact,
-                mempalace_core::DrawerKind::Preference => jcode_memory_types::MemoryCategory::Preference,
+                mempalace_core::DrawerKind::Preference => {
+                    jcode_memory_types::MemoryCategory::Preference
+                }
                 mempalace_core::DrawerKind::Entity => jcode_memory_types::MemoryCategory::Entity,
-                mempalace_core::DrawerKind::Correction => jcode_memory_types::MemoryCategory::Correction,
+                mempalace_core::DrawerKind::Correction => {
+                    jcode_memory_types::MemoryCategory::Correction
+                }
                 _ => jcode_memory_types::MemoryCategory::Fact,
             };
             let entry = jcode_memory_types::MemoryEntry {
@@ -591,9 +611,13 @@ impl jcode_memory_types::GraphOperations for MempalaceAdapter {
             }
             let kind = match d.kind {
                 mempalace_core::DrawerKind::Fact => jcode_memory_types::MemoryCategory::Fact,
-                mempalace_core::DrawerKind::Preference => jcode_memory_types::MemoryCategory::Preference,
+                mempalace_core::DrawerKind::Preference => {
+                    jcode_memory_types::MemoryCategory::Preference
+                }
                 mempalace_core::DrawerKind::Entity => jcode_memory_types::MemoryCategory::Entity,
-                mempalace_core::DrawerKind::Correction => jcode_memory_types::MemoryCategory::Correction,
+                mempalace_core::DrawerKind::Correction => {
+                    jcode_memory_types::MemoryCategory::Correction
+                }
                 _ => jcode_memory_types::MemoryCategory::Fact,
             };
             let entry = jcode_memory_types::MemoryEntry {
@@ -623,14 +647,18 @@ impl jcode_memory_types::GraphOperations for MempalaceAdapter {
         &self,
         _graph: &jcode_memory_types::MemoryGraph,
     ) -> anyhow::Result<()> {
-        anyhow::bail!("save_project_graph not supported by MempalaceAdapter; memories are stored as Drawers in the Palace")
+        anyhow::bail!(
+            "save_project_graph not supported by MempalaceAdapter; memories are stored as Drawers in the Palace"
+        )
     }
 
     async fn save_global_graph(
         &self,
         _graph: &jcode_memory_types::MemoryGraph,
     ) -> anyhow::Result<()> {
-        anyhow::bail!("save_global_graph not supported by MempalaceAdapter; memories are stored as Drawers in the Palace")
+        anyhow::bail!(
+            "save_global_graph not supported by MempalaceAdapter; memories are stored as Drawers in the Palace"
+        )
     }
 }
 

@@ -98,8 +98,9 @@ members = [
 # lands on crates.io. The git rev will be bumped as new ffs features land.
 # Remove this block once ffs-search 0.2.0 is published.
 [workspace.dependencies]
-ffs-search = { git = "https://github.com/quangdang46/fast_file_search", rev = "a8305de" }
-ffs-engine = { git = "https://github.com/quangdang46/fast_file_search", rev = "a8305de" }
+ffs-search = { git = "https://github.com/quangdang46/fast_file_search", rev = "bad44ac" }
+ffs-engine = { git = "https://github.com/quangdang46/fast_file_search", rev = "bad44ac" }
+ffs-symbol = { git = "https://github.com/quangdang46/fast_file_search", rev = "bad44ac" }
 strum = { version = "0.26", features = ["derive"] }
 regex = "1"
 

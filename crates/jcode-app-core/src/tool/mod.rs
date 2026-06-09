@@ -1,6 +1,7 @@
 mod agentgrep;
 pub mod ambient;
 mod apply_patch;
+mod binary_ext;
 mod bash;
 mod batch;
 mod best_of_n;
@@ -117,8 +118,7 @@ fn session_tool_policy(session_id: &str) -> Option<SessionToolPolicy> {
 ///
 /// Uses `StdRwLock` (not `OnceLock`) so the handle is updated on each run
 /// rather than being permanently stuck on the first run's values.
-static BEST_OF_N_HANDLE: StdRwLock<Option<BestOfNOrchestratorHandle>> =
-    StdRwLock::new(None);
+static BEST_OF_N_HANDLE: StdRwLock<Option<BestOfNOrchestratorHandle>> = StdRwLock::new(None);
 
 /// Install the global best-of-N handle. Called by the agent when a
 /// best-of-N run starts. Updates on every call so subsequent runs
@@ -644,9 +644,7 @@ impl Registry {
                     return provider;
                 }
                 Err(e) => {
-                    crate::logging::warn(&format!(
-                        "Failed to open mempalace, using legacy: {e}"
-                    ));
+                    crate::logging::warn(&format!("Failed to open mempalace, using legacy: {e}"));
                 }
             }
         }

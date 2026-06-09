@@ -1152,7 +1152,10 @@ async fn gather_memory_info_with_provider(
     let project_graph = provider.load_project_graph().await.ok();
     let global_graph = provider.load_global_graph().await.ok();
 
-    let project_count = project_graph.as_ref().map(|g| g.memory_count()).unwrap_or(0);
+    let project_count = project_graph
+        .as_ref()
+        .map(|g| g.memory_count())
+        .unwrap_or(0);
     let global_count = global_graph.as_ref().map(|g| g.memory_count()).unwrap_or(0);
 
     let mut by_category = std::collections::HashMap::new();
@@ -1196,9 +1199,8 @@ async fn gather_memory_info_with_provider(
 /// Kept for backward compatibility. Callers that already hold a provider should
 /// call `gather_memory_info_with_provider` directly.
 fn gather_memory_info_inner() -> Option<MemoryInfo> {
-    let provider: std::sync::Arc<
-        dyn jcode_memory_types::MemoryProvider,
-    > = std::sync::Arc::new(crate::memory::MemoryManager::new());
+    let provider: std::sync::Arc<dyn jcode_memory_types::MemoryProvider> =
+        std::sync::Arc::new(crate::memory::MemoryManager::new());
     futures::executor::block_on(gather_memory_info_with_provider(provider))
 }
 

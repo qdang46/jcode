@@ -7,6 +7,7 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 use std::path::Path;
 use std::sync::Arc;
+use super::binary_ext::is_binary_extension;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 const MAX_RESULTS: usize = 100;
@@ -366,19 +367,6 @@ fn grep_blocking_regex(base: &Path, pattern: &str) -> Result<Vec<GrepResult>> {
     final_results.truncate(MAX_RESULTS);
 
     Ok(final_results)
-}
-
-fn is_binary_extension(path: &Path) -> bool {
-    if let Some(ext) = path.extension() {
-        let ext = ext.to_string_lossy().to_lowercase();
-        let binary_exts = [
-            "png", "jpg", "jpeg", "gif", "bmp", "ico", "webp", "pdf", "zip", "tar", "gz", "bz2",
-            "xz", "7z", "rar", "exe", "dll", "so", "dylib", "o", "a", "class", "pyc", "wasm",
-            "mp3", "mp4", "avi", "mov", "mkv", "flac", "ogg", "wav", "ttf", "woff", "woff2",
-        ];
-        return binary_exts.contains(&ext.as_str());
-    }
-    false
 }
 
 #[cfg(test)]

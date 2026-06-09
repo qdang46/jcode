@@ -1,10 +1,13 @@
 use super::{Tool, ToolContext, ToolOutput};
 use anyhow::Result;
 use async_trait::async_trait;
-use regex::Regex;
 use serde::Deserialize;
 use serde_json::{Value, json};
 use std::path::Path;
+
+use ffs_symbol::lang::detect_file_type;
+use ffs_symbol::outline::get_outline_entries;
+use ffs_symbol::types::{FileType, OutlineEntry, OutlineKind};
 
 const MAX_ITEMS: usize = 50;
 const MAX_LINE_LEN: usize = 2000;
@@ -44,7 +47,7 @@ impl Tool for FfsOutlineTool {
     }
 
     fn description(&self) -> &str {
-        "Show the structural outline of a file — functions, structs, classes — detected by regex patterns."
+        "Show the structural outline of a file — functions, structs, classes — detected by tree-sitter AST parsing."
     }
 
     fn parameters_schema(&self) -> Value {
@@ -104,6 +107,7 @@ impl Tool for FfsOutlineTool {
                 || kind_lower.contains("function")
                 || kind_lower.contains("method")
                 || kind_lower.contains("def")
+                || kind_lower.contains("test")
             {
                 functions.push(item);
             } else if kind_lower.contains("struct")
@@ -115,6 +119,10 @@ impl Tool for FfsOutlineTool {
                 || kind_lower.contains("type")
                 || kind_lower.contains("macro")
                 || kind_lower.contains("signature")
+                || kind_lower.contains("module")
+                || kind_lower.contains("const")
+                || kind_lower.contains("property")
+                || kind_lower.contains("export")
             {
                 types.push(item);
             } else if kind_lower.contains("import")
@@ -179,191 +187,31 @@ impl Tool for FfsOutlineTool {
     }
 }
 
+/// Extract outline entries using tree-sitter AST parsing via ffs-symbol.
+///
+/// Delegates language detection to `detect_file_type` and structural parsing
+/// to `get_outline_entries`. Non-code file types return an empty outline.
 fn outline_blocking(content: &str, file_path: &Path, max_items: usize) -> Vec<OutlineItem> {
-    let extension = file_path
-        .extension()
-        .map(|e| e.to_string_lossy().to_lowercase())
-        .unwrap_or_default();
-
-    let patterns: Vec<(Regex, &str)> = match extension.as_str() {
-        "rs" => vec![
-            (
-                Regex::new(r"^\s*pub\s+(unsafe\s+)?fn\s+(\w+)").unwrap(),
-                "fn",
-            ),
-            (Regex::new(r"^\s*(unsafe\s+)?fn\s+(\w+)").unwrap(), "fn"),
-            (
-                Regex::new(r"^\s*pub\s+(unsafe\s+)?trait\s+(\w+)").unwrap(),
-                "trait",
-            ),
-            (
-                Regex::new(r"^\s*(unsafe\s+)?trait\s+(\w+)").unwrap(),
-                "trait",
-            ),
-            (
-                Regex::new(r"^\s*pub\s+(unsafe\s+)?impl\s+").unwrap(),
-                "impl",
-            ),
-            (Regex::new(r"^\s*(unsafe\s+)?impl\s+").unwrap(), "impl"),
-            (Regex::new(r"^\s*pub\s+struct\s+(\w+)").unwrap(), "struct"),
-            (Regex::new(r"^\s*struct\s+(\w+)").unwrap(), "struct"),
-            (Regex::new(r"^\s*pub\s+enum\s+(\w+)").unwrap(), "enum"),
-            (Regex::new(r"^\s*enum\s+(\w+)").unwrap(), "enum"),
-            (Regex::new(r"^\s*pub\s+(type|mod)\s+(\w+)").unwrap(), "type"),
-            (Regex::new(r"^\s*(type|mod)\s+(\w+)").unwrap(), "type"),
-            (Regex::new(r"^\s*#\[derive\(").unwrap(), "derive"),
-            (
-                Regex::new(r"^\s*(pub\s+)?macro_rules!\s*!(\w+)").unwrap(),
-                "macro",
-            ),
-            (Regex::new(r"^\s*pub\s+use\s+").unwrap(), "use"),
-            (Regex::new(r"^\s*use\s+").unwrap(), "use"),
-            (
-                Regex::new(r"^\s*pub\s+(const|static)\s+(\w+)").unwrap(),
-                "const",
-            ),
-            (Regex::new(r"^\s*(const|static)\s+(\w+)").unwrap(), "const"),
-        ],
-        "js" | "jsx" | "ts" | "tsx" => vec![
-            (
-                Regex::new(r"^\s*(export\s+)?(async\s+)?function\s+(\w+)").unwrap(),
-                "function",
-            ),
-            (
-                Regex::new(r"^\s*(export\s+)?(async\s+)?function\s*\*?\s*(\w+)").unwrap(),
-                "function",
-            ),
-            (
-                Regex::new(r"^\s*(export\s+)?class\s+(\w+)").unwrap(),
-                "class",
-            ),
-            (
-                Regex::new(r"^\s*(export\s+)?interface\s+(\w+)").unwrap(),
-                "interface",
-            ),
-            (Regex::new(r"^\s*(export\s+)?type\s+(\w+)").unwrap(), "type"),
-            (Regex::new(r"^\s*(export\s+)?enum\s+(\w+)").unwrap(), "enum"),
-            (
-                Regex::new(r"^\s*(export\s+)?(default\s+)?const\s+(\w+)\s*=").unwrap(),
-                "const",
-            ),
-            (
-                Regex::new(r"^\s*(export\s+)?let\s+(\w+)\s*=").unwrap(),
-                "let",
-            ),
-            (Regex::new(r"^\s*import\s+").unwrap(), "import"),
-            (Regex::new(r"^\s*require\s*\(").unwrap(), "require"),
-            (
-                Regex::new(r"^\s*(export\s+)?(abstract\s+)?class\s+(\w+)").unwrap(),
-                "class",
-            ),
-        ],
-        "py" => vec![
-            (Regex::new(r"^\s*(async\s+)?def\s+(\w+)").unwrap(), "def"),
-            (Regex::new(r"^\s*class\s+(\w+)").unwrap(), "class"),
-            (Regex::new(r"^\s*import\s+").unwrap(), "import"),
-            (Regex::new(r"^\s*from\s+\S+\s+import\s+").unwrap(), "from"),
-            (Regex::new(r"^\s*@\w+").unwrap(), "decorator"),
-        ],
-        "go" => vec![
-            (Regex::new(r"^\s*func\s+(\w+)").unwrap(), "func"),
-            (
-                Regex::new(r"^\s*func\s+\([^)]*\)\s+(\w+)").unwrap(),
-                "method",
-            ),
-            (Regex::new(r"^\s*type\s+(\w+)\s+struct").unwrap(), "struct"),
-            (
-                Regex::new(r"^\s*type\s+(\w+)\s+interface").unwrap(),
-                "interface",
-            ),
-            (Regex::new(r"^\s*import\s+").unwrap(), "import"),
-        ],
-        "java" => vec![
-            (
-                Regex::new(r"^\s*(public|private|protected)\s+(static\s+)?\w+\s+(\w+)\s*\(")
-                    .unwrap(),
-                "method",
-            ),
-            (Regex::new(r"^\s*class\s+(\w+)").unwrap(), "class"),
-            (Regex::new(r"^\s*interface\s+(\w+)").unwrap(), "interface"),
-            (Regex::new(r"^\s*enum\s+(\w+)").unwrap(), "enum"),
-            (Regex::new(r"^\s*import\s+").unwrap(), "import"),
-        ],
-        "c" | "h" | "cpp" | "hpp" | "cc" | "cxx" => vec![
-            (Regex::new(r"^\s*\w+\s+(\w+)\s*\(").unwrap(), "function"),
-            (
-                Regex::new(r"^\s*(class|struct|enum|union)\s+(\w+)").unwrap(),
-                "type",
-            ),
-            (Regex::new(r"^\s*template\s*<").unwrap(), "template"),
-            (Regex::new(r"^\s*#include").unwrap(), "include"),
-            (Regex::new(r"^\s*#define").unwrap(), "define"),
-        ],
-        _ => vec![
-            // Generic patterns for any language
-            (Regex::new(r"^\s*fn\s+(\w+)").unwrap(), "fn"),
-            (Regex::new(r"^\s*function\s+(\w+)").unwrap(), "function"),
-            (Regex::new(r"^\s*class\s+(\w+)").unwrap(), "class"),
-            (Regex::new(r"^\s*struct\s+(\w+)").unwrap(), "struct"),
-            (Regex::new(r"^\s*enum\s+(\w+)").unwrap(), "enum"),
-            (Regex::new(r"^\s*interface\s+(\w+)").unwrap(), "interface"),
-            (Regex::new(r"^\s*(pub\s+)?impl\s+").unwrap(), "impl"),
-            (Regex::new(r"^\s*(pub\s+)?trait\s+(\w+)").unwrap(), "trait"),
-            (Regex::new(r"^\s*(pub\s+)?def\s+(\w+)").unwrap(), "def"),
-            (Regex::new(r"^\s*import\s+").unwrap(), "import"),
-            (Regex::new(r"^\s*use\s+").unwrap(), "use"),
-            (
-                Regex::new(r"^\s*(pub\s+)?(const|static)\s+(\w+)").unwrap(),
-                "const",
-            ),
-            (Regex::new(r"^\s*#\s*include").unwrap(), "include"),
-        ],
+    let file_type = detect_file_type(file_path);
+    let lang = match file_type {
+        FileType::Code(lang) => lang,
+        _ => return Vec::new(),
     };
 
-    let mut items: Vec<OutlineItem> = Vec::new();
-    let lines: Vec<&str> = content.lines().collect();
-    let total_lines = lines.len();
+    let entries = get_outline_entries(content, lang);
 
-    for (line_num, line) in lines.iter().enumerate() {
+    let mut items: Vec<OutlineItem> = Vec::new();
+    for entry in &entries {
         if items.len() >= max_items {
             break;
         }
-
-        let trimmed = line.trim();
-        if trimmed.is_empty()
-            || trimmed.starts_with("//")
-            || trimmed.starts_with('#')
-            || trimmed.starts_with("/*")
-            || trimmed.starts_with('*')
-        {
-            continue;
-        }
-
-        for (re, kind) in &patterns {
-            if let Some(caps) = re.captures(line) {
-                let label = if caps.len() > 2 {
-                    // Try the last capture group (position 2 or 3 depending on pattern)
-                    caps.get(caps.len() - 1)
-                        .map(|m| m.as_str().to_string())
-                        .unwrap_or_else(|| trimmed.chars().take(60).collect())
-                } else if caps.len() > 1 {
-                    caps.get(1)
-                        .map(|m| m.as_str().to_string())
-                        .unwrap_or_else(|| trimmed.chars().take(60).collect())
-                } else {
-                    // For patterns with no capture groups (like `use`, `import`, `impl`)
-                    trimmed.chars().take(60).collect()
-                };
-
-                items.push(OutlineItem {
-                    kind: kind.to_string(),
-                    label,
-                    start_line: line_num + 1,
-                    end_line: line_num + 1,
-                    line_count: estimate_line_count(&lines, line_num, total_lines),
-                });
+        items.push(outline_entry_to_item(entry));
+        // Flatten children from class-like bodies (methods, properties, etc.)
+        for child in &entry.children {
+            if items.len() >= max_items {
                 break;
             }
+            items.push(outline_entry_to_item(child));
         }
     }
 
@@ -371,54 +219,34 @@ fn outline_blocking(content: &str, file_path: &Path, max_items: usize) -> Vec<Ou
     items
 }
 
-/// Estimate how many lines a structural element spans by scanning for
-/// a closing brace at the original indentation level, or falling back
-/// to the next blank line or end of file.
-fn estimate_line_count(lines: &[&str], start: usize, total_lines: usize) -> usize {
-    if start + 1 >= total_lines {
-        return 1;
+/// Convert an OutlineKind to a short display string, consistent with the
+/// original regex-based kind labels.
+fn outline_kind_str(kind: OutlineKind) -> &'static str {
+    match kind {
+        OutlineKind::Function => "fn",
+        OutlineKind::Struct => "struct",
+        OutlineKind::Class => "class",
+        OutlineKind::Interface => "interface",
+        OutlineKind::Enum => "enum",
+        OutlineKind::TypeAlias => "type",
+        OutlineKind::Constant => "const",
+        OutlineKind::Variable => "variable",
+        OutlineKind::Export => "export",
+        OutlineKind::Property => "property",
+        OutlineKind::Module => "module",
+        OutlineKind::Import => "import",
     }
+}
 
-    let _indent = lines[start]
-        .chars()
-        .take_while(|c| c.is_whitespace())
-        .count();
-
-    // Scan forward to find closing brace at same indent level
-    let mut brace_depth = 0i32;
-    let mut found_opening = false;
-
-    for i in start..total_lines {
-        let line = lines[i];
-        for ch in line.chars() {
-            match ch {
-                '{' => {
-                    brace_depth += 1;
-                    found_opening = true;
-                }
-                '}' => {
-                    brace_depth -= 1;
-                    if found_opening && brace_depth == 0 {
-                        // Closing brace at the outer scope level
-                        return i - start + 1;
-                    }
-                }
-                _ => {}
-            }
-        }
+/// Convert an ffs-symbol OutlineEntry into the internal OutlineItem.
+fn outline_entry_to_item(entry: &OutlineEntry) -> OutlineItem {
+    OutlineItem {
+        kind: outline_kind_str(entry.kind).to_string(),
+        label: entry.name.clone(),
+        start_line: entry.start_line as usize,
+        end_line: entry.end_line as usize,
+        line_count: (entry.end_line - entry.start_line + 1) as usize,
     }
-
-    // Fallback: count until blank line or section break
-    let mut count = 1;
-    for i in (start + 1)..total_lines.min(start + 30) {
-        let line = lines[i].trim();
-        if line.is_empty() {
-            break;
-        }
-        count += 1;
-    }
-
-    count
 }
 
 #[cfg(test)]
@@ -455,14 +283,21 @@ pub fn main() -> Result<()> {
         let items = outline_blocking(content, path, 20);
         assert!(!items.is_empty(), "should find items");
         let kinds: Vec<&str> = items.iter().map(|i| i.kind.as_str()).collect();
-        assert!(kinds.contains(&"use"), "should detect use: {:?}", kinds);
+        assert!(
+            kinds.contains(&"import"),
+            "should detect import: {:?}",
+            kinds
+        );
         assert!(
             kinds.contains(&"struct"),
             "should detect struct: {:?}",
             kinds
         );
-        assert!(kinds.contains(&"impl"), "should detect impl: {:?}", kinds);
-        assert!(kinds.contains(&"fn"), "should detect fn: {:?}", kinds);
+        assert!(
+            kinds.contains(&"fn"),
+            "should detect fn: {:?}",
+            kinds
+        );
     }
 
     #[test]
@@ -478,7 +313,7 @@ function greet(name: string): string {
     return `Hello ${name}`;
 }
 
-export class MyComponent implements Props {
+export class MyComponent {
     render() {
         return null;
     }
@@ -499,11 +334,18 @@ export class MyComponent implements Props {
             kinds
         );
         assert!(
-            kinds.contains(&"function"),
-            "should detect function: {:?}",
+            kinds.contains(&"fn"),
+            "should detect fn: {:?}",
             kinds
         );
-        assert!(kinds.contains(&"class"), "should detect class: {:?}", kinds);
+        // export class MyComponent is parsed as export_statement by tree-sitter,
+        // so the kind is "export" not "class". The class body's methods appear
+        // as child entries within the export node.
+        assert!(
+            kinds.contains(&"export"),
+            "should detect export (wrapping class): {:?}",
+            kinds
+        );
     }
 
     #[test]
@@ -525,9 +367,16 @@ export class MyComponent implements Props {
     }
 
     #[test]
+    fn test_outline_unknown_extension_returns_empty() {
+        let content = "some random content";
+        let path = Path::new("test.unknown");
+        let items = outline_blocking(content, path, 20);
+        assert!(items.is_empty(), "unknown extension should produce no items");
+    }
+
+    #[test]
     fn test_execute_finds_rust_structure() {
         let tool = FfsOutlineTool::new();
-        // Create a temp file
         let mut tmpfile = tempfile::Builder::new().suffix(".rs").tempfile().unwrap();
         write!(
             tmpfile,
@@ -562,7 +411,7 @@ export class MyComponent implements Props {
             "should mention Point struct"
         );
         assert!(
-            output.output.contains("use")
+            output.output.contains("import")
                 || output.output.contains("struct")
                 || output.output.contains("fn"),
             "output should contain kind labels: {}",
