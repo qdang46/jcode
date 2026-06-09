@@ -80,6 +80,9 @@ pub(crate) async fn run_main(mut args: Args) -> Result<()> {
         if config.dangerously_skip_permissions && !args.dangerously_skip_permissions {
             crate::dcg_bridge::set_mode_from_str("bypass-permissions");
         }
+
+        // Initialize execution policy engine from config (per-command rules)
+        crate::execution_policy::init_policy_engine(&config.execution_policy);
     }
 
     match args.command {

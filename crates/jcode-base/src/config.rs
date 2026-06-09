@@ -460,6 +460,9 @@ pub struct Config {
 
     /// Best-of-N parallel editing configuration
     pub best_of_n: jcode_best_of_n::BestOfNConfig,
+
+    /// Execution policy engine configuration (per-command rules).
+    pub execution_policy: jcode_config_types::ExecutionPolicyConfig,
 }
 
 /// Agent Client Protocol adapter configuration.

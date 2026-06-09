@@ -926,6 +926,8 @@ impl App {
                                             stdin_request_tx: None,
                                             graceful_shutdown_signal: None,
                                             execution_mode: crate::tool::ToolExecutionMode::AgentTurn,
+            best_of_n_run_id: None,
+            best_of_n_candidate_id: None,
                                         };
                                         let tool_result = self
                                             .registry
@@ -1202,6 +1204,8 @@ impl App {
                     stdin_request_tx: None,
                     graceful_shutdown_signal: None,
                     execution_mode: crate::tool::ToolExecutionMode::AgentTurn,
+            best_of_n_run_id: None,
+            best_of_n_candidate_id: None,
                 };
 
                 Bus::global().publish(BusEvent::ToolUpdated(ToolEvent {

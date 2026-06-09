@@ -35,6 +35,10 @@ pub struct ToolContext {
     pub stdin_request_tx: Option<tokio::sync::mpsc::UnboundedSender<StdinInputRequest>>,
     pub graceful_shutdown_signal: Option<InterruptSignal>,
     pub execution_mode: ToolExecutionMode,
+    /// Best-of-N run ID, set when executing within a best-of-N candidate cycle.
+    pub best_of_n_run_id: Option<String>,
+    /// Best-of-N candidate ID, set when executing within a best-of-N candidate cycle.
+    pub best_of_n_candidate_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -53,6 +57,8 @@ impl ToolContext {
             stdin_request_tx: self.stdin_request_tx.clone(),
             graceful_shutdown_signal: self.graceful_shutdown_signal.clone(),
             execution_mode: self.execution_mode,
+            best_of_n_run_id: self.best_of_n_run_id.clone(),
+            best_of_n_candidate_id: self.best_of_n_candidate_id.clone(),
         }
     }
 

@@ -1135,7 +1135,7 @@ pub(super) fn gather_memory_info(memory_enabled: bool) -> Option<MemoryInfo> {
 /// Uses `list_all()` and `graph_stats()` from the `MemoryProvider` trait, and
 /// `load_project_graph()`/`load_global_graph()` from `GraphOperations` for topology.
 async fn gather_memory_info_with_provider(
-    provider: std::sync::Arc<dyn jcode_memory_types::MemoryProvider + jcode_memory_types::GraphOperations>,
+    provider: std::sync::Arc<dyn jcode_memory_types::MemoryProvider>,
 ) -> Option<MemoryInfo> {
     let activity = crate::memory::get_activity();
     let sidecar_model = if crate::memory::memory_sidecar_enabled() {
@@ -1201,7 +1201,7 @@ async fn gather_memory_info_with_provider(
 /// call `gather_memory_info_with_provider` directly.
 fn gather_memory_info_inner() -> Option<MemoryInfo> {
     let provider: std::sync::Arc<
-        dyn jcode_memory_types::MemoryProvider + jcode_memory_types::GraphOperations,
+        dyn jcode_memory_types::MemoryProvider,
     > = std::sync::Arc::new(crate::memory::MemoryManager::new());
     futures::executor::block_on(gather_memory_info_with_provider(provider))
 }

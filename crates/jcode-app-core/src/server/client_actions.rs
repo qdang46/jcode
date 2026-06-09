@@ -366,6 +366,8 @@ pub(super) fn handle_run_subagent(
             stdin_request_tx: None,
             graceful_shutdown_signal: None,
             execution_mode: crate::tool::ToolExecutionMode::Direct,
+            best_of_n_run_id: None,
+            best_of_n_candidate_id: None,
         };
 
         let started = Instant::now();
