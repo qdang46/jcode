@@ -100,6 +100,15 @@ pub trait MemoryProvider: Send + Sync + GraphOperations {
     async fn load_all_entries(&self) -> Result<Vec<MemoryEntry>> {
         self.list_all(MemoryScope::All).await
     }
+
+    /// Backfill missing embeddings. Returns (generated, failed).
+    ///
+    /// Default: no-op (success = 0, 0). Backends that auto-embed on write
+    /// (e.g. MempalaceAdapter/Palace) don't need backfill. Legacy backends
+    /// (MemoryManager) override this with the real implementation.
+    async fn backfill_embeddings(&self) -> Result<(usize, usize)> {
+        Ok((0, 0))
+    }
 }
 
 /// Trait for graph-level memory operations (load/save full MemoryGraph).
