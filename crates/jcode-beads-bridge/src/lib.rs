@@ -21,3 +21,6 @@ pub use tasks::BeadsTaskManager;
 pub use beads_rust::model::{Issue, Status, Priority, IssueType};
 pub use beads_rust::storage::{self, ListFilters};
 pub use beads_rust::error::BeadsError;
+
+#[cfg(test)]
+mod tests;
