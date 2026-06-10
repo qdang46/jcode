@@ -22,7 +22,7 @@ fn openai_usage_cache() -> &'static std::sync::Mutex<HashMap<String, OpenAIUsage
     OPENAI_ACCOUNT_USAGE_CACHE.get_or_init(|| std::sync::Mutex::new(HashMap::new()))
 }
 
-pub(super) fn anthropic_usage_cache_key(access_token: &str, account_label: Option<&str>) -> String {
+fn token_cache_key(access_token: &str, account_label: Option<&str>) -> String {
     if let Some(label) = account_label
         .map(str::trim)
         .filter(|label| !label.is_empty())
@@ -30,28 +30,18 @@ pub(super) fn anthropic_usage_cache_key(access_token: &str, account_label: Optio
         return format!("label:{}", label);
     }
 
-    let prefix = access_token
-        .get(..20)
-        .unwrap_or(access_token)
-        .trim()
-        .to_string();
-    format!("token:{}", prefix)
+    use sha2::Digest;
+    let hash = sha2::Sha256::digest(access_token.as_bytes());
+    let hex = hex::encode(&hash[..8]);
+    format!("tokhash:{}", hex)
+}
+
+pub(super) fn anthropic_usage_cache_key(access_token: &str, account_label: Option<&str>) -> String {
+    token_cache_key(access_token, account_label)
 }
 
 pub(super) fn openai_usage_cache_key(access_token: &str, account_label: Option<&str>) -> String {
-    if let Some(label) = account_label
-        .map(str::trim)
-        .filter(|label| !label.is_empty())
-    {
-        return format!("label:{}", label);
-    }
-
-    let prefix = access_token
-        .get(..20)
-        .unwrap_or(access_token)
-        .trim()
-        .to_string();
-    format!("token:{}", prefix)
+    token_cache_key(access_token, account_label)
 }
 
 pub(super) fn cached_anthropic_usage(cache_key: &str) -> Option<UsageData> {
@@ -159,6 +149,7 @@ pub(super) fn provider_report_from_usage_data(
         extra_info,
         hard_limit_reached: false,
         error: None,
+        last_used_unix_secs: None,
     }
 }
 
@@ -256,6 +247,7 @@ pub(super) fn provider_report_from_openai_usage_data(
         extra_info: Vec::new(),
         hard_limit_reached: data.hard_limit_reached,
         error: None,
+        last_used_unix_secs: None,
     }
 }
 

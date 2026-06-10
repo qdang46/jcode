@@ -276,9 +276,8 @@ pub(in crate::tui::app) fn handle_server_event(
     match event {
         ServerEvent::TextDelta { text } => {
             if let Some(thought_line) = App::extract_thought_line(&text) {
-                if let Some(chunk) = app.stream_buffer.flush() {
-                    app.append_streaming_text(&chunk);
-                }
+                let ops = app.stream_buffer.flush();
+                app.apply_stream_ops(ops);
                 app.insert_thought_line(thought_line);
                 return eager_stream_redraw;
             }
@@ -294,26 +293,25 @@ pub(in crate::tui::app) fn handle_server_event(
                 needs_redraw = true;
             }
             app.resume_streaming_tps();
-            if let Some(chunk) = app.stream_buffer.push(&text) {
-                app.append_streaming_text(&chunk);
+            let ops = app.stream_buffer.push_text(&text);
+            if app.apply_stream_ops(ops) {
                 needs_redraw = true;
             }
             app.last_stream_activity = Some(Instant::now());
             eager_stream_redraw && needs_redraw
         }
         ServerEvent::TextReplace { text } => {
-            app.stream_buffer.flush();
+            let ops = app.stream_buffer.flush();
+            app.apply_stream_ops(ops);
             app.replace_streaming_text(text);
             app.resume_streaming_tps();
             true
         }
         ServerEvent::ReasoningDelta { text } => {
-            // Reasoning streams live (dim+italic) before the answer. Flush any
-            // buffered normal text first so ordering is preserved, then render the
-            // in-progress reasoning line token-by-token.
-            if let Some(chunk) = app.stream_buffer.flush() {
-                app.append_streaming_text(&chunk);
-            }
+            // Reasoning streams live (dim+italic) before the answer, paced through
+            // the same segment-aware StreamBuffer as normal text so provider
+            // bursts trickle in smoothly and ordering is preserved without
+            // flushing the backlog.
             // Surface active reasoning in the status line. The server emits a
             // `ConnectionPhase::Streaming` when reasoning starts (to kick off the
             // client TPS timer), so the status arrives here as `Streaming`; flip it
@@ -326,13 +324,17 @@ pub(in crate::tui::app) fn handle_server_event(
                 }
             }
             app.resume_streaming_tps();
-            app.append_reasoning_text(&text);
+            let ops = app.stream_buffer.push_reasoning(&text);
+            app.apply_stream_ops(ops);
             app.last_stream_activity = Some(Instant::now());
             eager_stream_redraw
         }
         ServerEvent::ReasoningDone { .. } => {
             app.thinking_start = None;
-            app.close_reasoning_region(None);
+            // Queue the region close behind any still-buffered reasoning so it
+            // lands exactly after the final reasoning character reveals.
+            let ops = app.stream_buffer.push_close_reasoning();
+            app.apply_stream_ops(ops);
             eager_stream_redraw
         }
         ServerEvent::ToolStart { id, name } => {
@@ -628,9 +630,8 @@ pub(in crate::tui::app) fn handle_server_event(
                 app.clear_pending_remote_retry();
             }
             let recovered_local = recover_local_interleave_to_queue(app, "interrupt");
-            if let Some(chunk) = app.stream_buffer.flush() {
-                app.append_streaming_text(&chunk);
-            }
+            let ops = app.stream_buffer.flush();
+            app.apply_stream_ops(ops);
             if !app.streaming.streaming_text.is_empty() {
                 let content = app.take_streaming_text();
                 let content = app.collapse_reasoning_for_commit(content);
@@ -701,9 +702,8 @@ pub(in crate::tui::app) fn handle_server_event(
                 }
                 completed_current_message = true;
                 app.clear_pending_remote_retry();
-                if let Some(chunk) = app.stream_buffer.flush() {
-                    app.append_streaming_text(&chunk);
-                }
+                let ops = app.stream_buffer.flush();
+                app.apply_stream_ops(ops);
                 app.pause_streaming_tps(false);
                 if !app.streaming.streaming_text.is_empty() {
                     let duration = app.display_turn_duration_secs();
@@ -1439,12 +1439,16 @@ pub(in crate::tui::app) fn handle_server_event(
             if images.is_empty() {
                 return false;
             }
-            // Append the freshly-read tool images so the pinned-image side pane
-            // updates immediately, without waiting for the next full History
-            // reload. A later History payload replaces this list wholesale, so
-            // duplicates are not a long-term concern.
+            // Append the freshly-read tool images so the inline transcript
+            // images update immediately, without waiting for the next full
+            // History reload. A later History payload replaces this list
+            // wholesale, so duplicates are not a long-term concern.
             let added = images.len();
             app.remote_side_pane_images.extend(images);
+            // The image-set signature is cached per display_messages_version,
+            // which this event does not bump; drop the cached value so the
+            // prepared-frame and body caches see the new image immediately.
+            app.invalidate_side_pane_images_signature();
             crate::logging::info(&format!(
                 "SidePaneImages: appended {} live image(s) (total={}, user_hidden={}, explicit_hidden={}) session={}",
                 added,
@@ -1706,9 +1710,8 @@ pub(in crate::tui::app) fn handle_server_event(
                 content.chars().count(),
                 app.pending_soft_interrupts.len()
             ));
-            if let Some(chunk) = app.stream_buffer.flush() {
-                app.append_streaming_text(&chunk);
-            }
+            let ops = app.stream_buffer.flush();
+            app.apply_stream_ops(ops);
             if !app.streaming.streaming_text.is_empty() {
                 let duration = app.display_turn_duration_secs();
                 let flushed = app.take_streaming_text();

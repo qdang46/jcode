@@ -236,7 +236,8 @@ pub use cache_render::{
 pub use content_render::terminal_theme;
 pub use content_render::{
     MermaidContent, diagram_placeholder_lines, error_to_lines, estimate_image_height,
-    image_widget_placeholder_markdown, parse_image_placeholder, result_to_content, result_to_lines,
+    image_widget_placeholder_markdown, inline_image_placeholder_lines, parse_image_placeholder,
+    parse_inline_image_placeholder, result_to_content, result_to_lines,
     write_video_export_marker,
 };
 pub use inline_image::{inline_image_dims, inline_image_id, materialize_inline_image};
@@ -246,7 +247,8 @@ pub use runtime::{
     set_video_export_mode,
 };
 pub use viewport_render::{
-    invalidate_render_state, render_image_widget_viewport, render_image_widget_viewport_precise,
+    invalidate_render_state, render_image_widget_fit_stable, render_image_widget_viewport,
+    render_image_widget_viewport_precise,
 };
 pub use widget_render::{render_image_widget, render_image_widget_fit, render_image_widget_scale};
 
@@ -572,6 +574,11 @@ struct KittyViewportState {
     full_cols: u16,
     full_rows: u16,
     pending_transmit: Option<String>,
+    /// `Some((cols, rows))` when this entry was built by the inline fit path
+    /// (image pre-scaled to fit a placeholder region); `None` for the zoomable
+    /// diagram viewport path. Keeps the two users of this cache from
+    /// mistaking each other's transmitted pixels.
+    fit_target: Option<(u16, u16)>,
 }
 
 struct KittyViewportCache {
