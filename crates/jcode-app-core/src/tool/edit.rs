@@ -2,6 +2,7 @@ use super::{Tool, ToolContext, ToolOutput};
 use crate::bus::{Bus, BusEvent, FileOp, FileTouch};
 use anyhow::Result;
 use async_trait::async_trait;
+use hashline::sha256_window;
 use jcode_hooks::{
     DispatchConfig, HookContext, HookEvent, HookInputBuilder, HookRegistry, load_hooks_config,
 };
@@ -32,6 +33,34 @@ struct EditInput {
     replace_all: bool,
 }
 
+/// Write `content` to `path` atomically via temp file + rename.
+async fn atomic_write(path: &Path, content: &str) -> Result<()> {
+    let pid = std::process::id();
+    let temp_name = match path.file_name().and_then(|n| n.to_str()) {
+        Some(name) => format!("{name}.jcode-tmp.{pid}"),
+        None => format!("jcode-tmp.{pid}"),
+    };
+    let temp_path = path.with_file_name(temp_name);
+    if let Err(e) = tokio::fs::write(&temp_path, content).await {
+        let _ = tokio::fs::remove_file(&temp_path).await;
+        return Err(anyhow::anyhow!(
+            "failed to write temp file {}: {}",
+            temp_path.display(),
+            e
+        ));
+    }
+    if let Err(e) = tokio::fs::rename(&temp_path, path).await {
+        let _ = tokio::fs::remove_file(&temp_path).await;
+        return Err(anyhow::anyhow!(
+            "failed to atomically rename {} -> {}: {}",
+            temp_path.display(),
+            path.display(),
+            e
+        ));
+    }
+    Ok(())
+}
+
 #[async_trait]
 impl Tool for EditTool {
     fn name(&self) -> &str {
@@ -39,7 +68,7 @@ impl Tool for EditTool {
     }
 
     fn description(&self) -> &str {
-        "Replace text in a file."
+        "Replace text in a file. Uses hashline-anchored editing with drift detection — fails closed if the file has changed since it was last read."
     }
 
     fn parameters_schema(&self) -> Value {
@@ -102,24 +131,67 @@ impl Tool for EditTool {
             ));
         }
 
-        // Perform replacement
-        let new_content = if params.replace_all {
-            content.replace(&params.old_string, &params.new_string)
-        } else {
-            content.replacen(&params.old_string, &params.new_string, 1)
-        };
-
-        // Find line number where edit starts
+        // Find line number where old_string starts (for the first occurrence)
         let start_line = find_line_number(&content, &params.old_string);
 
-        // Write back
-        tokio::fs::write(&path, &new_content).await?;
+        // Compute hash of the anchor line to detect drift
+        let context_window = 0u32;
+        let anchor_hash =
+            sha256_window::hash_window(&content, start_line, start_line);
+
+        // Verify the anchor hash — detects drift from planning to execution
+        sha256_window::verify_anchor(
+            &content,
+            start_line,
+            &anchor_hash,
+            context_window as usize,
+        )
+        .map_err(|e| {
+            anyhow::anyhow!(
+                "Content drift detected at line {start_line}: {e}. \
+                 The file may have changed since it was last read. Use `read` to refresh."
+            )
+        })?;
+
+        // Apply edit via hashline (scoped to anchor line, context_window=0 means
+        // old_string must be on the same line as the anchor).
+        let (new_content, actual_start, actual_end) = if params.replace_all {
+            // For replace_all, apply_edit_within_window handles one replacement.
+            // Do the first via hashline for drift detection, then replace remaining.
+            let (mut nc, s, e) = sha256_window::apply_edit_within_window(
+                &content,
+                start_line,
+                &params.old_string,
+                &params.new_string,
+                context_window as usize,
+            )
+            .map_err(|e| anyhow::anyhow!("{e}"))?;
+
+            // Replace remaining occurrences (skip the first one already done)
+            let count_remaining = occurrences - 1;
+            for _ in 0..count_remaining {
+                nc = nc.replacen(&params.old_string, &params.new_string, 1);
+            }
+            (nc, s, e)
+        } else {
+            sha256_window::apply_edit_within_window(
+                &content,
+                start_line,
+                &params.old_string,
+                &params.new_string,
+                context_window as usize,
+            )
+            .map_err(|e| anyhow::anyhow!("{e}"))?
+        };
+
+        // Write back atomically
+        atomic_write(&path, &new_content).await?;
 
         // Generate a diff with line numbers
-        let diff = generate_diff(&params.old_string, &params.new_string, start_line);
+        let diff = generate_diff(&params.old_string, &params.new_string, actual_start);
 
         // Publish file touch event for swarm coordination
-        let end_line = start_line + params.new_string.lines().count().saturating_sub(1);
+        let end_line = actual_start + params.new_string.lines().count().saturating_sub(1);
         let detail = build_file_touch_preview(&diff);
         Bus::global().publish(BusEvent::FileTouch(FileTouch {
             session_id: ctx.session_id.clone(),
@@ -131,7 +203,7 @@ impl Tool for EditTool {
                 .filter(|value| !value.trim().is_empty()),
             summary: Some(format!(
                 "edited lines {}-{} ({} occurrence{})",
-                start_line,
+                actual_start,
                 end_line,
                 occurrences,
                 if occurrences == 1 { "" } else { "s" }
@@ -176,8 +248,8 @@ impl Tool for EditTool {
         }
 
         // Extract context around the edit to help with consecutive edits
-        let end_line = start_line + params.new_string.lines().count().saturating_sub(1);
-        let context = extract_context(&new_content, start_line, end_line, 3);
+        let end_line = actual_start + params.new_string.lines().count().saturating_sub(1);
+        let context = extract_context(&new_content, actual_start, end_line, 3);
 
         Ok(ToolOutput::new(format!(
             "Edited {}: replaced {} occurrence(s)\n{}\n\nContext after edit (lines {}-{}):\n{}",
@@ -338,7 +410,6 @@ mod tests {
         let new = "hello rust";
         let diff = generate_diff(old, new, 10);
 
-        // Compact format: "10- content" / "10+ content"
         assert!(diff.contains("10- hello world"), "Should show deleted line");
         assert!(diff.contains("10+ hello rust"), "Should show added line");
     }
@@ -349,10 +420,8 @@ mod tests {
         let new = "line one\nmodified two\nline three";
         let diff = generate_diff(old, new, 5);
 
-        // Line 6 should be the changed line (5 + 1 for "line two")
         assert!(diff.contains("6- line two"), "Should show deleted line");
         assert!(diff.contains("6+ modified two"), "Should show added line");
-        // Equal lines should not appear
         assert!(
             !diff.contains("line one"),
             "Should not show unchanged lines"
@@ -396,7 +465,6 @@ mod tests {
         let new = "new";
         let diff = generate_diff(old, new, 42);
 
-        // Compact format: no padding
         assert!(
             diff.contains("42- old"),
             "Should have line number directly before minus"
@@ -423,7 +491,6 @@ mod tests {
         let content =
             "line 1\nline 2\nline 3\nline 4\nline 5\nline 6\nline 7\nline 8\nline 9\nline 10";
 
-        // Edit at line 5, with 2 lines padding
         let (start, end, ctx) = extract_context(content, 5, 5, 2);
 
         assert_eq!(start, 3, "Should start at line 3 (5 - 2)");
@@ -439,7 +506,6 @@ mod tests {
     fn test_extract_context_at_start() {
         let content = "line 1\nline 2\nline 3\nline 4\nline 5";
 
-        // Edit at line 1, with 2 lines padding - shouldn't go negative
         let (start, _end, ctx) = extract_context(content, 1, 1, 2);
 
         assert_eq!(start, 1, "Should start at line 1 (can't go before)");
@@ -451,7 +517,6 @@ mod tests {
     fn test_extract_context_at_end() {
         let content = "line 1\nline 2\nline 3\nline 4\nline 5";
 
-        // Edit at line 5, with 2 lines padding - shouldn't go past end
         let (_start, end, ctx) = extract_context(content, 5, 5, 2);
 
         assert_eq!(end, 5, "Should end at line 5 (can't go past)");
@@ -463,12 +528,54 @@ mod tests {
     fn test_extract_context_range_past_end() {
         let content = "line 1\nline 2\nline 3\nline 4\nline 5";
 
-        // Edit range extends past the end of the file.
         let (start, end, ctx) = extract_context(content, 4, 10, 1);
 
         assert_eq!(start, 3, "Should start at line 3 (4 - 1)");
         assert_eq!(end, 5, "Should clamp to last line");
         assert!(ctx.contains("line 3"), "Should include line 3");
         assert!(ctx.contains("line 5"), "Should include line 5");
+    }
+
+    #[test]
+    fn test_hashline_edit_basic() {
+        let content = "fn main() {\n    println!(\"hello\");\n}\n";
+        let old = "    println!(\"hello\");";
+        let new = "    println!(\"world\");";
+
+        let line = find_line_number(content, old);
+        assert_eq!(line, 2, "old_string should be on line 2");
+
+        let hash = sha256_window::hash_window(content, line, line);
+        assert!(!hash.is_empty(), "hash should not be empty");
+
+        let verify = sha256_window::verify_anchor(content, line, &hash, 0);
+        assert!(verify.is_ok(), "verify should pass for unchanged content");
+
+        let (result, start, end) =
+            sha256_window::apply_edit_within_window(content, line, old, new, 0)
+                .expect("edit should succeed");
+        assert_eq!(start, 2);
+        assert_eq!(end, 2);
+        assert!(result.contains("world"), "new content should contain 'world'");
+        assert!(!result.contains("hello"), "new content should not contain 'hello'");
+    }
+
+    #[test]
+    fn test_hashline_edit_drift_detection() {
+        let content = "fn main() {\n    println!(\"hello\");\n}\n";
+        let drifted = "fn main() {\n    println!(\"drifted\");\n}\n";
+        let old = "    println!(\"hello\");";
+        let new = "    println!(\"world\");";
+
+        let line = find_line_number(content, old);
+        let hash = sha256_window::hash_window(content, line, line);
+
+        // Verify against drifted content should fail
+        let verify = sha256_window::verify_anchor(&drifted, line, &hash, 0);
+        assert!(verify.is_err(), "drift should be detected");
+
+        // apply_edit_within_window on drifted content should also fail
+        let result = sha256_window::apply_edit_within_window(&drifted, line, old, new, 0);
+        assert!(result.is_err(), "edit on drifted content should fail");
     }
 }

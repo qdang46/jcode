@@ -5387,8 +5387,8 @@ dependencies = [
 
 [[package]]
 name = "hashline"
-version = "0.3.1"
-source = "git+https://github.com/quangdang46/hashline.git?tag=v0.3.0#a727011fcbb30ef5eb0bb6504a5bc94af78c0791"
+version = "0.3.6"
+source = "git+https://github.com/quangdang46/hashline.git?tag=v0.3.6#c33b829fb18f42daffb771619a1d462103ce3462"
 dependencies = [
  "anyhow",
  "clap",
