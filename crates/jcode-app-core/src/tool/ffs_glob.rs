@@ -1,3 +1,4 @@
+use super::ffs_support::{self, find_fuzzy_walkdir, glob_crate, glob_ripgrep, rg_available};
 use super::{Tool, ToolContext, ToolOutput};
 use anyhow::Result;
 use async_trait::async_trait;
@@ -84,10 +85,36 @@ impl Tool for FfsGlobTool {
         let use_fuzzy = params.fuzzy.unwrap_or(false);
 
         let results = tokio::task::spawn_blocking(move || {
+            if ffs_support::ffs_preferred() {
+                let r = if use_fuzzy {
+                    fuzzy_search_blocking(&base, &pattern, max_files)
+                } else {
+                    glob_search_blocking(&base, &pattern, max_files)
+                };
+                if let Ok(v) = r {
+                    if !v.is_empty() {
+                        return Ok(v);
+                    }
+                }
+            }
             if use_fuzzy {
-                fuzzy_search_blocking(&base, &pattern, max_files)
+                let paths = find_fuzzy_walkdir(&base, &pattern, max_files).unwrap_or_default();
+                Ok(paths
+                    .into_iter()
+                    .map(|p| (p, std::time::UNIX_EPOCH))
+                    .collect())
+            } else if rg_available() {
+                let paths = glob_ripgrep(&base, &pattern, max_files).unwrap_or_default();
+                Ok(paths
+                    .into_iter()
+                    .map(|p| (p, std::time::UNIX_EPOCH))
+                    .collect())
             } else {
-                glob_search_blocking(&base, &pattern, max_files)
+                let paths = glob_crate(&base, &pattern, max_files).unwrap_or_default();
+                Ok(paths
+                    .into_iter()
+                    .map(|p| (p, std::time::UNIX_EPOCH))
+                    .collect())
             }
         })
         .await??;

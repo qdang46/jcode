@@ -16,10 +16,12 @@ mod conversation_search;
 mod dcp_compress;
 mod debug_socket;
 mod edit;
+mod ffs_engine_tools;
 mod ffs_glob;
 mod ffs_grep;
 mod ffs_multi_grep;
 mod ffs_outline;
+mod ffs_support;
 mod ffs_symbol;
 mod gmail;
 
@@ -334,6 +336,27 @@ impl Registry {
                 "multi_grep",
                 ffs_multi_grep::FfsMultiGrepTool::new,
             );
+            Self::insert_tool_timed(&mut m, &mut timings, "find", ffs_engine_tools::FfsFindTool::new);
+            Self::insert_tool_timed(
+                &mut m,
+                &mut timings,
+                "dispatch",
+                ffs_engine_tools::FfsDispatchTool::new,
+            );
+            Self::insert_tool_timed(
+                &mut m,
+                &mut timings,
+                "callers",
+                ffs_engine_tools::FfsCallersTool::new,
+            );
+            Self::insert_tool_timed(
+                &mut m,
+                &mut timings,
+                "callees",
+                ffs_engine_tools::FfsCalleesTool::new,
+            );
+            Self::insert_tool_timed(&mut m, &mut timings, "refs", ffs_engine_tools::FfsRefsTool::new);
+            Self::insert_tool_timed(&mut m, &mut timings, "flow", ffs_engine_tools::FfsFlowTool::new);
             Self::insert_tool_timed(&mut m, &mut timings, "ls", ls::LsTool::new);
             Self::insert_tool_timed(&mut m, &mut timings, "bash", bash::BashTool::new);
             Self::insert_tool_timed(&mut m, &mut timings, "browser", browser::BrowserTool::new);

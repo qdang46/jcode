@@ -87,6 +87,8 @@ jcode-tui-usage-overlay = { path = "../jcode-tui-usage-overlay" }
 jcode-terminal-image = { path = "../jcode-terminal-image" }
 jcode-productivity-core = { path = "../jcode-productivity-core" }
 jcode-tui-workspace = { path = "../jcode-tui-workspace" }
+ffs-search = { workspace = true }
+ffs-engine = { workspace = true }
 
 [features]
 default = ["pdf", "embeddings"]
