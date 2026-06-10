@@ -98,9 +98,9 @@ members = [
 # lands on crates.io. The git rev will be bumped as new ffs features land.
 # Remove this block once ffs-search 0.2.0 is published.
 [workspace.dependencies]
-ffs-search = { git = "https://github.com/quangdang46/fast_file_search", rev = "28aef7c" }
-ffs-engine = { git = "https://github.com/quangdang46/fast_file_search", rev = "28aef7c" }
-ffs-symbol = { git = "https://github.com/quangdang46/fast_file_search", rev = "28aef7c" }
+ffs-search = { git = "https://github.com/quangdang46/fast_file_search", rev = "e853210" }
+ffs-engine = { git = "https://github.com/quangdang46/fast_file_search", rev = "e853210" }
+ffs-symbol = { git = "https://github.com/quangdang46/fast_file_search", rev = "e853210" }
 strum = { version = "0.26", features = ["derive"] }
 regex = "1"
 
@@ -153,6 +153,7 @@ casr = { git = "https://github.com/quangdang46/cross_agent_session_resumer", pac
 # to the local fast_file_search checkout so we exercise the
 # @-mention system (Phases A/B/C/D) before ffs-search 0.2.0 is on crates.io.
 ffs-search.workspace = true
+ffs-engine.workspace = true
 
 # Memory allocator (reduces fragmentation for long-running server)
 tikv-jemallocator = { version = "0.6", features = ["unprefixed_malloc_on_supported_platforms"], optional = true }

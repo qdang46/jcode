@@ -1,3 +1,4 @@
+use super::ffs_support::{self, format_grep_hits, grep_ripgrep, grep_walkdir, rg_available};
 use super::{Tool, ToolContext, ToolOutput};
 use anyhow::Result;
 use async_trait::async_trait;
@@ -84,37 +85,53 @@ impl Tool for FfsGrepTool {
         };
 
         let base_owned = base.to_path_buf();
+        let pattern_display = pattern_for_display.clone();
+        let literal_needle = params.pattern.clone();
 
-        let matches: Vec<DirectoryGrepMatch> = tokio::task::spawn_blocking(move || {
-            grep_directory(&base_owned, &effective_pattern, MAX_RESULTS)
+        let output = tokio::task::spawn_blocking(move || {
+            if ffs_support::ffs_preferred() {
+                let matches = grep_directory(&base_owned, &effective_pattern, MAX_RESULTS);
+                if !matches.is_empty() || use_regex {
+                    let mut out = String::new();
+                    out.push_str(&format!(
+                        "Found {} matches for '{}'\n\n",
+                        matches.len(),
+                        pattern_display
+                    ));
+                    let mut current_file = String::new();
+                    for m in &matches {
+                        if m.path != current_file {
+                            if !current_file.is_empty() {
+                                out.push('\n');
+                            }
+                            out.push_str(&format!("{}:\n", m.path));
+                            current_file = m.path.clone();
+                        }
+                        out.push_str(&format!("  {:>4}: {}\n", m.line_number, m.line));
+                    }
+                    if matches.len() >= MAX_RESULTS {
+                        out.push_str(&format!(
+                            "\n... results truncated at {} matches",
+                            MAX_RESULTS
+                        ));
+                    }
+                    return out;
+                }
+            }
+
+            let label = if rg_available() { "ripgrep" } else { "walkdir" };
+            let hits = if rg_available() {
+                grep_ripgrep(&base_owned, &literal_needle, MAX_RESULTS).unwrap_or_default()
+            } else {
+                grep_walkdir(&base_owned, &literal_needle, MAX_RESULTS).unwrap_or_default()
+            };
+            let mut out = format_grep_hits(&hits, label);
+            if hits.len() >= MAX_RESULTS {
+                out.push_str(&format!("\n... results truncated at {} matches", MAX_RESULTS));
+            }
+            out
         })
         .await?;
-
-        let mut output = String::new();
-        output.push_str(&format!(
-            "Found {} matches for '{}'\n\n",
-            matches.len(),
-            pattern_for_display
-        ));
-
-        let mut current_file = String::new();
-        for m in &matches {
-            if m.path != current_file {
-                if !current_file.is_empty() {
-                    output.push('\n');
-                }
-                output.push_str(&format!("{}:\n", m.path));
-                current_file = m.path.clone();
-            }
-            output.push_str(&format!("  {:>4}: {}\n", m.line_number, m.line));
-        }
-
-        if matches.len() >= MAX_RESULTS {
-            output.push_str(&format!(
-                "\n... results truncated at {} matches",
-                MAX_RESULTS
-            ));
-        }
 
         Ok(ToolOutput::new(output))
     }
