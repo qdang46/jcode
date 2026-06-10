@@ -116,7 +116,7 @@ jcode-session-types = { path = "../jcode-session-types" }
 jcode-storage = { path = "../jcode-storage" }
 jcode-redact = { path = "../jcode-redact" }
 jcode-beads-bridge = { path = "../jcode-beads-bridge" }
-beads_rust = { path = "../../../beads_rust" }
+beads_rust.workspace = true
 jcode-tool-core = { path = "../jcode-tool-core" }
 jcode-tool-types = { path = "../jcode-tool-types" }
 jcode-side-panel-types = { path = "../jcode-side-panel-types" }

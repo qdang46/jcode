@@ -5,7 +5,7 @@ edition = "2024"
 description = "Adapter crate wrapping beads_rust for jcode integration"
 
 [dependencies]
-beads_rust = { path = "../../../beads_rust" }
+beads_rust.workspace = true
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 chrono = { version = "0.4", features = ["serde"] }

@@ -1202,6 +1202,7 @@ dependencies = [
 [[package]]
 name = "beads_rust"
 version = "0.2.15"
+source = "git+https://github.com/quangdang46/beads_rust#ab4c27faf80bb51fca9882062a5c752632eeff2d"
 dependencies = [
  "anyhow",
  "chrono",

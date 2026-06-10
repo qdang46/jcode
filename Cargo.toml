@@ -104,7 +104,7 @@ ffs-engine = { git = "https://github.com/quangdang46/fast_file_search", rev = "2
 ffs-symbol = { git = "https://github.com/quangdang46/fast_file_search", rev = "28aef7c" }
 strum = { version = "0.26", features = ["derive"] }
 regex = "1"
-beads_rust = { path = "../beads_rust" }
+beads_rust = { git = "https://github.com/quangdang46/beads_rust" }
 
 [lib]
 name = "jcode"
