@@ -168,7 +168,7 @@ impl Tool for BestOfNTool {
         if show_mode {
             let output = format_show_result(&result);
             // Write a side panel page so the user can scroll through candidates.
-            let page_id = format!("best-of-n-{}", &result.run_id);
+            let page_id = format!("best-of-n-{}", result.run_id);
             let sidepanel_result = crate::side_panel::write_markdown_page(
                 &ctx.session_id,
                 &page_id,
@@ -345,6 +345,7 @@ impl BestOfNRunner {
                     strategy.temperature, index
                 ));
             }
+            #[allow(clippy::collapsible_if)]
             if let Some(ref model) = strategy.model {
                 if let Err(e) = provider.set_model(model) {
                     crate::logging::warn(&format!(

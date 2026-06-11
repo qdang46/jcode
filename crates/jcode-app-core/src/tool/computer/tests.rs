@@ -117,11 +117,38 @@ fn schema_declares_every_input_field() {
     let schema = tool.parameters_schema();
     let props = schema["properties"].as_object().expect("properties object");
     for field in [
-        "action", "category", "x", "y", "to_x", "to_y", "w", "h", "text", "keys", "dx", "dy",
-        "depth", "app", "role", "title", "value", "element", "ax_action", "menu_path",
-        "window_id", "script", "contains", "timeout_ms", "region", "level", "dry_run",
+        "action",
+        "category",
+        "x",
+        "y",
+        "to_x",
+        "to_y",
+        "w",
+        "h",
+        "text",
+        "keys",
+        "dx",
+        "dy",
+        "depth",
+        "app",
+        "role",
+        "title",
+        "value",
+        "element",
+        "ax_action",
+        "menu_path",
+        "window_id",
+        "script",
+        "contains",
+        "timeout_ms",
+        "region",
+        "level",
+        "dry_run",
     ] {
-        assert!(props.contains_key(field), "schema is missing field `{field}`");
+        assert!(
+            props.contains_key(field),
+            "schema is missing field `{field}`"
+        );
     }
 }
 

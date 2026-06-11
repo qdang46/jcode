@@ -91,6 +91,7 @@ impl Tool for FfsGlobTool {
                 } else {
                     glob_search_blocking(&base, &pattern, max_files)
                 };
+                #[allow(clippy::collapsible_if)]
                 if let Ok(v) = r {
                     if !v.is_empty() {
                         return Ok::<

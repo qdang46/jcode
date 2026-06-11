@@ -90,6 +90,7 @@ fn fast_picker() -> Picker {
     // renders them at the true row height, so placeholders/borders end up much
     // taller than the picture.
     let font_size = query_font_size();
+    #[allow(deprecated)]
     let mut picker = Picker::from_fontsize(font_size);
     picker.set_protocol_type(ProtocolType::Halfblocks);
     if let Some(protocol) = infer_protocol_from_env(

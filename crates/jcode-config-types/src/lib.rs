@@ -1129,7 +1129,7 @@ impl Default for ExecutionPolicyConfig {
 /// When `enabled = false` (the default), no forks are created regardless of
 /// sub-feature settings. This is a master switch for all background agent
 /// features.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(default)]
 pub struct ForkedAgentConfig {
     /// Master switch — when false, all fork features are disabled.
@@ -1138,16 +1138,6 @@ pub struct ForkedAgentConfig {
     pub memory_extraction: MemoryExtractionConfig,
     /// Auto-dream sub-config.
     pub auto_dream: AutoDreamConfig,
-}
-
-impl Default for ForkedAgentConfig {
-    fn default() -> Self {
-        Self {
-            enabled: false,
-            memory_extraction: MemoryExtractionConfig::default(),
-            auto_dream: AutoDreamConfig::default(),
-        }
-    }
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]

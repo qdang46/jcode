@@ -12,6 +12,7 @@ fn test_build_response_request_includes_stream_for_http() {
         None,
         None,
         None,
+        None,
     );
     assert_eq!(request["stream"], serde_json::json!(true));
     assert_eq!(request["store"], serde_json::json!(false));
@@ -26,6 +27,7 @@ fn test_websocket_payload_strips_stream_and_background() {
         &[],
         false,
         Some(DEFAULT_MAX_OUTPUT_TOKENS),
+        None,
         None,
         None,
         None,
@@ -65,6 +67,7 @@ fn test_websocket_payload_preserves_required_fields() {
         &[serde_json::json!({"type": "function", "name": "bash"})],
         false,
         Some(16384),
+        None,
         Some("high"),
         None,
         None,
@@ -99,6 +102,7 @@ fn test_websocket_continuation_request_excludes_transport_fields() {
         &[serde_json::json!({"type": "function", "name": "bash"})],
         false,
         Some(DEFAULT_MAX_OUTPUT_TOKENS),
+        None,
         None,
         Some("flex"),
         Some("jcode-test-cache"),

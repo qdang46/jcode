@@ -1575,9 +1575,7 @@ pub enum MemorySubcommand {
 }
 
 pub fn run_memory_command(cmd: MemorySubcommand) -> Result<()> {
-    use jcode_memory_types::{
-        GraphOperations, MemoryEntry as MemEntry, MemoryProvider, MemoryScope,
-    };
+    use jcode_memory_types::{MemoryEntry as MemEntry, MemoryProvider, MemoryScope};
     use std::sync::Arc;
 
     let provider: Arc<dyn MemoryProvider> = Arc::new(memory::MemoryManager::new());
@@ -1589,7 +1587,7 @@ pub fn run_memory_command(cmd: MemorySubcommand) -> Result<()> {
     });
 
     match cmd {
-        MemorySubcommand::List { scope, tag } => {
+        MemorySubcommand::List { scope: _, tag } => {
             let entries = handle.block_on(provider.list_all(MemoryScope::All))?;
             let mut all_memories: Vec<MemEntry> = entries;
 

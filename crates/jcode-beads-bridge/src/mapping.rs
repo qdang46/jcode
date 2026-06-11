@@ -7,7 +7,7 @@ use std::str::FromStr;
 
 // ─── Jcode types (stand-ins until dead crates are removed) ──────────────────
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct TodoItem {
     pub content: String,
     pub status: String,
@@ -20,7 +20,7 @@ pub struct TodoItem {
     pub assigned_to: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Goal {
     pub id: String,
     pub title: String,
@@ -36,7 +36,7 @@ pub struct Goal {
     pub updated_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct GoalMilestone {
     pub id: String,
     pub title: String,
@@ -44,7 +44,7 @@ pub struct GoalMilestone {
     pub steps: Vec<GoalStep>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct GoalStep {
     pub id: String,
     pub content: String,
@@ -113,10 +113,8 @@ impl ToBeadsIssue for TodoItem {
             _ => Priority::MEDIUM,
         };
         let mut labels: Vec<String> = Vec::new();
-        if let Some(g) = &self.group {
-            if !g.is_empty() {
-                labels.push(g.clone());
-            }
+        if let Some(g) = self.group.as_deref().filter(|g| !g.is_empty()) {
+            labels.push(g.to_string());
         }
         Issue {
             id: self.id.clone(),

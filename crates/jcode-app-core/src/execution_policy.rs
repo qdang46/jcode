@@ -202,6 +202,7 @@ impl ExecutionPolicyEngine {
         // 3. Evaluate custom rules (first match wins)
         for rule in &self.rules {
             // Check tool scope: if rule has a tool restriction, it must match
+            #[allow(clippy::collapsible_if)]
             if let Some(ref t) = rule.tool {
                 if t != tool_name {
                     continue;
@@ -295,6 +296,7 @@ impl PolicySession {
     ///
     /// Returns `true` if the code is valid and not expired.
     pub fn consume_allow_once(&mut self, code: &str) -> bool {
+        #[allow(clippy::collapsible_if)]
         if let Some(expiry) = self.allow_once_cache.get(code) {
             if *expiry > Instant::now() {
                 self.allow_once_cache.remove(code);

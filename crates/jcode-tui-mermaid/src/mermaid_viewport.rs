@@ -645,6 +645,7 @@ fn probe_kitty_fit_state(
 ) -> Option<(u32, u16, u16)> {
     let mut cache = KITTY_VIEWPORT_STATE.lock().ok()?;
     let state = cache.get_mut(hash)?;
+    #[allow(clippy::unnecessary_lazy_evaluations)]
     (state.source_path == source_path
         && state.font_size == font_size
         && state.fit_target == Some((target_cols, target_rows)))
@@ -688,6 +689,7 @@ fn draw_fitted_left_border(buf: &mut Buffer, area: Rect, skip_rows: u16, full_ro
 /// rescales or retransmits. Returns true when handled; callers should fall
 /// back to `render_image_widget_fit` when it returns false (non-Kitty
 /// protocols or oversized images).
+#[allow(clippy::too_many_arguments)]
 pub fn render_image_widget_fit_stable(
     hash: u64,
     area: Rect,
@@ -772,9 +774,7 @@ pub fn render_image_widget_fit_stable(
     }
 
     let visible_width = image_area.width.min(full_cols);
-    let visible_height = image_area
-        .height
-        .min(full_rows.saturating_sub(skip_rows));
+    let visible_height = image_area.height.min(full_rows.saturating_sub(skip_rows));
 
     if let Ok(mut dbg) = MERMAID_DEBUG.lock() {
         dbg.stats.image_state_hits += 1;

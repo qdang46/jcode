@@ -76,7 +76,7 @@ impl BeadsProject {
     pub fn flush(&self) -> Result<()> {
         let mut storage = self.storage.lock().unwrap();
         sync::auto_flush(
-            &mut *storage,
+            &mut storage,
             &self.beads_dir,
             &self.jsonl_path,
             false,

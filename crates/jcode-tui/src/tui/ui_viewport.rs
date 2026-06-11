@@ -429,7 +429,11 @@ pub(super) fn draw_messages(
             let leftover = content_area.width.saturating_sub(occupied);
             // Non-centered mode draws the image flush left, leaving all the
             // slack on the right; centered mode splits it across both sides.
-            let free_right = if margins.centered { leftover / 2 } else { leftover };
+            let free_right = if margins.centered {
+                leftover / 2
+            } else {
+                leftover
+            };
             // Include the label line directly above the region so a widget
             // can't sit flush against the image top either.
             let row_first = region.abs_line_idx.saturating_sub(1).max(scroll);

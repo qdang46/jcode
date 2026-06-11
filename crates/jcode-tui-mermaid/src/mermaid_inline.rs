@@ -35,6 +35,7 @@ struct InlineDims {
 
 /// Cache of `id -> (width, height)` so repeated prepare passes never re-parse
 /// the same image header. Bounded by insertion order.
+#[allow(clippy::type_complexity)]
 static INLINE_DIMS_CACHE: LazyLock<Mutex<(HashMap<u64, InlineDims>, VecDeque<u64>)>> =
     LazyLock::new(|| Mutex::new((HashMap::new(), VecDeque::new())));
 

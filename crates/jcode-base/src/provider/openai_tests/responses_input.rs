@@ -64,6 +64,7 @@ fn build_test_response_request(
     model_id: &str,
     is_chatgpt_mode: bool,
     max_output_tokens: Option<u32>,
+    temperature: Option<f32>,
     reasoning_effort: Option<&str>,
     service_tier: Option<&str>,
     prompt_cache_key: Option<&str>,
@@ -77,6 +78,7 @@ fn build_test_response_request(
         &[],
         is_chatgpt_mode,
         max_output_tokens,
+        temperature,
         reasoning_effort,
         service_tier,
         prompt_cache_key,
@@ -300,6 +302,7 @@ fn test_build_response_request_for_gpt_5_4_1m_uses_base_model_without_extra_flag
         "gpt-5.4",
         true,
         Some(DEFAULT_MAX_OUTPUT_TOKENS),
+        None,
         Some("xhigh"),
         Some("unused"),
         Some("unused"),
@@ -336,6 +339,7 @@ fn test_build_response_request_omits_long_context_for_plain_gpt_5_4() {
         None,
         None,
         None,
+        None,
     );
 
     assert!(request.get("model_context_window").is_none());
@@ -347,6 +351,7 @@ fn test_build_response_request_defaults_extended_cache_retention_for_gpt_5_5() {
         "gpt-5.5",
         false,
         Some(DEFAULT_MAX_OUTPUT_TOKENS),
+        None,
         None,
         None,
         None,
@@ -367,6 +372,7 @@ fn test_build_response_request_respects_configured_cache_retention() {
         "gpt-5.5",
         false,
         Some(DEFAULT_MAX_OUTPUT_TOKENS),
+        None,
         None,
         None,
         None,

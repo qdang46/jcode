@@ -71,9 +71,9 @@ fn apply_edit(
 ) -> (String, usize, usize, &'static str) {
     // Try hashline first (drift detection + context-scoped edit)
     let ctx = 0usize;
-    if let Ok((nc, s, e)) = sha256_window::apply_edit_within_window(
-        content, line, old_string, new_string, ctx,
-    ) {
+    if let Ok((nc, s, e)) =
+        sha256_window::apply_edit_within_window(content, line, old_string, new_string, ctx)
+    {
         if replace_all && content.matches(old_string).count() > 1 {
             let count_remaining = content.matches(old_string).count() - 1;
             let mut result = nc;
@@ -543,7 +543,10 @@ mod tests {
         let line = find_line_number(content, old);
 
         let (result, start, end, method) = apply_edit(content, old, new, false, line);
-        assert_eq!(method, "hashline", "should use hashline when verification passes");
+        assert_eq!(
+            method, "hashline",
+            "should use hashline when verification passes"
+        );
         assert_eq!(start, 2);
         assert_eq!(end, 2);
         assert!(result.contains("world"));
@@ -561,7 +564,10 @@ mod tests {
         let line = find_line_number(content, old);
 
         let (result, _start, _end, method) = apply_edit(content, old, new, false, line);
-        assert_eq!(method, "str_replace-fallback", "multi-line old should fall back");
+        assert_eq!(
+            method, "str_replace-fallback",
+            "multi-line old should fall back"
+        );
         assert!(result.contains("merged line"));
         assert!(!result.contains("line1\nline2"));
     }

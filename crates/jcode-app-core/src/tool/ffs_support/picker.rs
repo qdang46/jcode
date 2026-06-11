@@ -21,6 +21,7 @@ fn cell() -> &'static Mutex<Option<PickerSlot>> {
 
 fn get_or_init(root: &Path) -> Result<SharedFilePicker> {
     let mut guard = cell().lock().expect("ffs picker lock");
+    #[allow(clippy::collapsible_if)]
     if let Some(slot) = guard.as_ref() {
         if slot.root == root {
             return Ok(slot.picker.clone());

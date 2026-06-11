@@ -362,7 +362,9 @@ end tell
         y = y
     );
     let res = osa::run_applescript_timeout(&script, Duration::from_secs(12))?;
-    Ok(ToolOutput::new(format!("Deepest element at ({x:.0},{y:.0}) in {app}:\n{res}"))
-        .with_title("element_at")
-        .with_metadata(json!({"app": app, "x": x, "y": y})))
+    Ok(ToolOutput::new(format!(
+        "Deepest element at ({x:.0},{y:.0}) in {app}:\n{res}"
+    ))
+    .with_title("element_at")
+    .with_metadata(json!({"app": app, "x": x, "y": y})))
 }

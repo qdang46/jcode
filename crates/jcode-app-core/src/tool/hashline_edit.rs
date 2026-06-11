@@ -202,10 +202,14 @@ async fn structured_execute(
 ) -> Result<ToolOutput> {
     let old_string = params.old_string.as_deref().unwrap_or("");
     if old_string.is_empty() {
-        return Err(anyhow::anyhow!("old_string is required for structured anchors"));
+        return Err(anyhow::anyhow!(
+            "old_string is required for structured anchors"
+        ));
     }
     if old_string == params.new_string {
-        return Err(anyhow::anyhow!("old_string and new_string must be different"));
+        return Err(anyhow::anyhow!(
+            "old_string and new_string must be different"
+        ));
     }
 
     // Try hashline path with str_replace fallback
@@ -227,7 +231,14 @@ async fn structured_execute(
         old_string.lines().next().unwrap_or(""),
         params.new_string.lines().next().unwrap_or(""),
     ));
-    publish_edit_event(ctx, params.intent.clone(), path, start_line, end_line, detail);
+    publish_edit_event(
+        ctx,
+        params.intent.clone(),
+        path,
+        start_line,
+        end_line,
+        detail,
+    );
 
     Ok(ToolOutput::new(format!(
         "Edited {}: lines {}-{} ({})\n  old: {}\n  new: {}",
@@ -258,21 +269,23 @@ async fn anchor_str_execute(
     use hashline::document::Document;
     use hashline::mutation;
 
-    let doc = Document::from_str(path, content)
-        .map_err(|e| anyhow::anyhow!("{e}"))?;
+    let doc = Document::from_str(path, content).map_err(|e| anyhow::anyhow!("{e}"))?;
     let index = doc.build_index();
 
     if anchor::looks_like_range_anchor(anchor_str) {
-        let range = anchor::parse_range(anchor_str)
-            .map_err(|e| anyhow::anyhow!("{e}"))?;
-        let (start_resolved, end_resolved) = anchor::resolve_range(&range, &doc, &index)
-            .map_err(|e| anyhow::anyhow!("{e}"))?;
+        let range = anchor::parse_range(anchor_str).map_err(|e| anyhow::anyhow!("{e}"))?;
+        let (start_resolved, end_resolved) =
+            anchor::resolve_range(&range, &doc, &index).map_err(|e| anyhow::anyhow!("{e}"))?;
         let (start_line, end_line) = (start_resolved.line_no, end_resolved.line_no);
         let mut doc = doc;
-        mutation::replace_range(&mut doc, start_resolved.index, end_resolved.index, &params.new_string)
-            .map_err(|e| anyhow::anyhow!("{e}"))?;
-        let new_content = String::from_utf8(doc.render())
-            .map_err(|e| anyhow::anyhow!("{e}"))?;
+        mutation::replace_range(
+            &mut doc,
+            start_resolved.index,
+            end_resolved.index,
+            &params.new_string,
+        )
+        .map_err(|e| anyhow::anyhow!("{e}"))?;
+        let new_content = String::from_utf8(doc.render()).map_err(|e| anyhow::anyhow!("{e}"))?;
 
         atomic_write(path, &new_content).await?;
         publish_edit_event(ctx, params.intent.clone(), path, start_line, end_line, None);
@@ -283,17 +296,15 @@ async fn anchor_str_execute(
         ))
         .with_title(params.file_path.clone()))
     } else {
-        let parsed = anchor::parse_anchor(anchor_str)
-            .map_err(|e| anyhow::anyhow!("{e}"))?;
-        let resolved = anchor::resolve(&parsed, &doc, &index)
-            .map_err(|e| anyhow::anyhow!("{e}"))?;
+        let parsed = anchor::parse_anchor(anchor_str).map_err(|e| anyhow::anyhow!("{e}"))?;
+        let resolved =
+            anchor::resolve(&parsed, &doc, &index).map_err(|e| anyhow::anyhow!("{e}"))?;
         let line = resolved.line_no;
         let idx = resolved.index;
         let mut doc = doc;
         mutation::replace_range(&mut doc, idx, idx, &params.new_string)
             .map_err(|e| anyhow::anyhow!("{e}"))?;
-        let new_content = String::from_utf8(doc.render())
-            .map_err(|e| anyhow::anyhow!("{e}"))?;
+        let new_content = String::from_utf8(doc.render()).map_err(|e| anyhow::anyhow!("{e}"))?;
 
         atomic_write(path, &new_content).await?;
         publish_edit_event(ctx, params.intent.clone(), path, line, line, None);
@@ -313,7 +324,9 @@ fn apply_with_fallback(
     new_string: &str,
     context_window: usize,
 ) -> (String, usize, usize, &'static str) {
-    if let Ok((nc, s, e)) = apply_edit_within_window(content, anchor_line, old_string, new_string, context_window) {
+    if let Ok((nc, s, e)) =
+        apply_edit_within_window(content, anchor_line, old_string, new_string, context_window)
+    {
         return (nc, s, e, "hashline");
     }
 
