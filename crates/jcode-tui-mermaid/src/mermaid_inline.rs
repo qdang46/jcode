@@ -109,7 +109,29 @@ pub fn inline_image_dims(media_type: &str, data_b64: &str) -> Option<(u64, u32, 
 /// once the file exists). Returns `(id, width, height)` on success.
 pub fn materialize_inline_image(media_type: &str, data_b64: &str) -> Option<(u64, u32, u32)> {
     let id = inline_image_id(media_type, data_b64);
+    materialize_inline_image_by_id(id, media_type, data_b64)
+}
 
+/// Cheap presence probe: is this inline image already registered in the
+/// in-memory render cache? One mutex lock + map lookup; no payload hashing,
+/// no payload clone, no filesystem access. Used by the per-frame draw path so
+/// steady-state scrolling never touches the multi-megabyte payload.
+pub fn inline_image_is_materialized(id: u64) -> bool {
+    RENDER_CACHE
+        .lock()
+        .map(|cache| cache.entries.contains_key(&(id, RenderProfile::default())))
+        .unwrap_or(false)
+}
+
+/// [`materialize_inline_image`] for callers that already know the stable
+/// content id, skipping the full-payload hash. Also primes the decoded-source
+/// cache so the first fit/scale render does not decode the same bytes a second
+/// time from disk.
+pub fn materialize_inline_image_by_id(
+    id: u64,
+    media_type: &str,
+    data_b64: &str,
+) -> Option<(u64, u32, u32)> {
     if let Ok(mut cache) = RENDER_CACHE.lock()
         && let Some(existing) = cache.get(id, None, Some(RenderProfile::default()))
     {
@@ -124,11 +146,19 @@ pub fn materialize_inline_image(media_type: &str, data_b64: &str) -> Option<(u64
     dims_cache_put(id, InlineDims { width, height });
 
     let ext = inline_image_extension(media_type);
+    let path = {
+        let cache = RENDER_CACHE.lock().ok()?;
+        cache.cache_dir.join(format!("{:016x}_inline.{}", id, ext))
+    };
+    if !path.exists() && fs::write(&path, &bytes).is_err() {
+        return None;
+    }
+    // Prime the source cache with the already-decoded pixels so the follow-up
+    // render does not re-open + re-decode the file we just wrote.
+    if let Ok(mut source) = SOURCE_CACHE.lock() {
+        source.insert(id, path.clone(), image);
+    }
     if let Ok(mut cache) = RENDER_CACHE.lock() {
-        let path = cache.cache_dir.join(format!("{:016x}_inline.{}", id, ext));
-        if !path.exists() && fs::write(&path, &bytes).is_err() {
-            return None;
-        }
         cache.insert(
             id,
             RenderProfile::default(),
