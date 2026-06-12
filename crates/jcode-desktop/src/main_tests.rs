@@ -10348,4 +10348,3 @@ fn desktop_preferences_save_is_queued_off_ui_thread() {
     assert_eq!(rx.try_recv().ok(), Some(expected));
     assert!(rx.try_recv().is_err());
 }
-
