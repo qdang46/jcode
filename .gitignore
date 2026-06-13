@@ -21,3 +21,4 @@ session-ses_*.md
 target-ttest/
 target-tttest*
 libjcode_base.rlib
+.DS_Store
