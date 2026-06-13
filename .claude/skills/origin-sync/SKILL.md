@@ -208,72 +208,86 @@ Use this to **automatically resolve** Category B conflicts and Category F silent
 The strategy: start from OUR HEAD, then incorporate upstream's additions that don't conflict
 with ours (trust ours on overlap).
 
+The script AUTO-DISCOVERS which files to resolve — no hardcoded lists.
+
 ```bash
-# Requires: MERGE_BASE, file
-resolve_merge_file() {
-  local file="$1"
-  
-  # Step 1: Check if there are actual changes from upstream
-  if ! git diff --quiet "$MERGE_BASE..upstream/master" -- "$file" 2>/dev/null; then
-    echo "=== $file: upstream made changes ==="
-    
-    # Step 2: Try 3-way merge with ours preference
-    # Start from HEAD (our version)
-    git checkout --ours -- "$file" 2>/dev/null || true
-    
-    # Step 3: Apply upstream's non-overlapping changes using merge-file
-    # This produces a merge that keeps ours on conflict, adds theirs otherwise
-    cp "$file" "${file}.ours"
-    git show upstream/master:"$file" > "${file}.theirs" 2>/dev/null
-    git show "$MERGE_BASE":"$file" > "${file}.base" 2>/dev/null
-    
-    if [ -f "${file}.base" ] && [ -f "${file}.theirs" ]; then
-      # 3-way merge: ours preferred on conflict
-      git merge-file --ours -p \
-        "${file}.ours" \
-        "${file}.base" \
-        "${file}.theirs" > "$file" 2>/dev/null || true
-      
-      # If merge-file produced empty/corrupt result, restore HEAD
-      if [ ! -s "$file" ]; then
-        cp "${file}.ours" "$file"
-      fi
-    fi
-    
-    rm -f "${file}.ours" "${file}.theirs" "${file}.base"
-    
-    # Step 4: Verify it compiles
-    if [ -f "$file" ]; then
-      git add "$file"
-    fi
+# Requires: MERGE_BASE, UPSTREAM_BRANCH (e.g. upstream/master)
+# Run this AFTER `git merge` completes (all auto-merge done).
+
+MERGE_BASE=$(git merge-base HEAD "$UPSTREAM_BRANCH")
+CAT_A_FILES=$(grep -l 'ddg\|dcp\|hashline\|casr\|rtco\|mempalace\|ffs_' \
+  <(git diff --name-only "$MERGE_BASE..HEAD" -- '*.rs' 2>/dev/null) 2>/dev/null || echo "")
+
+echo "=== Auto-resolving Category A (extracted domains) — keeping OURS ==="
+for file in $CAT_A_FILES; do
+  if git ls-files --unmerged "$file" | grep -q . 2>/dev/null; then
+    git checkout --ours -- "$file"
+    git add "$file"
+    echo "  ✓ $file (conflict → kept ours)"
   fi
-}
-
-# Run for all Category A/B/F files:
-# (Adjust file list based on Step 2.5 audit output)
-for file in \
-  crates/jcode-app-core/src/dcg_bridge.rs \
-  crates/jcode-app-core/src/dcp_bridge.rs \
-  crates/jcode-app-core/src/dcp_plugin.rs \
-  crates/jcode-base/src/casr_adapter.rs \
-  crates/jcode-base/src/import.rs; do
-  resolve_merge_file "$file"
 done
 
-# For Category F silent overwrite files, also restore any local-only
-# features using origin/master as reference:
-for file in \
-  crates/jcode-base/src/provider/claude.rs \
-  crates/jcode-provider-core/src/anthropic.rs \
-  crates/jcode-tui/src/tui/app/input.rs \
-  crates/jcode-tui/src/tui/ui_header.rs; do
-  resolve_merge_file "$file"
+echo "=== Auto-resolving Category B/F (3-way merge with --ours preference) ==="
+# Discover ALL common files: upstream changed AND we also changed
+# These are all Category B or F candidates
+COMMON_FILES=$(comm -12 \
+  <(git diff --name-only "$MERGE_BASE..$UPSTREAM_BRANCH" | sort -u) \
+  <(git diff --name-only "$MERGE_BASE..HEAD" | sort -u) \
+  2>/dev/null)
+
+for file in $COMMON_FILES; do
+  # Skip files we already handled as Category A
+  if echo "$CAT_A_FILES" | grep -Fxq "$file"; then
+    continue
+  fi
+  if [ ! -f "$file" ]; then continue; fi
+  
+  # Has conflict markers from auto-merge?
+  if git ls-files --unmerged "$file" | grep -q . 2>/dev/null; then
+    echo "  🔄 $file (conflict — 3-way merge with --ours)"
+  else
+    # Category F silent overwrite — check if HEAD changed
+    cp "$file" "${file}.check"
+    git show HEAD:"$file" > "${file}.head" 2>/dev/null || continue
+    if diff -q "${file}.check" "${file}.head" >/dev/null 2>&1; then
+      rm -f "${file}.check" "${file}.head"
+      continue  # no change — safe
+    fi
+    echo "  ⚠ $file (silent overwrite — restoring ours + upstream non-overlap)"
+    rm -f "${file}.check" "${file}.head"
+  fi
+  
+  # 3-way merge: ours preferred, upstream non-overlap incorporated
+  cp "$file" "${file}.ours"
+  git show "$UPSTREAM_BRANCH":"$file" > "${file}.theirs" 2>/dev/null || continue
+  git show "$MERGE_BASE":"$file" > "${file}.base" 2>/dev/null || continue
+  
+  if [ -s "${file}.base" ] && [ -s "${file}.theirs" ]; then
+    git merge-file --ours -p \
+      "${file}.ours" \
+      "${file}.base" \
+      "${file}.theirs" > "$file" 2>/dev/null || cp "${file}.ours" "$file"
+    
+    # Ensure file isn't empty
+    if [ ! -s "$file" ]; then
+      cp "${file}.ours" "$file"
+    fi
+    git add "$file"
+    echo "    → merged"
+  fi
+  rm -f "${file}.ours" "${file}.theirs" "${file}.base"
 done
+
+echo "=== Verification ==="
+cargo check 2>&1 | tail -10
 ```
 
-**Caveat**: `git merge-file --ours` trusts ours on every conflicting hunk.
-If upstream's version of a hunk is semantically better (bug fix, security),
-you must merge that hunk manually. Always run `cargo check` after.
+This replaces the old hardcoded file list with dynamic discovery via:
+- `CAT_A_FILES`: found by grepping diff for extracted domain keywords
+- `COMMON_FILES`: `comm -12` of upstream changes vs our changes
+- Category B detected by `git ls-files --unmerged` (has conflict markers)
+- Category F detected by comparing working tree against HEAD (silently changed)
+- Both resolved via `git merge-file --ours`
 
 #### Category C: Upstream-Only Change (no conflict)
 
