@@ -80,6 +80,12 @@ impl Provider for OpenRouterProvider {
                         }
                     })
                     .collect();
+                crate::logging::info(&format!(
+                    "Tool[{}]: '{}' -> '{}'",
+                    tools.iter().position(|x| std::ptr::eq(x, t)).unwrap_or(999),
+                    t.name,
+                    safe_name,
+                ));
                 serde_json::json!({
                     "type": "function",
                     "function": {
