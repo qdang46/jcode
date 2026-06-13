@@ -15,6 +15,10 @@ use super::*;
 use crossterm::event::{KeyCode, KeyModifiers};
 use std::sync::Arc;
 
+fn repeat_char(c: char, n: usize) -> String {
+    (0..n).map(|_| c).collect()
+}
+
 impl App {
     fn open_auth_browser(url: &str) -> bool {
         // Honors --no-browser/NO_BROWSER/JCODE_NO_BROWSER and never opens real
@@ -140,51 +144,67 @@ impl App {
         let status = crate::auth::AuthStatus::check();
         let validation = crate::auth::validation::load_all();
         let icon = |state: crate::auth::AuthState| match state {
-            crate::auth::AuthState::Available => "ok",
-            crate::auth::AuthState::Expired => "needs attention",
-            crate::auth::AuthState::NotConfigured => "not configured",
+            crate::auth::AuthState::Available => "✓",
+            crate::auth::AuthState::Expired => "⚠",
+            crate::auth::AuthState::NotConfigured => "—",
         };
         let providers = crate::provider_catalog::auth_status_login_providers();
-        let mut rows: Vec<[String; 5]> = vec![[
-            "Provider".to_string(),
-            "Status".to_string(),
-            "Method".to_string(),
-            "Health".to_string(),
-            "Validation".to_string(),
+        let mut rows: Vec<[String; 3]> = vec![[
+            "Provider".into(),
+            "  ".into(),
+            "Auth".into(),
         ]];
         for provider in providers {
             let assessment = status.assessment_for_provider(provider);
+            let auth_str = match assessment.state {
+                crate::auth::AuthState::Available => "ready".into(),
+                crate::auth::AuthState::Expired => {
+                    format!("expired ({})", assessment.method_detail)
+                }
+                crate::auth::AuthState::NotConfigured => "—".into(),
+            };
+            let valid_str = validation
+                .get(provider.id)
+                .map(crate::auth::validation::format_record_label)
+                .unwrap_or_default();
+            let health = if assessment.state == crate::auth::AuthState::Available {
+                let v = if valid_str.is_empty() { "" } else { &*valid_str };
+                format!("{}·{}", assessment.method_detail, v)
+            } else {
+                String::new()
+            };
             rows.push([
                 provider.display_name.to_string(),
-                icon(assessment.state).to_string(),
-                assessment.method_detail.to_string(),
-                assessment.health_summary(),
-                validation
-                    .get(provider.id)
-                    .map(crate::auth::validation::format_record_label)
-                    .unwrap_or_else(|| "not validated".to_string()),
+                format!(" {}", icon(assessment.state)),
+                if health.is_empty() { auth_str } else { health },
             ]);
         }
-        let mut widths = [0usize; 5];
+        let mut widths = [0usize; 3];
         for row in &rows {
-            for (i, cell) in row.iter().enumerate() {
-                widths[i] = widths[i].max(cell.chars().count());
-            }
+            widths[0] = widths[0].max(row[0].chars().count());
+            widths[2] = widths[2].max(row[2].chars().count().min(30));
         }
-        let mut message = String::from("Authentication Status:\n\n");
-        for row in &rows {
-            let line = row
-                .iter()
-                .enumerate()
-                .map(|(i, cell)| format!("{:width$}", cell, width = widths[i]))
-                .collect::<Vec<_>>()
-                .join("  ");
+        let mut message = String::from("Auth\n");
+        message.push_str(&repeat_char('─', widths.iter().sum::<usize>() + widths[0] + 4));
+        message.push('\n');
+        for (ri, row) in rows.iter().enumerate() {
+            let line = format!(
+                "{:width0$} {:2} {:width2$}",
+                row[0],
+                row[1],
+                row[2],
+                width0 = widths[0],
+                width2 = widths[2],
+            );
             message.push_str(line.trim_end());
             message.push('\n');
+            if ri == 0 {
+                message.push_str(&repeat_char('─', widths.iter().sum::<usize>() + widths[0] + 4));
+                message.push('\n');
+            }
         }
-        message.push_str(
-            "\nUse /login <provider> to authenticate. /login jcode is for curated jcode subscription access; /account opens the provider/account management center, /account <provider> settings shows provider-specific controls, and /auth doctor or /account <provider> doctor shows recovery steps.",
-        );
+        message.push_str(&repeat_char('─', widths.iter().sum::<usize>() + widths[0] + 4));
+        message.push_str("\n/login <provider> · /account · /auth doctor");
         self.push_display_message(DisplayMessage::system(message));
     }
 
