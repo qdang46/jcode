@@ -9,8 +9,9 @@ pub mod registry;
 pub mod types;
 
 pub use config::{
-    load_hooks_config, AgentHandlerConfig, CommandHandlerConfig, HookEvent, HookHandlerConfig,
-    HookSettings, HooksConfig, HttpHandlerConfig, PluginHandlerConfig,
+    legacy_v1_to_v2_handlers, load_hooks_config, AgentHandlerConfig, CommandHandlerConfig,
+    HookEvent, HookHandlerConfig, HookSettings, HooksConfig, HttpHandlerConfig,
+    PluginHandlerConfig,
 };
 pub use dispatch::{
     dispatch_hooks, get_hook_metrics, get_hook_metrics_for_event, ClassifiedOutcome,

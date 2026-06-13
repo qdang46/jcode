@@ -53,14 +53,15 @@ fn test_hook_event_parse_all_variants() {
         ("TaskCompleted", HookEvent::TaskCompleted),
         ("Setup", HookEvent::Setup),
         ("FileChanged", HookEvent::FileChanged),
+        ("TurnEnd", HookEvent::TurnEnd),
     ];
 
     assert_eq!(
         standard_cases.len(),
-        28,
-        "must have exactly 28 standard variants"
+        29,
+        "must have exactly 29 standard variants"
     );
-    assert_eq!(ALL_EVENT_NAMES.len(), 28);
+    assert_eq!(ALL_EVENT_NAMES.len(), 29);
 
     for (input, expected) in &standard_cases {
         let parsed = HookEvent::parse(input);

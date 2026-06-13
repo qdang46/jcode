@@ -61,6 +61,9 @@ pub enum HookEvent {
     SubagentStart,
     SubagentStop,
 
+    // -- Turn lifecycle events (1) --
+    TurnEnd,
+
     // -- Execution control (1) --
     Stop,
 
@@ -144,6 +147,7 @@ impl HookEvent {
             "agentend" => Some(Self::AgentEnd),
             "subagentstart" => Some(Self::SubagentStart),
             "subagentstop" => Some(Self::SubagentStop),
+            "turnend" => Some(Self::TurnEnd),
             "stop" => Some(Self::Stop),
             "precompact" => Some(Self::PreCompact),
             "postcompact" => Some(Self::PostCompact),
@@ -170,6 +174,7 @@ impl HookEvent {
                 | Self::AgentStart
                 | Self::Stop
                 | Self::PreCompact
+                // TurnEnd is an observer event — never blocks
         )
     }
 
@@ -198,6 +203,7 @@ impl HookEvent {
             Self::AgentEnd => "AgentEnd",
             Self::SubagentStart => "SubagentStart",
             Self::SubagentStop => "SubagentStop",
+            Self::TurnEnd => "TurnEnd",
             Self::Stop => "Stop",
             Self::PreCompact => "PreCompact",
             Self::PostCompact => "PostCompact",
@@ -216,7 +222,7 @@ impl HookEvent {
         self.display_name().to_ascii_uppercase()
     }
 
-    /// Return all 28 standard variants (excluding `Custom`).
+    /// Return all 29 standard variants (excluding `Custom`).
     pub fn all_standard() -> Vec<Self> {
         vec![
             Self::PreToolUse,
@@ -239,6 +245,7 @@ impl HookEvent {
             Self::AgentEnd,
             Self::SubagentStart,
             Self::SubagentStop,
+            Self::TurnEnd,
             Self::Stop,
             Self::PreCompact,
             Self::PostCompact,
@@ -766,6 +773,92 @@ fn load_hooks_config_from_path(path: &std::path::Path) -> Option<HooksConfig> {
 }
 
 // ---------------------------------------------------------------------------
+// Legacy v1-to-v2 bridge
+// ---------------------------------------------------------------------------
+
+/// Convert legacy v1 hook command strings (from `config.toml [hooks]`) into
+/// v2 [`CommandHandlerConfig`] entries, keyed by the corresponding v2 event name.
+///
+/// The v1 config had 5 hooks with simple shell command strings:
+///
+/// | v1 field              | v2 event        | Blocking? | Notes |
+/// |-----------------------|-----------------|-----------|-------|
+/// | `pre_tool`            | `PreToolUse`    | Yes       | timeout from `pre_tool_timeout_ms` |
+/// | `post_tool`           | `PostToolUse`   | No        |       |
+/// | `turn_end`            | `TurnEnd`       | No        |       |
+/// | `session_start`       | `SessionStart`  | No        |       |
+/// | `session_end`         | `SessionEnd`    | No        |       |
+///
+/// Returns an empty `Vec` when all inputs are `None`.
+pub fn legacy_v1_to_v2_handlers(
+    turn_end: Option<String>,
+    session_start: Option<String>,
+    session_end: Option<String>,
+    pre_tool: Option<String>,
+    pre_tool_timeout_ms: Option<u64>,
+    post_tool: Option<String>,
+) -> Vec<(String, Vec<HookHandlerConfig>)> {
+    let mut entries: Vec<(String, Vec<HookHandlerConfig>)> = Vec::new();
+
+    if let Some(cmd) = turn_end.filter(|s| !s.is_empty()) {
+        entries.push((
+            "TurnEnd".to_string(),
+            vec![HookHandlerConfig::Command(CommandHandlerConfig {
+                command: cmd,
+                ..Default::default()
+            })],
+        ));
+    }
+
+    if let Some(cmd) = session_start.filter(|s| !s.is_empty()) {
+        entries.push((
+            "SessionStart".to_string(),
+            vec![HookHandlerConfig::Command(CommandHandlerConfig {
+                command: cmd,
+                ..Default::default()
+            })],
+        ));
+    }
+
+    if let Some(cmd) = session_end.filter(|s| !s.is_empty()) {
+        entries.push((
+            "SessionEnd".to_string(),
+            vec![HookHandlerConfig::Command(CommandHandlerConfig {
+                command: cmd,
+                ..Default::default()
+            })],
+        ));
+    }
+
+    if let Some(cmd) = pre_tool.filter(|s| !s.is_empty()) {
+        let timeout = pre_tool_timeout_ms
+            .map(|ms| (ms.max(1) / 1000).max(1))
+            .filter(|&s| s > 0)
+            .or(Some(30));
+        entries.push((
+            "PreToolUse".to_string(),
+            vec![HookHandlerConfig::Command(CommandHandlerConfig {
+                command: cmd,
+                timeout_secs: timeout,
+                ..Default::default()
+            })],
+        ));
+    }
+
+    if let Some(cmd) = post_tool.filter(|s| !s.is_empty()) {
+        entries.push((
+            "PostToolUse".to_string(),
+            vec![HookHandlerConfig::Command(CommandHandlerConfig {
+                command: cmd,
+                ..Default::default()
+            })],
+        ));
+    }
+
+    entries
+}
+
+// ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
@@ -837,7 +930,7 @@ mod tests {
     }
 
     #[test]
-    fn parse_all_28_standard_variants() {
+    fn parse_all_29_standard_variants() {
         let cases = &[
             ("PreToolUse", HookEvent::PreToolUse),
             ("PostToolUse", HookEvent::PostToolUse),
@@ -859,6 +952,7 @@ mod tests {
             ("AgentEnd", HookEvent::AgentEnd),
             ("SubagentStart", HookEvent::SubagentStart),
             ("SubagentStop", HookEvent::SubagentStop),
+            ("TurnEnd", HookEvent::TurnEnd),
             ("Stop", HookEvent::Stop),
             ("PreCompact", HookEvent::PreCompact),
             ("PostCompact", HookEvent::PostCompact),
@@ -949,6 +1043,7 @@ mod tests {
             HookEvent::AgentEnd,
             HookEvent::SubagentStart,
             HookEvent::SubagentStop,
+            HookEvent::TurnEnd,
             HookEvent::PostCompact,
             HookEvent::AutoCompactionControl,
             HookEvent::TaskCreated,
@@ -988,8 +1083,8 @@ mod tests {
     }
 
     #[test]
-    fn all_standard_has_28_variants() {
-        assert_eq!(HookEvent::all_standard().len(), 28);
+    fn all_standard_has_29_variants() {
+        assert_eq!(HookEvent::all_standard().len(), 29);
     }
 
     #[test]
@@ -1305,6 +1400,7 @@ command = "noop"
     #[test]
     fn hook_event_serde_round_trip() {
         let events = HookEvent::all_standard();
+        assert_eq!(events.len(), 29, "expected 29 standard variants");
         for ev in &events {
             let json = serde_json::to_string(ev).unwrap();
             let deserialized: HookEvent = serde_json::from_str(&json).unwrap();

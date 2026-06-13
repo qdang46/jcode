@@ -39,6 +39,9 @@ pub const EVENT_AGENT_END: &str = "AgentEnd";
 pub const EVENT_SUBAGENT_START: &str = "SubagentStart";
 pub const EVENT_SUBAGENT_STOP: &str = "SubagentStop";
 
+/// Turn lifecycle events
+pub const EVENT_TURN_END: &str = "TurnEnd";
+
 /// Execution control events
 pub const EVENT_STOP: &str = "Stop";
 
@@ -77,6 +80,7 @@ pub const ALL_EVENT_NAMES: &[&str] = &[
     EVENT_AGENT_END,
     EVENT_SUBAGENT_START,
     EVENT_SUBAGENT_STOP,
+    EVENT_TURN_END,
     EVENT_STOP,
     EVENT_PRE_COMPACT,
     EVENT_POST_COMPACT,
@@ -598,7 +602,7 @@ mod tests {
 
     #[test]
     fn test_all_event_names_count() {
-        assert_eq!(ALL_EVENT_NAMES.len(), 28);
+        assert_eq!(ALL_EVENT_NAMES.len(), 29);
     }
 
     #[test]

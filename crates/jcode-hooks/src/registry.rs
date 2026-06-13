@@ -568,6 +568,31 @@ impl HookContext {
         }
     }
 
+    /// Create a HookContext for a TurnEnd event
+    ///
+    /// Fired at the end of each agent turn with turn outcome metadata.
+    pub fn for_turn_end(session_id: String, cwd: String) -> Self {
+        Self {
+            session_id,
+            transcript_path: String::new(),
+            cwd,
+            hook_event_name: "TurnEnd".to_string(),
+            agent_id: None,
+            agent_type: None,
+            tool_name: None,
+            tool_input: None,
+            tool_use_id: None,
+            permission_mode: None,
+            model: None,
+            prompt: None,
+            system_prompt: None,
+            current_size_bytes: None,
+            task_id: None,
+            file_path: None,
+            stop_type: None,
+        }
+    }
+
     /// Build a MatcherContext for use with the hook matcher
     ///
     /// Uses tool_name as the primary target for pattern matching.
