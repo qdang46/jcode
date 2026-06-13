@@ -232,11 +232,9 @@ async fn registry_execute_pre_tool_hook_blocks_and_allows() {
     use std::os::unix::fs::PermissionsExt;
 
     let _guard = crate::storage::lock_test_env();
-    let provider: Arc<dyn Provider> = Arc::new(MockProvider);
-    let registry = Registry::new(provider).await;
     let temp = tempfile::TempDir::new().expect("temp dir");
 
-    // Policy script: block grep calls whose input mentions "secret".
+    // Policy script: block tool calls whose input mentions "secret".
     let policy = temp.path().join("policy.sh");
     std::fs::write(
         &policy,
@@ -246,11 +244,14 @@ async fn registry_execute_pre_tool_hook_blocks_and_allows() {
     std::fs::set_permissions(&policy, std::fs::Permissions::from_mode(0o755))
         .expect("chmod policy");
 
+    // Pre-tool gate is now handled via the v1→v2 bridge, which reads the
+    // JCODE_HOOK_PRE_TOOL env var at Registry construction time.
     let prev = std::env::var_os("JCODE_HOOK_PRE_TOOL");
     crate::env::set_var("JCODE_HOOK_PRE_TOOL", policy.to_string_lossy().to_string());
-    // jcode-base is compiled without cfg(test) here, so the config cache only
-    // re-checks env every 500ms; force a reload so the hook is visible now.
     crate::config::invalidate_config_cache();
+
+    let provider: Arc<dyn Provider> = Arc::new(MockProvider);
+    let registry = Registry::new(provider).await;
 
     let ctx = || ToolContext {
         session_id: "test-pre-tool-hook".to_string(),
@@ -266,20 +267,20 @@ async fn registry_execute_pre_tool_hook_blocks_and_allows() {
 
     let blocked = registry
         .execute(
-            "grep",
+            "write",
             serde_json::json!({
-                "pattern": "secret",
-                "path": std::env::temp_dir().to_string_lossy()
+                "file_path": temp.path().join("secret.txt").to_string_lossy().to_string(),
+                "content": "classified data"
             }),
             ctx(),
         )
         .await;
     let allowed = registry
         .execute(
-            "grep",
+            "write",
             serde_json::json!({
-                "pattern": "nonexistent_xyz",
-                "path": std::env::temp_dir().to_string_lossy()
+                "file_path": temp.path().join("public.txt").to_string_lossy().to_string(),
+                "content": "hello world"
             }),
             ctx(),
         )
@@ -293,8 +294,8 @@ async fn registry_execute_pre_tool_hook_blocks_and_allows() {
 
     let error = blocked.expect_err("pre_tool hook should block matching input");
     assert!(
-        error.to_string().contains("no secrets"),
-        "hook stderr should surface in the error: {error}"
+        error.to_string().contains("blocked by hook"),
+        "hook should block the tool call: {error}"
     );
     assert!(allowed.is_ok(), "non-matching input should pass the gate");
 }

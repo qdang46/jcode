@@ -1002,6 +1002,30 @@ impl Registry {
                         deny_reason
                     ));
                 }
+                if stats.any_asked() {
+                    let ask_reasons: Vec<&str> = stats
+                        .results
+                        .iter()
+                        .filter_map(|r| match &r.outcome {
+                            jcode_hooks::ClassifiedOutcome::Ask { reason }
+                                if !reason.is_empty() =>
+                            {
+                                Some(reason.as_str())
+                            }
+                            _ => None,
+                        })
+                        .collect();
+                    let reason = if ask_reasons.is_empty() {
+                        "user approval required by hook".to_string()
+                    } else {
+                        format!("user approval required by hook: {}", ask_reasons.join("; "))
+                    };
+                    return Err(anyhow::anyhow!(
+                        "Tool '{}': {}",
+                        resolved_name,
+                        reason
+                    ));
+                }
             }
         }
 
@@ -1013,50 +1037,59 @@ impl Registry {
 
         let mut output = match result {
             Ok(output) => {
-                // --- PostToolUse hook ---
-                let hook_registry = self.hook_registry.read().await;
-                let handlers = hook_registry.get_matching(&HookEvent::PostToolUse, &hook_ctx);
+                // --- PostToolUse hook (fire-and-forget) ---
+                let hook_registry = self.hook_registry.clone();
+                let dispatch_config = self.dispatch_config.clone();
+                let hook_input = HookInputBuilder::new()
+                    .session(&ctx.session_id, &cwd)
+                    .event("PostToolUse")
+                    .tool(resolved_name, input.clone(), &ctx.tool_call_id)
+                    .tool_output(serde_json::json!({ "output": &output.output }))
+                    .duration(latency_ms)
+                    .build();
+                let handlers: Vec<_> = {
+                    let reg = hook_registry.read().await;
+                    reg.get_matching(&HookEvent::PostToolUse, &hook_ctx)
+                        .into_iter()
+                        .cloned()
+                        .collect()
+                };
                 if !handlers.is_empty() {
-                    let hook_input = HookInputBuilder::new()
-                        .session(&ctx.session_id, &cwd)
-                        .event("PostToolUse")
-                        .tool(resolved_name, input.clone(), &ctx.tool_call_id)
-                        .tool_output(serde_json::json!({ "output": &output.output }))
-                        .duration(latency_ms)
-                        .build();
-                    let _ = jcode_hooks::dispatch_hooks(
-                        &HookEvent::PostToolUse,
-                        &hook_input,
-                        &handlers,
-                        &self.dispatch_config,
-                    )
-                    .await;
+                    let event = HookEvent::PostToolUse;
+                    tokio::spawn(async move {
+                        let refs: Vec<_> = handlers.iter().collect();
+                        jcode_hooks::dispatch_hooks(&event, &hook_input, &refs, &dispatch_config)
+                            .await;
+                    });
                 }
-                drop(hook_registry);
                 output
             }
             Err(error) => {
-                // --- PostToolUseFailure hook ---
-                let hook_registry = self.hook_registry.read().await;
-                let handlers =
-                    hook_registry.get_matching(&HookEvent::PostToolUseFailure, &hook_ctx);
+                // --- PostToolUseFailure hook (fire-and-forget) ---
+                let hook_registry = self.hook_registry.clone();
+                let dispatch_config = self.dispatch_config.clone();
+                let event = HookEvent::PostToolUseFailure;
+                let hook_input = HookInputBuilder::new()
+                    .session(&ctx.session_id, &cwd)
+                    .event("PostToolUseFailure")
+                    .tool(resolved_name, input.clone(), &ctx.tool_call_id)
+                    .error(&crate::util::format_error_chain(&error), -1)
+                    .duration(latency_ms)
+                    .build();
+                let handlers: Vec<_> = {
+                    let reg = hook_registry.read().await;
+                    reg.get_matching(&HookEvent::PostToolUseFailure, &hook_ctx)
+                        .into_iter()
+                        .cloned()
+                        .collect()
+                };
                 if !handlers.is_empty() {
-                    let hook_input = HookInputBuilder::new()
-                        .session(&ctx.session_id, &cwd)
-                        .event("PostToolUseFailure")
-                        .tool(resolved_name, input.clone(), &ctx.tool_call_id)
-                        .error(&crate::util::format_error_chain(&error), -1)
-                        .duration(latency_ms)
-                        .build();
-                    let _ = jcode_hooks::dispatch_hooks(
-                        &HookEvent::PostToolUseFailure,
-                        &hook_input,
-                        &handlers,
-                        &self.dispatch_config,
-                    )
-                    .await;
+                    tokio::spawn(async move {
+                        let refs: Vec<_> = handlers.iter().collect();
+                        jcode_hooks::dispatch_hooks(&event, &hook_input, &refs, &dispatch_config)
+                            .await;
+                    });
                 }
-                drop(hook_registry);
                 let mut fields =
                     Self::tool_lifecycle_fields("error", name, resolved_name, &input, &ctx);
                 fields.push(("elapsed_ms".to_string(), latency_ms.to_string()));

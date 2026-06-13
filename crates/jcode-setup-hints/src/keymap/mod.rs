@@ -121,6 +121,7 @@ pub fn refresh_and_save() -> KeymapSnapshot {
         let _ = jcode_storage::write_json(&path, &snapshot).map_err(|err| {
             jcode_logging::warn(&format!("keymap snapshot write failed: {err}"));
         });
+    }
     if let Ok(path) = snapshot_path()
         && let Err(err) = jcode_storage::write_json(&path, &snapshot)
     {
@@ -144,8 +145,6 @@ const SNAPSHOT_MAX_AGE_SECS: u64 = 24 * 60 * 60;
 /// This is the entry point intended for startup: cheap on the common path,
 /// self-healing when stale.
 pub fn snapshot_cached_or_refresh() -> KeymapSnapshot {
-    if let Some(existing) =
-        load_snapshot().filter(|e| e.version == SNAPSHOT_VERSION && !snapshot_is_stale(e))
     if let Some(existing) = load_snapshot()
         && existing.version == SNAPSHOT_VERSION
         && !snapshot_is_stale(&existing)

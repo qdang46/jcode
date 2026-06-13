@@ -966,8 +966,9 @@ impl Agent {
             let registry = self.hook_registry.clone();
             let config = self.dispatch_config.clone();
             let session_id = self.session.id.clone();
+            let cwd = self.session.working_dir.clone().unwrap_or_default();
             let hook_input = HookInputBuilder::new()
-                .session(&session_id, "")
+                .session(&session_id, &cwd)
                 .event("SessionEnd")
                 .build();
             let ctx = HookContext::for_session_end(session_id.clone());
@@ -985,8 +986,9 @@ impl Agent {
             let registry = self.hook_registry.clone();
             let config = self.dispatch_config.clone();
             let session_id = self.session.id.clone();
+            let cwd = self.session.working_dir.clone().unwrap_or_default();
             let hook_input = HookInputBuilder::new()
-                .session(&session_id, "")
+                .session(&session_id, &cwd)
                 .event("AgentEnd")
                 .build();
             let ctx = HookContext::for_agent_end(session_id);
