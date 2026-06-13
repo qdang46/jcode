@@ -1071,8 +1071,17 @@ pub(super) fn handle_model_command(app: &mut App, trimmed: &str) -> bool {
                     title: None,
                     tool_data: None,
                 });
-                if !app.is_remote {
-                    let _ = crate::config::Config::set_default_model_only(Some(&active_model));
+                // Persist the model as default for future sessions.
+                // We save regardless of is_remote: for local daemon mode the
+                // config is shared, and for true remote the server saves its
+                // own config (but writing the client's copy does no harm).
+                if let Err(e) =
+                    crate::config::Config::set_default_model_only(Some(&active_model))
+                {
+                    crate::logging::warn(&format!(
+                        "Failed to save default model '{}': {}",
+                        active_model, e
+                    ));
                 }
                 app.set_status_notice(format!("Model → {}", model_name));
             }
