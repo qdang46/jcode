@@ -41,6 +41,16 @@ The naive approach (`git merge` + resolve everything by hand) breaks because:
 - `src/cli/tui_launch.rs` — terminal launch (uses `casr_adapter` heavily)
 - `crates/jcode-tui/src/tui/session_picker/` — session picker UI (has `ForeignSession` arms added locally)
 - `crates/jcode-app-core/src/yolo_classifier.rs` — DCG integration
+- `crates/jcode-tui/src/tui/app/state_ui_input_helpers.rs` — slash commands (`/permissions`, `/models`), `$<skill>`, `@<file>` autocomplete, FFS tool rename
+- `crates/jcode-tui/src/tui/app/state_ui.rs` — `/skills` report, `/permissions` handler
+- `crates/jcode-tui/src/tui/ui_overlays.rs` — help overlay entries
+- `crates/jcode-base/src/safety.rs` — AUTO_ALLOWED list with `ffs *` entries
+- `crates/jcode-base/src/skill.rs` — `parse_invocation` with `$<name>` instead of `/<name>`
+- `Cargo.toml` — `mempalace-backend` feature, `jcode-app-core` dep
+- `crates/jcode-app-core/src/tool/mod.rs` — tool registration names + module declarations
+- `crates/jcode-app-core/src/dcg_bridge.rs` — `READ_ONLY_ACTIONS` with FFS tools, `mode_to_str`
+- `crates/jcode-tui/src/tui/app/at_picker.rs` — `@` mention picker
+- `crates/jcode-base/src/prompt.rs` — system prompt with `$skillname`
 
 ---
 
@@ -78,20 +88,23 @@ git log --oneline master..upstream/master
 # Check which files changed
 git diff --stat master..upstream/master
 
-# *** CRITICAL ***: Check if upstream has changed extracted module files
-# If ANY of these files changed upstream, there WILL be conflicts
-git diff --stat master..upstream/master -- \
-  crates/jcode-base/src/casr_adapter.rs \
-  crates/jcode-base/src/import.rs \
-  crates/jcode-app-core/src/dcg_bridge.rs \
-  crates/jcode-app-core/src/dcp_bridge.rs \
-  crates/jcode-app-core/src/tool/hashline_edit.rs \
-  crates/jcode-tui/src/tui/app/at_picker.rs \
-  crates/jcode-tui/src/tui/app/inline_interactive.rs \
-  crates/jcode-session-types/src/lib.rs \
-  crates/jcode-tui/src/tui/session_picker/ \
-  crates/jcode-app-core/src/yolo_classifier.rs \
-  src/cli/tui_launch.rs
+# *** CRITICAL ***: Check if upstream has changed ANY file we've modified locally.
+# Auto-merge can silently overwrite our changes if there's no textual conflict.
+# This includes extracted-domain files AND all local customizations.
+# Use git log to find all files we've modified on master since fork:
+LOCAL_FILES=$(git log --all --since="2026-01-01" --diff-filter=M --format="" --name-only -- \
+  '*.rs' '*.toml' '*.json' '*.sh' '*.md' \
+  | sort -u | grep -v 'target/' | grep -v '.worktrees/' | head -200)
+UPSTREAM_FILES=$(git diff --name-only master..upstream/master)
+# Files that changed both locally AND upstream — these need attention
+COMMON_FILES=$(comm -12 <(echo "$UPSTREAM_FILES" | sort) <(echo "$LOCAL_FILES" | sort))
+if [ -n "$COMMON_FILES" ]; then
+  echo "=== Files changed by upstream that we've also modified locally ==="
+  echo "$COMMON_FILES"
+  echo "=== These risk silent overwrite. Review each after merge. ==="
+fi
+# Also check the known extracted-domain files explicitly
+git diff --stat master..upstream/master -- $UPSTREAM_FILES
 ```
 
 ### Step 3: Merge
@@ -168,6 +181,50 @@ git add <file>  # after the auto-merge stage already handled this
 4. Bump the dependency revision
 5. Wire it through the adapter layer
 
+#### Category F: Silent Overwrite Risk
+
+**Symptom**: Upstream changed a file that we've modified locally, and the merge auto-resolved WITHOUT conflict. No conflict markers, but our local changes are gone.
+
+**Why this happens**: Git's auto-merge only produces conflict markers when both sides modified the same region. If upstream modified lines far from our local changes, auto-merge silently accepts both — but on the next `cargo check` our changes may no longer apply correctly, or runtime behavior regresses.
+
+**Resolution**: After merge, BEFORE verification:
+
+```bash
+# List files that upstream changed that we also modified
+# These are the highest risk for silent overwrite
+git diff --name-only HEAD..origin/master -- $(comm -12 \
+  <(git diff --name-only master..upstream/master | sort) \
+  <(git log --all --since="2026-01-01" --diff-filter=M --format="" --name-only -- '*.rs' '*.toml' | sort -u)
+)
+
+# Check each one. If a file has unexpected differences (our local
+# additions missing), restore from origin/master and re-apply:
+git show origin/master:<file> > <file>  # get our version
+# Then manually merge in any upstream additions that don't conflict
+```
+
+**Common files with silent overwrite risk** (checked 2026-06):
+- `crates/jcode-tui/src/tui/app/state_ui_input_helpers.rs` — slash commands, FFS rename, `$`/`@` autocomplete
+- `crates/jcode-tui/src/tui/app/state_ui.rs` — `/permissions`, `/skills` report
+- `crates/jcode-tui/src/tui/ui_overlays.rs` — help entries
+- `crates/jcode-base/src/safety.rs` — AUTO_ALLOWED list (FFS tools)
+- `crates/jcode-base/src/config.rs` — tool-profile allow lists
+- `crates/jcode-base/src/prompt.rs` — system prompt with `$skillname`
+- `crates/jcode-base/src/skill.rs` — `parse_invocation` using `$<name>`
+- `Cargo.toml` — mempalace-backend feature, jcode-app-core dep
+- `crates/jcode-app-core/src/dcg_bridge.rs` — READ_ONLY_ACTIONS, mode helpers
+- `crates/jcode-app-core/src/tool/mod.rs` — tool registrations, module declarations
+- `crates/jcode-tui/src/tui/app/at_picker.rs` — `@` mention picker
+- `crates/jcode-tui/src/tui/app/input.rs` — lazy-init @ picker
+- `crates/jcode-tui/src/tui/ui_tools.rs` — tool summary display arms
+- `crates/jcode-tui/src/tui/app/tui_lifecycle.rs` — App constructor field
+- `crates/jcode-desktop/src/single_session.rs` — tool name match arms
+- `crates/jcode-provider-core/src/anthropic.rs` — tool name mapping
+- `crates/jcode-base/src/provider/claude.rs` — tool name mapping
+- `crates/jcode-usage-types/src/lib.rs` — telemetry category arms
+- `crates/jcode-tui-tool-display/src/lib.rs` — resolve_display_tool_name
+- `crates/jcode-tool-types/src/lib.rs` — resolve_tool_name
+
 ### Step 5: Verification
 
 ```bash
@@ -241,6 +298,7 @@ Before starting the merge, complete this checklist:
 - [ ] `git log master..upstream/master` reviewed for scope
 - [ ] No pending local changes (working tree clean)
 - [ ] Upstream changes in extracted-domain files identified (see Step 2)
+- [ ] Upstream changes in locally-modified files identified (see Step 2 — dynamic file list)
 - [ ] External repos' latest status checked (do they have the feature upstream is modifying?)
 
 ---
@@ -251,6 +309,9 @@ After push, verify:
 
 - [ ] `cargo check` passes
 - [ ] Local builds work (`cargo build`)
+- [ ] Category F check done: all locally-modified files that upstream touched were audited for silent overwrite
+- [ ] `ffs`/`$`/`@`/`/permissions` features still working
+- [ ] `Cargo.toml` has our feature flags (`mempalace-backend`, `dcp`, `rtco`)
 - [ ] Extracted features still functional (session resume, file picker, DCG mode)
 - [ ] No files from extracted repos left inline (if upstream added new inline code in extracted domains, flag it)
 - [ ] Worktrees unaffected (checkout each worktree and run cargo check there too)
