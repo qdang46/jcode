@@ -56,7 +56,10 @@ use crate::compaction::CompactionManager;
 use crate::provider::Provider;
 use crate::skill::SkillRegistry;
 use anyhow::Result;
-use jcode_hooks::{DispatchConfig, HookContext, HookEvent, HookInputBuilder, HookRegistry};
+use jcode_hooks::{
+    legacy_v1_to_v2_handlers, DispatchConfig, HookContext, HookEvent, HookInputBuilder,
+    HookRegistry,
+};
 use jcode_message_types::ToolDefinition;
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
@@ -602,7 +605,27 @@ impl Registry {
         let compaction = Arc::new(RwLock::new(CompactionManager::new()));
         let compaction_ms = compaction_start.elapsed().as_millis();
         let registry_struct_start = std::time::Instant::now();
-        let hook_config = jcode_hooks::load_hooks_config();
+        // Load v2 hooks config (.jcode/hooks.toml, $JCODE_HOOKS_CONFIG, etc.)
+        let mut hook_config = jcode_hooks::load_hooks_config();
+        // Merge v1 legacy config.toml [hooks] entries into the v2 config so
+        // existing single-line hooks (`pre_tool = "check.sh"`) continue working
+        // alongside the richer v2 TOML format without dual-firing.
+        let v1_hooks = &crate::config::config().hooks;
+        let v2_entries = legacy_v1_to_v2_handlers(
+            v1_hooks.turn_end.clone(),
+            v1_hooks.session_start.clone(),
+            v1_hooks.session_end.clone(),
+            v1_hooks.pre_tool.clone(),
+            Some(v1_hooks.pre_tool_timeout_ms),
+            v1_hooks.post_tool.clone(),
+        );
+        for (event_name, handlers) in v2_entries {
+            hook_config
+                .events
+                .entry(event_name)
+                .or_default()
+                .extend(handlers);
+        }
         let hook_registry = Arc::new(RwLock::new(HookRegistry::from_config(hook_config.clone())));
         let dispatch_config = DispatchConfig::from_settings(&hook_config.settings);
         let registry = Self {
@@ -893,38 +916,6 @@ impl Registry {
     /// Outputs that would push total context beyond this are truncated.
     const CONTEXT_GUARD_THRESHOLD: f32 = 0.90;
 
-    /// Fire the `post_tool` observer hook with tool outcome metadata.
-    /// No-op (without building the payload) when the hook is not configured.
-    fn fire_post_tool_hook(
-        resolved_name: &str,
-        ctx: &ToolContext,
-        result: &Result<ToolOutput>,
-        latency_ms: u64,
-    ) {
-        if !crate::hooks::hook_configured("post_tool") {
-            return;
-        }
-        let mut event = crate::hooks::HookEvent::new("post_tool")
-            .session_id(ctx.session_id.clone())
-            .field("TOOL_NAME", resolved_name)
-            .field("STATUS", if result.is_ok() { "ok" } else { "error" })
-            .field("DURATION_MS", latency_ms.to_string());
-        if let Some(dir) = &ctx.working_dir {
-            event = event.cwd(dir.display().to_string());
-        }
-        match result {
-            Ok(output) => {
-                event = event.field("OUTPUT_BYTES", output.output.len().to_string());
-            }
-            Err(error) => {
-                const ERROR_LIMIT: usize = 1000;
-                let message: String = error.to_string().chars().take(ERROR_LIMIT).collect();
-                event = event.field("ERROR", message);
-            }
-        }
-        crate::hooks::dispatch_observer(event);
-    }
-
     /// Maximum fraction of context budget a single tool output may occupy.
     /// Even if we have room, a single output shouldn't dominate the context.
     const SINGLE_OUTPUT_MAX_FRACTION: f32 = 0.30;
@@ -962,32 +953,6 @@ impl Registry {
 
         // Drop the lock before executing
         drop(tools);
-
-        // User-configured pre_tool gate: external policy hook that can block
-        // this call (exit 2). Skipped entirely when not configured.
-        if crate::hooks::hook_configured("pre_tool") {
-            let input_json = input.to_string();
-            let working_dir = ctx
-                .working_dir
-                .as_ref()
-                .map(|dir| dir.display().to_string());
-            let decision = crate::hooks::run_pre_tool_gate(
-                &ctx.session_id,
-                working_dir.as_deref(),
-                resolved_name,
-                &input_json,
-            )
-            .await;
-            if let crate::hooks::GateDecision::Block { reason } = decision {
-                let mut fields =
-                    Self::tool_lifecycle_fields("blocked", name, resolved_name, &input, &ctx);
-                fields.push(("block_reason".to_string(), reason.clone()));
-                crate::logging::event_warn("TOOL_LIFECYCLE", fields);
-                return Err(anyhow::anyhow!(
-                    "Tool call blocked by pre_tool hook: {reason}"
-                ));
-            }
-        }
 
         crate::logging::event_info(
             "TOOL_LIFECYCLE",
@@ -1045,7 +1010,6 @@ impl Registry {
         let latency_ms = started_at.elapsed().as_millis().min(u128::from(u64::MAX)) as u64;
 
         crate::telemetry::record_tool_execution(resolved_name, &input, result.is_ok(), latency_ms);
-        Self::fire_post_tool_hook(resolved_name, &ctx, &result, latency_ms);
 
         let mut output = match result {
             Ok(output) => {
