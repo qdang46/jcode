@@ -846,10 +846,21 @@ pub fn legacy_v1_to_v2_handlers(
     }
 
     if let Some(cmd) = post_tool.filter(|s| !s.is_empty()) {
+        // v1 post_tool fired on both success and error. v2 splits into
+        // PostToolUse (success) and PostToolUseFailure (error), so we
+        // register the legacy command for both events.
+        let cmd_clone = cmd.clone();
         entries.push((
             "PostToolUse".to_string(),
             vec![HookHandlerConfig::Command(CommandHandlerConfig {
                 command: cmd,
+                ..Default::default()
+            })],
+        ));
+        entries.push((
+            "PostToolUseFailure".to_string(),
+            vec![HookHandlerConfig::Command(CommandHandlerConfig {
+                command: cmd_clone,
                 ..Default::default()
             })],
         ));
@@ -1411,5 +1422,115 @@ command = "noop"
         let json = serde_json::to_string(&custom).unwrap();
         let deserialized: HookEvent = serde_json::from_str(&json).unwrap();
         assert_eq!(custom, deserialized);
+    }
+
+    // -- legacy_v1_to_v2_handlers -------------------------------------------
+
+    #[test]
+    fn bridge_all_none_returns_empty() {
+        let entries = legacy_v1_to_v2_handlers(None, None, None, None, None, None);
+        assert!(entries.is_empty());
+    }
+
+    #[test]
+    fn bridge_turn_end_only() {
+        let entries = legacy_v1_to_v2_handlers(Some("turn_end.sh".into()), None, None, None, None, None);
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].0, "TurnEnd");
+        assert_eq!(entries[0].1.len(), 1);
+    }
+
+    #[test]
+    fn bridge_empty_string_filters_out() {
+        let entries = legacy_v1_to_v2_handlers(Some("".into()), Some("".into()), None, None, None, None);
+        assert!(entries.is_empty());
+    }
+
+    #[test]
+    fn bridge_post_tool_maps_to_both_events() {
+        let entries = legacy_v1_to_v2_handlers(None, None, None, None, None, Some("notify.sh".into()));
+        assert_eq!(entries.len(), 2);
+        let event_names: Vec<&str> = entries.iter().map(|(name, _)| name.as_str()).collect();
+        assert!(event_names.contains(&"PostToolUse"));
+        assert!(event_names.contains(&"PostToolUseFailure"));
+        // Both entries should have the same command string
+        let cmds: Vec<&str> = entries
+            .iter()
+            .map(|(_, handlers)| {
+                if let HookHandlerConfig::Command(cmd) = &handlers[0] {
+                    cmd.command.as_str()
+                } else {
+                    panic!("expected Command variant");
+                }
+            })
+            .collect();
+        assert_eq!(cmds[0], cmds[1], "both PostToolUse and PostToolUseFailure should have the same command");
+    }
+
+    #[test]
+    fn bridge_pre_tool_timeout_conversion() {
+        // 500ms -> 1s (min clamp)
+        let entries = legacy_v1_to_v2_handlers(None, None, None, Some("check.sh".into()), Some(500), None);
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].0, "PreToolUse");
+        if let HookHandlerConfig::Command(cmd) = &entries[0].1[0] {
+            assert_eq!(cmd.timeout_secs, Some(1));
+        } else {
+            panic!("expected Command variant");
+        }
+
+        // 3000ms -> 3s
+        let entries = legacy_v1_to_v2_handlers(None, None, None, Some("check.sh".into()), Some(3000), None);
+        if let HookHandlerConfig::Command(cmd) = &entries[0].1[0] {
+            assert_eq!(cmd.timeout_secs, Some(3));
+        } else {
+            panic!("expected Command variant");
+        }
+
+        // None -> default 30s
+        let entries = legacy_v1_to_v2_handlers(None, None, None, Some("check.sh".into()), None, None);
+        if let HookHandlerConfig::Command(cmd) = &entries[0].1[0] {
+            assert_eq!(cmd.timeout_secs, Some(30));
+        } else {
+            panic!("expected Command variant");
+        }
+    }
+
+    #[test]
+    fn bridge_session_start_and_end() {
+        let entries = legacy_v1_to_v2_handlers(
+            None,
+            Some("start.sh".into()),
+            Some("end.sh".into()),
+            None, None, None,
+        );
+        assert_eq!(entries.len(), 2);
+        let mut map: std::collections::HashMap<&str, &str> = std::collections::HashMap::new();
+        for (name, handlers) in &entries {
+            map.insert(name, "");
+            if let HookHandlerConfig::Command(cmd) = &handlers[0] {
+                assert!(!cmd.command.is_empty());
+            }
+        }
+        assert!(map.contains_key("SessionStart"));
+        assert!(map.contains_key("SessionEnd"));
+    }
+
+    #[test]
+    fn bridge_all_fields_populated() {
+        let entries = legacy_v1_to_v2_handlers(
+            Some("turn_end.sh".into()),
+            Some("start.sh".into()),
+            Some("end.sh".into()),
+            Some("pre_tool.sh".into()),
+            Some(5000),
+            Some("post_tool.sh".into()),
+        );
+        // Expect: TurnEnd, SessionStart, SessionEnd, PreToolUse, PostToolUse, PostToolUseFailure = 6
+        assert_eq!(entries.len(), 6);
+        let names: Vec<&str> = entries.iter().map(|(n, _)| n.as_str()).collect();
+        for expected in &["TurnEnd", "SessionStart", "SessionEnd", "PreToolUse", "PostToolUse", "PostToolUseFailure"] {
+            assert!(names.contains(expected), "missing {expected}");
+        }
     }
 }

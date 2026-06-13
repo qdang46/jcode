@@ -283,7 +283,16 @@ pub async fn execute_command_hook(
 /// Build the full environment for a command hook child process.
 ///
 /// Starts with the current process environment, overlays the handler's `env`
-/// (with `${VAR}` expansion), and adds the three standard `JCODE_HOOK_*` vars.
+/// (with `${VAR}` expansion), and adds the standard `JCODE_HOOK_*` vars.
+///
+/// # Backward-compat env vars (v1→v2 migration)
+///
+/// In addition to the three v2-standard vars, we set several env vars that
+/// v1 hooks relied on, so existing scripts continue to work without changes:
+///
+/// - `JCODE_HOOKS_DISABLED=1` — recursion guard (v1 also set this).
+/// - `JCODE_HOOK_TOOL_NAME` — name of the tool being executed (if applicable).
+/// - `JCODE_HOOK_TOOL_INPUT` — JSON tool input (truncated to 16 KB).
 fn build_command_env(
     handler_env: &HashMap<String, String>,
     input: &HookInput,
@@ -295,6 +304,11 @@ fn build_command_env(
         env.insert(key.clone(), expand_env_var(value));
     }
 
+    // Recursion guard — prevents hook commands from re-entering the hook
+    // system (v1 compat). A hook that spawns jcode will see this env var
+    // and skip hook dispatch.
+    env.insert("JCODE_HOOKS_DISABLED".to_string(), "1".to_string());
+
     // Standard hook env vars.
     env.insert(
         "JCODE_HOOK_EVENT".to_string(),
@@ -305,6 +319,18 @@ fn build_command_env(
         input.session_id.clone(),
     );
     env.insert("JCODE_HOOK_CWD".to_string(), input.cwd.clone());
+
+    // Backward-compat env vars — v1 hooks used these for decision-making.
+    if let Some(tool_name) = &input.tool_name {
+        env.insert("JCODE_HOOK_TOOL_NAME".to_string(), tool_name.clone());
+    }
+    if let Some(tool_input) = &input.tool_input {
+        // Truncate to 16 KB to match v1's TOOL_INPUT_ENV_LIMIT.
+        let json_str = serde_json::to_string(tool_input).unwrap_or_default();
+        const TOOL_INPUT_LIMIT: usize = 16 * 1024;
+        let truncated: String = json_str.chars().take(TOOL_INPUT_LIMIT).collect();
+        env.insert("JCODE_HOOK_TOOL_INPUT".to_string(), truncated);
+    }
 
     env
 }
