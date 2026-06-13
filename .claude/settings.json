@@ -1,0 +1,39 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(*)",
+      "Glob(*)",
+      "Grep(*)",
+      "Read(*)",
+      "Edit(*)",
+      "Write(*)",
+      "NotebookEdit(*)",
+      "Agent(*)",
+      "WebSearch(*)",
+      "WebFetch(*)",
+      "AskUserQuestion(*)",
+      "CronCreate(*)",
+      "CronDelete(*)",
+      "CronList(*)",
+      "Monitor(*)",
+      "EnterPlanMode(*)",
+      "ExitPlanMode(*)",
+      "EnterWorktree(*)",
+      "ExitWorktree(*)",
+      "TaskCreate(*)",
+      "TaskGet(*)",
+      "TaskList(*)",
+      "TaskOutput(*)",
+      "TaskStop(*)",
+      "TaskUpdate(*)",
+      "TeamCreate(*)",
+      "TeamDelete(*)",
+      "PushNotification(*)",
+      "ScheduleWakeup(*)",
+      "SendMessage(*)",
+      "Skill(*)",
+      "Workflow(*)",
+      "DesignSync(*)"
+    ]
+  }
+}

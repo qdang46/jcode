@@ -395,7 +395,7 @@ pub fn classify_with_mode(action: &str, mode: Mode) -> BridgeDecision {
     // read-only / stateful-safe intents. Until dcg-core Phase 2 wires
     // pack-rule evaluation in, we keep the legacy gate inline for the
     // `Default` and `Auto` modes. The advanced modes (`Plan`,
-    // `AcceptEdits`, `DontAsk`, `BypassPermissions`) defer to
+    // `AcceptEdits`, `DontAsk`) defer to
     // `Engine::evaluate` because their pre-check semantics are well
     // defined without rule data.
     if matches!(mode, Mode::Default | Mode::Auto) {
@@ -434,6 +434,11 @@ pub fn classify_with_mode(action: &str, mode: Mode) -> BridgeDecision {
             allow_once_code: String::new(),
             alternatives: vec![],
         };
+    }
+
+    // BypassPermissions mode short-circuits to Allow — no engine evaluation.
+    if matches!(mode, Mode::BypassPermissions) {
+        return BridgeDecision::Allow;
     }
 
     let (tool, effects) = action_to_tool_call(&lower);
