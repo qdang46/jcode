@@ -1009,6 +1009,12 @@ impl App {
                     self.set_diagram_focus(true);
                     return true;
                 }
+                KeyCode::Char(c @ ('1' | '2' | '3' | '4' | '5')) => {
+                    let i = (c as u8 - b'1') as usize;
+                    self.diagram_index = i;
+                    self.set_diagram_focus(true);
+                    return true;
+                }
                 _ => {}
             }
         }

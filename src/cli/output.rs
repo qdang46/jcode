@@ -1,5 +1,37 @@
 pub const QUIET_ENV: &str = "JCODE_QUIET";
 
+/// Output format for structured JSON/TOON output.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OutputFormat {
+    /// Regular human-readable output (handled by caller)
+    Plain,
+    /// Pretty-printed JSON
+    Json,
+    /// Token-efficient JSON (TOON)
+    Toon,
+}
+
+/// Emit a serializable report in JSON or TOON format.
+///
+/// # Panics
+/// Panics if `format` is [`OutputFormat::Plain`] — use `Plain` to select the
+/// human-readable path before calling this helper.
+pub fn emit_json_or_toon<T: serde::Serialize>(report: &T, format: OutputFormat) -> anyhow::Result<()> {
+    match format {
+        OutputFormat::Json => {
+            println!("{}", serde_json::to_string_pretty(report)?);
+        }
+        OutputFormat::Toon => {
+            let json = serde_json::to_string(report)?;
+            println!("{}", toon::json_to_toon(&json)?);
+        }
+        OutputFormat::Plain => {
+            unreachable!("emit_json_or_toon called with Plain format")
+        }
+    }
+    Ok(())
+}
+
 pub fn set_quiet_enabled(enabled: bool) {
     if enabled {
         crate::env::set_var(QUIET_ENV, "1");

@@ -12,6 +12,8 @@ use crate::{browser, gateway, memory, session, storage, tui};
 
 use super::terminal::init_tui_runtime;
 
+use super::output;
+
 mod provider_setup;
 mod report_info;
 mod restart;
@@ -55,6 +57,7 @@ pub enum CloudSessionsSubcommand {
     },
     Status {
         json: bool,
+        toon: bool,
     },
     Upload {
         session_file: String,
@@ -82,6 +85,7 @@ pub enum CloudSessionsSubcommand {
         dry_run: bool,
         force: bool,
         json: bool,
+        toon: bool,
         user_id: String,
         profile: Option<String>,
         region: Option<String>,
@@ -90,6 +94,7 @@ pub enum CloudSessionsSubcommand {
     List {
         limit: usize,
         json: bool,
+        toon: bool,
         user_id: String,
         profile: Option<String>,
         region: Option<String>,
@@ -169,7 +174,7 @@ fn run_cloud_sessions_command(action: CloudSessionsSubcommand) -> Result<()> {
             helper,
             clear,
         ),
-        CloudSessionsSubcommand::Status { json } => run_cloud_sessions_status(json),
+        CloudSessionsSubcommand::Status { json, toon } => run_cloud_sessions_status(json, toon),
         CloudSessionsSubcommand::Dashboard {
             limit,
             output,
@@ -199,6 +204,7 @@ fn run_cloud_sessions_command(action: CloudSessionsSubcommand) -> Result<()> {
             dry_run,
             force,
             json,
+            toon,
             user_id,
             profile,
             region,
@@ -213,6 +219,7 @@ fn run_cloud_sessions_command(action: CloudSessionsSubcommand) -> Result<()> {
             dry_run,
             force,
             json,
+            toon,
             user_id,
             profile,
             region,
@@ -363,7 +370,7 @@ fn run_cloud_sessions_configure(
     Ok(())
 }
 
-fn run_cloud_sessions_status(json: bool) -> Result<()> {
+fn run_cloud_sessions_status(json: bool, toon: bool) -> Result<()> {
     let path = cloud_sessions_config_path()?;
     let config = load_cloud_sessions_config()?.unwrap_or_default();
     let status = CloudSessionsConfigStatus {
@@ -375,8 +382,9 @@ fn run_cloud_sessions_status(json: bool) -> Result<()> {
         helper: config.helper,
         user_id: config.user_id,
     };
-    if json {
-        println!("{}", serde_json::to_string_pretty(&status)?);
+    if json || toon {
+        let fmt = if toon { output::OutputFormat::Toon } else { output::OutputFormat::Json };
+        output::emit_json_or_toon(&status, fmt)?;
     } else {
         println!("Jade cloud sessions config: {}", status.path);
         println!("exists: {}", status.exists);
@@ -415,6 +423,7 @@ struct CloudSessionsSyncRequest {
     dry_run: bool,
     force: bool,
     json: bool,
+    toon: bool,
     user_id: String,
     profile: Option<String>,
     region: Option<String>,
@@ -652,8 +661,9 @@ fn run_cloud_sessions_sync(request: CloudSessionsSyncRequest) -> Result<()> {
                 reached_max: false,
                 entries: Vec::new(),
             };
-            if request.json {
-                println!("{}", serde_json::to_string_pretty(&report)?);
+            if request.json || request.toon {
+                let fmt = if request.toon { output::OutputFormat::Toon } else { output::OutputFormat::Json };
+                output::emit_json_or_toon(&report, fmt)?;
             } else {
                 println!(
                     "Jade cloud sessions sync skipped: last sync {elapsed_mins}m ago (< --min-interval-mins {min_interval})"
@@ -782,8 +792,9 @@ fn run_cloud_sessions_sync(request: CloudSessionsSyncRequest) -> Result<()> {
         save_cloud_sessions_sync_state(&state)?;
     }
 
-    if request.json {
-        println!("{}", serde_json::to_string_pretty(&report)?);
+    if request.json || request.toon {
+        let fmt = if request.toon { output::OutputFormat::Toon } else { output::OutputFormat::Json };
+        output::emit_json_or_toon(&report, fmt)?;
     } else {
         let verb = if request.dry_run {
             "Would upload"
@@ -1467,6 +1478,7 @@ pub fn run_session_rename_command(
     name: Option<&str>,
     clear: bool,
     json: bool,
+    toon: bool,
 ) -> Result<()> {
     let resolved_id = session::find_session_by_name_or_id(session_ref)?;
     let mut session = session::Session::load(&resolved_id)?;
@@ -1490,8 +1502,9 @@ pub fn run_session_rename_command(
         cleared: clear,
     };
 
-    if json {
-        println!("{}", serde_json::to_string_pretty(&output)?);
+    if json || toon {
+        let fmt = if toon { output::OutputFormat::Toon } else { output::OutputFormat::Json };
+        output::emit_json_or_toon(&output, fmt)?;
     } else if clear {
         println!(
             "Cleared custom name for session {} ({}).",
@@ -2008,36 +2021,38 @@ struct NdjsonRunState {
     usage: crate::agent::TokenUsage,
 }
 
-pub fn run_auth_status_command(emit_json: bool) -> Result<()> {
-    report_info::run_auth_status_command(emit_json)
+pub fn run_auth_status_command(emit_json: bool, emit_toon: bool) -> Result<()> {
+    report_info::run_auth_status_command(emit_json, emit_toon)
 }
 
 pub async fn run_auth_doctor_command(
     provider_arg: Option<&str>,
     validate: bool,
     emit_json: bool,
+    emit_toon: bool,
 ) -> Result<()> {
-    report_info::run_auth_doctor_command(provider_arg, validate, emit_json).await
+    report_info::run_auth_doctor_command(provider_arg, validate, emit_json, emit_toon).await
 }
 
-pub fn run_provider_list_command(emit_json: bool) -> Result<()> {
-    report_info::run_provider_list_command(emit_json)
+pub fn run_provider_list_command(emit_json: bool, emit_toon: bool) -> Result<()> {
+    report_info::run_provider_list_command(emit_json, emit_toon)
 }
 
 pub async fn run_provider_current_command(
     choice: &super::provider_init::ProviderChoice,
     model: Option<&str>,
     emit_json: bool,
+    emit_toon: bool,
 ) -> Result<()> {
-    report_info::run_provider_current_command(choice, model, emit_json).await
+    report_info::run_provider_current_command(choice, model, emit_json, emit_toon).await
 }
 
-pub fn run_version_command(emit_json: bool) -> Result<()> {
-    report_info::run_version_command(emit_json)
+pub fn run_version_command(emit_json: bool, emit_toon: bool) -> Result<()> {
+    report_info::run_version_command(emit_json, emit_toon)
 }
 
-pub async fn run_usage_command(emit_json: bool) -> Result<()> {
-    report_info::run_usage_command(emit_json).await
+pub async fn run_usage_command(emit_json: bool, emit_toon: bool) -> Result<()> {
+    report_info::run_usage_command(emit_json, emit_toon).await
 }
 
 /// Gracefully reload the running background server onto the newest binary.
@@ -2055,7 +2070,7 @@ pub async fn run_usage_command(emit_json: bool) -> Result<()> {
 /// - With `force == true`, the server reloads unconditionally.
 /// - If no server is running, this is a successful no-op so installers can call
 ///   it unconditionally.
-pub async fn run_server_reload_command(force: bool, emit_json: bool) -> Result<()> {
+pub async fn run_server_reload_command(force: bool, emit_json: bool, emit_toon: bool) -> Result<()> {
     use crate::protocol::ServerEvent;
     use std::time::Duration;
 
@@ -2073,8 +2088,9 @@ pub async fn run_server_reload_command(force: bool, emit_json: bool) -> Result<(
     }
 
     let emit = |report: ServerReloadReport| -> Result<()> {
-        if emit_json {
-            println!("{}", serde_json::to_string_pretty(&report)?)
+        if emit_json || emit_toon {
+            let fmt = if emit_toon { output::OutputFormat::Toon } else { output::OutputFormat::Json };
+            output::emit_json_or_toon(&report, fmt)?
         } else if !report.detail.is_empty() {
             println!("{}", report.detail)
         }
@@ -2210,22 +2226,23 @@ pub async fn run_server_reload_command(force: bool, emit_json: bool) -> Result<(
 /// 2. Wait for the listener to go away (bounded), escalating to SIGKILL only if
 ///    the process refuses to exit.
 /// 3. Reap any leftover stale socket so a later launch binds cleanly.
-pub async fn run_server_stop_command(force: bool, emit_json: bool) -> Result<()> {
+pub async fn run_server_stop_command(force: bool, emit_json: bool, emit_toon: bool) -> Result<()> {
     use std::time::{Duration, Instant};
 
     if !force {
         let msg = "`jcode server stop` terminates the daemon and drops any live headless/swarm sessions. \
 Prefer `jcode server reload` to pick up an upgrade gracefully. \
 Re-run with `--force` if you really want to stop the server.";
-        if emit_json {
-            println!(
-                "{}",
-                serde_json::json!({
+        if emit_json || emit_toon {
+            let fmt = if emit_toon { output::OutputFormat::Toon } else { output::OutputFormat::Json };
+            output::emit_json_or_toon(
+                &serde_json::json!({
                     "stopped": false,
                     "force_required": true,
                     "detail": msg,
-                })
-            )
+                }),
+                fmt,
+            )?
         } else {
             eprintln!("{msg}")
         }
@@ -3064,6 +3081,7 @@ pub async fn run_model_command(
     choice: &super::provider_init::ProviderChoice,
     model: Option<&str>,
     emit_json: bool,
+    emit_toon: bool,
     verbose: bool,
 ) -> Result<()> {
     let provider = super::provider_init::init_provider_quiet(choice, model).await?;
@@ -3089,7 +3107,7 @@ pub async fn run_model_command(
         );
     }
 
-    if emit_json {
+    if emit_json || emit_toon {
         let provider_label = super::provider_init::login_provider_for_choice(choice)
             .map(|provider| provider.display_name.to_string())
             .unwrap_or_else(|| {
@@ -3109,7 +3127,8 @@ pub async fn run_model_command(
                 })
                 .collect(),
         };
-        println!("{}", serde_json::to_string_pretty(&report)?);
+        let fmt = if emit_toon { output::OutputFormat::Toon } else { output::OutputFormat::Json };
+        output::emit_json_or_toon(&report, fmt)?;
     } else {
         if verbose {
             println!(

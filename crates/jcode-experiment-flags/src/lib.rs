@@ -90,37 +90,33 @@ pub static EXPERIMENT_FLAGS: &[FeatureSpec] = &[
     FeatureSpec {
         id: ExperimentFlag::HooksV2,
         key: "hooks_v2",
-        stage: Stage::UnderDevelopment,
-        default_enabled: false,
+        stage: Stage::Stable,
+        default_enabled: true,
         dependencies: &[],
     },
     FeatureSpec {
         id: ExperimentFlag::JsPlugins,
         key: "js_plugins",
-        stage: Stage::UnderDevelopment,
-        default_enabled: false,
+        stage: Stage::Experimental {
+            name: "JS Plugins",
+            menu_description: "JavaScript plugin runtime (QuickJS embedded)",
+            announcement: None,
+        },
+        default_enabled: true,
         dependencies: &[],
     },
     FeatureSpec {
         id: ExperimentFlag::PersistMemoryInjection,
         key: "persist_memory_injections",
-        stage: Stage::Experimental {
-            name: "Persist Memory Injections",
-            menu_description: "Persist auto-recalled memory injections into normal session history",
-            announcement: None,
-        },
-        default_enabled: false,
+        stage: Stage::Stable,
+        default_enabled: true,
         dependencies: &[],
     },
     FeatureSpec {
         id: ExperimentFlag::ReasoningTrace,
         key: "reasoning_trace",
-        stage: Stage::Experimental {
-            name: "Reasoning Trace",
-            menu_description: "Show model reasoning trace in TUI output",
-            announcement: Some("Reasoning traces now available in TUI — /experimental to enable"),
-        },
-        default_enabled: false,
+        stage: Stage::Stable,
+        default_enabled: true,
         dependencies: &[],
     },
 ];
@@ -358,8 +354,10 @@ mod tests {
         let ex = Experiments::with_defaults();
         assert!(ex.check(ExperimentFlag::DynamicContextPruning));
         assert!(ex.check(ExperimentFlag::SwarmCoordination));
-        assert!(!ex.check(ExperimentFlag::HooksV2));
-        assert!(!ex.check(ExperimentFlag::JsPlugins));
+        assert!(ex.check(ExperimentFlag::HooksV2));
+        assert!(ex.check(ExperimentFlag::JsPlugins));
+        assert!(ex.check(ExperimentFlag::PersistMemoryInjection));
+        assert!(ex.check(ExperimentFlag::ReasoningTrace));
     }
 
     #[test]

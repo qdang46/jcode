@@ -135,10 +135,11 @@ struct UsageReport {
     providers: Vec<UsageProviderReport>,
 }
 
-pub(super) fn run_auth_status_command(emit_json: bool) -> Result<()> {
+pub(super) fn run_auth_status_command(emit_json: bool, emit_toon: bool) -> Result<()> {
     let report = build_auth_status_report();
-    if emit_json {
-        println!("{}", serde_json::to_string_pretty(&report)?);
+    if emit_json || emit_toon {
+        let fmt = if emit_toon { crate::cli::output::OutputFormat::Toon } else { crate::cli::output::OutputFormat::Json };
+        crate::cli::output::emit_json_or_toon(&report, fmt)?;
     } else {
         for provider in report.providers {
             println!(
@@ -197,11 +198,13 @@ pub(super) async fn run_auth_doctor_command(
     provider_arg: Option<&str>,
     validate: bool,
     emit_json: bool,
+    emit_toon: bool,
 ) -> Result<()> {
     let report = build_auth_doctor_report(provider_arg, validate).await?;
 
-    if emit_json {
-        println!("{}", serde_json::to_string_pretty(&report)?);
+    if emit_json || emit_toon {
+        let fmt = if emit_toon { crate::cli::output::OutputFormat::Toon } else { crate::cli::output::OutputFormat::Json };
+        crate::cli::output::emit_json_or_toon(&report, fmt)?;
         return Ok(());
     }
 
@@ -366,12 +369,13 @@ fn auth_doctor_validation_detail(
     }
 }
 
-pub(super) fn run_provider_list_command(emit_json: bool) -> Result<()> {
+pub(super) fn run_provider_list_command(emit_json: bool, emit_toon: bool) -> Result<()> {
     let providers = list_cli_providers();
 
-    if emit_json {
+    if emit_json || emit_toon {
         let report = ProviderListReport { providers };
-        println!("{}", serde_json::to_string_pretty(&report)?);
+        let fmt = if emit_toon { crate::cli::output::OutputFormat::Toon } else { crate::cli::output::OutputFormat::Json };
+        crate::cli::output::emit_json_or_toon(&report, fmt)?;
     } else {
         for provider in providers {
             if let Some(detail) = provider.detail.as_deref() {
@@ -389,6 +393,7 @@ pub(super) async fn run_provider_current_command(
     choice: &ProviderChoice,
     model: Option<&str>,
     emit_json: bool,
+    emit_toon: bool,
 ) -> Result<()> {
     let provider = provider_init::init_provider_quiet(choice, model).await?;
     let report = ProviderCurrentReport {
@@ -398,8 +403,9 @@ pub(super) async fn run_provider_current_command(
         selected_model: provider.model(),
     };
 
-    if emit_json {
-        println!("{}", serde_json::to_string_pretty(&report)?);
+    if emit_json || emit_toon {
+        let fmt = if emit_toon { crate::cli::output::OutputFormat::Toon } else { crate::cli::output::OutputFormat::Json };
+        crate::cli::output::emit_json_or_toon(&report, fmt)?;
     } else {
         println!("requested_provider\t{}", report.requested_provider);
         if let Some(requested_model) = report.requested_model.as_deref() {
@@ -412,7 +418,7 @@ pub(super) async fn run_provider_current_command(
     Ok(())
 }
 
-pub(super) fn run_version_command(emit_json: bool) -> Result<()> {
+pub(super) fn run_version_command(emit_json: bool, emit_toon: bool) -> Result<()> {
     let report = VersionReport {
         version: jcode_build_meta::VERSION.to_string(),
         semver: jcode_build_meta::SEMVER.to_string(),
@@ -426,8 +432,9 @@ pub(super) fn run_version_command(emit_json: bool) -> Result<()> {
         release_build: jcode_build_meta::is_release_build(),
     };
 
-    if emit_json {
-        println!("{}", serde_json::to_string_pretty(&report)?);
+    if emit_json || emit_toon {
+        let fmt = if emit_toon { crate::cli::output::OutputFormat::Toon } else { crate::cli::output::OutputFormat::Json };
+        crate::cli::output::emit_json_or_toon(&report, fmt)?;
     } else {
         println!("version\t{}", report.version);
         println!("semver\t{}", report.semver);
@@ -443,15 +450,16 @@ pub(super) fn run_version_command(emit_json: bool) -> Result<()> {
     Ok(())
 }
 
-pub(super) async fn run_usage_command(emit_json: bool) -> Result<()> {
+pub(super) async fn run_usage_command(emit_json: bool, emit_toon: bool) -> Result<()> {
     let providers = crate::usage::fetch_all_provider_usage().await;
 
     let report = UsageReport {
         providers: providers.iter().map(usage_provider_report).collect(),
     };
 
-    if emit_json {
-        println!("{}", serde_json::to_string_pretty(&report)?);
+    if emit_json || emit_toon {
+        let fmt = if emit_toon { crate::cli::output::OutputFormat::Toon } else { crate::cli::output::OutputFormat::Json };
+        crate::cli::output::emit_json_or_toon(&report, fmt)?;
         return Ok(());
     }
 

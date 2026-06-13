@@ -34,7 +34,7 @@ fn test_provider_choice_aliases_parse() {
 fn model_list_subcommand_parses() {
     let args = Args::try_parse_from(["jcode", "model", "list", "--json", "--verbose"]).unwrap();
     match args.command {
-        Some(Command::Model(ModelCommand::List { json, verbose })) => {
+        Some(Command::Model(ModelCommand::List { json, verbose, .. })) => {
             assert!(json);
             assert!(verbose);
         }
@@ -93,6 +93,7 @@ fn session_rename_subcommand_parses() {
             name,
             clear,
             json,
+            ..
         })) => {
             assert_eq!(session, "fox");
             assert_eq!(name.as_deref(), Some("release planning"));
@@ -109,6 +110,7 @@ fn session_rename_subcommand_parses() {
             name,
             clear,
             json,
+            ..
         })) => {
             assert_eq!(session, "fox");
             assert!(name.is_none());
@@ -165,7 +167,7 @@ fn cloud_sessions_subcommands_parse() {
     let args = Args::try_parse_from(["jcode", "cloud", "sessions", "status", "--json"]).unwrap();
     match args.command {
         Some(Command::Cloud(CloudCommand::Sessions {
-            action: CloudSessionsCommand::Status { json },
+            action: CloudSessionsCommand::Status { json, .. },
         })) => assert!(json),
         other => panic!("unexpected command: {:?}", other),
     }
@@ -262,6 +264,7 @@ fn cloud_sessions_subcommands_parse() {
                     force,
                     json,
                     jade,
+                    ..
                 },
         })) => {
             assert!(sessions_dir.is_none());
@@ -543,7 +546,7 @@ fn run_toon_conflicts_with_ndjson() {
 fn version_subcommand_parses() {
     let args = Args::try_parse_from(["jcode", "version", "--json"]).unwrap();
     match args.command {
-        Some(Command::Version { json }) => assert!(json),
+        Some(Command::Version { json, .. }) => assert!(json),
         other => panic!("unexpected command: {:?}", other),
     }
 }
@@ -552,7 +555,7 @@ fn version_subcommand_parses() {
 fn usage_subcommand_parses() {
     let args = Args::try_parse_from(["jcode", "usage", "--json"]).unwrap();
     match args.command {
-        Some(Command::Usage { json }) => assert!(json),
+        Some(Command::Usage { json, .. }) => assert!(json),
         other => panic!("unexpected command: {:?}", other),
     }
 }
@@ -561,7 +564,7 @@ fn usage_subcommand_parses() {
 fn auth_status_subcommand_parses() {
     let args = Args::try_parse_from(["jcode", "auth", "status", "--json"]).unwrap();
     match args.command {
-        Some(Command::Auth(AuthCommand::Status { json })) => assert!(json),
+        Some(Command::Auth(AuthCommand::Status { json, .. })) => assert!(json),
         other => panic!("unexpected command: {:?}", other),
     }
 }
@@ -575,6 +578,7 @@ fn auth_doctor_subcommand_parses() {
             provider,
             validate,
             json,
+            ..
         })) => {
             assert_eq!(provider.as_deref(), Some("openai"));
             assert!(validate);
@@ -596,6 +600,7 @@ fn doctor_subcommand_parses_flags_and_only() {
             fix,
             yes,
             only,
+            ..
         }) => {
             assert!(json);
             assert!(fix);
@@ -621,6 +626,7 @@ fn doctor_defaults_are_read_only() {
             fix,
             yes,
             only,
+            ..
         }) => {
             assert!(!json);
             assert!(!fix);
@@ -640,7 +646,7 @@ fn doctor_only_rejects_unknown_category() {
 fn provider_list_subcommand_parses() {
     let args = Args::try_parse_from(["jcode", "provider", "list", "--json"]).unwrap();
     match args.command {
-        Some(Command::Provider(ProviderCommand::List { json })) => assert!(json),
+        Some(Command::Provider(ProviderCommand::List { json, .. })) => assert!(json),
         other => panic!("unexpected command: {:?}", other),
     }
 }
@@ -649,7 +655,7 @@ fn provider_list_subcommand_parses() {
 fn provider_current_subcommand_parses() {
     let args = Args::try_parse_from(["jcode", "provider", "current", "--json"]).unwrap();
     match args.command {
-        Some(Command::Provider(ProviderCommand::Current { json })) => assert!(json),
+        Some(Command::Provider(ProviderCommand::Current { json, .. })) => assert!(json),
         other => panic!("unexpected command: {:?}", other),
     }
 }

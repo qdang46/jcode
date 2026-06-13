@@ -452,6 +452,7 @@ fn cloud_sessions_config_persists_secret_and_feeds_helper_env_without_args() {
         CloudSessionsSubcommand::List {
             limit: 2,
             json: true,
+            toon: false,
             user_id: "dev".to_string(),
             profile: None,
             region: None,
@@ -529,6 +530,7 @@ fn cloud_sessions_sync_dry_run_reports_without_uploading_or_writing_state() {
         dry_run: true,
         force: false,
         json: true,
+            toon: false,
         user_id: "dev".to_string(),
         profile: None,
         region: None,
@@ -579,6 +581,7 @@ fn cloud_sessions_sync_respects_min_interval_throttle() {
         dry_run: false,
         force: false,
         json: true,
+            toon: false,
         user_id: "dev".to_string(),
         profile: None,
         region: None,

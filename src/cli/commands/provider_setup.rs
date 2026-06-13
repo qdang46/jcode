@@ -30,6 +30,7 @@ pub(crate) struct ProviderAddOptions {
     pub provider_routing: bool,
     pub model_catalog: bool,
     pub json: bool,
+    pub toon: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -51,10 +52,12 @@ pub(crate) struct ProviderSetupReport {
 
 pub(crate) fn run_provider_add_command(options: ProviderAddOptions) -> Result<()> {
     let emit_json = options.json;
+    let emit_toon = options.toon;
     let report = configure_provider_profile(options)?;
 
-    if emit_json {
-        println!("{}", serde_json::to_string_pretty(&report)?);
+    if emit_json || emit_toon {
+        let fmt = if emit_toon { crate::cli::output::OutputFormat::Toon } else { crate::cli::output::OutputFormat::Json };
+        crate::cli::output::emit_json_or_toon(&report, fmt)?;
     } else {
         println!("Added provider profile '{}'", report.profile);
         println!("  config: {}", report.config_path);
@@ -656,6 +659,7 @@ mod tests {
             provider_routing: false,
             model_catalog: false,
             json: false,
+            toon: false,
         }
     }
 

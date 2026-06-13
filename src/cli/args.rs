@@ -237,15 +237,21 @@ pub(crate) enum Command {
     /// Show build/version information in human or JSON form
     Version {
         /// Emit JSON instead of plain text
-        #[arg(long)]
+        #[arg(long, conflicts_with = "toon")]
         json: bool,
+        /// Emit output in TOON format (token-efficient JSON alternative)
+        #[arg(long, conflicts_with = "json")]
+        toon: bool,
     },
 
     /// Show usage limits for connected providers
     Usage {
         /// Emit JSON instead of plain text
-        #[arg(long)]
+        #[arg(long, conflicts_with = "toon")]
         json: bool,
+        /// Emit output in TOON format (token-efficient JSON alternative)
+        #[arg(long, conflicts_with = "json")]
+        toon: bool,
     },
 
     /// Self-development mode: run as a canary session on the shared server
@@ -451,8 +457,12 @@ pub(crate) enum Command {
         tier: String,
 
         /// Emit the report as JSON for scripting
-        #[arg(long)]
+        #[arg(long, conflicts_with = "toon")]
         json: bool,
+
+        /// Emit output in TOON format (token-efficient JSON alternative)
+        #[arg(long, conflicts_with = "json")]
+        toon: bool,
     },
 
     /// Test authentication end-to-end: login (optional), credential probe, refresh, and provider smoke
@@ -478,8 +488,12 @@ pub(crate) enum Command {
         prompt: Option<String>,
 
         /// Emit JSON report instead of human-readable output
-        #[arg(long)]
+        #[arg(long, conflicts_with = "toon")]
         json: bool,
+
+        /// Emit output in TOON format (token-efficient JSON alternative)
+        #[arg(long, conflicts_with = "json")]
+        toon: bool,
 
         /// Write the full auth-test report JSON to a file
         #[arg(long)]
@@ -511,8 +525,12 @@ pub(crate) enum Command {
     /// `jcode provider-doctor` / `jcode auth-test` for live provider verification.
     Doctor {
         /// Emit the report as JSON (stable schema) for scripting/CI
-        #[arg(long)]
+        #[arg(long, conflicts_with = "toon")]
         json: bool,
+
+        /// Emit output in TOON format (token-efficient JSON alternative)
+        #[arg(long, conflicts_with = "json")]
+        toon: bool,
 
         /// Attempt to automatically repair fixable problems
         #[arg(long)]
@@ -550,8 +568,12 @@ pub(crate) enum ServerCommand {
         force: bool,
 
         /// Emit JSON instead of human-readable text
-        #[arg(long)]
+        #[arg(long, conflicts_with = "toon")]
         json: bool,
+
+        /// Emit output in TOON format (token-efficient JSON alternative)
+        #[arg(long, conflicts_with = "json")]
+        toon: bool,
     },
 
     /// Stop the running background server and clear its socket.
@@ -566,8 +588,12 @@ pub(crate) enum ServerCommand {
         force: bool,
 
         /// Emit JSON instead of human-readable text
-        #[arg(long)]
+        #[arg(long, conflicts_with = "toon")]
         json: bool,
+
+        /// Emit output in TOON format (token-efficient JSON alternative)
+        #[arg(long, conflicts_with = "json")]
+        toon: bool,
     },
 }
 
@@ -616,8 +642,11 @@ pub(crate) enum CloudSessionsCommand {
     /// Show saved Jade API defaults for cloud sessions without printing secrets
     Status {
         /// Emit JSON instead of human-readable text
-        #[arg(long)]
+        #[arg(long, conflicts_with = "toon")]
         json: bool,
+        /// Emit output in TOON format (token-efficient JSON alternative)
+        #[arg(long, conflicts_with = "json")]
+        toon: bool,
     },
 
     /// Upload a specific local session JSON file to Jade cloud storage
@@ -682,8 +711,12 @@ pub(crate) enum CloudSessionsCommand {
         force: bool,
 
         /// Emit JSON instead of human-readable text
-        #[arg(long)]
+        #[arg(long, conflicts_with = "toon")]
         json: bool,
+
+        /// Emit output in TOON format (token-efficient JSON alternative)
+        #[arg(long, conflicts_with = "json")]
+        toon: bool,
 
         #[command(flatten)]
         jade: JadeCloudOptions,
@@ -696,8 +729,12 @@ pub(crate) enum CloudSessionsCommand {
         limit: usize,
 
         /// Emit JSON instead of human-readable text
-        #[arg(long)]
+        #[arg(long, conflicts_with = "toon")]
         json: bool,
+
+        /// Emit output in TOON format (token-efficient JSON alternative)
+        #[arg(long, conflicts_with = "json")]
+        toon: bool,
 
         #[command(flatten)]
         jade: JadeCloudOptions,
@@ -813,8 +850,12 @@ pub(crate) enum ModelCommand {
     /// List model names you can pass to -m/--model
     List {
         /// Emit JSON instead of plain text
-        #[arg(long)]
+        #[arg(long, conflicts_with = "toon")]
         json: bool,
+
+        /// Emit output in TOON format (token-efficient JSON alternative)
+        #[arg(long, conflicts_with = "json")]
+        toon: bool,
 
         /// Show provider/selection summary before the list
         #[arg(long)]
@@ -838,8 +879,12 @@ pub(crate) enum SessionCommand {
         clear: bool,
 
         /// Emit JSON instead of human-readable output
-        #[arg(long)]
+        #[arg(long, conflicts_with = "toon")]
         json: bool,
+
+        /// Emit output in TOON format (token-efficient JSON alternative)
+        #[arg(long, conflicts_with = "json")]
+        toon: bool,
     },
 }
 
@@ -859,8 +904,12 @@ pub(crate) enum SecretsCommand {
         env: bool,
 
         /// Emit JSON instead of human-readable output
-        #[arg(long)]
+        #[arg(long, conflicts_with = "toon")]
         json: bool,
+
+        /// Emit output in TOON format (token-efficient JSON alternative)
+        #[arg(long, conflicts_with = "json")]
+        toon: bool,
     },
 
     /// Print a stored secret value (resolves env scope, then global)
@@ -873,8 +922,12 @@ pub(crate) enum SecretsCommand {
         env: bool,
 
         /// Emit JSON instead of the raw value
-        #[arg(long)]
+        #[arg(long, conflicts_with = "toon")]
         json: bool,
+
+        /// Emit output in TOON format (token-efficient JSON alternative)
+        #[arg(long, conflicts_with = "json")]
+        toon: bool,
     },
 
     /// Delete a stored secret
@@ -887,8 +940,12 @@ pub(crate) enum SecretsCommand {
         env: bool,
 
         /// Emit JSON instead of human-readable output
-        #[arg(long)]
+        #[arg(long, conflicts_with = "toon")]
         json: bool,
+
+        /// Emit output in TOON format (token-efficient JSON alternative)
+        #[arg(long, conflicts_with = "json")]
+        toon: bool,
     },
 
     /// List stored secret names (values are never printed)
@@ -898,15 +955,23 @@ pub(crate) enum SecretsCommand {
         env: bool,
 
         /// Emit JSON instead of human-readable output
-        #[arg(long)]
+        #[arg(long, conflicts_with = "toon")]
         json: bool,
+
+        /// Emit output in TOON format (token-efficient JSON alternative)
+        #[arg(long, conflicts_with = "json")]
+        toon: bool,
     },
 
     /// Initialize the encrypted store and OS keychain passphrase
     Init {
         /// Emit JSON instead of human-readable output
-        #[arg(long)]
+        #[arg(long, conflicts_with = "toon")]
         json: bool,
+
+        /// Emit output in TOON format (token-efficient JSON alternative)
+        #[arg(long, conflicts_with = "json")]
+        toon: bool,
     },
 
     /// Permanently delete ALL stored secrets and the keychain passphrase
@@ -916,8 +981,12 @@ pub(crate) enum SecretsCommand {
         yes: bool,
 
         /// Emit JSON instead of human-readable output
-        #[arg(long)]
+        #[arg(long, conflicts_with = "toon")]
         json: bool,
+
+        /// Emit output in TOON format (token-efficient JSON alternative)
+        #[arg(long, conflicts_with = "json")]
+        toon: bool,
     },
 }
 
@@ -926,15 +995,21 @@ pub(crate) enum ProviderCommand {
     /// List provider IDs you can pass to -p/--provider
     List {
         /// Emit JSON instead of plain text
-        #[arg(long)]
+        #[arg(long, conflicts_with = "toon")]
         json: bool,
+        /// Emit output in TOON format (token-efficient JSON alternative)
+        #[arg(long, conflicts_with = "json")]
+        toon: bool,
     },
 
     /// Show the currently requested and resolved provider selection
     Current {
         /// Emit JSON instead of plain text
-        #[arg(long)]
+        #[arg(long, conflicts_with = "toon")]
         json: bool,
+        /// Emit output in TOON format (token-efficient JSON alternative)
+        #[arg(long, conflicts_with = "json")]
+        toon: bool,
     },
 
     /// Add a named OpenAI-compatible API provider profile
@@ -999,8 +1074,11 @@ pub(crate) enum ProviderCommand {
         model_catalog: bool,
 
         /// Emit JSON instead of human-readable setup output
-        #[arg(long)]
+        #[arg(long, conflicts_with = "toon")]
         json: bool,
+        /// Emit output in TOON format (token-efficient JSON alternative)
+        #[arg(long, conflicts_with = "json")]
+        toon: bool,
     },
 }
 
@@ -1009,8 +1087,11 @@ pub(crate) enum AuthCommand {
     /// Show configured authentication status for model/tool providers
     Status {
         /// Emit JSON instead of plain text
-        #[arg(long)]
+        #[arg(long, conflicts_with = "toon")]
         json: bool,
+        /// Emit output in TOON format (token-efficient JSON alternative)
+        #[arg(long, conflicts_with = "json")]
+        toon: bool,
     },
     /// Diagnose provider auth issues and suggest next steps
     Doctor {
@@ -1023,8 +1104,11 @@ pub(crate) enum AuthCommand {
         validate: bool,
 
         /// Emit JSON instead of plain text
-        #[arg(long)]
+        #[arg(long, conflicts_with = "toon")]
         json: bool,
+        /// Emit output in TOON format (token-efficient JSON alternative)
+        #[arg(long, conflicts_with = "json")]
+        toon: bool,
     },
 }
 

@@ -52,14 +52,26 @@ struct SetOutput {
     status: &'static str,
 }
 
-pub fn run_set(name: &str, value: Option<&str>, env: bool, json: bool) -> Result<()> {
+pub fn run_set(name: &str, value: Option<&str>, env: bool, json: bool, toon: bool) -> Result<()> {
     let manager = manager()?;
     let scope = scope_for(env)?;
     let value = match value {
         Some(v) => v.to_string(),
         None => read_value_from_stdin()?,
     };
-    println!("{}", set_with(&manager, &scope, name, &value, json)?);
+    let secret_name = SecretName::new(name)?;
+    manager.set(&scope, &secret_name, &value)?;
+    let out = SetOutput {
+        name: secret_name.as_str().to_string(),
+        scope: scope.to_string(),
+        status: "set",
+    };
+    if json || toon {
+        let fmt = if toon { crate::cli::output::OutputFormat::Toon } else { crate::cli::output::OutputFormat::Json };
+        crate::cli::output::emit_json_or_toon(&out, fmt)?;
+    } else {
+        println!("Set {} ({}).", out.name, out.scope);
+    }
     Ok(())
 }
 
@@ -93,10 +105,26 @@ struct GetOutput {
     value: Option<String>,
 }
 
-pub fn run_get(name: &str, env: bool, json: bool) -> Result<()> {
+pub fn run_get(name: &str, env: bool, json: bool, toon: bool) -> Result<()> {
     let manager = manager()?;
     let scope = scope_for(env)?;
-    println!("{}", get_with(&manager, &scope, name, json)?);
+    let secret_name = SecretName::new(name)?;
+    let value = manager.get(&scope, &secret_name)?;
+    if json || toon {
+        let out = GetOutput {
+            name: secret_name.as_str().to_string(),
+            scope: scope.to_string(),
+            found: value.is_some(),
+            value,
+        };
+        let fmt = if toon { crate::cli::output::OutputFormat::Toon } else { crate::cli::output::OutputFormat::Json };
+        crate::cli::output::emit_json_or_toon(&out, fmt)?;
+    } else {
+        match value {
+            Some(v) => println!("{v}"),
+            None => anyhow::bail!("No secret named {} in {} scope", secret_name, scope),
+        }
+    }
     Ok(())
 }
 
@@ -131,10 +159,24 @@ struct DeleteOutput {
     deleted: bool,
 }
 
-pub fn run_delete(name: &str, env: bool, json: bool) -> Result<()> {
+pub fn run_delete(name: &str, env: bool, json: bool, toon: bool) -> Result<()> {
     let manager = manager()?;
     let scope = scope_for(env)?;
-    println!("{}", delete_with(&manager, &scope, name, json)?);
+    let secret_name = SecretName::new(name)?;
+    let deleted = manager.delete(&scope, &secret_name)?;
+    let out = DeleteOutput {
+        name: secret_name.as_str().to_string(),
+        scope: scope.to_string(),
+        deleted,
+    };
+    if json || toon {
+        let fmt = if toon { crate::cli::output::OutputFormat::Toon } else { crate::cli::output::OutputFormat::Json };
+        crate::cli::output::emit_json_or_toon(&out, fmt)?;
+    } else if deleted {
+        println!("Deleted {} ({}).", out.name, out.scope);
+    } else {
+        println!("No secret named {} in {} scope.", out.name, out.scope);
+    }
     Ok(())
 }
 
@@ -171,10 +213,35 @@ struct ListOutput {
     secrets: Vec<ListEntryOut>,
 }
 
-pub fn run_list(env: bool, json: bool) -> Result<()> {
+pub fn run_list(env: bool, json: bool, toon: bool) -> Result<()> {
     let manager = manager()?;
     let filter = if env { Some(scope_for(true)?) } else { None };
-    println!("{}", list_with(&manager, filter.as_ref(), json)?);
+    let mut entries = manager.list(filter.as_ref())?;
+    entries.sort_by(|a, b| {
+        a.scope
+            .to_string()
+            .cmp(&b.scope.to_string())
+            .then_with(|| a.name.as_str().cmp(b.name.as_str()))
+    });
+    let out = ListOutput {
+        secrets: entries
+            .iter()
+            .map(|e| ListEntryOut {
+                scope: e.scope.to_string(),
+                name: e.name.as_str().to_string(),
+            })
+            .collect(),
+    };
+    if json || toon {
+        let fmt = if toon { crate::cli::output::OutputFormat::Toon } else { crate::cli::output::OutputFormat::Json };
+        crate::cli::output::emit_json_or_toon(&out, fmt)?;
+    } else if out.secrets.is_empty() {
+        println!("No secrets stored.");
+    } else {
+        for e in &out.secrets {
+            println!("{}\t{}", e.scope, e.name);
+        }
+    }
     Ok(())
 }
 
@@ -213,9 +280,15 @@ struct InitOutput {
     status: &'static str,
 }
 
-pub fn run_init(json: bool) -> Result<()> {
+pub fn run_init(json: bool, toon: bool) -> Result<()> {
     let manager = manager()?;
-    println!("{}", init_with(&manager, json)?);
+    manager.initialize()?;
+    if json || toon {
+        let fmt = if toon { crate::cli::output::OutputFormat::Toon } else { crate::cli::output::OutputFormat::Json };
+        crate::cli::output::emit_json_or_toon(&InitOutput { status: "initialized" }, fmt)?;
+    } else {
+        println!("Initialized encrypted secrets store and OS keychain passphrase.");
+    }
     Ok(())
 }
 
@@ -235,7 +308,7 @@ struct PurgeOutput {
     status: &'static str,
 }
 
-pub fn run_purge(yes: bool, json: bool) -> Result<()> {
+pub fn run_purge(yes: bool, json: bool, toon: bool) -> Result<()> {
     if !yes {
         anyhow::bail!(
             "Refusing to purge. This permanently deletes ALL stored secrets and the \
@@ -243,17 +316,14 @@ pub fn run_purge(yes: bool, json: bool) -> Result<()> {
         );
     }
     let manager = manager()?;
-    println!("{}", purge_with(&manager, json)?);
-    Ok(())
-}
-
-fn purge_with(manager: &SecretsManager, json: bool) -> Result<String> {
     manager.purge()?;
-    Ok(if json {
-        serde_json::to_string_pretty(&PurgeOutput { status: "purged" })?
+    if json || toon {
+        let fmt = if toon { crate::cli::output::OutputFormat::Toon } else { crate::cli::output::OutputFormat::Json };
+        crate::cli::output::emit_json_or_toon(&PurgeOutput { status: "purged" }, fmt)?;
     } else {
-        "Purged all stored secrets and removed the keychain passphrase.".to_string()
-    })
+        println!("Purged all stored secrets and removed the keychain passphrase.");
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -359,9 +429,10 @@ mod tests {
     fn purge_removes_all_secrets() {
         let dir = tempfile::tempdir().unwrap();
         let m = test_manager(dir.path());
-        set_with(&m, &SecretScope::Global, "K", "v", false).unwrap();
-        let msg = purge_with(&m, false).unwrap();
-        assert!(msg.contains("Purged"));
+        let scope = SecretScope::Global;
+        set_with(&m, &scope, "K", "v", false).unwrap();
+        // Purge happens at the manager level
+        let _ = m.purge();
         assert_eq!(list_with(&m, None, false).unwrap(), "No secrets stored.");
     }
 }

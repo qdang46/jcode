@@ -182,6 +182,7 @@ async fn run_post_login_validation_inner(
 
 pub fn run_auth_test_coverage_command(
     emit_json: bool,
+    emit_toon: bool,
     output_path: Option<&str>,
     coverage_path: Option<&str>,
     gap_limit: usize,
@@ -193,14 +194,15 @@ pub fn run_auth_test_coverage_command(
         path.display().to_string(),
     );
 
-    if emit_json || output_path.is_some() {
-        let json = serde_json::to_string_pretty(&summary)?;
+    if emit_json || emit_toon || output_path.is_some() {
+        let json_str = serde_json::to_string_pretty(&summary)?;
         if let Some(path) = output_path {
-            std::fs::write(path, &json)
+            std::fs::write(path, &json_str)
                 .with_context(|| format!("failed to write auth-test coverage report to {path}"))?;
         }
-        if emit_json {
-            println!("{json}");
+        if emit_json || emit_toon {
+            let fmt = if emit_toon { crate::cli::output::OutputFormat::Toon } else { crate::cli::output::OutputFormat::Json };
+            crate::cli::output::emit_json_or_toon(&summary, fmt)?;
         }
     } else {
         print!(
@@ -218,6 +220,7 @@ pub async fn run_auth_test_context_audit_command(
     choice: &super::provider_init::ProviderChoice,
     all_configured: bool,
     emit_json: bool,
+    emit_toon: bool,
     output_path: Option<&str>,
 ) -> Result<()> {
     let targets = resolve_auth_test_targets(choice, all_configured)?;
@@ -236,8 +239,9 @@ pub async fn run_auth_test_context_audit_command(
             .with_context(|| format!("failed to write auth-test context audit report to {path}"))?;
     }
 
-    if emit_json {
-        println!("{}", report_json.as_deref().unwrap_or("[]"));
+    if emit_json || emit_toon {
+        let fmt = if emit_toon { crate::cli::output::OutputFormat::Toon } else { crate::cli::output::OutputFormat::Json };
+        crate::cli::output::emit_json_or_toon(&reports, fmt)?;
     } else {
         print_context_audit_reports(&reports);
     }
@@ -415,6 +419,7 @@ pub async fn run_auth_test_command(
     no_tool_smoke: bool,
     prompt: Option<&str>,
     emit_json: bool,
+    emit_toon: bool,
     output_path: Option<&str>,
 ) -> Result<()> {
     let targets = resolve_auth_test_targets(choice, all_configured)?;
@@ -479,8 +484,9 @@ pub async fn run_auth_test_command(
             .with_context(|| format!("failed to write auth-test report to {}", path))?;
     }
 
-    if emit_json {
-        println!("{}", report_json.as_deref().unwrap_or("[]"));
+    if emit_json || emit_toon {
+        let fmt = if emit_toon { crate::cli::output::OutputFormat::Toon } else { crate::cli::output::OutputFormat::Json };
+        crate::cli::output::emit_json_or_toon(&reports, fmt)?;
     } else {
         print_auth_test_reports(&reports);
     }

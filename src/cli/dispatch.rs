@@ -124,11 +124,11 @@ pub(crate) async fn run_main(mut args: Args) -> Result<()> {
             tui_launch::run_client().await?;
         }
         Some(Command::Server { action }) => match action {
-            ServerCommand::Reload { force, json } => {
-                commands::run_server_reload_command(force, json).await?;
+            ServerCommand::Reload { force, json, toon } => {
+                commands::run_server_reload_command(force, json, toon).await?;
             }
-            ServerCommand::Stop { force, json } => {
-                commands::run_server_stop_command(force, json).await?;
+            ServerCommand::Stop { force, json, toon } => {
+                commands::run_server_stop_command(force, json, toon).await?;
             }
         },
         Some(Command::Run {
@@ -200,11 +200,11 @@ pub(crate) async fn run_main(mut args: Args) -> Result<()> {
         Some(Command::Update) => {
             hot_exec::run_update()?;
         }
-        Some(Command::Version { json }) => {
-            commands::run_version_command(json)?;
+        Some(Command::Version { json, toon }) => {
+            commands::run_version_command(json, toon)?;
         }
-        Some(Command::Usage { json }) => {
-            commands::run_usage_command(json).await?;
+        Some(Command::Usage { json, toon }) => {
+            commands::run_usage_command(json, toon).await?;
         }
         Some(Command::SelfDev { build }) => {
             selfdev::run_self_dev(build, args.resume).await?;
@@ -219,22 +219,23 @@ pub(crate) async fn run_main(mut args: Args) -> Result<()> {
             debug::run_debug_command(&command, &arg, session, socket, wait).await?;
         }
         Some(Command::Auth(subcmd)) => match subcmd {
-            AuthCommand::Status { json } => commands::run_auth_status_command(json)?,
+            AuthCommand::Status { json, toon } => commands::run_auth_status_command(json, toon)?,
             AuthCommand::Doctor {
                 provider,
                 validate,
                 json,
+                toon,
             } => {
                 let provider_arg = auth_doctor_provider_arg(provider.as_deref(), &args.provider);
-                commands::run_auth_doctor_command(provider_arg, validate, json).await?
+                commands::run_auth_doctor_command(provider_arg, validate, json, toon).await?
             }
         },
         Some(Command::Provider(subcmd)) => match subcmd {
-            ProviderCommand::List { json } => {
-                commands::run_provider_list_command(json)?;
+            ProviderCommand::List { json, toon } => {
+                commands::run_provider_list_command(json, toon)?;
             }
-            ProviderCommand::Current { json } => {
-                commands::run_provider_current_command(&args.provider, args.model.as_deref(), json)
+            ProviderCommand::Current { json, toon } => {
+                commands::run_provider_current_command(&args.provider, args.model.as_deref(), json, toon)
                     .await?;
             }
             ProviderCommand::Add {
@@ -254,6 +255,7 @@ pub(crate) async fn run_main(mut args: Args) -> Result<()> {
                 provider_routing,
                 model_catalog,
                 json,
+                toon,
             } => {
                 commands::run_provider_add_command(commands::ProviderAddOptions {
                     name,
@@ -272,6 +274,7 @@ pub(crate) async fn run_main(mut args: Args) -> Result<()> {
                     provider_routing,
                     model_catalog,
                     json,
+                    toon,
                 })?;
             }
         },
@@ -284,7 +287,8 @@ pub(crate) async fn run_main(mut args: Args) -> Result<()> {
                 name,
                 clear,
                 json,
-            } => commands::run_session_rename_command(&session, name.as_deref(), clear, json)?,
+                toon,
+            } => commands::run_session_rename_command(&session, name.as_deref(), clear, json, toon)?,
         },
         Some(Command::Secrets(subcmd)) => match subcmd {
             SecretsCommand::Set {
@@ -292,16 +296,27 @@ pub(crate) async fn run_main(mut args: Args) -> Result<()> {
                 value,
                 env,
                 json,
-            } => super::secrets_cmd::run_set(&name, value.as_deref(), env, json)?,
-            SecretsCommand::Get { name, env, json } => {
-                super::secrets_cmd::run_get(&name, env, json)?
+                toon,
+            } => super::secrets_cmd::run_set(&name, value.as_deref(), env, json, toon)?,
+            SecretsCommand::Get {
+                name,
+                env,
+                json,
+                toon,
+            } => super::secrets_cmd::run_get(&name, env, json, toon)?,
+            SecretsCommand::Delete {
+                name,
+                env,
+                json,
+                toon,
+            } => super::secrets_cmd::run_delete(&name, env, json, toon)?,
+            SecretsCommand::List { env, json, toon } => {
+                super::secrets_cmd::run_list(env, json, toon)?
             }
-            SecretsCommand::Delete { name, env, json } => {
-                super::secrets_cmd::run_delete(&name, env, json)?
+            SecretsCommand::Init { json, toon } => super::secrets_cmd::run_init(json, toon)?,
+            SecretsCommand::Purge { yes, json, toon } => {
+                super::secrets_cmd::run_purge(yes, json, toon)?
             }
-            SecretsCommand::List { env, json } => super::secrets_cmd::run_list(env, json)?,
-            SecretsCommand::Init { json } => super::secrets_cmd::run_init(json)?,
-            SecretsCommand::Purge { yes, json } => super::secrets_cmd::run_purge(yes, json)?,
         },
         Some(Command::Permission(subcmd)) => match subcmd {
             PermissionCommand::Allow { code } => {
@@ -404,9 +419,19 @@ pub(crate) async fn run_main(mut args: Args) -> Result<()> {
             .await?;
         }
         Some(Command::Model(subcmd)) => match subcmd {
-            ModelCommand::List { json, verbose } => {
-                commands::run_model_command(&args.provider, args.model.as_deref(), json, verbose)
-                    .await?;
+            ModelCommand::List {
+                json,
+                toon,
+                verbose,
+            } => {
+                commands::run_model_command(
+                    &args.provider,
+                    args.model.as_deref(),
+                    json,
+                    toon,
+                    verbose,
+                )
+                .await?;
             }
         },
         Some(Command::ProviderTestCoverage {
@@ -446,12 +471,14 @@ pub(crate) async fn run_main(mut args: Args) -> Result<()> {
             provider,
             tier,
             json,
+            toon,
         }) => {
             crate::cli::provider_doctor::run_provider_doctor_command(
                 &provider,
                 args.model.as_deref(),
                 &tier,
                 json,
+                toon,
             )
             .await?;
         }
@@ -462,6 +489,7 @@ pub(crate) async fn run_main(mut args: Args) -> Result<()> {
             no_tool_smoke,
             prompt,
             json,
+            toon,
             output,
             coverage,
             context_audit,
@@ -471,6 +499,7 @@ pub(crate) async fn run_main(mut args: Args) -> Result<()> {
             if coverage {
                 commands::run_auth_test_coverage_command(
                     json,
+                    toon,
                     output.as_deref(),
                     coverage_file.as_deref(),
                     coverage_limit,
@@ -480,6 +509,7 @@ pub(crate) async fn run_main(mut args: Args) -> Result<()> {
                     &args.provider,
                     all_configured,
                     json,
+                    toon,
                     output.as_deref(),
                 )
                 .await?;
@@ -493,6 +523,7 @@ pub(crate) async fn run_main(mut args: Args) -> Result<()> {
                     no_tool_smoke,
                     prompt.as_deref(),
                     json,
+                    toon,
                     output.as_deref(),
                 )
                 .await?;
@@ -500,6 +531,7 @@ pub(crate) async fn run_main(mut args: Args) -> Result<()> {
         }
         Some(Command::Doctor {
             json,
+            toon: _,
             fix,
             yes,
             only,
@@ -693,7 +725,9 @@ fn map_cloud_sessions_subcommand(
             helper,
             clear,
         },
-        CloudSessionsCommand::Status { json } => commands::CloudSessionsSubcommand::Status { json },
+        CloudSessionsCommand::Status { json, toon } => {
+            commands::CloudSessionsSubcommand::Status { json, toon }
+        }
         CloudSessionsCommand::Upload {
             session_file,
             raw,
@@ -719,6 +753,7 @@ fn map_cloud_sessions_subcommand(
             helper: jade.helper,
         },
         CloudSessionsCommand::Sync {
+            toon,
             sessions_dir,
             since_days,
             all,
@@ -739,21 +774,26 @@ fn map_cloud_sessions_subcommand(
             dry_run,
             force,
             json,
+            toon,
             user_id: jade.user_id,
             profile: jade.profile,
             region: jade.region,
             helper: jade.helper,
         },
-        CloudSessionsCommand::List { limit, json, jade } => {
-            commands::CloudSessionsSubcommand::List {
-                limit,
-                json,
-                user_id: jade.user_id,
-                profile: jade.profile,
-                region: jade.region,
-                helper: jade.helper,
-            }
-        }
+        CloudSessionsCommand::List {
+            limit,
+            json,
+            toon,
+            jade,
+        } => commands::CloudSessionsSubcommand::List {
+            limit,
+            json,
+            toon,
+            user_id: jade.user_id,
+            profile: jade.profile,
+            region: jade.region,
+            helper: jade.helper,
+        },
         CloudSessionsCommand::Verify { session_id, jade } => {
             commands::CloudSessionsSubcommand::Verify {
                 session_id,

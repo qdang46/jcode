@@ -15,6 +15,7 @@ pub async fn run_provider_doctor_command(
     model: Option<&str>,
     tier: &str,
     emit_json: bool,
+    emit_toon: bool,
 ) -> Result<()> {
     let tier: DoctorTier = tier
         .parse()
@@ -36,7 +37,7 @@ pub async fn run_provider_doctor_command(
             }
             None => anyhow::bail!("`{provider}` has no native provider-doctor driver"),
         };
-        emit_report(&report, emit_json);
+        emit_report(&report, emit_json, emit_toon);
         return if report.tier_passed {
             Ok(())
         } else {
@@ -73,7 +74,7 @@ pub async fn run_provider_doctor_command(
 
     let report = run_provider_e2e(profile, api_key.as_deref(), model, tier).await?;
 
-    emit_report(&report, emit_json);
+    emit_report(&report, emit_json, emit_toon);
 
     // Non-zero exit when the chosen tier did not fully pass, so scripts/CI can gate on it.
     if report.tier_passed {
@@ -83,9 +84,14 @@ pub async fn run_provider_doctor_command(
     }
 }
 
-fn emit_report(report: &DoctorReport, emit_json: bool) {
-    if emit_json {
-        println!("{}", report_to_json(report));
+fn emit_report(report: &DoctorReport, emit_json: bool, emit_toon: bool) {
+    if emit_json || emit_toon {
+        let fmt = if emit_toon {
+            crate::cli::output::OutputFormat::Toon
+        } else {
+            crate::cli::output::OutputFormat::Json
+        };
+        crate::cli::output::emit_json_or_toon(&report_to_json_value(report), fmt).unwrap_or_default();
     } else {
         let colorize = std::io::stdout().is_terminal()
             && std::env::var_os("NO_COLOR").is_none()
@@ -206,7 +212,7 @@ fn next_step_hint(checkpoint: &str) -> String {
     }
 }
 
-fn report_to_json(report: &DoctorReport) -> String {
+fn report_to_json_value(report: &DoctorReport) -> serde_json::Value {
     let checks: Vec<serde_json::Value> = report
         .checks
         .iter()
@@ -219,7 +225,7 @@ fn report_to_json(report: &DoctorReport) -> String {
             })
         })
         .collect();
-    serde_json::to_string_pretty(&serde_json::json!({
+    serde_json::json!({
         "provider_id": report.provider_id,
         "provider_label": report.provider_label,
         "model": report.model,
@@ -228,6 +234,10 @@ fn report_to_json(report: &DoctorReport) -> String {
         "strict_passed": report.strict_passed,
         "spend": report.spend.to_json(),
         "checks": checks,
-    }))
-    .unwrap_or_else(|_| "{}".to_string())
+    })
+}
+
+fn report_to_json(report: &DoctorReport) -> String {
+    serde_json::to_string_pretty(&report_to_json_value(report))
+        .unwrap_or_else(|_| "{}".to_string())
 }
