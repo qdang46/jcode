@@ -96,6 +96,7 @@ pub fn hook_command(event: &str) -> Option<String> {
 
 /// Whether a hook is configured for `event`. Cheap; used by hot paths to
 /// skip payload construction entirely when no hook is set.
+#[deprecated(note = "Use v2 hooks system via jcode-hooks crate")]
 pub fn hook_configured(event: &str) -> bool {
     hook_command(event).is_some()
 }
@@ -189,6 +190,7 @@ fn build_hook_process(
 ///
 /// Detached and fire-and-forget: failures are logged, never propagated, and
 /// the hook process cannot block the agent.
+#[deprecated(note = "Use v2 hooks system via jcode-hooks crate")]
 pub fn dispatch_observer(event: HookEvent) {
     let Some(command_line) = hook_command(event.event) else {
         return;
@@ -223,6 +225,7 @@ pub fn dispatch_observer(event: HookEvent) {
 /// - exit 0: allow the tool call
 /// - exit 2: block it; stderr becomes the error shown to the model
 /// - anything else (other exits, timeout, spawn failure): fail open
+#[deprecated(note = "Use v2 hooks system via jcode-hooks crate (PreToolUse event)")]
 pub async fn run_pre_tool_gate(
     session_id: &str,
     working_dir: Option<&str>,
@@ -321,6 +324,7 @@ pub async fn run_pre_tool_gate(
 }
 
 #[cfg(test)]
+#[allow(deprecated)]
 mod tests {
     use super::*;
 
