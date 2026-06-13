@@ -145,8 +145,7 @@ const REGISTERED_COMMANDS: &[RegisteredCommand] = &[
     RegisteredCommand::public("/transfer", "Compact context into a fresh handoff session"),
     RegisteredCommand::public("/workspace", "Niri-style session workspace"),
     RegisteredCommand::public("/quit", "Exit jcode"),
-    RegisteredCommand::public("/experimental", "List/show/enable/disable experimental feature flags"),
-    RegisteredCommand::public("/experiment", "Alias for /experimental"),
+    RegisteredCommand::public("/experiment", "List/show/enable/disable experimental feature flags"),
     RegisteredCommand::public("/permissions", "Show DCG permission mode and recent decisions"),
     RegisteredCommand::public("/auth", "Show authentication status"),
     RegisteredCommand::public("/login", "Login to a provider"),
@@ -1048,12 +1047,12 @@ impl App {
             return self.rank_suggestions(input, suggestions);
         }
 
-        if prefix.starts_with("/experiment ") || prefix.starts_with("/experimental ") {
+        if prefix.starts_with("/experiment ") {
             return self.rank_suggestions(
                 input,
                 vec![
-                    ("/experimental list".into(), "List all experimental feature flags and their state"),
-                    ("/experimental".into(), "Open interactive experimental features popup"),
+                    ("/experiment list".into(), "List all experimental feature flags and their state"),
+                    ("/experiment".into(), "Open interactive experimental features popup"),
                 ],
             );
         }
