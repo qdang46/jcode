@@ -157,12 +157,16 @@ pub(crate) enum Command {
     /// Run a single message and exit
     Run {
         /// Emit a machine-readable JSON result instead of streaming text
-        #[arg(long, conflicts_with = "ndjson")]
+        #[arg(long, conflicts_with = "ndjson", conflicts_with = "toon")]
         json: bool,
 
         /// Emit newline-delimited JSON events while the response streams
-        #[arg(long, conflicts_with = "json")]
+        #[arg(long, conflicts_with = "json", conflicts_with = "toon")]
         ndjson: bool,
+
+        /// Emit output in TOON format (token-efficient JSON alternative)
+        #[arg(long, conflicts_with = "json", conflicts_with = "ndjson")]
+        toon: bool,
 
         /// The message to send
         message: String,

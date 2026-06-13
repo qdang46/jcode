@@ -2367,8 +2367,9 @@ pub async fn run_single_message_command(
     message: &str,
     emit_json: bool,
     emit_ndjson: bool,
+    emit_toon: bool,
 ) -> Result<()> {
-    let provider = if emit_json || emit_ndjson {
+    let provider = if emit_json || emit_ndjson || emit_toon {
         super::provider_init::init_provider_quiet(choice, model).await?
     } else {
         super::provider_init::init_provider_for_validation(choice, model).await?
@@ -2389,6 +2390,17 @@ pub async fn run_single_message_command(
         println!("{}", serde_json::to_string_pretty(&report)?);
     } else if emit_ndjson {
         run_single_message_command_ndjson(&mut agent, provider.clone(), message).await?;
+    } else if emit_toon {
+        let text = run_single_message_command_capture_with_auto_poke(&mut agent, message).await?;
+        let report = RunCommandReport {
+            session_id: agent.session_id().to_string(),
+            provider: provider.name().to_string(),
+            model: provider.model(),
+            text,
+            usage: agent.last_usage().clone(),
+        };
+        let json = serde_json::to_string(&report)?;
+        println!("{}", toon::json_to_toon(&json)?);
     } else {
         run_single_message_command_plain_with_auto_poke(&mut agent, message).await?;
     }

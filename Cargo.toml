@@ -148,6 +148,10 @@ jcode-hooks = { path = "crates/jcode-hooks" }
 # CASR snapshot.
 casr = { git = "https://github.com/quangdang46/cross_agent_session_resumer", package = "cross_agent_session_resumer", rev = "aaee83d0049e2801aa1ffc5d18f22026bf78b225" }
 
+# TOON format output for the `jcode run --toon` flag — token-efficient JSON
+# alternative. Pinned to a specific commit SHA so the dependency is reproducible.
+toon = { git = "https://github.com/Dicklesworthstone/toon_rust", package = "tru", rev = "b94f69d" }
+
 # File picker for `@<path>` autocomplete in the TUI input.
 # Provides a long-lived FilePicker with background scan, gitignore-aware walk,
 # fuzzy matching with typo resistance, and frecency-ranked results.
