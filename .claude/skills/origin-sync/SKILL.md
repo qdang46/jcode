@@ -202,6 +202,79 @@ git add <file>
 - **New match arms both sides** → keep both. Manual editing.
 - **Upstream refactored the module structure** → compare carefully. If upstream moved code that references extracted deps, our paths need to stay.
 
+#### Auto-Resolution: Scripted 3-way merge for Category B/F
+
+Use this to **automatically resolve** Category B conflicts and Category F silent overwrites.
+The strategy: start from OUR HEAD, then incorporate upstream's additions that don't conflict
+with ours (trust ours on overlap).
+
+```bash
+# Requires: MERGE_BASE, file
+resolve_merge_file() {
+  local file="$1"
+  
+  # Step 1: Check if there are actual changes from upstream
+  if ! git diff --quiet "$MERGE_BASE..upstream/master" -- "$file" 2>/dev/null; then
+    echo "=== $file: upstream made changes ==="
+    
+    # Step 2: Try 3-way merge with ours preference
+    # Start from HEAD (our version)
+    git checkout --ours -- "$file" 2>/dev/null || true
+    
+    # Step 3: Apply upstream's non-overlapping changes using merge-file
+    # This produces a merge that keeps ours on conflict, adds theirs otherwise
+    cp "$file" "${file}.ours"
+    git show upstream/master:"$file" > "${file}.theirs" 2>/dev/null
+    git show "$MERGE_BASE":"$file" > "${file}.base" 2>/dev/null
+    
+    if [ -f "${file}.base" ] && [ -f "${file}.theirs" ]; then
+      # 3-way merge: ours preferred on conflict
+      git merge-file --ours -p \
+        "${file}.ours" \
+        "${file}.base" \
+        "${file}.theirs" > "$file" 2>/dev/null || true
+      
+      # If merge-file produced empty/corrupt result, restore HEAD
+      if [ ! -s "$file" ]; then
+        cp "${file}.ours" "$file"
+      fi
+    fi
+    
+    rm -f "${file}.ours" "${file}.theirs" "${file}.base"
+    
+    # Step 4: Verify it compiles
+    if [ -f "$file" ]; then
+      git add "$file"
+    fi
+  fi
+}
+
+# Run for all Category A/B/F files:
+# (Adjust file list based on Step 2.5 audit output)
+for file in \
+  crates/jcode-app-core/src/dcg_bridge.rs \
+  crates/jcode-app-core/src/dcp_bridge.rs \
+  crates/jcode-app-core/src/dcp_plugin.rs \
+  crates/jcode-base/src/casr_adapter.rs \
+  crates/jcode-base/src/import.rs; do
+  resolve_merge_file "$file"
+done
+
+# For Category F silent overwrite files, also restore any local-only
+# features using origin/master as reference:
+for file in \
+  crates/jcode-base/src/provider/claude.rs \
+  crates/jcode-provider-core/src/anthropic.rs \
+  crates/jcode-tui/src/tui/app/input.rs \
+  crates/jcode-tui/src/tui/ui_header.rs; do
+  resolve_merge_file "$file"
+done
+```
+
+**Caveat**: `git merge-file --ours` trusts ours on every conflicting hunk.
+If upstream's version of a hunk is semantically better (bug fix, security),
+you must merge that hunk manually. Always run `cargo check` after.
+
 #### Category C: Upstream-Only Change (no conflict)
 
 **Symptom**: Upstream added/modified code that doesn't touch any extracted domain.
