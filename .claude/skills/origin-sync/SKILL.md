@@ -107,6 +107,56 @@ fi
 git diff --stat master..upstream/master -- $UPSTREAM_FILES
 ```
 
+### Step 2.5: Hunk-level diff analysis (critical)
+
+Before merging, check every COMMON_FILE at the hunk level.
+Auto-merge produces no conflict markers when upstream modified
+different lines than we did — but our changes can still be
+semantically broken or partially overwritten.
+
+```bash
+# For each file in COMMON_FILES from Step 2:
+echo "$COMMON_FILES" | while IFS= read -r file; do
+  echo "=== $file ==="
+  # Show our local changes (compared to what we merged last)
+  echo "-- Our changes (HEAD):"
+  git show HEAD:"$file" | diff - <(git show upstream/master:"$file") 2>/dev/null || true
+  
+  # Show upstream's changes (compared to merge-base)
+  MERGE_BASE=$(git merge-base HEAD upstream/master)
+  echo "-- Upstream changes (merge-base..upstream/master):"
+  git diff "$MERGE_BASE..upstream/master" -- "$file" | head -80
+  
+  # Interactive check: does our local addition survive upstream's diff?
+  echo "-- Confirm each of OUR hunks still applies cleanly:"
+  git log --all -1 --format="%H" -- "$file"  # last commit touching this file
+  echo ""
+done
+```
+
+**What to look for per hunk**:
+1. **Our addition vs upstream deletion**: Upstream deleted a function we added to → **needs restore** (Category A/B resolution)
+2. **Both added code near each other**: Upstream added code adjacent to ours → may need reordering (Category B)
+3. **Upstream refactored around our code**: Upstream renamed symbols/types our code depends on → **our code now references dead names** (Category B — incorporate both)
+4. **Our enum variant vs upstream's enum**: Upstream added new variants to the same enum we extended → need to keep both (Category B sub-type)
+
+**Automatic sanity check**: run this before merging to flag likely breaks:
+
+```bash
+echo "$COMMON_FILES" | while IFS= read -r file; do
+  # Try a dry-run 3-way merge to see what auto-merge would do
+  # (this is what `git merge` will do internally)
+  MERGE_BASE=$(git merge-base HEAD upstream/master)
+  git merge-file -p \
+    <(git show HEAD:"$file") \
+    <(git show "$MERGE_BASE":"$file") \
+    <(git show upstream/master:"$file") \
+    2>/dev/null | diff - <(git show HEAD:"$file") | head -30 && \
+    echo "  ^ $file: auto-merge preserves HEAD (good)" || \
+    echo "  ^ $file: auto-merge may overwrite HEAD (check!)"
+done
+```
+
 ### Step 3: Merge
 
 ```bash
