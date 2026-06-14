@@ -2751,12 +2751,13 @@ fn draw_inner(frame: &mut Frame, app: &dyn TuiState) {
     if chunks[4].height > 0 {
         let sep_w = chunks[4].width as usize;
         if sep_w > 12 {
+            let (nav_pos, nav_total) = app.prompt_history_info().unwrap_or((0, 0));
             let next_prompt = user_count + pending_count + 1;
-            let total_prompts = app.display_user_message_count() + pending_count;
-            let label = if total_prompts > 0 {
-                format!(" History {}/{} ", next_prompt.min(total_prompts), total_prompts)
+            let label = if nav_pos > 0 {
+                format!(" History {}/{} ", nav_pos, nav_total)
             } else {
-                format!(" History {} ", next_prompt)
+                let total = app.display_user_message_count() + pending_count;
+                format!(" History {} ", total + 1)
             };
             let label_w = label.chars().count();
             let left = (sep_w - label_w) / 2;

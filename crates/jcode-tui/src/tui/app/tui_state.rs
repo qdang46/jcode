@@ -1702,4 +1702,13 @@ impl crate::tui::TuiState for App {
     fn status_line_config(&self) -> &jcode_config_types::StatusLineConfig {
         &self.status_line_config
     }
+
+    fn prompt_history_info(&self) -> Option<(usize, usize)> {
+        let history = super::input::visible_prompt_history(self);
+        if history.is_empty() {
+            return None;
+        }
+        let current = self.input.trim();
+        history.iter().rposition(|p| p == current).map(|pos| (pos + 1, history.len()))
+    }
 }

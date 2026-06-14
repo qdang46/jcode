@@ -785,7 +785,7 @@ pub(super) fn handle_text_input(app: &mut App, text: &str) -> bool {
     true
 }
 
-fn visible_prompt_history(app: &App) -> Vec<String> {
+pub(super) fn visible_prompt_history(app: &App) -> Vec<String> {
     app.display_messages
         .iter()
         .filter(|message| message.role == "user")
