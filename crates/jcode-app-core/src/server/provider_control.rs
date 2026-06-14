@@ -530,11 +530,19 @@ fn apply_set_model(
         let result = agent.set_model(&model);
         if result.is_ok() {
             agent.reset_provider_session();
-            // Persist the model to the server's config so it survives
-            // process restarts (Cmd+; launches new server each time).
+            // Persist the model to config so it survives process restarts.
+            // Include provider_key so set_model routes to the correct provider.
             let active = agent.provider_model();
+            let provider_key = crate::session::derive_session_provider_key(&agent.provider_name());
+            crate::logging::warn(&format!(
+                "[SERVER-SAVE] model='{}' provider_key='{:?}'",
+                active, provider_key
+            ));
             if let Err(e) =
-                crate::config::Config::set_default_model_only(Some(&active))
+                crate::config::Config::set_default_model(
+                    Some(&active),
+                    provider_key.as_deref(),
+                )
             {
                 crate::logging::warn(&format!(
                     "Failed to persist default model '{}' on server: {}",
@@ -590,9 +598,18 @@ fn apply_set_route(
         if result.is_ok() {
             agent.reset_provider_session();
             // Persist the model to config so it survives process restarts.
+            // Include provider_key so set_model routes to the correct provider.
             let active = agent.provider_model();
+            let provider_key = crate::session::derive_session_provider_key(&agent.provider_name());
+            crate::logging::warn(&format!(
+                "[ROUTE-SAVE] model='{}' provider_key='{:?}'",
+                active, provider_key
+            ));
             if let Err(e) =
-                crate::config::Config::set_default_model_only(Some(&active))
+                crate::config::Config::set_default_model(
+                    Some(&active),
+                    provider_key.as_deref(),
+                )
             {
                 crate::logging::warn(&format!(
                     "Failed to persist default model '{}' on server (route): {}",
