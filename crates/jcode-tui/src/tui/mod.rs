@@ -1013,8 +1013,8 @@ pub struct RunningItemsState {
     pub items: Vec<RunningItem>,
     /// Index into `items` for keyboard navigation.
     pub selected: usize,
-    /// Detail overlay: show output for the selected item.
-    pub detail: Option<String>,
+    /// Detail overlay open: show live info for the selected item.
+    pub detail_open: bool,
 }
 
 /// A single entry in the running items list.
