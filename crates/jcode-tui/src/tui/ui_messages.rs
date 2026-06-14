@@ -1798,18 +1798,23 @@ pub(crate) fn render_tool_message(
     );
     let rendered_tool_line_text = super::line_plain_text(&rendered_tool_line);
 
-    // Try to create oh-my-pi style framed box ┌──┐ (sharp corners).
+    // Try to create oh-my-pi style framed box ┌──┐ with output + stats footer.
     let mut box_created = false;
     if tc.input.is_object() && !tc.input.as_object().unwrap().is_empty() {
         let canon = tools_ui::canonical_tool_name(&tc.name);
-        let box_color = match canon {
-            "bash" | "terminal" | "shell" => rgb(0, 255, 136),
-            "read" | "write" | "edit" | "hashline_edit" => rgb(100, 180, 255),
-            "web_search" | "web_fetch" | "webfetch" => rgb(180, 140, 255),
-            "eval" | "python" => rgb(240, 192, 64),
-            "grep" | "search" | "glob" | "find" | "agentgrep" => rgb(100, 220, 200),
-            "notify" | "memory" | "todo" | "notepad" => rgb(140, 200, 140),
-            _ => rgb(140, 140, 150),
+        let is_error = tools_ui::tool_output_looks_failed(&msg.content);
+        let box_color = if is_error {
+            rgb(255, 80, 80)
+        } else {
+            match canon {
+                "bash" | "terminal" | "shell" => rgb(0, 255, 136),
+                "read" | "write" | "edit" | "hashline_edit" => rgb(100, 180, 255),
+                "web_search" | "web_fetch" | "webfetch" => rgb(180, 140, 255),
+                "eval" | "python" => rgb(240, 192, 64),
+                "grep" | "search" | "glob" | "find" | "agentgrep" => rgb(100, 220, 200),
+                "notify" | "memory" | "todo" | "notepad" => rgb(140, 200, 140),
+                _ => rgb(140, 140, 150),
+            }
         };
         let title = match canon {
             "bash" | "terminal" | "shell" => " bash ",
@@ -1825,9 +1830,8 @@ pub(crate) fn render_tool_message(
         let detail_width = row_width.saturating_sub(4).max(1);
         if detail_width >= 20 {
             let summary = tools_ui::get_tool_summary_with_budget(tc, 60, Some(detail_width));
-            let display = if !summary.trim().is_empty() {
-                summary
-            } else {
+            let cmd_display = if !summary.trim().is_empty() { summary }
+            else {
                 let input_val = tc.input.get("command").and_then(|v| v.as_str())
                     .or_else(|| tc.input.get("file_path").and_then(|v| v.as_str()))
                     .or_else(|| tc.input.get("path").and_then(|v| v.as_str()))
@@ -1841,9 +1845,49 @@ pub(crate) fn render_tool_message(
                 if input_val.is_empty() { String::new() }
                 else { format!("$ {}", input_val) }
             };
-            if !display.is_empty() {
-                // Box replaces the tool name line (avoid duplicate)
-                let box_content = vec![Line::from(Span::styled(display, Style::default().fg(box_color)))];
+
+            if !cmd_display.is_empty() {
+                // Build box content: command + output lines + footer stats
+                let mut box_content: Vec<Line<'static>> = Vec::new();
+                // Command line
+                box_content.push(Line::from(Span::styled(cmd_display, Style::default().fg(box_color))));
+
+                // Output section (from msg.content)
+                let output_lines = render_plaintext_lines(&msg.content, detail_width);
+                let total_output = output_lines.len();
+                let max_show = 20usize.min(total_output);
+                if max_show > 0 {
+                    let sep_w = detail_width.saturating_sub(2);
+                    let sep_label = " Output ";
+                    let sep_left = (sep_w.saturating_sub(sep_label.chars().count())) / 2;
+                    let sep_right = sep_w.saturating_sub(sep_label.chars().count() + sep_left);
+                    let sep_line = format!("├{} {} {}┤", "─".repeat(sep_left), sep_label, "─".repeat(sep_right));
+                    box_content.push(Line::from(Span::styled(sep_line, Style::default().fg(box_color))));
+                    for line in output_lines.into_iter().take(max_show) {
+                        box_content.push(line);
+                    }
+                    if total_output > max_show {
+                        box_content.push(Line::from(Span::styled(
+                            format!("  … {} more lines", total_output - max_show),
+                            Style::default().fg(rgb(140, 140, 150)),
+                        )));
+                    }
+                }
+
+                // Footer: exit status ⟦exit 1⟧ when tool failed
+                let exit_str = if is_error { " exit 1 " } else { "" };
+                let footer_text = if !exit_str.is_empty() {
+                    format!(" ⟦{}⟧", exit_str)
+                } else {
+                    String::new()
+                };
+                if !footer_text.is_empty() {
+                    box_content.push(Line::from(Span::styled(
+                        footer_text,
+                        Style::default().fg(rgb(100, 100, 110)),
+                    )));
+                }
+
                 let box_lines = super::render_sharp_box(
                     title, box_content,
                     row_width.saturating_sub(2) as usize,
