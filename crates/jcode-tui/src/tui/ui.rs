@@ -2415,7 +2415,7 @@ fn draw_inner(frame: &mut Frame, app: &dyn TuiState) {
     // Add 1 line for command suggestions, shell mode hints, or the Ctrl+Enter hint.
     let hint_line_height = input_ui::input_hint_line_height(app);
     let inline_block_height: u16 = inline_ui_height(app);
-    let inline_ui_gap_height: u16 = if inline_block_height > 0 { 1 } else { 0 };
+    let inline_ui_gap_height: u16 = 1;
     let input_height = base_input_height + hint_line_height;
 
     if let Some(ref mut capture) = debug_capture {
@@ -2747,12 +2747,21 @@ fn draw_inner(frame: &mut Frame, app: &dyn TuiState) {
     if inline_block_height > 0 {
         draw_inline_ui(frame, app, chunks[3]);
     }
-    // Top separator line above input
+    // Top separator line above input (with history counter, like Claude Code)
     if chunks[4].height > 0 {
         let sep_w = chunks[4].width as usize;
-        if sep_w > 0 {
-            //── is 2 chars wide, repeat to fill
-            let sep_str = "─".repeat(sep_w);
+        if sep_w > 12 {
+            let next_prompt = user_count + pending_count + 1;
+            let label = format!(" History {} ", next_prompt);
+            let sep = "─".to_string();
+            let left_len = (sep_w.saturating_sub(label.chars().count())) / 2;
+            let right_len = sep_w.saturating_sub(label.chars().count() + left_len);
+            let sep_str = format!(
+                "{}{}{}",
+                sep.repeat(left_len),
+                label,
+                sep.repeat(right_len),
+            );
             let sep_line = Line::from(Span::styled(sep_str, Style::default().fg(rgb(50, 55, 65))));
             frame.render_widget(Paragraph::new(sep_line), chunks[4]);
         }
