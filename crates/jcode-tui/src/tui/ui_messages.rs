@@ -1863,7 +1863,7 @@ pub(crate) fn render_tool_message(
                 )));
 
                 // Command: │ $ cargo build │
-                let cmd_text = format!("│ {} {} │", cmd_display, " ".repeat(inner_w.saturating_sub(cmd_display.chars().count())));
+                let cmd_text = format!("│ {} {} │", cmd_display, " ".repeat(inner_w.saturating_sub(unicode_width::UnicodeWidthStr::width(cmd_display.as_str()))));
                 lines.push(Line::from(Span::styled(cmd_text, Style::default().fg(box_color))));
                 // Always show full output (collapse is at GROUP level, not per-tool).
                 let output_lines = render_plaintext_lines(&msg.content, inner_w.min(detail_width));
@@ -1879,19 +1879,19 @@ pub(crate) fn render_tool_message(
                     for line in output_lines.into_iter().take(max_show) {
                         let lt = super::line_plain_text(&line);
                         let trimmed: String = lt.chars().take(inner_w).collect();
-                        let padded = format!("│ {} {} │", trimmed, " ".repeat(inner_w.saturating_sub(trimmed.chars().count())));
+                        let padded = format!("│ {} {} │", trimmed, " ".repeat(inner_w.saturating_sub(unicode_width::UnicodeWidthStr::width(trimmed.as_str()))));
                         lines.push(Line::from(Span::styled(padded, Style::default().fg(rgb(180, 180, 190)))));
                     }
                     if total_output > max_show {
                         let more = format!("  … {} more lines", total_output - max_show);
-                        let padded = format!("│ {}{} │", more, " ".repeat(inner_w.saturating_sub(more.chars().count())));
+                        let padded = format!("│ {}{} │", more, " ".repeat(inner_w.saturating_sub(unicode_width::UnicodeWidthStr::width(more.as_str()))));
                         lines.push(Line::from(Span::styled(padded, Style::default().fg(rgb(120, 120, 130)))));
                     }
                 }
                 // Footer: exit status when failed
                 if is_error {
                     let exit_text = " ⟦ exit 1 ⟧ ";
-                    let padded = format!("│ {}{} │", exit_text, " ".repeat(inner_w.saturating_sub(exit_text.chars().count())));
+                    let padded = format!("│ {}{} │", exit_text, " ".repeat(inner_w.saturating_sub(unicode_width::UnicodeWidthStr::width(exit_text))));
                     lines.push(Line::from(Span::styled(padded, Style::default().fg(rgb(100, 100, 110)))));
                 }
 
