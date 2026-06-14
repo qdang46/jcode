@@ -1704,11 +1704,29 @@ impl crate::tui::TuiState for App {
     }
 
     fn prompt_history_info(&self) -> Option<(usize, usize)> {
-        let history = super::input::visible_prompt_history(self);
-        if history.is_empty() {
+        let current = self.input.trim();
+        if current.is_empty() {
             return None;
         }
-        let current = self.input.trim();
-        history.iter().rposition(|p| p == current).map(|pos| (pos + 1, history.len()))
+        // Find current position in displayed user messages.
+        // display_messages is in display order (oldest first).
+        let display_messages = self.display_messages();
+        let positions: Vec<usize> = display_messages
+            .iter()
+            .enumerate()
+            .filter(|(_, m)| m.role == "user")
+            .filter(|(_, m)| !m.content.trim().is_empty())
+            .enumerate()
+            .filter(|(_, (_, m))| m.content.trim() == current)
+            .map(|(pos, _)| pos + 1)
+            .collect();
+        if positions.is_empty() {
+            return None;
+        }
+        // Return the deepest match (most recent user message matching this input).
+        let pos = *positions.last()?;
+        // Use the same total as the status bar label for consistency.
+        let total = self.display_user_message_count.saturating_sub(self.compacted_hidden_user_prompts());
+        Some((pos, total.max(1)))
     }
 }
