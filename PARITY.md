@@ -1,6 +1,6 @@
-# jcode Feature Registry — Subagents
+# jcode Feature Registry
 
-> Feature inventory of jcode's subagent/agent system, tracking implementation status and source references across reference repos (Claude Code, opencode, codebuff, pi-agent-rust, oh-my-openagent, codex, oh-my-pi, oh-my-claudecode, oh-my-codex).  
+> Feature inventory tracking implementation status and source references across reference repos (Claude Code, opencode, codebuff, pi-agent-rust, oh-my-openagent, codex, oh-my-pi, oh-my-claudecode, oh-my-codex).  
 > Organized by feature domain. New features should be added to the appropriate section.
 
 ---
