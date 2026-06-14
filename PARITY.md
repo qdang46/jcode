@@ -5,6 +5,8 @@
 
 ---
 
+## I. Subagent
+
 ## Legend
 
 | Symbol | Meaning |
@@ -15,7 +17,7 @@
 | 🔜 | Planned for next milestone |
 
 ---
-
+### 1. Agent Running Items
 ## 1. Agent Running Items
 
 *Interactive list below status bar showing live agents, tools, and tasks.*
