@@ -36,6 +36,7 @@ mod stream_buffer;
 pub mod test_harness;
 mod ui;
 mod ui_diff;
+mod ui_running_items;
 pub mod usage_overlay;
 pub mod visual_debug;
 pub mod workspace_client;

@@ -540,6 +540,15 @@ async fn handle_remote_key_internal(
                 app.recover_session_without_tools();
                 return Ok(());
             }
+            KeyCode::Char('o') => {
+                app.running_items_state.visible = !app.running_items_state.visible;
+                app.set_status_notice(if app.running_items_state.visible {
+                    "Running items list open"
+                } else {
+                    "Running items list closed"
+                });
+                return Ok(());
+            }
             KeyCode::Char('l') => {
                 return Ok(());
             }

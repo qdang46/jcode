@@ -2430,6 +2430,13 @@ fn draw_inner(frame: &mut Frame, app: &dyn TuiState) {
     let onboarding_welcome = app.onboarding_welcome_active();
     let show_donut = !onboarding_welcome && super::idle_donut_active(app);
     let donut_height: u16 = if show_donut { 14 } else { 0 };
+    // Running items list below status bar (Claude Code style)
+    let items_state = app.running_items();
+    let running_items_height: u16 = if items_state.visible && !items_state.items.is_empty() {
+        (items_state.items.len() as u16).min(5).saturating_add(1) // +1 for header
+    } else {
+        0
+    };
     let notification_height: u16 = if app.has_notification() { 1 } else { 0 };
     // Elastic overscroll status line revealed when the user scrolls past the
     // bottom of the transcript. Rendered directly below the input line.
@@ -2441,7 +2448,8 @@ fn draw_inner(frame: &mut Frame, app: &dyn TuiState) {
         + inline_ui_gap_height
         + input_height
         + overscroll_height
-        + donut_height; // status + queued + notification + inline UI + gap + input + overscroll + donut
+        + running_items_height
+        + donut_height; // status + separator + running items + donut
     let available_height = chat_area.height;
     let overflows = |prepared: &PreparedChatFrame| {
         (prepared.total_wrapped_lines().max(1) as u16) + fixed_height > available_height
@@ -2511,11 +2519,8 @@ fn draw_inner(frame: &mut Frame, app: &dyn TuiState) {
     // Use packed layout when content fits, scrolling layout otherwise
     let use_packed = content_height + fixed_height <= available_height;
 
-    // Layout: messages, queued, notification, inline UI, gap, input, STATUS, donut.
-    // Status bar is at the BOTTOM (below input), matching Codex/Claude Code layout.
-    // Layout: messages, queued, notification, inline UI, gap, input, SEPARATOR, STATUS, donut.
-    // Two lines below input: separator (───) and status bar (⏵⏵ mode info).
-    // Status bar is at the BOTTOM, matching Codex/Claude Code layout.
+    // Layout: messages, queued, notification, inline UI, gap, input, SEPARATOR, STATUS, RUNNING, donut.
+    // Running items list between status bar and donut (Claude Code style).
     let status_height: u16 = 1;
     let chunks = Layout::default()
         .direction(Direction::Vertical)
@@ -2529,6 +2534,7 @@ fn draw_inner(frame: &mut Frame, app: &dyn TuiState) {
                 Constraint::Length(input_height),          // Input
                 Constraint::Length(1),                     // Separator (─── line)
                 Constraint::Length(status_height),         // Status bar
+                Constraint::Length(running_items_height),  // Running items list
                 Constraint::Length(donut_height),          // Donut animation
             ]
         } else {
@@ -2541,6 +2547,7 @@ fn draw_inner(frame: &mut Frame, app: &dyn TuiState) {
                 Constraint::Length(input_height),         // Input
                 Constraint::Length(1),                     // Separator (─── line)
                 Constraint::Length(status_height),         // Status bar
+                Constraint::Length(running_items_height),  // Running items list
                 Constraint::Length(donut_height),          // Donut animation
             ]
         })
@@ -2782,9 +2789,13 @@ fn draw_inner(frame: &mut Frame, app: &dyn TuiState) {
     }
     // Status bar below separator
     input_ui::draw_status(frame, app, chunks[7], pending_count);
+    // Running items list below status bar (Claude Code style)
+    if running_items_height > 0 {
+        ui_running_items::draw_running_items(frame, app, chunks[8]);
+    }
     // Donut animation
     if donut_height > 0 {
-        animations::draw_idle_animation(frame, app, chunks[8]);
+        animations::draw_idle_animation(frame, app, chunks[9]);
     }
 
     // Draw info widget overlays (skip during idle animation - they look out of place)

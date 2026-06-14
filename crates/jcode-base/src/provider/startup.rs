@@ -344,9 +344,9 @@ impl MultiProvider {
         }
 
         result.auto_select_active_multi_account();
+        crate::logging::info(&format!(
             "[TIMING] provider_init: claude={}, anthropic={}, openai={}, copilot={}, antigravity={}, gemini={}, cursor={}, bedrock={}, openrouter={}, total={}ms",
-            result
-                .claude
+            result.claude
                 .read()
                 .unwrap_or_else(|poisoned| poisoned.into_inner())
                 .is_some(),

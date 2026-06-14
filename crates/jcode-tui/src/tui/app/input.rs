@@ -1969,6 +1969,15 @@ pub(super) fn handle_global_control_shortcuts(
             true
         }
         KeyCode::Char('l') => true,
+        KeyCode::Char('o') => {
+            app.running_items_state.visible = !app.running_items_state.visible;
+            app.set_status_notice(if app.running_items_state.visible {
+                "Running items list open"
+            } else {
+                "Running items list closed"
+            });
+            true
+        }
         _ => handle_control_key(app, code),
     }
 }
@@ -2280,6 +2289,47 @@ impl App {
             return Ok(());
         }
 
+
+        // Running items list navigation (when visible below status bar)
+        if self.running_items_state.visible {
+            match code {
+                KeyCode::Up => {
+                    if self.running_items_state.selected > 0 {
+                        self.running_items_state.selected -= 1;
+                    }
+                    return Ok(());
+                }
+                KeyCode::Down => {
+                    let max = self.running_items_state.items.len().saturating_sub(1);
+                    if self.running_items_state.selected < max {
+                        self.running_items_state.selected += 1;
+                    }
+                    return Ok(());
+                }
+                KeyCode::Enter => {
+                    // Toggle detail view for selected item
+                    if let Some(item) = self.running_items_state.items.get(self.running_items_state.selected) {
+                        if self.running_items_state.detail.is_some() {
+                            self.running_items_state.detail = None;
+                        } else {
+                            let detail = item.detail.clone()
+                                .unwrap_or_else(|| format!("{} (status: {:?})", item.label, item.status));
+                            self.running_items_state.detail = Some(detail);
+                        }
+                    }
+                    return Ok(());
+                }
+                KeyCode::Esc => {
+                    if self.running_items_state.detail.is_some() {
+                        self.running_items_state.detail = None;
+                    } else {
+                        self.running_items_state.visible = false;
+                    }
+                    return Ok(());
+                }
+                _ => {}
+            }
+        }
         // Ctrl+Enter: does opposite of queue_mode during processing
         if code == KeyCode::Enter && modifiers.contains(KeyModifiers::CONTROL) {
             handle_alternate_enter(self);
