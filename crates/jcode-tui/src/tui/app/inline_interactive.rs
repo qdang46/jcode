@@ -2829,7 +2829,51 @@ impl App {
                     }
                     PickerAction::CreateAgent => {
                         self.inline_interactive_state = None;
-                        self.set_status_notice("Creating new agent — coming soon");
+                        // Open $EDITOR with a template TOML file
+                        let template = r#"# Agent Definition
+# See https://jcode.dev/docs/agents for all available fields
+id = "my-agent"
+display_name = "My Agent"
+
+# Model selection (optional - inherits from session if unset)
+# model_override = "sonnet"
+# prefer_tier = "quality"
+
+# Tools this agent is allowed to use (empty = no tools)
+tool_names = ["Read", "Grep", "Glob", "Bash"]
+
+# System prompt
+system_prompt = """
+You are a helpful coding assistant.
+"""
+
+# Permission mode (optional)
+# permission_mode = "Plan"
+
+# Max turns (optional)
+# max_turns = 20
+"#;
+                        let raw = crossterm::terminal::is_raw_mode_enabled().unwrap_or(false);
+                        if raw {
+                            let _ = crossterm::terminal::disable_raw_mode();
+                        }
+                        let _ = crossterm::execute!(
+                            std::io::stdout(),
+                            crossterm::terminal::LeaveAlternateScreen,
+                            crossterm::cursor::Show
+                        );
+                        let result = self.run_agent_creation_flow(template);
+                        let _ = crossterm::execute!(
+                            std::io::stdout(),
+                            crossterm::terminal::EnterAlternateScreen
+                        );
+                        if raw {
+                            let _ = crossterm::terminal::enable_raw_mode();
+                        }
+                        match result {
+                            Ok(msg) => self.set_status_notice(msg),
+                            Err(e) => self.set_status_notice(format!("{}", e)),
+                        }
                     }
                     PickerAction::EditAgent { agent_id, source_path } => {
                         self.inline_interactive_state = None;

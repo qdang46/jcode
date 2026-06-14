@@ -663,3 +663,36 @@ fn format_elapsed_secs(secs: u64) -> String {
         format!("{}h {}m", secs / 3600, (secs % 3600) / 60)
     }
 }
+
+impl App {
+    pub(super) fn run_agent_creation_flow(&mut self, template: &str) -> anyhow::Result<String> {
+        use std::io::Write;
+        let mut tmp = tempfile::Builder::new()
+            .prefix("jcode-agent-")
+            .suffix(".toml")
+            .tempfile()?;
+        tmp.write_all(template.as_bytes())?;
+        let path = tmp.path().to_path_buf();
+
+        let status = std::process::Command::new("sh")
+            .arg("-c")
+            .arg("exec ${VISUAL:-${EDITOR:-vi}} \"$@\"")
+            .arg("jcode-editor")
+            .arg(&path)
+            .status()?;
+        anyhow::ensure!(status.success(), "Editor exited with non-zero status");
+
+        let content = std::fs::read_to_string(&path)?;
+        let def = jcode_agent_runtime::AgentRegistry::load_file(&path)?;
+
+        if let Some(home) = dirs::home_dir() {
+            let agents_dir = home.join(".jcode/agents");
+            std::fs::create_dir_all(&agents_dir)?;
+            let dest = agents_dir.join(format!("{}.toml", def.id));
+            std::fs::write(&dest, &content)?;
+            Ok(format!("Created agent: {} → {}", def.display_name, dest.display()))
+        } else {
+            anyhow::bail!("No home directory found");
+        }
+    }
+}
