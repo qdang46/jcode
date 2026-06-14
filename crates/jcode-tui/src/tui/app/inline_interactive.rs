@@ -2836,6 +2836,7 @@ tool_names = ["Read", "Grep", "Glob", "Bash"]
 system_prompt = """
 You are a helpful coding assistant.
 """
+# Optional: model_override, permission_mode, max_turns, color (red/blue/green/yellow/purple/orange/pink/cyan)
 "#;
                         let raw = crossterm::terminal::is_raw_mode_enabled().unwrap_or(false);
                         if raw { let _ = crossterm::terminal::disable_raw_mode(); }

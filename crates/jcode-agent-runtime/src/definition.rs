@@ -201,6 +201,11 @@ pub struct AgentDefinition {
     /// pull a JSON-schema crate yet — Phase 3 will add proper validation.
     #[serde(default)]
     pub output_schema: Option<serde_json::Value>,
+
+    /// Optional display color for the agent in the TUI.
+    /// Used to color the agent badge/indicator (red, blue, green, yellow, purple, orange, pink, cyan).
+    #[serde(default)]
+    pub color: Option<String>,
 }
 
 fn default_version() -> String {

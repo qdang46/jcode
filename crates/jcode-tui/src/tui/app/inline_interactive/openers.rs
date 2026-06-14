@@ -143,15 +143,21 @@ impl App {
             library_agent_count = sorted.len();
             for loaded in &sorted {
                 let def = &loaded.definition;
+                // Color badge for agent entry name
+                let badge = def.color.as_deref()
+                    .and_then(agent_color_icon)
+                    .unwrap_or("  ");
+                let display_name = format!("{} {}", badge, def.display_name);
                 entries.push(PickerEntry {
-                    name: format!("  {}", def.display_name),
+                    name: display_name,
                     options: vec![PickerOption {
                         provider: "config".into(),
                         api_method: "edit".into(),
                         available: true,
-                        detail: format!("{} tools · model: {}",
+                        detail: format!("{} tools · model: {} · color: {}",
                             def.tool_names.len(),
                             def.model_override.as_deref().unwrap_or("inherit"),
+                            def.color.as_deref().unwrap_or("default"),
                         ),
                         estimated_reference_cost_micros: None,
                         context_window: None,
@@ -185,7 +191,7 @@ impl App {
                     is_free: false,
                     is_latest: false,
                 });
-            }
+        }
         }
 
         // Also add the 5 built-in agent model override entries
@@ -723,5 +729,20 @@ impl App {
         } else {
             anyhow::bail!("No home directory found");
         }
+    }
+}
+
+/// Map agent color name to a colored circle character for the agent list.
+fn agent_color_icon(color: &str) -> Option<&'static str> {
+    match color {
+        "red" => Some("\x1b[31m●\x1b[0m"),
+        "blue" => Some("\x1b[34m●\x1b[0m"),
+        "green" => Some("\x1b[32m●\x1b[0m"),
+        "yellow" => Some("\x1b[33m●\x1b[0m"),
+        "purple" => Some("\x1b[35m●\x1b[0m"),
+        "orange" => Some("\x1b[38;5;214m●\x1b[0m"),
+        "pink" => Some("\x1b[38;5;206m●\x1b[0m"),
+        "cyan" => Some("\x1b[36m●\x1b[0m"),
+        _ => None,
     }
 }
