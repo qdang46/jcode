@@ -732,17 +732,8 @@ impl App {
     }
 }
 
-/// Map agent color name to a colored circle character for the agent list.
+/// Map agent color name to a colored badge character.
+/// The actual color is rendered in the detail text.
 fn agent_color_icon(color: &str) -> Option<&'static str> {
-    match color {
-        "red" => Some("\x1b[31m●\x1b[0m"),
-        "blue" => Some("\x1b[34m●\x1b[0m"),
-        "green" => Some("\x1b[32m●\x1b[0m"),
-        "yellow" => Some("\x1b[33m●\x1b[0m"),
-        "purple" => Some("\x1b[35m●\x1b[0m"),
-        "orange" => Some("\x1b[38;5;214m●\x1b[0m"),
-        "pink" => Some("\x1b[38;5;206m●\x1b[0m"),
-        "cyan" => Some("\x1b[36m●\x1b[0m"),
-        _ => None,
-    }
+    Some("●")
 }

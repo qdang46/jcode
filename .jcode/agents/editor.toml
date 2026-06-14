@@ -34,6 +34,7 @@ id = "editor"
 display_name = "Code Editor"
 publisher = "jcode"
 version = "0.1.0"
+color = "blue"
 
 prefer_tier = "thinking"
 reasoning = "medium"

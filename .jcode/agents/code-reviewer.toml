@@ -23,6 +23,7 @@ id = "code-reviewer"
 display_name = "Code Reviewer"
 publisher = "jcode"
 version = "0.1.0"
+color = "purple"
 
 prefer_tier = "thinking"
 reasoning = "medium"

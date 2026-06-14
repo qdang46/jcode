@@ -33,6 +33,7 @@ id = "basher"
 display_name = "Basher"
 publisher = "jcode"
 version = "0.1.0"
+color = "green"
 
 prefer_tier = "routine"
 reasoning = "minimal"

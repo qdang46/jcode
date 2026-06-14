@@ -24,6 +24,7 @@ id = "file-picker"
 display_name = "Fletcher the File Fetcher"
 publisher = "jcode"
 version = "0.1.0"
+color = "cyan"
 
 prefer_tier = "routine"
 reasoning = "minimal"
