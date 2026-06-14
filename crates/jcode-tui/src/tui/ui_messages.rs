@@ -1805,25 +1805,29 @@ pub(crate) fn render_tool_message(
     {
         let detail_width = row_width.saturating_sub(4).max(1);
         let command_detail = tools_ui::get_tool_summary_with_budget(tc, 80, Some(detail_width));
-        if !command_detail.trim().is_empty() {
-            let detail_line = Line::from(vec![
-                Span::raw("    "),
-                Span::styled(command_detail, Style::default().fg(dim_color())),
-            ]);
-            lines.push(super::truncate_line_with_ellipsis_to_width(
-                &detail_line,
-                row_width,
-            ));
+        let cmd_display = if !command_detail.trim().is_empty() {
+            command_detail
         } else if !command.trim().is_empty() {
-            let fallback = format!("$ {}", command.trim());
-            let detail_line = Line::from(vec![
-                Span::raw("    "),
-                Span::styled(fallback, Style::default().fg(dim_color())),
-            ]);
-            lines.push(super::truncate_line_with_ellipsis_to_width(
-                &detail_line,
-                row_width,
-            ));
+            format!("$ {}", command.trim())
+        } else {
+            String::new()
+        };
+        if !cmd_display.is_empty() && detail_width >= 20 {
+            // Wrap command in a rounded box (╭──╮) with green border (bash mode color).
+            let box_content = vec![Line::from(Span::styled(
+                cmd_display,
+                Style::default().fg(rgb(0, 255, 136)),
+            ))];
+            let box_lines = super::render_rounded_box(
+                " bash ",
+                box_content,
+                row_width.saturating_sub(2) as usize,
+                Style::default().fg(rgb(0, 255, 136)),
+            );
+            for bl in box_lines {
+                let truncated = super::truncate_line_with_ellipsis_to_width(&bl, row_width);
+                lines.push(truncated);
+            }
         }
     }
 
