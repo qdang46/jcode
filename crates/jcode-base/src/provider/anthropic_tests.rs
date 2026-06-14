@@ -445,7 +445,14 @@ async fn live_anthropic_reasoning_smoke() -> Result<()> {
 
     let provider = AnthropicProvider::new();
     provider.set_model(&model)?;
-    provider.set_reasoning_effort(&effort)?;
+    // Some models (e.g. Fable 5) legitimately reject any reasoning effort. Treat
+    // that as "use the model default" so the live call still exercises the model
+    // rather than aborting the smoke test before any request is sent.
+    if let Err(err) = provider.set_reasoning_effort(&effort) {
+        eprintln!(
+            "model {model} does not support reasoning effort '{effort}' ({err}); using model default"
+        );
+    }
 
     let messages = vec![Message {
         role: Role::User,
@@ -1309,57 +1316,59 @@ fn credential_mode_runtime_provider_identity_round_trips() {
 }
 
 #[test]
-fn test_anthropic_fable_5_uses_output_effort_without_adaptive_thinking() {
-    // REGRESSION: `claude-fable-5` exposes `output_config` effort levels but the
-    // Messages API rejects an explicit adaptive `thinking` block with a 400
-    // ("adaptive thinking is not supported on this model"). The request builder
-    // must therefore set `output_config` for the effort but leave `thinking`
-    // unset, even when the display toggle is on.
+fn test_anthropic_fable_5_sends_no_reasoning_fields() {
+    // REGRESSION: `claude-fable-5` is listed with effort levels in
+    // `GET /v1/models`, but the live Messages API rejects BOTH an adaptive
+    // `thinking` block ("adaptive thinking is not supported on this model") and
+    // an `output_config` effort ("This model does not support the effort
+    // parameter."). It is effectively a non-reasoning model, so the request
+    // builder must send neither field, even with an explicit effort and the
+    // display toggle on.
     let provider = AnthropicProvider::new();
     *provider.reasoning_effort.write().unwrap() = Some("high".to_string());
 
-    // With an explicit effort: output_config set, thinking omitted.
+    // Explicit effort: no thinking, no output_config; OAuth temperature restored.
     let (thinking, output_config, temperature) =
         provider.build_reasoning_request_parts_inner("claude-fable-5", true, false);
     assert!(
         thinking.is_none(),
         "Fable 5 must not send an adaptive thinking block (API rejects it with 400)"
     );
-    assert_eq!(
-        output_config
-            .expect("Fable 5 should still drive reasoning via output_config")
-            .effort,
-        "high",
+    assert!(
+        output_config.is_none(),
+        "Fable 5 must not send an output_config effort (API rejects it with 400)"
     );
-    // No active thinking block, so the OAuth temperature is restored.
     assert_eq!(temperature, Some(1.0));
 
-    // Even with show_thinking on, no thinking block is requested.
-    let (thinking, _output_config, _temp) =
+    // Even with show_thinking on, no reasoning fields are requested.
+    let (thinking, output_config, _temp) =
         provider.build_reasoning_request_parts_inner("claude-fable-5", true, true);
-    assert!(
-        thinking.is_none(),
-        "show_thinking must not force an unsupported adaptive thinking block on Fable 5"
-    );
+    assert!(thinking.is_none() && output_config.is_none());
+
+    // The effort picker also surfaces no levels for Fable 5.
+    assert!(!AnthropicProvider::model_supports_reasoning_effort(
+        "claude-fable-5"
+    ));
 }
 
 #[test]
-fn detects_anthropic_thinking_unsupported_errors() {
-    // The real 400 body returned when an explicit adaptive thinking block is
-    // sent to a model that does not accept one (e.g. Fable 5).
-    let real = "anthropic api error (400 bad request): {\"type\":\"error\",\"error\":{\"type\":\"invalid_request_error\",\"message\":\"adaptive thinking is not supported on this model\"}}";
-    assert!(is_thinking_unsupported_error(real));
+fn detects_anthropic_reasoning_unsupported_errors() {
+    // The real 400 bodies returned when Fable 5 is sent reasoning fields.
+    let thinking_400 = "anthropic api error (400 bad request): {\"type\":\"error\",\"error\":{\"type\":\"invalid_request_error\",\"message\":\"adaptive thinking is not supported on this model\"}}";
+    assert!(is_reasoning_unsupported_error(thinking_400));
+    let effort_400 = "anthropic api error (400 bad request): {\"type\":\"error\",\"error\":{\"type\":\"invalid_request_error\",\"message\":\"this model does not support the effort parameter.\"}}";
+    assert!(is_reasoning_unsupported_error(effort_400));
 
-    // Unrelated 400s must not trigger the thinking self-heal path.
-    assert!(!is_thinking_unsupported_error(
+    // Unrelated 400s must not trigger the reasoning self-heal path.
+    assert!(!is_reasoning_unsupported_error(
         "anthropic api error (400 bad request): {\"type\":\"invalid_request_error\",\"message\":\"max_tokens too large\"}"
     ));
     // A thinking-mentioning error that is not a 400 must not match either.
-    assert!(!is_thinking_unsupported_error(
+    assert!(!is_reasoning_unsupported_error(
         "anthropic api error (429 too many requests): rate_limit on thinking budget"
     ));
     // Model-not-found is a different recovery path.
-    assert!(!is_thinking_unsupported_error(
+    assert!(!is_reasoning_unsupported_error(
         "anthropic api error (404 not found): {\"type\":\"not_found_error\",\"message\":\"model not found\"}"
     ));
 }
