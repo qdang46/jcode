@@ -7407,6 +7407,7 @@ dependencies = [
  "global-hotkey",
  "hex",
  "image",
+ "jcode-agent-runtime",
  "jcode-app-core",
  "jcode-build-meta",
  "jcode-config-types",

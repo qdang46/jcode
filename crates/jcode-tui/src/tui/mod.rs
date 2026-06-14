@@ -1002,6 +1002,12 @@ pub enum PickerAction {
     /// Section header in a grouped picker (Favorites, Recent, Provider name).
     /// Not selectable — rendered as a dimmed label between sections.
     SectionHeader,
+    /// Create a new subagent definition file.
+    CreateAgent,
+    /// Open an existing agent definition file for editing.
+    EditAgent { agent_id: String, source_path: String },
+    /// Delete an agent definition file.
+    DeleteAgent { agent_id: String, source_path: String },
 }
 
 /// Unified inline picker with three columns.
@@ -1096,7 +1102,10 @@ fn estimate_picker_action_bytes(action: &PickerAction) -> usize {
         | PickerAction::AgentTarget(_)
         | PickerAction::AgentModelChoice { .. }
         | PickerAction::LogoutAll
-        | PickerAction::SectionHeader => 0,
+        | PickerAction::SectionHeader
+        | PickerAction::CreateAgent
+        | PickerAction::EditAgent { .. }
+        | PickerAction::DeleteAgent { .. } => 0,
         PickerAction::Account(AccountPickerAction::Switch { provider_id, label }) => {
             provider_id.capacity() + label.capacity()
         }

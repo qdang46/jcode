@@ -23,6 +23,7 @@ path = "src/lib.rs"
 # so this crate (and ultimately the root crate) controls app-core's features.
 jcode-config-types = { path = "../jcode-config-types" }
 jcode-app-core = { path = "../jcode-app-core", default-features = false }
+jcode-agent-runtime = { path = "../jcode-agent-runtime" }
 jcode-keywords = { path = "../jcode-keywords" }
 jcode-memory-types = { path = "../jcode-memory-types" }
 

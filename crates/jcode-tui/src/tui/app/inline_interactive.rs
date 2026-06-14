@@ -2827,6 +2827,46 @@ impl App {
                         // Not selectable — pressing Enter on a section header
                         // does nothing; the user should navigate to an actual entry.
                     }
+                    PickerAction::CreateAgent => {
+                        self.inline_interactive_state = None;
+                        self.set_status_notice("Creating new agent — coming soon");
+                    }
+                    PickerAction::EditAgent { agent_id, source_path } => {
+                        self.inline_interactive_state = None;
+                        let raw = crossterm::terminal::is_raw_mode_enabled().unwrap_or(false);
+                        if raw {
+                            let _ = crossterm::terminal::disable_raw_mode();
+                        }
+                        let _ = crossterm::execute!(
+                            std::io::stdout(),
+                            crossterm::terminal::LeaveAlternateScreen,
+                            crossterm::cursor::Show
+                        );
+                        let status = std::process::Command::new("sh")
+                            .arg("-c")
+                            .arg("exec ${VISUAL:-${EDITOR:-vi}} \"$@\"")
+                            .arg("jcode-editor")
+                            .arg(&source_path)
+                            .status();
+                        let _ = crossterm::execute!(
+                            std::io::stdout(),
+                            crossterm::terminal::EnterAlternateScreen
+                        );
+                        if raw {
+                            let _ = crossterm::terminal::enable_raw_mode();
+                        }
+                        match status {
+                            Ok(_) => self.set_status_notice(format!("Edited agent: {}", agent_id)),
+                            Err(e) => self.set_status_notice(format!("Failed to edit agent: {}", e)),
+                        }
+                    }
+                    PickerAction::DeleteAgent { agent_id, source_path } => {
+                        self.inline_interactive_state = None;
+                        match std::fs::remove_file(&source_path) {
+                            Ok(()) => self.set_status_notice(format!("Deleted agent: {}", agent_id)),
+                            Err(e) => self.set_status_notice(format!("Failed to delete agent: {}", e)),
+                        }
+                    }
                     PickerAction::AgentTarget(target) => {
                         self.open_agent_model_picker(target);
                     }

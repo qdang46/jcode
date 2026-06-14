@@ -63,6 +63,101 @@ impl App {
             is_latest: false,
         });
 
+        // "Create new agent" entry
+        entries.push(PickerEntry {
+            name: "  + Create new agent".into(),
+            options: vec![PickerOption {
+                provider: "action".into(),
+                api_method: "create".into(),
+                available: true,
+                detail: "Create a new subagent definition file".into(),
+                estimated_reference_cost_micros: None,
+                context_window: None,
+                latency_ms: None,
+                cost_per_million_input: None,
+                cost_per_million_output: None,
+                is_free: false,
+                is_latest: false,
+            }],
+            action: PickerAction::CreateAgent,
+            selected_option: 0,
+            is_current: false,
+            is_default: false,
+            is_favorite: false,
+            recommended: false,
+            recommendation_rank: usize::MAX,
+            usage_score: 0,
+            old: false,
+            created_date: None,
+            effort: None,
+            is_free: false,
+            is_latest: false,
+        });
+
+        // Load agent definitions from disk
+        let mut registry = jcode_agent_runtime::AgentRegistry::new();
+        let home = dirs::home_dir().map(|h| h.join(".jcode/agents"));
+        let cwd = std::env::current_dir().ok().map(|d| d.join(".jcode/agents"));
+        if let Some(path) = &home {
+            let _ = registry.load_directory(path, jcode_agent_runtime::SourceKind::UserGlobal);
+        }
+        if let Some(path) = &cwd {
+            let _ = registry.load_directory(path, jcode_agent_runtime::SourceKind::ProjectLocal);
+        }
+
+        // Add each loaded agent definition to Library tab
+        let library_agent_count: usize;
+        {
+            let sorted = registry.iter_sorted();
+            library_agent_count = sorted.len();
+            for loaded in &sorted {
+                let def = &loaded.definition;
+                entries.push(PickerEntry {
+                    name: format!("  {}", def.display_name),
+                    options: vec![PickerOption {
+                        provider: "config".into(),
+                        api_method: "edit".into(),
+                        available: true,
+                        detail: format!("{} tools · model: {}",
+                            def.tool_names.len(),
+                            def.model_override.as_deref().unwrap_or("inherit"),
+                        ),
+                        estimated_reference_cost_micros: None,
+                        context_window: None,
+                        latency_ms: None,
+                        cost_per_million_input: None,
+                        cost_per_million_output: None,
+                        is_free: false,
+                        is_latest: false,
+                    }],
+                    action: {
+                        let source_path = match &loaded.source {
+                            jcode_agent_runtime::registry::AgentSource::UserGlobal { path } => path.to_string_lossy().to_string(),
+                            jcode_agent_runtime::registry::AgentSource::ProjectLocal { path } => path.to_string_lossy().to_string(),
+                            jcode_agent_runtime::registry::AgentSource::Builtin => String::new(),
+                        };
+                        PickerAction::EditAgent {
+                            agent_id: def.id.clone(),
+                            source_path,
+                        }
+                    },
+                    selected_option: 0,
+                    is_current: false,
+                    is_default: false,
+                    is_favorite: false,
+                    recommended: false,
+                    recommendation_rank: usize::MAX,
+                    usage_score: 0,
+                    old: false,
+                    created_date: None,
+                    effort: None,
+                    is_free: false,
+                    is_latest: false,
+                });
+            }
+        }
+
+        // Also add the 5 built-in agent model override entries
         let models = [
             AgentModelTarget::Swarm,
             AgentModelTarget::Review,
@@ -77,7 +172,7 @@ impl App {
                 .clone()
                 .unwrap_or_else(|| agent_model_default_summary(target, self));
             PickerEntry {
-                name: agent_model_target_label(target).to_string(),
+                name: format!("  {} (config)", agent_model_target_label(target)),
                 options: vec![PickerOption {
                     provider: summary,
                     api_method: agent_model_target_config_path(target).to_string(),
@@ -108,29 +203,21 @@ impl App {
         })
         .collect::<Vec<_>>();
 
-        let library_count = models.len();
+        let model_override_count = models.len();
         entries.extend(models);
-
         // Build filtered indices: column 0 -> running entries, column 1 -> library entries
         // Running entries: 1..=running_count (skip section header at index 0)
         // Library entries: 1+running_count+1..=total (skip Running header + Running items + Library header)
         let running_start = 1; // after "── Running ──" header
         let running_end = running_start + running_count;
-        let library_start = running_end + 1; // after Running section + "── Library ──" header
-        let library_end = library_start + library_count;
-        let total = entries.len();
+        let library_header_idx = running_end; // "── Library ──" header
+        let library_create_idx = library_header_idx + 1; // "+ Create new agent" entry
+        let library_agent_start = library_create_idx + 1;
+        let library_agent_end = library_agent_start + library_agent_count;
+        let library_model_start = library_agent_end;
+        let library_end = library_agent_end + model_override_count;
 
-        // Filter to running tab when column=0, library tab when column=1
-        let running_filtered: Vec<usize> = (running_start..running_end).collect();
-        let library_filtered: Vec<usize> = (library_start..library_end).collect();
-
-        // Determine which column to activate based on current column
-        let initial_column = 0; // start on Running tab
-        let filtered = if initial_column == 0 {
-            running_filtered
-        } else {
-            library_filtered
-        };
+        let filtered: Vec<usize> = (running_start..running_end).collect();
 
         // Store metadata in filter: "running_end:library_end"
         // Secret metadata: filter = running_end:library_end for tab index reconstruction
@@ -142,7 +229,7 @@ impl App {
             filtered,
             entries,
             selected: 0,
-            column: initial_column,
+            column: 0,
             filter: meta,
             preview: false,
         };
