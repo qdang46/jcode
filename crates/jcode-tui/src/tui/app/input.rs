@@ -2307,8 +2307,23 @@ impl App {
                     return Ok(());
                 }
                 KeyCode::Enter => {
-                    // Toggle detail overlay for selected item
-                    self.running_items_state.detail_open = !self.running_items_state.detail_open;
+                    if self.running_items_state.detail_open {
+                        // Enter while detail is open: switch to subagent session if available
+                        let session_switch = self.running_items_state.items.get(self.running_items_state.selected)
+                            .and_then(|item| item.session_id.as_ref().map(|sid| (item.label.clone(), sid.clone())));
+                        if let Some((label, sid)) = session_switch {
+                            self.running_items_state.visible = false;
+                            self.running_items_state.detail_open = false;
+                            self.set_status_notice(format!("Switching to → {}", label));
+                            self.workspace_client.queue_resume_session(sid);
+                            return Ok(());
+                        }
+                        // No session to switch to: close detail
+                        self.running_items_state.detail_open = false;
+                    } else {
+                        // Open detail overlay
+                        self.running_items_state.detail_open = true;
+                    }
                     return Ok(());
                 }
                 KeyCode::Esc => {

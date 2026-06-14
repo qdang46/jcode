@@ -190,6 +190,14 @@ pub(super) fn draw_running_item_detail(
     )));
 
     // Action hints
+
+    // Session action hint
+    if item.session_id.is_some() {
+        lines.push(Line::from(Span::styled(
+            "  Enter to open session · Esc to close",
+            Style::default().fg(rgb(80, 80, 90)),
+        )));
+    }
     if matches!(item.status, RunningItemStatus::Running) {
         lines.push(Line::from(Span::styled(
             "  Ctrl+C or Backspace to cancel · Esc to close",

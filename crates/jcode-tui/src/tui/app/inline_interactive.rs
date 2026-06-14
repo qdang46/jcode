@@ -2646,11 +2646,10 @@ impl App {
                         return Ok(());
                     }
                     // BackTab in model picker: cycle model favorite
+                    // BackTab in model picker: cycle model favorite
                     if matches!(code, KeyCode::BackTab) && picker.kind == PickerKind::Model {
-                        // Reuse original BackTab behavior
                         let _ = picker;
-                            self.cycle_selected_model_favorite();
-                        }
+                        self.cycle_selected_model_favorite();
                         return Ok(());
                     }
                     if picker.column > 0 {
