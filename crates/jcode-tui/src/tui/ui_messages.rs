@@ -1849,7 +1849,7 @@ pub(crate) fn render_tool_message(
 
             if !cmd_display.is_empty() {
                 // Build oh-my-pi style box manually (render_sharp_box adds │ to separator).
-                let box_w = row_width as usize;
+                let box_w = row_width.min(120) as usize;
                 if box_w < 20 { return lines; }
                 let inner_w = box_w.saturating_sub(4);
 
