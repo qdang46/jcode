@@ -1878,8 +1878,16 @@ pub(crate) fn render_tool_message(
                     )));
                     for line in output_lines.into_iter().take(max_show) {
                         let lt = super::line_plain_text(&line);
-                        let trimmed: String = lt.chars().take(inner_w).collect();
-                        let padded = format!("│ {} {} │", trimmed, " ".repeat(inner_w.saturating_sub(unicode_width::UnicodeWidthStr::width(trimmed.as_str()))));
+                        // Truncate by unicode width, not by char count
+                        let mut trimmed = String::new();
+                        let mut w = 0usize;
+                        for ch in lt.chars() {
+                            let cw = unicode_width::UnicodeWidthChar::width(ch).unwrap_or(0);
+                            if w + cw > inner_w { break; }
+                            trimmed.push(ch);
+                            w += cw;
+                        }
+                        let padded = format!("│ {} {} │", trimmed, " ".repeat(inner_w.saturating_sub(w)));
                         lines.push(Line::from(Span::styled(padded, Style::default().fg(rgb(180, 180, 190)))));
                     }
                     if total_output > max_show {
