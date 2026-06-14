@@ -188,7 +188,7 @@ pub(super) fn input_prompt(app: &dyn TuiState) -> (&'static str, Color) {
     } else if app.active_skill().is_some() {
         ("» ", accent_color())
     } else {
-        ("> ", user_color())
+        ("❯ ", user_color())
     }
 }
 
@@ -566,17 +566,16 @@ pub(super) fn draw_status(frame: &mut Frame, app: &dyn TuiState, area: Rect, pen
     // (pink model, blue provider, context bar, working dir).
     fn status_base_prefix(app: &dyn TuiState) -> Vec<Span<'static>> {
         let data = app.info_widget_data();
-        let sep = || Span::styled(" · ", Style::default().fg(rgb(100, 100, 110)));
+        let sep = || Span::styled(" │ ", Style::default().fg(rgb(100, 100, 110)));
         let mut spans: Vec<Span> = Vec::new();
 
         // Permission mode icon (leftmost)
-        let mode_str = crate::dcg_bridge::mode_to_str(crate::dcg_bridge::current_mode());
-        let mode_icon = match mode_str {
-            "bypass-permissions" => "⊘",
+        let mode_icon = match crate::dcg_bridge::mode_to_str(crate::dcg_bridge::current_mode()) {
+            "bypass-permissions" => "⏵⏵",
             "default" => "🔒",
-            "accept-edits" => "✏",
-            "plan" => "📋",
-            "auto" => "🤖",
+            "accept-edits" => "⏵⏵",
+            "plan" => "⏸",
+            "auto" => "⏵⏵",
             _ => "🔒",
         };
         spans.push(Span::styled(mode_icon, Style::default().fg(rgb(255, 193, 7))));
@@ -621,8 +620,11 @@ pub(super) fn draw_status(frame: &mut Frame, app: &dyn TuiState, area: Rect, pen
         spans
     }
 
-    // Always render the base status prefix, then append the dynamic status (if any).
-    let mut base_spans = status_base_prefix(app);
+    // Always render the base status prefix with leading separator (─── style).
+    let mut base_spans = vec![
+        Span::styled("─── ", Style::default().fg(rgb(50, 55, 65))),
+    ];
+    base_spans.extend(status_base_prefix(app));
 
     // Append dynamic status suffix (processing, rate-limit, build, or nothing).
     let status_suffix: Vec<Span<'static>> = if let Some(build_progress) = crate::build::read_build_progress() {

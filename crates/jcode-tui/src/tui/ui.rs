@@ -2745,6 +2745,16 @@ fn draw_inner(frame: &mut Frame, app: &dyn TuiState) {
     if inline_block_height > 0 {
         draw_inline_ui(frame, app, chunks[3]);
     }
+
+    // Chat separator line above the input (─── style, like Claude Code)
+    if chunks[4].height > 0 {
+        let sep_line = Line::from(Span::styled(
+            "─".repeat(chunks[4].width as usize),
+            Style::default().fg(rgb(50, 55, 65)),
+        ));
+        frame.render_widget(Paragraph::new(sep_line), chunks[4]);
+    }
+
     input_ui::draw_input(
         frame,
         app,
