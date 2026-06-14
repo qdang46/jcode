@@ -2522,6 +2522,10 @@ fn draw_inner(frame: &mut Frame, app: &dyn TuiState) {
 
     // Layout: messages, queued, notification, inline UI, gap, input, STATUS, donut.
     // Status bar is at the BOTTOM (below input), matching Codex/Claude Code layout.
+    // Layout: messages, queued, notification, inline UI, gap, input, SEPARATOR, STATUS, donut.
+    // Two lines below input: separator (───) and status bar (⏵⏵ mode info).
+    // Status bar is at the BOTTOM, matching Codex/Claude Code layout.
+    let status_height: u16 = 1;
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints(if use_packed {
@@ -2532,7 +2536,8 @@ fn draw_inner(frame: &mut Frame, app: &dyn TuiState) {
                 Constraint::Length(inline_block_height),   // Inline UI
                 Constraint::Length(inline_ui_gap_height),  // Inline UI/input spacing
                 Constraint::Length(input_height),          // Input
-                Constraint::Length(1),                     // Status line (BELOW input)
+                Constraint::Length(1),                     // Separator (─── line)
+                Constraint::Length(status_height),         // Status bar
                 Constraint::Length(donut_height),          // Donut animation
             ]
         } else {
@@ -2543,12 +2548,13 @@ fn draw_inner(frame: &mut Frame, app: &dyn TuiState) {
                 Constraint::Length(inline_block_height),  // Inline UI
                 Constraint::Length(inline_ui_gap_height), // Inline UI/input spacing
                 Constraint::Length(input_height),         // Input
-                Constraint::Length(1),                     // Status line (BELOW input)
+                Constraint::Length(1),                     // Separator (─── line)
+                Constraint::Length(status_height),         // Status bar
                 Constraint::Length(donut_height),          // Donut animation
             ]
         })
         .split(chat_area);
-    record_status_area(chunks[6]);
+    record_status_area(chunks[7]);
 
     // Capture layout info for visual debug
     if let Some(ref mut capture) = debug_capture {
@@ -2735,26 +2741,23 @@ fn draw_inner(frame: &mut Frame, app: &dyn TuiState) {
         }
         input_ui::draw_queued(frame, app, chunks[1], user_count + 1);
     }
-    if let Some(ref mut capture) = debug_capture {
-        capture.render_order.push("draw_status".to_string());
-    }
-    input_ui::draw_status(frame, app, chunks[6], pending_count);
     if notification_height > 0 {
         input_ui::draw_notification(frame, app, chunks[2]);
     }
     if inline_block_height > 0 {
         draw_inline_ui(frame, app, chunks[3]);
     }
-
-    // Chat separator line above the input (─── style, like Claude Code)
+    // Top separator line above input
     if chunks[4].height > 0 {
-        let sep_line = Line::from(Span::styled(
-            "─".repeat(chunks[4].width as usize),
-            Style::default().fg(rgb(50, 55, 65)),
-        ));
-        frame.render_widget(Paragraph::new(sep_line), chunks[4]);
+        let sep_w = chunks[4].width as usize;
+        if sep_w > 0 {
+            //── is 2 chars wide, repeat to fill
+            let sep_str = "─".repeat(sep_w);
+            let sep_line = Line::from(Span::styled(sep_str, Style::default().fg(rgb(50, 55, 65))));
+            frame.render_widget(Paragraph::new(sep_line), chunks[4]);
+        }
     }
-
+    // Input
     input_ui::draw_input(
         frame,
         app,
@@ -2762,9 +2765,20 @@ fn draw_inner(frame: &mut Frame, app: &dyn TuiState) {
         user_count + pending_count + 1,
         &mut debug_capture,
     );
-
+    // Bottom separator line (───) below input
+    {
+        let sep_w = chunks[6].width as usize;
+        if sep_w > 0 {
+            let sep_str = "─".repeat(sep_w);
+            let sep_line = Line::from(Span::styled(sep_str, Style::default().fg(rgb(50, 55, 65))));
+            frame.render_widget(Paragraph::new(sep_line), chunks[6]);
+        }
+    }
+    // Status bar below separator
+    input_ui::draw_status(frame, app, chunks[7], pending_count);
+    // Donut animation
     if donut_height > 0 {
-        animations::draw_idle_animation(frame, app, chunks[7]);
+        animations::draw_idle_animation(frame, app, chunks[8]);
     }
 
     // Draw info widget overlays (skip during idle animation - they look out of place)
