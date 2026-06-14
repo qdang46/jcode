@@ -1,7 +1,7 @@
-# jcode ↔ Claude Code Parity
+# jcode ↔ Claude Code Parity — Subagents
 
-> Feature-by-feature comparison between jcode (`quangdang46/jcode`) and reference tools (Claude Code, opencode, codebuff, pi-agent-rust, oh-my-openagent, codex, oh-my-pi).  
-> Organized by domain area for extensibility — new features should be added to the appropriate section.
+> Feature-by-feature comparison of **subagent/agent features** between jcode (`quangdang46/jcode`) and Claude Code.  
+> Only subagent-related features are tracked here. Other domains (model providers, LSP/DAP, deployment, etc.) are excluded.
 
 ---
 
@@ -9,239 +9,183 @@
 
 | Symbol | Meaning |
 |--------|---------|
-| ✅ | Complete — matches reference UX |
+| ✅ | Complete — matches Claude Code UX |
 | ⚠️ | Partial — works but missing depth |
 | ❌ | Not implemented |
-| — | Not applicable / different approach |
 
 ---
 
-## 1. Core Terminal UI
+## 1. Agent Definitions
 
-*Status bar, input area, message rendering, overlays, layout zones.*
+*File format, storage, loading, validation.*
 
-| Name | Features | References | jcode Impl | Progress | Remaining |
-|------|----------|------------|------------|----------|-----------|
-| **Status bar** | Mode icon, model name, provider, context usage bar, token count, cost, custom shell command (3 layers). Configurable segments. | CCB: `src/commands/statusline/index.ts` | `ui_input.rs`: `draw_status()` at line 537. Layer 1 (basic) + Layer 3 (custom command) done. | ⚠️ | Layer 2 (configurable segments via `status_line.segments`) NOT wired. `draw_status` always hardcodes mode→model→provider→context. |
-| **Running items list** | Interactive list below status bar: subagents, shell commands, background tasks. ↓/↑ navigate, Enter detail, Esc close. | CCB: `src/hooks/useBackgroundAgentTasks.ts`, `src/hooks/useTasksV2.ts` | `ui_running_items.rs`, `ui.rs` (chunks[8]), `input.rs` (Ctrl+O toggle). | ✅ | — |
-| **Detail overlay** | Rounded border popup with live item status. Real-time update (rebuilt per frame). Shows status/kind/ID/session/elapsed. Cancel action via Backspace/Ctrl+C. | CCB: `src/components/agents/AgentDetail.tsx` | `ui_running_items.rs`: `draw_running_item_detail()`. | ✅ | — |
-| **Input area** | Multi-line text input, prompt history, autocomplete, slash commands. | CCB: `src/components/PromptInput/`, opencode `packages/tui/` | `ui_input.rs`, `input.rs`: text input, history, autocomplete. | ✅ | — |
-| **Message/transcript** | Render conversation with user/assistant/tool messages. Stream text, tool calls, formatted output. | CCB: message rendering, opencode TUI | `ui_messages.rs`, `ui_tools.rs`: message rendering pipeline. | ✅ | — |
-| **Overlays** | Notifications, toasts, queued messages, inline interactive pickers. | CCB: notification system | `ui_overlays.rs`: notification, queued, inline interactive. | ✅ | — |
-| **Donut animation** | Idle animation at bottom of screen while waiting for model response. | CCB: spinner system | `animations.rs`: `draw_idle_animation()`. | ✅ | — |
-| **Info widgets** | Floating/minimap panels in transcript margin: Overview, Todos, ContextUsage, ModelInfo, Memory, Git, Team, SwarmBackground, Tips. | CCB: `src/components/PromptInput/useSwarmBanner.ts` | `info_widget.rs`: comprehensive widget system with compact/expanded modes. | ✅ | — |
-| **Context window visualization** | Per-subagent token usage visualization. Context pressure indicators. | CCB: `src/commands/context/index.ts`, opencode context widget | — | ❌ | Track per-subagent tokens. Render in detail overlay or info widget. |
+| Name | Features | References (CCB) | jcode Impl | Progress | Remaining |
+|------|----------|-------------------|------------|----------|-----------|
+| **File format** | TOML-based definition. Fields: id, display_name, model_override, tool_names, ... | `.claude/agents/*.md` YAML frontmatter | `definition.rs`: `AgentDefinition` struct | ✅ | — |
+| **Registry & loading** | 3-tier priority: Builtin < UserGlobal < ProjectLocal. load_directory, register_builtin, iter_sorted, conflict resolution. | 4 scopes (managed/project/user/plugin) | `registry.rs`: `AgentRegistry` | ✅ | — |
+| **Storage scopes** | Agent file directories. | managed, project, user, plugin | `~/.jcode/agents/`, `.jcode/agents/` | ⚠️ | Add managed scope (read-only) + plugin scope. Currently 2/4. |
+| **Validation** | Validate agent file on load. Error/warning reporting. | AgentValidationResult | `AgentDefinition::validate()` | ✅ | — |
+| **Agent prompts** | 5 slots: system_prompt, instructions_prompt, step_prompt, spawner_prompt. Cache sharing via inherit_parent_system_prompt. | AgentTool prompts, skill system | `definition.rs`: all prompt fields. Built-in agents use them. | ✅ | — |
 
 ---
 
-## 2. Agent Management
+## 2. Agent Lifecycle
 
-*Agent definitions, lifecycle, spawning, background tasks, /agents command, /tasks command.*
+*Spawning, running, completion, status tracking.*
 
-| Name | Features | References | jcode Impl | Progress | Remaining |
-|------|----------|------------|------------|----------|-----------|
-| **Agent file format** | TOML-based definition. Fields: id, display_name, model_override, tool_names, disallowed_tools, spawnable_agents, system_prompt, instructions_prompt, step_prompt, spawner_prompt, inherit_parent_system_prompt, include_message_history, permission_mode, max_turns, output_mode, output_schema, color. | CCB: `.claude/agents/*.md` YAML frontmatter. pi-agent-rust: agent config format. | `definition.rs`: `AgentDefinition` struct (TOML). Serialize/Deserialize. | ✅ | — |
-| **Agent registry** | 3-tier priority: Builtin < UserGlobal < ProjectLocal. `load_directory()`, `register_builtin()`, `load_file()`, `iter_sorted()`, `get()`, conflict resolution, load errors. | CCB: 4 scopes (managed/project/user/plugin). | `registry.rs`: `AgentRegistry` with full API. | ✅ | — |
-| **Agent storage scopes** | Directory locations for agent files. | CCB: 4 scopes: managed (read-only), project (`.claude/agents/`), user (`~/.claude/agents/`), plugin. | User: `~/.jcode/agents/`. Project: `.jcode/agents/`. | ⚠️ | Add managed scope (read-only builtin dir) and plugin scope. Currently 2/4 scopes. |
-| **Agent colors** | 8 named colors: red/blue/green/yellow/purple/orange/pink/cyan. Color badge in agent list. | CCB: `agentColorManager.ts`, `src/components/agents/ColorPicker.tsx`. | `definition.rs`: `color: Option<String>`. Badge `●` in agent list. Built-in agents assigned colors. | ✅ | Proper ratatui Span colored rendering (currently plain `●`). Need `PickerEntry.color` field. |
-| **Color picker UI** | Interactive 8-swatch picker with live preview. Set agent color from UI. | CCB: `src/components/agents/ColorPicker.tsx`. | — | ❌ | Add `PickerKind::ColorPicker`. 8 color entries + "Automatic". |
-| **`/agents` command** | Tabbed interface: Running tab (live agents) + Library tab (saved agents). Tab/BackTab switch. | CCB: `src/commands/agents/index.ts`, `src/commands/agents/agents.tsx`. | `openers.rs`: `open_agents_picker()`. `inline_interactive.rs`: Tab/BackTab/Left/Right. | ✅ | — |
-| **`/agents` — Running tab** | Live subagents, background tasks, batch tools, swarm members. Enter opens detail/running items. | CCB: `/agents` → Running tab. | `openers.rs`: `build_running_tab_entries()`. | ✅ | — |
-| **`/agents` — Library tab** | Agent definitions from disk. `+ Create new agent` (manual TOML). `+ Generate via AI` (prompt→model). Enter edits agent file. | CCB: `src/components/agents/AgentsList.tsx`, `src/components/agents/AgentEditor.tsx`. | `openers.rs`: loads via `AgentRegistry`. `run_agent_creation_flow()`. | ✅ | — |
-| **Agent edit menu** | Change model/tools/color without editing raw file. Inline pickers per field. | CCB: `src/components/agents/AgentEditor.tsx` (model/tools/color options). | Opens $EDITOR with raw TOML file. | ❌ | Add model picker, tools list, color picker to edit flow. |
-| **Agent lifecycle** | Start → running → completed/failed/stopped. Visible in running items and `/agents` Running tab. | CCB: `src/tasks/LocalAgentTask/LocalAgentTask.tsx`. | `running_items.rs`: status icons. `SwarmMemberStatus` from server events. | ✅ | — |
-| **Background agents** | Agents running in background (non-blocking). Progress tracking, notifications, wake. | CCB: `src/hooks/useBackgroundAgentTasks.ts`. pi-agent-rust: background task scheduling. | `background::global()`, `BackgroundTaskManager`. `info_widget_swarm_background.rs`. | ✅ | — |
-| **`/tasks` command** | List running/completed background tasks. Attach to task, stop/kill. | CCB: `src/commands/tasks/index.ts`, `src/commands/tasks/tasks.tsx`. | — | ❌ | Add `PickerKind::Tasks`, `open_tasks_picker()`. Data exists via `background::global().running_snapshot()`. |
-| **`/agents save`** | Save generated agent TOML from last model response. | CCB: auto-saves after AI generation. | — | ❌ | Parse ` ```toml ` from last assistant message. Write to `~/.jcode/agents/`. |
-| **AI generation auto-save** | Model generates definition → auto-parse → auto-save. No user copy-paste. | CCB: `src/components/agents/generateAgent.ts` (Claude API → programmatic save). | User queues message, response appears in chat. | ❌ | Hook into turn completion. Detect TOML in response. Save automatically. |
-| **Agent creation wizard** | Multi-step guided wizard: location → method → type → prompt → tools → model → color → memory → confirm. | CCB: `src/components/agents/new-agent-creation/CreateAgentWizard.tsx` (10+ steps). | Manual TOML via $EDITOR (1 step). | ❌ | Multi-step wizard with inline pickers. |
-| **Agent validation** | Validate agent file on load. Report errors/warnings. | CCB: `AgentValidationResult` (isValid, warnings, errors). | `definition.rs`: `AgentDefinition::validate()` returns `Result<(), DefinitionError>`. | ✅ | — |
+| Name | Features | References (CCB) | jcode Impl | Progress | Remaining |
+|------|----------|-------------------|------------|----------|-----------|
+| **Spawning** | Spawn subagent from parent. Pass context, inherit prompt, configure tools. | `src/utils/swarm/spawnInProcess.ts` | Agent runtime spawn via AgentTarget + model resolution | ✅ | — |
+| **Lifecycle states** | Start → running → completed/failed/stopped. Visible in UI. | `src/tasks/LocalAgentTask/LocalAgentTask.tsx` | `running_items.rs`: status icons. SwarmMemberStatus from server. | ✅ | — |
+| **Background execution** | Run agents in background (non-blocking). Progress tracking, notifications, wake. | `src/hooks/useBackgroundAgentTasks.ts` | `background::global()`, `BackgroundTaskManager` | ✅ | — |
+| **Forked agents** | Fork with full context inheritance. In-process execution. | `src/utils/forkedAgent.ts` | In-process spawning via agent runtime | ✅ | — |
+| **Max turns** | Limit agent turns to prevent runaway. | maxTurns field | `definition.rs`: `max_turns: Option<u32>` | ✅ | — |
+| **Stop/kill** | Cancel running subagent, tool, or background task. | `src/tasks/stopTask.ts`, `src/hooks/useCancelRequest.ts` | Ctrl+C / Backspace → `cancel_requested = true` | ✅ | — |
 
 ---
 
-## 3. Model & Provider
+## 3. Agent UI — Running Items
 
-*Model selection, provider routing, model resolution, streaming, failover.*
+*Below status bar interactive list of live agents/tools/tasks.*
 
-| Name | Features | References | jcode Impl | Progress | Remaining |
-|------|----------|------------|------------|----------|-----------|
-| **Model picker** | Inline interactive picker listing all available models from all providers. Search/filter, favorites, recent. | opencode: model picker UI. oh-my-pi: 40+ provider model list. | `inline_interactive.rs`: `open_model_picker()`. Full picker with favorites, usage scoring, fuzzy search. | ✅ | — |
-| **Provider management** | Login/logout providers. Account status. Provider catalog. | opencode: provider abstraction. oh-my-pi: 40+ providers. | `openers.rs`: login/logout pickers. `provider_catalog.rs`: catalog. | ✅ | — |
-| **Model routing** | Tier-based routing (routine, thinking, quality). Fallback chain. | oh-my-pi: model routing. pi-agent-rust: model resolution. | `model_routing.rs`, `tier.rs`: tier resolution. | ✅ | — |
-| **Model failover** | Automatic failover on model error/rate-limit. | CCB: failover system. | `model_failover.rs`: failover logic. | ✅ | — |
-| **Agent model override** | Per-agent-type model override (Swarm/Review/Judge/Memory/Ambient). Stored in `model_prefs.json`. | CCB: agent `model:` field. | `inline_interactive/helpers.rs`: `save_agent_model_override()`, `load_agent_model_override()`. | ✅ | — |
-| **Reasoning/effort** | Per-agent reasoning effort setting (minimal/low/medium/high). | CCB: reasoning effort. oh-my-openagent: model-variant routing. | `definition.rs`: `reasoning: Option<ReasoningEffort>`. | ✅ | — |
-
----
-
-## 4. Session & History
-
-*Session management, conversation history, replay, resume.*
-
-| Name | Features | References | jcode Impl | Progress | Remaining |
-|------|----------|------------|------------|----------|-----------|
-| **Session resume** | Resume previous session. `/resume` command with session picker. | CCB: session resume. pi-agent-rust: SQLite session store. | `session_picker.rs`: full session picker with preview. `workspace_client.queue_resume_session()`. | ✅ | — |
-| **Session switching** | Switch between sessions. Enter → switch to subagent session via `queue_resume_session(sid)`. | CCB: session switching. | `input.rs`, `key_handling.rs`: Enter on subagent → resume session. | ✅ | — |
-| **Transcript viewer** | View session transcript. `/transcript` command opens in viewer. | CCB: transcript viewing. | Session picker shows preview (20 messages). `/transcript` opens file in OS viewer. | ✅ | — |
-| **Compact/compress** | Compress long sessions to save context window. | CCB: compaction system. pi-agent-rust: session compaction. | `compact.rs`: session memory compaction. | ✅ | — |
-| **History search** | Search across session history. | CCB: history search. | History search via session files. | ✅ | — |
+| Name | Features | References (CCB) | jcode Impl | Progress | Remaining |
+|------|----------|-------------------|------------|----------|-----------|
+| **Running items list** | Interactive list below status bar: subagents, shell commands, background tasks. ↓/↑ navigate, Enter detail, Esc close. | `src/hooks/useBackgroundAgentTasks.ts` | `ui_running_items.rs`, `ui.rs` (chunks[8]), Ctrl+O toggle | ✅ | — |
+| **Status icons** | Running (◯), Completed (✓), Failed (✗), Stopped (■). Colored per status. | Agent status icons | `ui_running_items.rs`: `item_icon_and_color()` | ✅ | — |
+| **Elapsed time** | Show duration for running items. Right-aligned. | Task timers | `format_elapsed()` in `ui_running_items.rs` | ✅ | — |
+| **Selection highlight** | ❯ indicator for selected item. Bold label. | Arrow selection | `draw_running_items()`: `❯` prefix + bold style | ✅ | — |
+| **Scroll for long lists** | Max 5 items visible. Scroll offset for overflow. | Pagination | `scroll_offset` calculation in `draw_running_items()` | ✅ | — |
 
 ---
 
-## 5. Tools & Permissions
+## 4. Agent UI — Detail Overlay
 
-*Tool system, tool restrictions, permission modes, sandboxing.*
+*Popup with live status when Enter is pressed on an item.*
 
-| Name | Features | References | jcode Impl | Progress | Remaining |
-|------|----------|------------|------------|----------|-----------|
-| **Tool registry** | Registered tool list. Tool metadata, arguments, allowed scopes. | CCB: `src/Tool.ts`. opencode: tool abstraction. | `Tool.rs`: tool trait + registry. 30+ tools. | ✅ | — |
-| **Tool whitelist** | `tool_names` field: only these tools available to agent. | CCB: tools field in agent file. | `definition.rs`: `tool_names: Vec<String>`. | ✅ | — |
-| **Tool denylist** | `disallowed_tools` field: block specific tools. | CCB: tool deny system. | `definition.rs`: `disallowed_tools: Vec<String>`. | ✅ | — |
-| **Spawnable agents** | `spawnable_agents` field: which sub-agents this agent can spawn. | CCB: spawn control. | `definition.rs`: `spawnable_agents: Vec<String>`. | ✅ | — |
-| **Permission modes** | Plan mode (read-only), AcceptEdits (batch auto-approve), etc. Per-agent override. | CCB: permission modes. codex: sandbox execution. | `permission.rs`: `PermissionMode` enum. `definition.rs`: `permission_mode: Option<PermissionMode>`. | ✅ | — |
-| **Sandbox/Isolation** | Sandbox execution for untrusted code. Network isolation, filesystem isolation. | codex: firewall init script, container execution. pi-agent-rust: capability gates, hostcall security. | DCG (Dangerous Command Guard), `extension_policy.rs`. | ⚠️ | No network/filesystem sandbox (codex-style). DCG only covers dangerous shell commands. |
-| **Context sharing** | Share parent context with spawned agent. Cache sharing via `inherit_parent_system_prompt`. | CCB: prompt cache prefix sharing. | `definition.rs`: `inherit_parent_system_prompt`, `include_message_history`. Built-in agents use cache sharing (editor, code-reviewer). | ✅ | — |
-| **Max turns** | Limit agent turns to prevent runaway loops. | CCB: maxTurns field. | `definition.rs`: `max_turns: Option<u32>`. | ✅ | — |
+| Name | Features | References (CCB) | jcode Impl | Progress | Remaining |
+|------|----------|-------------------|------------|----------|-----------|
+| **Overlay popup** | Rounded border popup showing item info. | `src/components/agents/AgentDetail.tsx` | `draw_running_item_detail()` in `ui_running_items.rs` | ✅ | — |
+| **Real-time update** | Content rebuilt every frame. Status/elapsed update live. | Live rendering | Called from `draw_inner()` each frame | ✅ | — |
+| **Detail fields** | Shows: status, kind, id, session, elapsed, detail text. | Agent detail view | Dynamic content built per frame | ✅ | — |
+| **Action hints** | "Enter to open session", "Ctrl+C to cancel", "Esc to close". | Action hints | Dynamic hints based on item status + session_id | ✅ | — |
+| **Session attachment** | Enter while detail open → switch to subagent's session. | `src/hooks/useRemoteSession.ts` | `workspace_client.queue_resume_session(sid)` | ✅ | — |
 
 ---
 
-## 6. Multi-Agent & Swarm
+## 5. Agent UI — `/agents` Command
 
-*Agent teams, coordination, inter-agent communication, swarm UI.*
+*Tabbed interface: Running tab (live) + Library tab (saved agents).*
 
-| Name | Features | References | jcode Impl | Progress | Remaining |
-|------|----------|------------|------------|----------|-----------|
-| **Agent teams** | Multi-agent coordination with task DAG. TeamView widget. | oh-my-openagent: Atlas/delegate-task orchestration. codebuff: 4-agent pipeline. CCB: swarm coordination. | `info_widget_swarm_background.rs`: TeamView widget. | ⚠️ | TeamView is informational only. No interactive team management. |
-| **Swarm members** | Remote swarm member lifecycle. Status updates via `ServerEvent::SwarmStatus`. | CCB: swarm backends (InProcess, Tmux, Pane). | `remote_swarm_members: Vec<SwarmMemberStatus>`. `server_events.rs`: SwarmStatus handler. | ✅ | — |
-| **Swarm plan** | Swarm plan synchronization. Plan proposals, coordinator mode. | CCB: `src/coordinator/coordinatorMode.ts`. | `swarm_plan_core.rs`, `ServerEvent::SwarmPlan`. | ✅ | — |
-| **Inter-agent comm** | Agents communicate via mailboxes, shared context, notifications. | CCB: `src/utils/teammateMailbox.ts`, `src/utils/udsMessaging.ts`. | `ServerEvent::Notification`, `CommReadContext`, `CommContextHistory`. | ✅ | — |
-| **Swarm info widget** | Show swarm member status in margin. Status icons, member names, roles. | CCB: teammate banner. | `info_widget_swarm_background.rs`: `render_swarm_widget()`. | ✅ | — |
-| **Forked agents** | Fork agent with full context inheritance. In-process spawning. | CCB: `src/utils/forkedAgent.ts`, `src/utils/swarm/inProcessRunner.ts`. | Spawning via `spawnInProcess` via agent runtime. | ✅ | — |
-
----
-
-## 7. Extensions & Plugins
-
-*Plugin system, MCP, skills, hooks.*
-
-| Name | Features | References | jcode Impl | Progress | Remaining |
-|------|----------|------------|------------|----------|-----------|
-| **Plugin system** | Load plugins from disk. Plugin registry, lifecycle management. | CCB: `src/utils/plugins/pluginLoader.ts`, opencode: extension system. | Plugin system exists (`PluginTuiBridge` in status bar). | ⚠️ | Basic plugin bridge. Full plugin lifecycle (install/list/remove) missing. |
-| **Plugin agents** | Load agent definitions from plugins. Plugin-defined agent files with scoped availability. | CCB: `src/utils/plugins/loadPluginAgents.ts`. | — | ❌ | Plugin loader integration with AgentRegistry. |
-| **MCP servers** | Model Context Protocol server integration. | CCB: MCP client (`src/services/mcp/`). | MCP support via hashline/ffs tools. | ✅ | — |
-| **Skills** | Bundled skills system. Load skills from directory. | CCB: `src/skills/`. oh-my-openagent: prompt variants per model. | Skills system in `.claude/skills/`. Skill loading, bundled skills. | ✅ | — |
-| **Agent hooks** | Pre/post lifecycle hooks (onSpawn, onComplete, onError). Defined in agent file. | CCB: `src/utils/hooks/execAgentHook.ts`, `src/utils/hooks/registerFrontmatterHooks.ts`. | Hooks system exists (`HOOKS.md`, `SPAWN_HOOK.md`). | ✅ | — |
+| Name | Features | References (CCB) | jcode Impl | Progress | Remaining |
+|------|----------|-------------------|------------|----------|-----------|
+| **Command registration** | `/agents` launches agent management UI. | `src/commands/agents/index.ts` | `/agents` → `open_agents_picker()` | ✅ | — |
+| **Tab switching** | Tab/BackTab/→/← switch between Running and Library tabs. | Tab interface | `inline_interactive.rs`: Tab ↔ column switch | ✅ | — |
+| **Running tab entries** | Live subagents, background tasks, batch tools, swarm members. | Running tab | `build_running_tab_entries()` in `openers.rs` | ✅ | — |
+| **Running → Enter** | Enter on running item → close picker, open running items list. | Open running item | `running_items_state.visible = true` | ✅ | — |
+| **Library tab entries** | Agent files from disk + create/generate actions. | Library tab | Load from AgentRegistry | ✅ | — |
+| **Enter on agent file** | Open $EDITOR with agent TOML file. | `src/components/agents/AgentEditor.tsx` | `PickerAction::EditAgent` → `$EDITOR` | ✅ | — |
+| **Enter on model override** | Open model picker for agent type (Swarm/Review/etc.). | Agent model config | `PickerAction::AgentTarget` → `open_agent_model_picker()` | ✅ | — |
+| **Delete agent** | Remove agent TOML file from disk. | `src/components/agents/agentFileUtils.ts` | `PickerAction::DeleteAgent` → `std::fs::remove_file` | ✅ | — |
 
 ---
 
-## 8. IDE Integration
+## 6. Agent Management — Library Actions
 
-*LSP, DAP, editor integration, ACP protocol.*
+*Create, edit, generate, delete agent definitions.*
 
-| Name | Features | References | jcode Impl | Progress | Remaining |
-|------|----------|------------|------------|----------|-----------|
-| **LSP operations** | 13 LSP operations: diagnostics, definition, references, hover, rename, code actions, symbols, etc. | oh-my-pi: 13 LSP ops. | `lsp` tool: full LSP integration. | ✅ | — |
-| **DAP operations** | 27 DAP operations: launch, attach, breakpoints, step, evaluate, threads, etc. | oh-my-pi: 27 DAP ops. | `debug` tool: full DAP integration. | ✅ | — |
-| **External editor** | Open file in external `$EDITOR`. Edit prompt in editor. | CCB: `$EDITOR` integration. | `edit_text_in_external_editor()` in `input.rs`. | ✅ | — |
-| **ACP protocol** | Agent Communication Protocol for Zed/Cursor IDE bridge. | CCB: `src/services/acp/agent.ts`, `src/services/acp/bridge.ts`. | — | ❌ | Cross-IDE agent protocol. Separate feature. |
-
----
-
-## 9. Deployment & Infrastructure
-
-*Remote servers, CI/CD, release, installation.*
-
-| Name | Features | References | jcode Impl | Progress | Remaining |
-|------|----------|------------|------------|----------|-----------|
-| **Remote session** | Connect to remote jcode server. Subscribe to remote session events. | CCB: remote control, Docker deployment. | `backend.rs`: `RemoteConnection`. Full remote session support. | ✅ | — |
-| **Release workflow** | GitHub Actions CI/CD, release automation, cross-platform builds, installer scripts. | oh-my-pi: CI/CD. pi-agent-rust: release pipeline. | `.github/workflows/ci.yml`, `release.yml`. `install.sh`, `install.ps1`. | ✅ | — |
-| **Installation** | curl | sh installer, brew, cargo, binary releases. | CCB: multiple install paths. | `install.sh` (curl pipe). Binary releases on GitHub. | ✅ | — |
-| **Auto-update** | Automatic update check. Notify user of new version. | CCB: auto-update. | `setup_hints.rs`: update hints. | ⚠️ | Manual update via re-install. No auto-update daemon. |
+| Name | Features | References (CCB) | jcode Impl | Progress | Remaining |
+|------|----------|-------------------|------------|----------|-----------|
+| **Create agent (manual)** | Open $EDITOR with TOML template. Parse and save to disk. | Manual creation | `run_agent_creation_flow()` in `openers.rs` | ✅ | — |
+| **Generate via AI** | Open $EDITOR with prompt template. User describes agent. Queue to current model. | `src/components/agents/generateAgent.ts` | `PickerAction::GenerateAgent` → `queued_messages.push()` | ⚠️ | Response appears in chat. Must manually save. Auto-save missing. |
+| **Edit agent** | Open $EDITOR with agent TOML file. Save changes. | `src/components/agents/AgentEditor.tsx` | `PickerAction::EditAgent` → `$EDITOR` flow | ✅ | — |
+| **Delete agent** | Remove agent file from disk. | `src/components/agents/agentFileUtils.ts` | `PickerAction::DeleteAgent` → `std::fs::remove_file` | ✅ | — |
+| **Color badge** | Display color indicator in agent list entry. | Color badge in list | `agent_color_icon()` → `●` prefix in name | ✅ | Actual colored rendering (ratatui Span). Currently plain char. |
 
 ---
 
-## 10. Configuration & UX
+## 7. Agent Interaction
 
-*Settings, themes, keybindings, onboarding, help.*
+*Attaching to sessions, viewing transcripts, communicating with agents.*
 
-| Name | Features | References | jcode Impl | Progress | Remaining |
-|------|----------|------------|------------|----------|-----------|
-| **Config file** | TOML-based config. Config reference documentation. | CCB: config system. | `config.toml`. `CONFIG_REFERENCE.md`. | ✅ | — |
-| **Keybindings** | Customizable keybindings. Default binding set. | CCB: `src/keybindings/defaultBindings.ts`. | Keybinding system. Default bindings. | ✅ | — |
-| **Theme** | Dark/light theme. ANSI color theme file. | CCB: `src/utils/theme.ts`. | Theme system. | ✅ | — |
-| **Onboarding** | First-run setup wizard. Provider authorization flow. | CCB: onboarding. | Onboarding flow. | ✅ | — |
-| **Doctor command** | `jcode doctor` diagnostics. Check agent files, config, providers. | CCB: doctor command. | Doctor command. | ✅ | — |
-| **Help system** | `/help` command. Built-in help for commands. | CCB: help system. | Help command. | ✅ | — |
-
----
-
-## 11. Performance & Optimizations
-
-*Caching, streaming, benchmarks, prompt optimization.*
-
-| Name | Features | References | jcode Impl | Progress | Remaining |
-|------|----------|------------|------------|----------|-----------|
-| **Prompt cache** | Prompt caching for Anthropic models. Cache hit rate display. | CCB: prompt caching. | `prefix_cache_stable.rs`: prompt cache with adaptive strategy. Cache stats in status bar. | ✅ | — |
-| **Streaming** | SSE streaming parser. Token-by-token rendering. | pi-agent-rust: SSE streaming parser with UTF-8 tail handling. | Streaming with token-by-token render. | ✅ | — |
-| **Benchmark harness** | Edit benchmark suite. Task definitions, runner, scoring. | oh-my-pi: `typescript-edit-benchmark/`. pi-agent-rust: `benches/`. | `examples/bench_anthropic_essay_tps.rs`. | ⚠️ | Basic TPS benchmark. No full edit benchmark suite. |
-| **Context optimization** | Compaction, micro-compact, time-based MC config, post-compact cleanup. | CCB: compaction system. | `compact.rs`: full compaction pipeline. | ✅ | — |
-| **Memory management** | `/dream` command for memory consolidation. Auto-extraction. | CCB: `src/services/extractMemories/extractMemories.ts`. | Memory system. | ✅ | — |
+| Name | Features | References (CCB) | jcode Impl | Progress | Remaining |
+|------|----------|-------------------|------------|----------|-----------|
+| **Attach to running agent** | Enter on subagent item → switch to that agent's session. View live transcript. | Session switching | `queue_resume_session(sid)` on Enter | ✅ | — |
+| **View agent transcript** | Open agent's conversation history. | Agent transcript view | Via session resume → shows full transcript | ✅ | — |
+| **Inter-agent messaging** | Agents communicate via shared context and notifications. | `src/utils/teammateMailbox.ts` | ServerEvent::Notification, CommReadContext | ✅ | — |
+| **Agent teams** | Multi-agent coordination with task DAG. TeamView widget. | `src/utils/swarm/teamHelpers.ts` | TeamView widget in info_widget | ⚠️ | Informational only. No interactive team management. |
+| **Agent context visualization** | Per-agent token usage display. | Context command | — | ❌ | Track per-agent tokens. Render in detail/info widget. |
 
 ---
 
-## 12. Platform Support
+## 8. Agent Configuration
 
-*Cross-platform compatibility, terminal emulators, accessibility.*
+*Model override, tools, permissions, colors.*
 
-| Name | Features | References | jcode Impl | Progress | Remaining |
-|------|----------|------------|------------|----------|-----------|
-| **Unix support** | macOS, Linux support. | All refs | macOS (native). Linux via binary. | ✅ | — |
-| **Windows support** | Windows native support. PowerShell installer. | oh-my-pi: Windows support. | `install.ps1`. Windows binary. | ✅ | — |
-| **Terminal emulators** | Kitty keyboard protocol. WezTerm, Ghostty, iTerm2 support. | CCB: terminal detection. | Kitty protocol via crossterm. WezTerm, Ghostty integration. | ✅ | — |
-| **Desktop app** | Native GUI wrapper via wgpu/winit. Workspace mode (tiled sessions). | opencode: `packages/desktop/` (Electron-style). | `jcode-desktop`: wgpu/winit/ glyphon. Animated viewport transitions. | ✅ | — |
+| Name | Features | References (CCB) | jcode Impl | Progress | Remaining |
+|------|----------|-------------------|------------|----------|-----------|
+| **Model override** | Per-agent model selection. Override via model_prefs.json or agent file. | Agent model field | `inline_interactive/helpers.rs`: save/load overrides. Agent file: `model_override`. | ✅ | — |
+| **Tool whitelist** | `tool_names`: only these tools available. | tools field | `definition.rs`: `tool_names: Vec<String>` | ✅ | — |
+| **Tool denylist** | `disallowed_tools`: block specific tools. | Tool deny system | `definition.rs`: `disallowed_tools: Vec<String>` | ✅ | — |
+| **Spawnable agents** | `spawnable_agents`: which sub-agents can be spawned. | Spawn control | `definition.rs`: `spawnable_agents: Vec<String>` | ✅ | — |
+| **Permission mode** | Per-agent permission override (Plan, AcceptEdits, etc.). | permissionMode field | `definition.rs`: `permission_mode: Option<PermissionMode>` | ✅ | — |
+| **Agent colors** | 8 named colors: red/blue/green/yellow/purple/orange/pink/cyan. | `agentColorManager.ts` | `definition.rs`: `color: Option<String>`. Badge in list. | ✅ | Ratatui Span colored rendering. Color picker UI. |
+| **Reasoning effort** | Per-agent reasoning level (minimal/low/medium/high). | effort field | `definition.rs`: `reasoning: Option<ReasoningEffort>` | ✅ | — |
+
+---
+
+## 9. Agent File Operations
+
+*File I/O for agent definitions.*
+
+| Name | Features | References (CCB) | jcode Impl | Progress | Remaining |
+|------|----------|-------------------|------------|----------|-----------|
+| **Load agents from disk** | Read `.toml` files from agent directories. | `src/components/agents/agentFileUtils.ts` | `AgentRegistry::load_directory()` | ✅ | — |
+| **Save agent to disk** | Write agent definition as `.toml` file. | `saveAgentToFile()` | `run_agent_creation_flow()` → `std::fs::write()` | ✅ | — |
+| **Delete agent from disk** | Remove agent `.toml` file. | `deleteAgentFromFile()` | `PickerAction::DeleteAgent` → `std::fs::remove_file()` | ✅ | — |
+| **Built-in agents** | 4 shipped agents: basher, code-reviewer, editor, file-picker. | Built-in agents | `.jcode/agents/*.toml` + colors assigned | ✅ | — |
+| **`/agents save`** | Save generated agent TOML from chat response. | Auto-save after AI gen | — | ❌ | Parse ```toml from last assistant message. Write to `~/.jcode/agents/`. |
+| **AI generation auto-save** | Model generates → auto-parse → auto-save. No manual step. | `generateAgent.ts` | Response in chat. User must manually save. | ❌ | Hook into turn completion. Auto-detect TOML. Auto-save. |
+
+---
+
+## 10. Agent UI Customization
+
+*Visual customization of agent appearance.*
+
+| Name | Features | References (CCB) | jcode Impl | Progress | Remaining |
+|------|----------|-------------------|------------|----------|-----------|
+| **Color picker UI** | Interactive picker with 8 color swatches + preview. | `src/components/agents/ColorPicker.tsx` | — | ❌ | Add `PickerKind::ColorPicker`. 8 entries + "Automatic". |
+| **Agent edit menu** | Change model/tools/color via pickers (not raw file). | `src/components/agents/AgentEditor.tsx` | Opens $EDITOR with raw TOML | ❌ | Model picker, tools list, color picker. |
+| **Create wizard** | Multi-step wizard: location → method → type → prompt → tools → model → color → confirm. | `CreateAgentWizard.tsx` (10+ steps) | Single $EDITOR step | ❌ | Multi-step wizard with inline pickers. |
 
 ---
 
 ## Summary
 
-### By Section
-
-| # | Section | Features | ✅ Complete | ⚠️ Partial | ❌ Missing |
-|---|---------|----------|-------------|-------------|-----------|
-| 1 | Core Terminal UI | 9 | 8 | 1 | 0 |
-| 2 | Agent Management | 16 | 9 | 2 | 5 |
-| 3 | Model & Provider | 6 | 6 | 0 | 0 |
-| 4 | Session & History | 5 | 5 | 0 | 0 |
-| 5 | Tools & Permissions | 8 | 7 | 1 | 0 |
-| 6 | Multi-Agent & Swarm | 6 | 5 | 1 | 0 |
-| 7 | Extensions & Plugins | 5 | 3 | 1 | 1 |
-| 8 | IDE Integration | 4 | 3 | 0 | 1 |
-| 9 | Deployment & Infrastructure | 4 | 3 | 1 | 0 |
-| 10 | Configuration & UX | 6 | 6 | 0 | 0 |
-| 11 | Performance & Optimizations | 5 | 3 | 2 | 0 |
-| 12 | Platform Support | 4 | 4 | 0 | 0 |
-| | **Total** | **78** | **62 (79%)** | **9 (12%)** | **7 (9%)** |
+| Section | Features | ✅ Complete | ⚠️ Partial | ❌ Missing |
+|---------|----------|-------------|-------------|-----------|
+| 1 — Agent Definitions | 5 | 4 | 1 | 0 |
+| 2 — Agent Lifecycle | 6 | 6 | 0 | 0 |
+| 3 — Agent UI: Running Items | 5 | 5 | 0 | 0 |
+| 4 — Agent UI: Detail Overlay | 5 | 5 | 0 | 0 |
+| 5 — Agent UI: /agents Command | 8 | 8 | 0 | 0 |
+| 6 — Library Actions | 5 | 4 | 1 | 0 |
+| 7 — Agent Interaction | 5 | 4 | 1 | 0 |
+| 8 — Agent Configuration | 7 | 7 | 0 | 0 |
+| 9 — Agent File Operations | 6 | 4 | 0 | 2 |
+| 10 — Agent UI Customization | 3 | 0 | 0 | 3 |
+| **Total** | **55** | **47 (85%)** | **3 (5%)** | **5 (9%)** |
 
 ### Missing Features (Priority Order)
 
-| Priority | Feature | Section | Effort | Dependencies |
-|----------|---------|---------|--------|-------------|
-| P0 | `/tasks` command | 2 | Low | `background::global().running_snapshot()` already exists |
-| P0 | `/agents save` | 2 | Low | Parse ```toml from last assistant message |
-| P1 | AI generation auto-save | 2 | Medium | Hook into turn completion |
-| P1 | Color picker UI | 2 | Medium | 8 color swatches + ratatui Span rendering |
-| P1 | Agent edit menu | 2 | Medium | Model/tools/color inline pickers |
-| P1 | Agent storage scopes | 2 | Low | Add managed (read-only) scope directory |
-| P2 | Context window visualization | 1 | Medium | Per-agent token tracking + rendering |
-| P2 | Sandbox/Isolation | 5 | High | Network/filesystem sandbox (codex-style) |
-| P2 | Plugin agents | 7 | High | Plugin loader + AgentRegistry integration |
-| P3 | ACP protocol | 8 | High | Cross-IDE agent protocol |
-| P3 | Auto-update daemon | 9 | Medium | Background update checker |
-| P3 | Edit benchmark suite | 11 | Medium | Full task catalog + runner + scoring |
-
-### Steps to Add a New Feature
-
-1. Pick the right section (1-12). If none fits, add a new section.
-2. Add a row matching the table format above.
-3. Fill: Name, Features, References, jcode Impl, Progress, Remaining.
-4. Update the summary table counts.
+| Priority | Feature | Section | Effort | Note |
+|----------|---------|---------|--------|------|
+| P0 | `/agents save` | 9 | Low | Parse ` ```toml ` from last assistant message. |
+| P1 | AI auto-save | 9 | Medium | Hook turn completion → detect TOML → save. |
+| P1 | Color picker UI | 10 | Medium | 8 swatches + Preview. |
+| P2 | Agent edit menu | 10 | Medium | Model/tools/color inline pickers. |
+| P2 | Agent creation wizard | 10 | High | Multi-step with inline pickers. |
+| P2 | Context visualization | 7 | Medium | Per-agent token usage. |
+| P3 | Agent scopes | 1 | Low | managed + plugin scope dirs. |
+| P3 | Interactive team mgmt | 7 | High | TeamView → interactive. |
+| — | Color badge rendering | 6 | Low | `●` → actual ratatui Span color. |
