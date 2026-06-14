@@ -703,7 +703,7 @@ impl crate::tui::TuiState for App {
             visible: self.running_items_state.visible,
             items,
             selected,
-            detail: self.running_items_state.detail.clone(),
+            detail_open: self.running_items_state.detail_open,
         }
     }
 
