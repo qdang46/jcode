@@ -2609,60 +2609,52 @@ impl App {
                     }
                 }
             }
-            KeyCode::Right => {
+            KeyCode::Right | KeyCode::Tab => {
                 if let Some(ref mut picker) = self.inline_interactive_state {
                     if picker.uses_compact_navigation() {
                         return Ok(());
                     }
-                    if picker.column < picker.max_navigable_column()
-                        && let Some(&idx) = picker.filtered.get(picker.selected)
-                        && (picker.entries[idx].options.len() > 1 || picker.column > 0)
-                    {
-                        picker.column += 1;
-                    }
-                }
-            }
-            KeyCode::BackTab => {
-                if self
-                    .inline_interactive_state
-                    .as_ref()
-                    .map(picker_is_runtime_model_picker)
-                    .unwrap_or(false)
-                {
-                    self.cycle_selected_model_favorite();
-                    return Ok(());
-                }
-                if let Some(ref mut picker) = self.inline_interactive_state {
-                    if picker.uses_compact_navigation() {
+                    if picker.kind == PickerKind::Agents {
+                        if picker.column == 0 {
+                            picker.column = 1;
+                            picker.selected = 0;
+                            Self::rebuild_agents_picker_filtered(picker);
+                        }
                         return Ok(());
                     }
-                    if picker.column > 0 {
-                        picker.column -= 1;
-                    }
-                }
-            }
-            KeyCode::Left => {
-                if let Some(ref mut picker) = self.inline_interactive_state {
-                    if picker.uses_compact_navigation() {
-                        return Ok(());
-                    }
-                    if picker.column > 0 {
-                        picker.column -= 1;
-                    }
-                }
-            }
-            KeyCode::Tab => {
-                if let Some(ref mut picker) = self.inline_interactive_state {
-                    if picker.uses_compact_navigation() {
-                        return Ok(());
-                    }
-                    if picker.column == 0 && !picker.filter.is_empty() {
+                    if matches!(code, KeyCode::Tab) && picker.column == 0 && !picker.filter.is_empty() {
                         Self::tab_complete_inline_interactive_filter(picker);
                     } else if picker.column < picker.max_navigable_column()
                         && let Some(&idx) = picker.filtered.get(picker.selected)
                         && (picker.entries[idx].options.len() > 1 || picker.column > 0)
                     {
                         picker.column += 1;
+                    }
+                }
+            }
+            KeyCode::BackTab | KeyCode::Left => {
+                if let Some(ref mut picker) = self.inline_interactive_state {
+                    if picker.kind == PickerKind::Agents {
+                        if picker.column >= 1 {
+                            picker.column = 0;
+                            picker.selected = 0;
+                            Self::rebuild_agents_picker_filtered(picker);
+                        }
+                        return Ok(());
+                    }
+                    if picker.uses_compact_navigation() {
+                        return Ok(());
+                    }
+                    // BackTab in model picker: cycle model favorite
+                    if matches!(code, KeyCode::BackTab) && picker.kind == PickerKind::Model {
+                        // Reuse original BackTab behavior
+                        let _ = picker;
+                            self.cycle_selected_model_favorite();
+                        }
+                        return Ok(());
+                    }
+                    if picker.column > 0 {
+                        picker.column -= 1;
                     }
                 }
             }
@@ -2766,6 +2758,16 @@ impl App {
                     );
                     return Ok(());
                 }
+
+                // Agents picker: Running tab → open running items list
+                if picker.kind == PickerKind::Agents && picker.column == 0 {
+                    self.inline_interactive_state = None;
+                    self.running_items_state.visible = true;
+                    self.running_items_state.detail_open = false;
+                    self.set_status_notice("Running items list open");
+                    return Ok(());
+                }
+                // Agents picker: Library tab → open agent model picker (handled by AgentTarget action below)
 
                 if matches!(entry.action, PickerAction::Model) {
                     if picker.column == 0 {

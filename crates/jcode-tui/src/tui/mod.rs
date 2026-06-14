@@ -729,6 +729,8 @@ pub enum PickerKind {
     Account,
     Login,
     Usage,
+    /// Agents management: Running + Library tabs (Claude Code style).
+    Agents,
 }
 
 /// What the first-run onboarding welcome screen should render in its body,
@@ -876,6 +878,17 @@ impl PickerKind {
                 shows_default_shortcut_hint: false,
                 preview_activation_column: 2,
             },
+            Self::Agents => InlineInteractiveSchema {
+                layout: InlineInteractiveLayout::ThreeColumn,
+                primary_label: "AGENT",
+                secondary_label: "STATUS",
+                secondary_preview_label: "AGENT",
+                tertiary_label: "ACTION",
+                preview_submit_hint: "  ↵ select",
+                active_submit_hint: "  ↑↓ Tab/⇥ ↵ Esc",
+                shows_default_shortcut_hint: false,
+                preview_activation_column: 0,
+            },
         }
     }
 
@@ -929,6 +942,13 @@ impl PickerKind {
                 let method = route.map(|option| option.api_method.as_str()).unwrap_or("");
                 let detail = route.map(|option| option.detail.as_str()).unwrap_or("");
                 format!("{} {} {} {}", entry.name, provider, method, detail)
+            }
+            Self::Agents => {
+                let route = entry.active_option();
+                let status = route.map(|option| option.provider.as_str()).unwrap_or("");
+                let action = route.map(|option| option.api_method.as_str()).unwrap_or("");
+                let detail = route.map(|option| option.detail.as_str()).unwrap_or("");
+                format!("{} {} {} {}", entry.name, status, action, detail)
             }
         }
     }
