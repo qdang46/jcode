@@ -2759,8 +2759,16 @@ impl App {
                 let idx = picker.filtered[picker.selected];
                 let entry = picker.entries[idx].clone();
 
+                if matches!(entry.action, PickerAction::SectionHeader) {
+                    // Section headers are not selectable — move to next entry.
+                    picker.selected = picker.selected.saturating_add(1).min(
+                        picker.filtered.len().saturating_sub(1),
+                    );
+                    return Ok(());
+                }
+
                 if matches!(entry.action, PickerAction::Model) {
-                    if picker.column == 0 && entry.options.len() > 1 {
+                    if picker.column == 0 {
                         picker.column = 1;
                         return Ok(());
                     }
