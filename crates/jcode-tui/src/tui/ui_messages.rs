@@ -1798,48 +1798,54 @@ pub(crate) fn render_tool_message(
     );
     let rendered_tool_line_text = super::line_plain_text(&rendered_tool_line);
     lines.push(rendered_tool_line);
-
-    // Wrap tool command in a rounded box ╭──╮ with tool-specific border color.
-    // This matches oh-my-pi's framed execution box style for all tool types.
-    if let Some(command) = tc.input.get("command").and_then(|v| v.as_str())
-        .or_else(|| tc.input.get("content").and_then(|v| v.as_str()))
-        .or_else(|| tc.input.get("pattern").and_then(|v| v.as_str()))
-        .or_else(|| tc.input.get("query").and_then(|v| v.as_str()))
-    {
+    // Wrap ALL tool calls in oh-my-pi style framed box ╭──╮
+    // with tool-specific border color and title.
+    // Wrap ALL tool calls in oh-my-pi style framed box ╭──╮
+    if tc.input.is_object() && !tc.input.as_object().unwrap().is_empty() {
         let canon = tools_ui::canonical_tool_name(&tc.name);
-        if !rendered_tool_line_text.contains('$') && !command.trim().is_empty() {
-            let box_color = match canon {
-                "bash" | "terminal" | "shell" => rgb(0, 255, 136),
-                "read" | "write" | "edit" | "hashline_edit" => rgb(100, 180, 255),
-                "web_search" | "web_fetch" | "webfetch" => rgb(180, 140, 255),
-                "eval" | "python" => rgb(240, 192, 64),
-                "grep" | "search" | "glob" | "find" => rgb(100, 220, 200),
-                _ => rgb(140, 140, 150),
+        let box_color = match canon {
+            "bash" | "terminal" | "shell" => rgb(0, 255, 136),
+            "read" | "write" | "edit" | "hashline_edit" => rgb(100, 180, 255),
+            "web_search" | "web_fetch" | "webfetch" => rgb(180, 140, 255),
+            "eval" | "python" => rgb(240, 192, 64),
+            "grep" | "search" | "glob" | "find" | "agentgrep" => rgb(100, 220, 200),
+            "notify" | "memory" | "todo" | "notepad" => rgb(140, 200, 140),
+            _ => rgb(140, 140, 150),
+        };
+        let title = match canon {
+            "bash" | "terminal" | "shell" => " bash ",
+            "read" | "write" | "edit" | "hashline_edit" => " edit ",
+            "web_search" | "web_fetch" | "webfetch" => " web ",
+            "eval" | "python" => " eval ",
+            "grep" | "search" | "glob" | "find" | "agentgrep" => " search ",
+            "notify" | "memory" | "todo" | "notepad" => " note ",
+            "batch" | "bg" => " batch ",
+            "ffs" | "codesearch" => " code ",
+            _ => " tool ",
+        };
+        let detail_width = row_width.saturating_sub(4).max(1);
+        if detail_width >= 20 {
+            let summary = tools_ui::get_tool_summary_with_budget(tc, 60, Some(detail_width));
+            let display = if !summary.trim().is_empty() {
+                summary
+            } else {
+                let input_val = tc.input.get("command").and_then(|v| v.as_str())
+                    .or_else(|| tc.input.get("file_path").and_then(|v| v.as_str()))
+                    .or_else(|| tc.input.get("path").and_then(|v| v.as_str()))
+                    .or_else(|| tc.input.get("name").and_then(|v| v.as_str()))
+                    .or_else(|| tc.input.get("code").and_then(|v| v.as_str()))
+                    .or_else(|| tc.input.get("url").and_then(|v| v.as_str()))
+                    .or_else(|| tc.input.get("question").and_then(|v| v.as_str()))
+                    .or_else(|| tc.input.get("message").and_then(|v| v.as_str()))
+                    .or_else(|| tc.input.get("spec").and_then(|v| v.as_str()))
+                    .unwrap_or("");
+                if input_val.is_empty() { String::new() }
+                else { format!("$ {}", input_val) }
             };
-            let detail_width = row_width.saturating_sub(4).max(1);
-            if detail_width >= 20 {
-                let summary = tools_ui::get_tool_summary_with_budget(tc, 60, Some(detail_width));
-                let cmd_display = if !summary.trim().is_empty() {
-                    summary
-                } else {
-                    format!("$ {}", command.trim())
-                };
-                let title = match canon {
-                    "bash" => " bash ",
-                    "read" => " read ",
-                    "write" | "edit" | "hashline_edit" => " edit ",
-                    "web_search" | "web_fetch" | "webfetch" => " web ",
-                    "grep" | "search" | "glob" | "find" => " search ",
-                    "eval" => " eval ",
-                    _ => " tool ",
-                };
-                let box_content = vec![Line::from(Span::styled(
-                    cmd_display,
-                    Style::default().fg(box_color),
-                ))];
+            if !display.is_empty() {
+                let box_content = vec![Line::from(Span::styled(display, Style::default().fg(box_color)))];
                 let box_lines = super::render_rounded_box(
-                    title,
-                    box_content,
+                    title, box_content,
                     row_width.saturating_sub(2) as usize,
                     Style::default().fg(box_color),
                 );
@@ -1847,37 +1853,6 @@ pub(crate) fn render_tool_message(
                     let truncated = super::truncate_line_with_ellipsis_to_width(&bl, row_width);
                     lines.push(truncated);
                 }
-            }
-        }
-    }
-    // Fallback: if no command/content field found, try the old bash-only check
-    // for backwards compatibility
-    else if tools_ui::canonical_tool_name(&tc.name) == "bash"
-        && let Some(command) = tc.input.get("command").and_then(|v| v.as_str())
-        && !rendered_tool_line_text.contains('$')
-        && !command.trim().is_empty()
-    {
-        let detail_width = row_width.saturating_sub(4).max(1);
-        if detail_width >= 20 {
-            let summary = tools_ui::get_tool_summary_with_budget(tc, 60, Some(detail_width));
-            let cmd_display = if !summary.trim().is_empty() {
-                summary
-            } else {
-                format!("$ {}", command.trim())
-            };
-            let box_content = vec![Line::from(Span::styled(
-                cmd_display,
-                Style::default().fg(rgb(0, 255, 136)),
-            ))];
-            let box_lines = super::render_rounded_box(
-                " bash ",
-                box_content,
-                row_width.saturating_sub(2) as usize,
-                Style::default().fg(rgb(0, 255, 136)),
-            );
-            for bl in box_lines {
-                let truncated = super::truncate_line_with_ellipsis_to_width(&bl, row_width);
-                lines.push(truncated);
             }
         }
     }

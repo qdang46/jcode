@@ -1,15 +1,12 @@
-use super::inline_interactive_ui::format_elapsed;
-use super::tools_ui::{get_tool_summary, summarize_batch_running_tools_compact};
+use super::tools_ui::summarize_batch_running_tools_compact;
 use super::visual_debug::{self, FrameCaptureBuilder};
 use super::{
-    ProcessingStatus, TuiState, accent_color, ai_color, animated_tool_color, asap_color, dim_color,
-    pending_color, queued_color, rainbow_prompt_color, user_color,
+    TuiState, accent_color, ai_color, asap_color, dim_color, pending_color, queued_color,
+    rainbow_prompt_color, user_color,
 };
 use crate::message::ConnectionPhase;
 use crate::tui::app;
 use crate::tui::color_support::rgb;
-use crate::tui::detect_kv_cache_problem;
-use crate::tui::info_widget::occasional_status_tip;
 use crate::tui::layout_utils;
 use ratatui::{prelude::*, widgets::Paragraph};
 
@@ -538,30 +535,7 @@ fn append_batch_progress_spans(
 }
 
 pub(super) fn draw_status(frame: &mut Frame, app: &dyn TuiState, area: Rect, pending_count: usize) {
-    let elapsed = app.elapsed().map(|d| d.as_secs_f32()).unwrap_or(0.0);
-    let stale_secs = app.time_since_activity().map(|d| d.as_secs_f32());
-    let (cache_read, cache_creation) = app.streaming_cache_tokens();
-    let user_turn_count = app.display_user_message_count();
-    let (streaming_input_tokens, _) = app.streaming_tokens();
-    let provider_name = app.provider_name();
-    let upstream_provider = app.upstream_provider();
-    let cache_ttl = app.cache_ttl_status();
-    let kv_cache_problem = detect_kv_cache_problem(
-        &provider_name,
-        upstream_provider.as_deref(),
-        user_turn_count,
-        streaming_input_tokens,
-        cache_read,
-        cache_creation,
-        cache_ttl.as_ref(),
-    );
-
-    let queued_suffix = if pending_count > 0 {
-        format!(" · +{} queued", pending_count)
-    } else {
-        String::new()
-    };
-
+    let pending_count = pending_prompt_count(app);
     // Build the status line: permission mode info + model/provider/context.
     // Format: ⏵⏵ bypass permissions on (shift+tab to cycle) │ model │ provider │ X% │ ↑K ↓K
     fn status_line_text(app: &dyn TuiState) -> Vec<Span<'static>> {
