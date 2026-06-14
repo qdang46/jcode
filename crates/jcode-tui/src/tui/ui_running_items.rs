@@ -22,7 +22,11 @@ pub(super) fn draw_running_items(
 
     // Header line
     let header_style = Style::default().fg(rgb(100, 100, 110));
-    let hint = " ↑/↓ to select · Enter to view ";
+    let hint = if items_state.detail_open {
+        " Esc to close "
+    } else {
+        " ↑/↓ to select · Enter to view "
+    };
     let header = format!(
         "{:width$}{}",
         "  ⏺ main",
@@ -36,7 +40,6 @@ pub(super) fn draw_running_items(
     let selected = items_state.selected;
     let max_visible = area.height.saturating_sub(1) as usize;
 
-    // Show items with scroll offset if needed
     let scroll_offset = if items_state.items.len() > max_visible {
         selected.saturating_sub(max_visible.saturating_sub(1) / 2)
     } else {
@@ -54,7 +57,6 @@ pub(super) fn draw_running_items(
 
         let mut spans: Vec<Span<'static>> = Vec::new();
 
-        // Selection indicator
         if is_selected {
             spans.push(Span::styled(
                 "❯ ",
@@ -64,13 +66,11 @@ pub(super) fn draw_running_items(
             spans.push(Span::styled("  ", Style::default()));
         }
 
-        // Status icon
         spans.push(Span::styled(
             format!("{} ", icon),
             Style::default().fg(icon_color),
         ));
 
-        // Label
         let label_style = if is_selected {
             Style::default().fg(rgb(220, 220, 230)).bold()
         } else {
@@ -78,7 +78,6 @@ pub(super) fn draw_running_items(
         };
         spans.push(Span::styled(item.label.clone(), label_style));
 
-        // Detail text (truncated)
         if let Some(detail) = &item.detail {
             let available = inner_w.saturating_sub(UnicodeWidthStr::width(item.label.as_str()) + 6);
             if available > 4 {
@@ -90,7 +89,6 @@ pub(super) fn draw_running_items(
             }
         }
 
-        // Elapsed time (right-aligned)
         if let Some(elapsed) = item.elapsed {
             let elapsed_str = format_elapsed(elapsed);
             let line_w: usize = spans.iter().map(|s| UnicodeWidthStr::width(s.content.as_ref())).sum();
@@ -111,17 +109,17 @@ pub(super) fn draw_running_items(
     frame.render_widget(list, area);
 }
 
-/// Draw a detail overlay for the selected running item.
+/// Draw a detail overlay showing LIVE info about the selected running item.
+/// Content is rebuilt every frame so status/elapsed update in real-time.
 pub(super) fn draw_running_item_detail(
     frame: &mut Frame,
     app: &dyn super::TuiState,
     area: Rect,
 ) {
     let items_state = app.running_items();
-    let detail = match &items_state.detail {
-        Some(d) => d,
-        None => return,
-    };
+    if !items_state.detail_open {
+        return;
+    }
     if area.width < 20 || area.height < 3 {
         return;
     }
@@ -132,50 +130,40 @@ pub(super) fn draw_running_item_detail(
         None => return,
     };
 
-    // Build detail content
-    let mut lines: Vec<Line<'static>> = Vec::new();
     let (icon, icon_color) = item_icon_and_color(item);
-
-    // Title line: icon + label
-    lines.push(Line::from(vec![
-        Span::styled(format!("{} ", icon), Style::default().fg(icon_color)),
-        Span::styled(
-            item.label.clone(),
-            Style::default().fg(rgb(220, 220, 230)).bold(),
-        ),
-    ]));
-
-    // Status line
+    let kind_label = match item.kind {
+        super::RunningItemKind::BatchSubcall => "batch tool",
+        super::RunningItemKind::BackgroundTask => "background task",
+        super::RunningItemKind::Subagent => "subagent",
+        super::RunningItemKind::SwarmMember => "swarm member",
+    };
     let status_label = match item.status {
         RunningItemStatus::Running => "running",
         RunningItemStatus::Completed => "completed",
         RunningItemStatus::Failed => "failed",
         RunningItemStatus::Stopped => "stopped",
     };
-    lines.push(Line::from(Span::styled(
-        format!("  status: {}", status_label),
-        Style::default().fg(rgb(140, 140, 150)),
-    )));
-
-    // Kind line
-    let kind_label = match item.kind {
-        RunningItemKind::BatchSubcall => "batch tool",
-        RunningItemKind::BackgroundTask => "background task",
-        RunningItemKind::Subagent => "subagent",
-        RunningItemKind::SwarmMember => "swarm member",
+    let status_color = match item.status {
+        RunningItemStatus::Running => rgb(80, 220, 100),
+        RunningItemStatus::Completed => rgb(100, 180, 100),
+        RunningItemStatus::Failed => rgb(255, 100, 100),
+        RunningItemStatus::Stopped => rgb(200, 180, 80),
     };
-    lines.push(Line::from(Span::styled(
-        format!("  kind: {}", kind_label),
-        Style::default().fg(rgb(140, 140, 150)),
-    )));
 
-    // ID line
-    if !item.id.is_empty() {
-        lines.push(Line::from(Span::styled(
-            format!("  id: {}", item.id),
-            Style::default().fg(rgb(120, 120, 130)),
-        )));
+    let mut lines: Vec<Line<'static>> = Vec::new();
+
+    // Title
+    lines.push(Line::from(vec![
+        Span::styled(format!("{} ", icon), Style::default().fg(icon_color)),
+        Span::styled(item.label.clone(), Style::default().fg(rgb(220, 220, 230)).bold()),
+    ]));
+
+    // Status row (built every frame = real-time)
+    let mut status_row = format!("  status: {} · kind: {}", status_label, kind_label);
+    if let Some(elapsed) = item.elapsed {
+        status_row.push_str(&format!(" · elapsed: {}", format_elapsed(elapsed)));
     }
+    lines.push(Line::from(Span::styled(status_row, Style::default().fg(status_color))));
 
     // Session ID
     if let Some(sid) = &item.session_id {
@@ -185,12 +173,14 @@ pub(super) fn draw_running_item_detail(
         )));
     }
 
-    // Elapsed time
-    if let Some(elapsed) = item.elapsed {
-        lines.push(Line::from(Span::styled(
-            format!("  elapsed: {}", format_elapsed(elapsed)),
-            Style::default().fg(rgb(120, 120, 130)),
-        )));
+    // Detail text (live status detail from the item)
+    if let Some(detail) = &item.detail {
+        for line in detail.lines() {
+            lines.push(Line::from(Span::styled(
+                format!("  {}", line),
+                Style::default().fg(rgb(200, 200, 210)),
+            )));
+        }
     }
 
     // Separator
@@ -199,23 +189,18 @@ pub(super) fn draw_running_item_detail(
         Style::default().fg(rgb(60, 65, 75)),
     )));
 
-    // Detail text
-    for line in detail.lines() {
+    // Action hints
+    if matches!(item.status, RunningItemStatus::Running) {
         lines.push(Line::from(Span::styled(
-            format!("  {}", line),
-            Style::default().fg(rgb(200, 200, 210)),
+            "  Ctrl+C or Backspace to cancel · Esc to close",
+            Style::default().fg(rgb(80, 80, 90)),
+        )));
+    } else {
+        lines.push(Line::from(Span::styled(
+            "  Esc to close",
+            Style::default().fg(rgb(80, 80, 90)),
         )));
     }
-
-    // Hint
-    lines.push(Line::from(Span::styled(
-        "",
-        Style::default(),
-    )));
-    lines.push(Line::from(Span::styled(
-        "  Esc to close",
-        Style::default().fg(rgb(80, 80, 90)),
-    )));
 
     let block = ratatui::widgets::Block::default()
         .borders(ratatui::widgets::Borders::ALL)
@@ -228,7 +213,14 @@ pub(super) fn draw_running_item_detail(
     frame.render_widget(ratatui::widgets::Clear, area);
     frame.render_widget(block, area);
 
-    let para = Paragraph::new(lines);
+    let content_height = lines.len() as u16;
+    let start_line = if content_height > inner.height {
+        content_height - inner.height
+    } else {
+        0
+    };
+    let visible: Vec<Line<'static>> = lines.into_iter().skip(start_line as usize).take(inner.height as usize).collect();
+    let para = Paragraph::new(visible);
     frame.render_widget(para, inner);
 }
 

@@ -1072,8 +1072,8 @@ pub(super) fn handle_model_command(app: &mut App, trimmed: &str) -> bool {
                     tool_data: None,
                 });
                 // Persist the model AND provider as default for future sessions.
-                crate::logging::info(&format!(
-                    "Saving default model '{}' with provider '{:?}'",
+                crate::logging::warn(&format!(
+                    "[SAVE] default_model='{}' provider_key='{:?}'",
                     active_model, app.session.provider_key
                 ));
                 if let Err(e) = crate::config::Config::set_default_model(

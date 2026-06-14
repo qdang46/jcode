@@ -2795,7 +2795,7 @@ fn draw_inner(frame: &mut Frame, app: &dyn TuiState) {
     }
     // Donut animation
     // Running item detail overlay (when Enter pressed on an item)
-    if items_state.detail.is_some() && running_items_height > 0 {
+    if items_state.detail_open && running_items_height > 0 {
         let detail_area = Rect {
             x: chat_area.x + 2,
             y: chunks[8].y,

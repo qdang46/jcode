@@ -694,23 +694,23 @@ async fn handle_remote_key_internal(
                 return Ok(());
             }
             KeyCode::Enter => {
-                if let Some(item) = app.running_items_state.items.get(app.running_items_state.selected) {
-                    if app.running_items_state.detail.is_some() {
-                        app.running_items_state.detail = None;
-                    } else {
-                        let detail = item.detail.clone()
-                            .unwrap_or_else(|| format!("{} (status: {:?})", item.label, item.status));
-                        app.running_items_state.detail = Some(detail);
-                    }
-                }
+                app.running_items_state.detail_open = !app.running_items_state.detail_open;
                 return Ok(());
             }
             KeyCode::Esc => {
-                if app.running_items_state.detail.is_some() {
-                    app.running_items_state.detail = None;
+                if app.running_items_state.detail_open {
+                    app.running_items_state.detail_open = false;
                 } else {
                     app.running_items_state.visible = false;
                 }
+                return Ok(());
+            }
+            KeyCode::Backspace if app.running_items_state.detail_open => {
+                if let Some(item) = app.running_items_state.items.get(app.running_items_state.selected) {
+                    app.set_status_notice(format!("Cancel requested for: {}", item.label));
+                    app.cancel_requested = true;
+                }
+                app.running_items_state.detail_open = false;
                 return Ok(());
             }
             _ => {}

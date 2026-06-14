@@ -2307,24 +2307,33 @@ impl App {
                     return Ok(());
                 }
                 KeyCode::Enter => {
-                    // Toggle detail view for selected item
-                    if let Some(item) = self.running_items_state.items.get(self.running_items_state.selected) {
-                        if self.running_items_state.detail.is_some() {
-                            self.running_items_state.detail = None;
-                        } else {
-                            let detail = item.detail.clone()
-                                .unwrap_or_else(|| format!("{} (status: {:?})", item.label, item.status));
-                            self.running_items_state.detail = Some(detail);
-                        }
-                    }
+                    // Toggle detail overlay for selected item
+                    self.running_items_state.detail_open = !self.running_items_state.detail_open;
                     return Ok(());
                 }
                 KeyCode::Esc => {
-                    if self.running_items_state.detail.is_some() {
-                        self.running_items_state.detail = None;
+                    if self.running_items_state.detail_open {
+                        self.running_items_state.detail_open = false;
                     } else {
                         self.running_items_state.visible = false;
                     }
+                    return Ok(());
+                }
+                // Cancel/stop the selected running item (Ctrl+C or Backspace when detail open)
+                KeyCode::Char('c') if self.running_items_state.detail_open && modifiers.contains(KeyModifiers::CONTROL) => {
+                    if let Some(item) = self.running_items_state.items.get(self.running_items_state.selected) {
+                        self.set_status_notice(format!("Cancel requested for: {}", item.label));
+                        self.cancel_requested = true;
+                    }
+                    self.running_items_state.detail_open = false;
+                    return Ok(());
+                }
+                KeyCode::Backspace if self.running_items_state.detail_open => {
+                    if let Some(item) = self.running_items_state.items.get(self.running_items_state.selected) {
+                        self.set_status_notice(format!("Cancel requested for: {}", item.label));
+                        self.cancel_requested = true;
+                    }
+                    self.running_items_state.detail_open = false;
                     return Ok(());
                 }
                 _ => {}
