@@ -536,7 +536,7 @@ fn append_batch_progress_spans(
 
 pub(super) fn draw_status(frame: &mut Frame, app: &dyn TuiState, area: Rect, pending_count: usize) {
     let pending_count = pending_prompt_count(app);
-    // Build the status line: permission mode info + model/provider/context.
+
     // Format: ⏵⏵ bypass permissions on (shift+tab to cycle) │ model │ provider │ X% │ ↑K ↓K
     fn status_line_text(app: &dyn TuiState) -> Vec<Span<'static>> {
         let mode_str = crate::dcg_bridge::mode_to_str(crate::dcg_bridge::current_mode());

@@ -652,84 +652,51 @@ pub(super) fn draw_permission_dialog_overlay(
     area: Rect,
     app: &dyn crate::tui::TuiState,
 ) {
-    clear_area(frame, area);
+    // Draw a centered popup dialog (Claude Code style), not a full-screen modal.
+    let popup_w = area.width.min(80);
+    let popup_h = 10u16.min(area.height / 2);
+    let x = area.x + (area.width.saturating_sub(popup_w)) / 2;
+    let y = area.y + (area.height.saturating_sub(popup_h)) / 2;
+    let dialog_area = Rect::new(x, y, popup_w, popup_h);
 
-    let title_style = Style::default()
-        .fg(accent_color())
-        .add_modifier(Modifier::BOLD);
+    let title_style = Style::default().fg(accent_color()).add_modifier(Modifier::BOLD);
     let text_style = Style::default().fg(rgb(210, 210, 220));
     let dim_style = Style::default().fg(dim_color());
     let warn_style = Style::default().fg(rgb(235, 190, 105));
-    let alt_style = Style::default().fg(rgb(160, 200, 240));
-    let highlight_bg = Style::default()
-        .fg(rgb(20, 22, 26))
-        .bg(accent_color());
+    let highlight_bg = Style::default().fg(rgb(20, 22, 26)).bg(accent_color());
 
     let tool = app.pending_permission_tool().unwrap_or("unknown");
     let reason = app.pending_permission_reason().unwrap_or("");
-    let selected = app.pending_permission_selected().unwrap_or(0);
+    let sel = app.pending_permission_selected().unwrap_or(0);
 
     let mut lines: Vec<Line<'static>> = Vec::new();
-    lines.push(Line::from(Span::styled(
-        "  \u{26a0} Permission Required",
-        warn_style.add_modifier(Modifier::BOLD),
-    )));
-    lines.push(Line::from(Span::styled(
-        "  A tool call needs your approval.",
-        dim_style,
-    )));
-    lines.push(Line::from(""));
-    lines.push(Line::from(vec![
-        Span::styled("  Tool:  ", dim_style),
-        Span::styled(tool.to_string(), title_style),
-    ]));
-    lines.push(Line::from(vec![
-        Span::styled("  Reason: ", dim_style),
-        Span::styled(reason.to_string(), text_style),
-    ]));
-    let alternatives = app.pending_permission_alternatives();
-    if !alternatives.is_empty() {
-        lines.push(Line::from(Span::styled("  Safer alternatives:", dim_style)));
-        for alt in alternatives {
-            lines.push(Line::from(vec![
-                Span::raw("    \u{2022} "),
-                Span::styled(alt.to_owned(), alt_style),
-            ]));
-        }
-    }
+    lines.push(Line::from(Span::styled("  \u{26a0} Permission Required", warn_style.add_modifier(Modifier::BOLD))));
+    lines.push(Line::from(Span::styled(format!("  Tool: {} ({})", tool, reason), dim_style)));
     lines.push(Line::from(""));
 
-    // Selectable options list
-    let options = [
-        ("\u{2714}  Approve", "\u{2192} Enter or y"),
-        ("\u{1f513}  Approve all for session", "\u{2192} Enter or a"),
-        ("\u{1f4be}  Always allow", "\u{2192} Enter or p"),
-        ("\u{2716}  Deny", "\u{2192} Enter or n, Esc"),
+    let opts = [
+        ("\u{2714}  Approve", "Enter or y"),
+        ("\u{1f513}  Approve all", "Enter or a"),
+        ("\u{1f4be}  Always allow", "Enter or p"),
+        ("\u{2716}  Deny", "Enter or n"),
     ];
-    for (i, (label, hint)) in options.iter().enumerate() {
-        let prefix = if i == selected { "\u{276f} " } else { "  " };
-        let label_span = if i == selected {
-            Span::styled(format!("{}{}", prefix, label), highlight_bg)
-        } else {
-            Span::styled(format!("{}{}", prefix, label), text_style)
-        };
-        let hint_span = Span::styled(format!(" {}", hint), dim_style);
-        lines.push(Line::from(vec![label_span, hint_span]));
+    for (i, (label, hint)) in opts.iter().enumerate() {
+        let prefix = if i == sel { "\u{276f} " } else { "  " };
+        let line_style = if i == sel { highlight_bg } else { text_style };
+        lines.push(Line::from(vec![
+            Span::styled(format!("{}{}", prefix, label), line_style),
+            Span::styled(format!(" {}", hint), dim_style),
+        ]));
     }
 
     lines.push(Line::from(""));
     lines.push(Line::from(Span::styled(
-        "  \u{2191}\u{2193} or Tab to navigate  \u{23ce} to confirm  Esc to cancel",
+        "  \u{2190}\u{2192} or Tab to navigate  \u{23ce} Enter  Esc to cancel",
         dim_style,
     )));
 
     let paragraph = Paragraph::new(lines)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title(" Permission Request ")
-                .border_style(warn_style),
-        )
-        .alignment(ratatui::prelude::Alignment::Left);
-    frame.render_widget(paragraph, area);
+        .block(Block::default().borders(Borders::ALL).title(" Permission ").border_style(warn_style))
+        .alignment(Alignment::Left);
+    frame.render_widget(paragraph, dialog_area);
 }

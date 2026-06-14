@@ -2161,18 +2161,9 @@ fn draw_inner(frame: &mut Frame, app: &dyn TuiState) {
         );
         return;
     }
-
-    // Permission request dialog — shown when a tool needs approval
+    // Permission request overlay (Claude Code style). Chat renders behind it.
     if app.pending_permission_tool().is_some() {
         overlays::draw_permission_dialog_overlay(frame, area, app);
-        finalize_frame_metrics(
-            app,
-            total_start,
-            Duration::ZERO,
-            total_start.elapsed(),
-            None,
-        );
-        return;
     }
 
     if let Some(picker_cell) = app.session_picker_overlay() {

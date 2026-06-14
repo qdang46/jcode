@@ -1,2 +1,10 @@
-active_modes = []
-updated_at = "2026-06-14T14:00:08.229184+00:00"
+updated_at = "2026-06-14T14:21:16.364712+00:00"
+
+[[active_modes]]
+workflow = "ralplan"
+activated_at = "2026-06-14T14:21:14.735797+00:00"
+turn_count = 8
+turn_limit = 10
+
+[active_modes.metadata]
+ralplan_phase = "plan"
