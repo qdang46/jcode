@@ -589,6 +589,16 @@ fn apply_set_route(
         let result = agent.set_route_selection(&selection);
         if result.is_ok() {
             agent.reset_provider_session();
+            // Persist the model to config so it survives process restarts.
+            let active = agent.provider_model();
+            if let Err(e) =
+                crate::config::Config::set_default_model_only(Some(&active))
+            {
+                crate::logging::warn(&format!(
+                    "Failed to persist default model '{}' on server (route): {}",
+                    active, e
+                ));
+            }
         }
         result.map(|_| (agent.provider_model(), agent.provider_name()))
     };
