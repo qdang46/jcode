@@ -113,7 +113,6 @@ const REGISTERED_COMMANDS: &[RegisteredCommand] = &[
     ),
     RegisteredCommand::public("/wrapped", "Alias for /productivity"),
     RegisteredCommand::public("/feedback", "Send feedback about jcode"),
-    RegisteredCommand::public("/subscription", "Show jcode subscription status"),
     RegisteredCommand::public("/config", "Show or edit configuration"),
     RegisteredCommand::public("/log", "Mark the current location in the jcode logs"),
     RegisteredCommand::public(
@@ -1162,12 +1161,6 @@ impl App {
             );
         }
 
-        if prefix.starts_with("/subscription ") {
-            return self.rank_suggestions(
-                input,
-                vec![("/subscription status".into(), "Show subscription status")],
-            );
-        }
 
         if prefix.starts_with("/alignment ") {
             return self.rank_suggestions(
@@ -1692,7 +1685,6 @@ impl App {
                 | "/account openai switch"
                 | "/account openai remove"
                 | "/usage"
-                | "/subscription"
                 | "/poke"
                 | "/memory"
                 | "/test"

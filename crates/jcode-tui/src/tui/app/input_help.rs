@@ -149,10 +149,6 @@ impl App {
             "usage" => {
                 "/usage\nFetch and display usage limits for connected providers. This command only reports real connected-provider usage windows and reset times."
             }
-            "subscription" => {
-                "/subscription\nShow curated jcode subscription status for this session, including router config, runtime mode, curated models, and planned tier budget scaffolding."
-            }
-            "version" => "/version\nShow jcode version/build details.",
             "changelog" => "/changelog\nShow recent changes embedded in this build.",
             "quit" => "/quit\nExit jcode.",
             "config" => {
