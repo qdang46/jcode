@@ -18,7 +18,6 @@
 
 ---
 ### 1. Agent Running Items
-## 1. Agent Running Items
 
 *Interactive list below status bar showing live agents, tools, and tasks.*
 
@@ -32,7 +31,7 @@
 
 ---
 
-## 2. Agent Detail Overlay
+### 2. Agent Detail Overlay
 
 *Popup showing live agent/tool information.*
 
@@ -46,7 +45,7 @@
 
 ---
 
-## 3. Agent Session Attachment
+### 3. Agent Session Attachment
 
 *Switching to a running agent's session to view transcript.*
 
@@ -59,7 +58,7 @@
 
 ---
 
-## 4. Agent Definitions
+### 4. Agent Definitions
 
 *File format, storage, loading, validation.*
 
@@ -73,7 +72,7 @@
 
 ---
 
-## 5. Agent Lifecycle
+### 5. Agent Lifecycle
 
 *Spawning, execution, completion, background.*
 
@@ -88,7 +87,7 @@
 
 ---
 
-## 6. Tool & Permission System
+### 6. Tool & Permission System
 
 *Per-agent tool restrictions and permission modes.*
 
@@ -102,7 +101,7 @@
 
 ---
 
-## 7. Agent Colors
+### 7. Agent Colors
 
 *Visual agent identity via named colors.*
 
@@ -114,7 +113,7 @@
 
 ---
 
-## 8. `/agents` Command
+### 8. `/agents` Command
 
 *Tabbed agent management interface.*
 
@@ -130,7 +129,7 @@
 
 ---
 
-## 9. Agent Creation
+### 9. Agent Creation
 
 *Creating new agent definitions.*
 
@@ -145,7 +144,7 @@
 
 ---
 
-## 10. `/tasks` Command
+### 10. `/tasks` Command
 
 *Standalone background task management.*
 
@@ -157,7 +156,7 @@
 
 ---
 
-## 11. Agent Teams & Swarm
+### 11. Agent Teams & Swarm
 
 *Multi-agent coordination.*
 
@@ -170,7 +169,7 @@
 
 ---
 
-## 12. Built-in Agents
+### 12. Built-in Agents
 
 *Pre-shipped agent definitions.*
 
@@ -183,7 +182,7 @@
 
 ---
 
-## 13. Model Override (Built-in Agent Types)
+### 13. Model Override (Built-in Agent Types)
 
 *Hardcoded agent types for model routing.*
 
