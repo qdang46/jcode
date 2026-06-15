@@ -130,6 +130,97 @@ pub fn set_mode(mode: Mode) {
     }
 }
 
+/// Tools considered too dangerous to leave in the allow-list when entering Auto mode.
+/// Stripped from session allow-list on transition to Auto.
+fn is_dangerous_allow_rule(tool: &str) -> bool {
+    matches!(tool, "bash" | "write" | "edit" | "hashline_edit" | "patch" | "multiedit" | "apply_patch" | "webfetch" | "subagent")
+}
+
+/// Strip dangerous permissions from the current session when entering a restricted mode.
+pub fn strip_dangerous_permissions_for_mode(session_id: &str, target_mode: Mode) {
+    if target_mode == Mode::Auto {
+        if let Ok(mut guard) = SESSION_ALLOWED_ACTIONS.lock() {
+            if let Some(actions) = guard.get_mut(session_id) {
+                let before = actions.len();
+                actions.retain(|a| !is_dangerous_allow_rule(a));
+                let stripped = before - actions.len();
+                if stripped > 0 {
+                    crate::logging::info(&format!(
+                        "[permission] Stripped {stripped} dangerous rule(s) for session {session_id} on Auto enter"
+                    ));
+                }
+            }
+        }
+    }
+}
+
+/// Risk level for permission explainer.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RiskLevel {
+    Low,
+    Medium,
+    High,
+}
+
+impl std::fmt::Display for RiskLevel {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            RiskLevel::Low => write!(f, "LOW"),
+            RiskLevel::Medium => write!(f, "MEDIUM"),
+            RiskLevel::High => write!(f, "HIGH"),
+        }
+    }
+}
+
+/// Rule-based permission explainer — classifies tool calls by risk level.
+/// Mirrors CCB's permissionExplainer.ts.
+pub fn explain_tool_call(tool_name: &str, input: &serde_json::Value) -> (RiskLevel, String) {
+    match tool_name {
+        "read" | "glob" | "grep" | "ffs" | "ls" | "codesearch" => {
+            (RiskLevel::Low, "Read-only operation, no side effects.".to_string())
+        }
+        "bash" => {
+            let cmd = input.get("command").and_then(|v| v.as_str()).unwrap_or("");
+            if cmd.contains("rm -rf") || cmd.contains("mkfs") || cmd.contains("dd ") {
+                (RiskLevel::High, "Destructive command: can delete data or format drives.".to_string())
+            } else if cmd.contains("git push") || cmd.contains("git merge") || cmd.contains("git rebase") {
+                (RiskLevel::High, "Git mutating operation: modifies remote history.".to_string())
+            } else if cmd.contains("curl") || cmd.contains("wget") || cmd.contains("pip install") || cmd.contains("npm install") || cmd.contains("cargo install") {
+                (RiskLevel::Medium, "Downloads external code: review before running.".to_string())
+            } else if cmd.contains("sudo") || cmd.contains("chmod") || cmd.contains("chown") {
+                (RiskLevel::High, "Privileged operation: modifies system permissions.".to_string())
+            } else {
+                (RiskLevel::Medium, "Runs a command on your system.".to_string())
+            }
+        }
+        "edit" | "hashline_edit" => {
+            let path = input.get("file_path").and_then(|v| v.as_str()).unwrap_or("");
+            if path.contains("/.ssh/") || path.contains("/.aws/") || path.contains("/.config/") {
+                (RiskLevel::High, format!("Modifies sensitive file: {}", path))
+            } else {
+                (RiskLevel::Medium, format!("Edits file: {}", path))
+            }
+        }
+        "write" => {
+            let path = input.get("file_path").and_then(|v| v.as_str()).unwrap_or("");
+            if path.contains("/.ssh/") || path.contains("/.aws/") || path.contains("/.config/") {
+                (RiskLevel::High, format!("Writes to sensitive path: {}", path))
+            } else {
+                (RiskLevel::Medium, format!("Writes file: {}", path))
+            }
+        }
+        "webfetch" | "websearch" => {
+            (RiskLevel::Medium, "Downloads content from the internet.".to_string())
+        }
+        "subagent" | "bg" | "batch" => {
+            (RiskLevel::Medium, "Spawns a background process.".to_string())
+        }
+        _ => {
+            (RiskLevel::Low, "Standard tool operation.".to_string())
+        }
+    }
+}
+
 /// One-shot channel for pending permission responses.
 /// When tool execution needs user approval, it creates a oneshot channel,
 /// stores the sender here, and awaits the receiver.
@@ -313,6 +404,29 @@ pub fn session_allows_action(session_id: &str, action: &str) -> bool {
         .and_then(|guard| guard.get(session_id).cloned())
         .map(|set| set.contains("*") || set.contains(action))
         .unwrap_or(false)
+}
+
+/// List all actions currently in the session allow-list.
+pub fn session_allowed_actions_list(session_id: &str) -> Vec<String> {
+    SESSION_ALLOWED_ACTIONS
+        .lock()
+        .ok()
+        .and_then(|guard| guard.get(session_id).cloned())
+        .map(|set| {
+            let mut v: Vec<String> = set.into_iter().collect();
+            v.sort();
+            v
+        })
+        .unwrap_or_default()
+}
+
+/// Remove a specific action from the session allow-list.
+pub fn clear_session_allowed_action(session_id: &str, action: &str) {
+    if let Ok(mut guard) = SESSION_ALLOWED_ACTIONS.lock() {
+        if let Some(actions) = guard.get_mut(session_id) {
+            actions.remove(action);
+        }
+    }
 }
 
 /// Convert a `Mode` to a human-readable string for TUI display.

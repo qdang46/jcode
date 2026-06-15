@@ -674,14 +674,45 @@ pub(super) fn draw_permission_dialog_overlay(
         String::new()
     };
     let tool_display = format!("{}{}", tool, title_suffix);
+    // Permission explainer: risk level
+    let input = app.pending_permission_input();
+    let (risk, _explanation) = if let Some(input) = input {
+        crate::dcg_bridge::explain_tool_call(&tool, input)
+    } else {
+        (crate::dcg_bridge::RiskLevel::Low, String::new())
+    };
+    let risk_str = format!("{}", risk);
+    let risk_color = match risk {
+        crate::dcg_bridge::RiskLevel::Low => rgb(100, 180, 100),
+        crate::dcg_bridge::RiskLevel::Medium => rgb(235, 190, 105),
+        crate::dcg_bridge::RiskLevel::High => rgb(255, 100, 100),
+    };
 
-    // Dispatch to tool-specific dialog renderers
-    let lines = match tool.as_str() {
+    let mut lines = match tool.as_str() {
         "bash" => build_bash_permission_lines(app, dialog_w, tool_display, sel, &dim, &warn, &bold, &hlbg),
         "edit" | "hashline_edit" => build_edit_permission_lines(app, dialog_w, tool_display, sel, &dim, &warn, &bold, &hlbg),
         "write" => build_write_permission_lines(app, dialog_w, tool_display, sel, &dim, &warn, &bold, &hlbg),
         _ => build_generic_permission_lines(app, dialog_w, tool_display, sel, &dim, &warn, &bold, &hlbg),
     };
+
+    // Render risk badge in dialog
+    let risk_text = if risk != crate::dcg_bridge::RiskLevel::Low {
+        format!(" Risk: {} ", risk_str)
+    } else {
+        String::new()
+    };
+    if !risk_text.is_empty() {
+        let risk_badge = Line::from(Span::styled(
+            risk_text,
+            Style::default().fg(risk_color).add_modifier(Modifier::BOLD),
+        ));
+        // We insert at the end of the lines (before the option row)
+        // Actually the lines already have the option row from build_* functions.
+        // Let's just append a risk line before the last 2 lines (option + hint)
+        if lines.len() >= 2 {
+            lines.insert(lines.len() - 2, risk_badge);
+        }
+    }
 
     let pg = Paragraph::new(lines).block(Block::default().borders(Borders::NONE));
     frame.render_widget(pg, dialog_area);

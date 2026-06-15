@@ -1669,50 +1669,89 @@ pub(super) fn handle_info_command(app: &mut App, trimmed: &str) -> bool {
         return true;
     }
 
-    if trimmed == "/permissions" || trimmed.starts_with("/permissions ") {
-        let mode = crate::dcg_bridge::current_mode();
-        let mut content = format!("Current permission mode: **{}**\n\n", crate::dcg_bridge::mode_to_str(mode));
+if trimmed == "/permissions" || trimmed.starts_with("/permissions ") {
+    let current = crate::dcg_bridge::mode_to_str(crate::dcg_bridge::current_mode());
+    let mut content = format!("Current permission mode: **{}**\n\n", current);
+    content.push_str("Available modes:\n");
+    content.push_str("  `default`             — Legacy default; read-only + stateful-safe auto-allow\n");
+    content.push_str("  `accept-edits`        — Allow edits (reads + writes), deny spawn/network\n");
+    content.push_str("  `plan`                — Read-only enforcement; write effects are denied\n");
+    content.push_str("  `auto`                — LLM-classified mode; same default as `default`\n");
+    content.push_str("  `dont-ask`            — Restricted surface; non-allow-listed commands denied\n");
+    content.push_str("  `bypass-permissions`  — Skip all evaluation (deny rules still apply)\n\n");
+    content.push_str("Commands:\n");
+    content.push_str("  `/permissions`               Show this status\n");
+    content.push_str("  `/permissions cycle`          Cycle to next mode\n");
+    content.push_str("  `/permissions <mode>`         Set mode by name\n");
+    content.push_str("  `/permissions rules`          List session allow-rules\n");
+    content.push_str("  `/permissions allow <tool>`   Add tool to session allow-list\n");
+    content.push_str("  `/permissions deny <tool>`    Remove tool from session allow-list\n");
+    content.push_str("  `/permissions revoke`         Clear all session allow-rules\n\n");
 
-        content.push_str("Modes (cycle order `default` → `accept-edits` → `plan` → `auto` → `dont-ask` → `bypass-permissions` → `default`):\n\n");
-        content.push_str("  `default`             — Standard rules; unmatched commands fall through to allow\n");
-        content.push_str("  `accept-edits`        — Auto-approve read/write in the working directory\n");
-        content.push_str("  `plan`                — Read-only enforcement; write effects are denied\n");
-        content.push_str("  `auto`                — LLM-classified mode; same default as `default`\n");
-        content.push_str("  `dont-ask`            — Restricted surface; non-allow-listed commands denied\n");
-        content.push_str("  `bypass-permissions`  — Skip all evaluation (deny rules still apply)\n\n");
-        content.push_str("Commands:\n");
-        content.push_str("  `/permissions`               Show this status\n");
-        content.push_str("  `/permissions cycle`          Cycle to next mode\n");
-        content.push_str("  `/permissions <mode>`         Set mode by name\n");
-
-        let args = trimmed.strip_prefix("/permissions").map(str::trim).unwrap_or("");
-        match args {
-            "cycle" => {
-                let new_mode = crate::dcg_bridge::cycle_mode();
-                let mode_str = crate::dcg_bridge::mode_to_str(new_mode);
-                content = format!("Switched to mode: **{}**\n\n{}", mode_str, content);
-                // Persist to config so it survives process restarts (Cmd+; opens new process).
-                let _ = crate::config::Config::set_permission_mode(mode_str);
+    // Add allow-rules display
+    let session_id = app.session.id.clone();
+    let rules = crate::dcg_bridge::session_allowed_actions_list(&session_id);
+    if !rules.is_empty() {
+        content.push_str(&format!("Session allow-rules ({}):\n", rules.len()));
+        for rule in &rules {
+            if rule == "*" {
+                content.push_str("  • `*` (all tools)\n");
+            } else {
+                content.push_str(&format!("  • `{}`\n", rule));
             }
-            s if !s.is_empty() => {
-                if crate::dcg_bridge::set_mode_from_str(s) {
-                    let mode_str = crate::dcg_bridge::mode_to_str(crate::dcg_bridge::current_mode());
-                    content = format!("Switched to mode: **{}**\n\n{}", mode_str, content);
-                    // Persist to config so it survives process restarts (Cmd+; opens new process).
-                    let _ = crate::config::Config::set_permission_mode(mode_str);
-                } else {
-                    content = format!("Unknown mode: `{}`\n\n{}", s, content);
-                }
-            }
-            _ => {}
         }
-
-        app.push_display_message(
-            DisplayMessage::system(content).with_title("Permissions"),
-        );
-        app.set_status_notice("Permissions");
-        return true;
+        content.push('\n');
     }
+
+    let args = trimmed.strip_prefix("/permissions").map(str::trim).unwrap_or("");
+    match args {
+        "cycle" => {
+            let new_mode = crate::dcg_bridge::cycle_mode();
+            let mode_str = crate::dcg_bridge::mode_to_str(new_mode);
+            content = format!("Switched to mode: **{}**\n\n{}", mode_str, content);
+            let _ = crate::config::Config::set_permission_mode(mode_str);
+        }
+        "rules" => {
+            // Already shown above
+        }
+        s if s.starts_with("allow ") => {
+            let tool = s.strip_prefix("allow ").unwrap_or("").trim();
+            if !tool.is_empty() {
+                crate::dcg_bridge::approve_session_action(&session_id, tool);
+                content = format!("Allowed `{}` for this session.\n\n{}", tool, content);
+            }
+        }
+        s if s.starts_with("deny ") => {
+            let tool = s.strip_prefix("deny ").unwrap_or("").trim();
+            if !tool.is_empty() {
+                crate::dcg_bridge::clear_session_allowed_action(&session_id, tool);
+                content = format!("Removed `{}` from session allow-list.\n\n{}", tool, content);
+            }
+        }
+        "revoke" => {
+            // Clear all session allow-rules by calling approve_session_all to reset
+            // Actually clear_session_mode already does this
+            crate::dcg_bridge::clear_session_mode(&session_id);
+            content = format!("Cleared all session allow-rules.\n\n{}", content);
+        }
+        s if !s.is_empty() => {
+            if crate::dcg_bridge::set_mode_from_str(s) {
+                let mode_str = crate::dcg_bridge::mode_to_str(crate::dcg_bridge::current_mode());
+                content = format!("Switched to mode: **{}**\n\n{}", mode_str, content);
+                let _ = crate::config::Config::set_permission_mode(mode_str);
+            } else {
+                content = format!("Unknown mode/command: `{}`\n\n{}", s, content);
+            }
+        }
+        _ => {}
+    }
+
+    app.push_display_message(
+        DisplayMessage::system(content).with_title("Permissions"),
+    );
+    app.set_status_notice("Permissions");
+    return true;
+}
 
     if trimmed == "/version" {
         let version = jcode_build_meta::VERSION;

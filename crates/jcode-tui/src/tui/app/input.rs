@@ -1404,8 +1404,14 @@ pub(super) fn handle_alt_key(app: &mut App, code: KeyCode) -> bool {
             let _ = crate::config::Config::set_permission_mode(mode_str);
             if mode_str == "plan" {
                 app.set_status_notice("⚠ Plan mode: writes are blocked. Read-only. Esc to exit plan mode.");
+            } else if mode_str == "auto" {
+                app.set_status_notice("Permission mode → auto (strip dangerous rules, AI-autopilot)");
             } else {
                 app.set_status_notice(format!("Permission mode → {mode_str}"));
+            }
+            // Safety: strip dangerous permissions when entering Auto mode
+            if mode_str == "auto" {
+                crate::dcg_bridge::strip_dangerous_permissions_for_mode(&app.session.id, crate::dcg_bridge::current_mode());
             }
             true
         }
