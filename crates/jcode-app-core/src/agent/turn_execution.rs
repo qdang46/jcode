@@ -113,6 +113,29 @@ impl Agent {
             }
         }
 
+        // UserPromptExpansion hook (fire-and-forget, diagnostic)
+        {
+            let session_id = self.session.id.clone();
+            let cwd = self.session.working_dir.clone().unwrap_or_default();
+            let hook_ctx = HookContext::new(&session_id, "", &cwd, "UserPromptExpansion");
+            let handlers = self
+                .hook_registry
+                .get_matching(&HookEvent::UserPromptExpansion, &hook_ctx);
+            if !handlers.is_empty() {
+                let hook_input = HookInputBuilder::new()
+                    .session(&session_id, &cwd)
+                    .event("UserPromptExpansion")
+                    .prompt(user_message)
+                    .build();
+                let event = HookEvent::UserPromptExpansion;
+                let dispatch_config = self.dispatch_config.clone();
+                tokio::spawn(async move {
+                    let refs: Vec<_> = handlers.iter().collect();
+                    let _ = jcode_hooks::dispatch_hooks(&event, &hook_input, &refs, &dispatch_config).await;
+                });
+            }
+        }
+
         self.add_message(Role::User, blocks);
         crate::telemetry::record_turn();
         self.session.save()?;

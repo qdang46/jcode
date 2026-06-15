@@ -374,6 +374,26 @@ impl Agent {
         // Pre-approve tools from the always-allow config list.
         crate::dcg_bridge::init_session_allow_list(&agent.session.id);
 
+
+        // Setup hook (fire-and-forget, fires once on agent creation)
+        {
+            let registry = agent.hook_registry.clone();
+            let config = agent.dispatch_config.clone();
+            let session_id = agent.session.id.clone();
+            let cwd = agent.session.working_dir.clone().unwrap_or_default();
+            let hook_input = HookInputBuilder::new()
+                .session(&session_id, &cwd)
+                .event("Setup")
+                .build();
+            let ctx = HookContext::new(&session_id, "", &cwd, "Setup");
+            let event = HookEvent::Setup;
+            tokio::spawn(async move {
+                let handlers = registry.get_matching(&event, &ctx);
+                if !handlers.is_empty() {
+                    jcode_hooks::dispatch_hooks(&event, &hook_input, &handlers, &config).await;
+                }
+            });
+        }
         // Dispatch SessionStart hooks (fire-and-forget, observational only)
         {
             let registry = agent.hook_registry.clone();

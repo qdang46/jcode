@@ -1090,6 +1090,34 @@ impl Registry {
                             .await;
                     });
                 }
+
+                // --- ToolError hook (fire-and-forget, diagnostic) ---
+                {
+                    let hook_registry = self.hook_registry.clone();
+                    let dispatch_config = self.dispatch_config.clone();
+                    let event = HookEvent::ToolError;
+                    let hook_input = HookInputBuilder::new()
+                        .session(&ctx.session_id, &cwd)
+                        .event("ToolError")
+                        .tool(resolved_name, input.clone(), &ctx.tool_call_id)
+                        .error(&crate::util::format_error_chain(&error), -1)
+                        .duration(latency_ms)
+                        .build();
+                    let handlers: Vec<_> = {
+                        let reg = hook_registry.read().await;
+                        reg.get_matching(&HookEvent::ToolError, &hook_ctx)
+                            .into_iter()
+                            .cloned()
+                            .collect()
+                    };
+                    if !handlers.is_empty() {
+                        tokio::spawn(async move {
+                            let refs: Vec<_> = handlers.iter().collect();
+                            jcode_hooks::dispatch_hooks(&event, &hook_input, &refs, &dispatch_config)
+                                .await;
+                        });
+                    }
+                }
                 let mut fields =
                     Self::tool_lifecycle_fields("error", name, resolved_name, &input, &ctx);
                 fields.push(("elapsed_ms".to_string(), latency_ms.to_string()));
