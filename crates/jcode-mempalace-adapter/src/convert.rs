@@ -266,7 +266,6 @@ pub fn memory_entry_to_drawer(
 
 /// Convert a mirror `Drawer` back into a jcode `MemoryEntry`.
 pub fn drawer_to_memory_entry(drawer: &Drawer) -> MemoryEntry {
-    embedding_model: None,
     let category = kind_to_category(&drawer.kind);
     let trust = drawer
         .trust

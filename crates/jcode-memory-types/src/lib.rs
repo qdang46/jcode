@@ -263,6 +263,11 @@ pub struct MemoryEntry {
     /// Embedding vector for similarity search (384 dimensions for MiniLM)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub embedding: Option<Vec<f32>>,
+    /// Identifier of the embedding model that produced `embedding`, e.g.
+    /// "minilm-l6-v2" (local) or "openai:text-embedding-3-small".
+    /// `None` means the legacy local MiniLM model.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub embedding_model: Option<String>,
     /// Confidence score (0.0-1.0) - decays over time, boosted by use
     #[serde(default = "default_confidence")]
     pub confidence: f32,
@@ -302,6 +307,7 @@ impl MemoryEntry {
             superseded_by: None,
             reinforcements: Vec::new(),
             embedding: None,
+            embedding_model: None,
             confidence: 1.0,
         }
     }

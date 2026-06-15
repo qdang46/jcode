@@ -463,7 +463,7 @@ impl Agent {
         name: &str,
         input: serde_json::Value,
     ) -> Result<crate::tool::ToolOutput> {
-        self.validate_tool_allowed(name).await?;
+        self.validate_tool_allowed(name, Some(&input)).await?;
 
         let call_id = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -533,7 +533,7 @@ impl Agent {
         Ok(())
     }
 
-    pub(super) async fn validate_tool_allowed(&self, name: &str) -> Result<()> {
+    pub(super) async fn validate_tool_allowed(&self, name: &str, input: Option<&serde_json::Value>) -> Result<()> {
         if let Some(allowed) = self.allowed_tools.as_ref()
             && !allowed.contains(name)
         {
@@ -588,6 +588,9 @@ impl Agent {
                     alternatives,
                 } => {
                     // Publish bus event so TUI can show a permission dialog
+                    let tool_input = input.and_then(|v| {
+                        if v.is_null() { None } else { Some(v.clone()) }
+                    });
                     crate::bus::Bus::global().publish(crate::bus::BusEvent::PermissionRequested(
                         crate::bus::PermissionRequested {
                             session_id: self.session.id.clone(),
@@ -595,6 +598,7 @@ impl Agent {
                             reason: reason.clone(),
                             allow_once_code: allow_once_code.clone(),
                             alternatives: alternatives.clone(),
+                            tool_input,
                         },
                     ));
 

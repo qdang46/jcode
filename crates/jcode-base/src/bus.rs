@@ -421,6 +421,7 @@ pub struct PermissionRequested {
     pub reason: String,
     pub allow_once_code: String,
     pub alternatives: Vec<String>,
+    pub tool_input: Option<serde_json::Value>,
 }
 
 pub struct Bus {

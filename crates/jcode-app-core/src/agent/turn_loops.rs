@@ -871,7 +871,7 @@ impl Agent {
                     continue;
                 }
 
-                if let Err(e) = self.validate_tool_allowed(&tc.name).await {
+                if let Err(e) = self.validate_tool_allowed(&tc.name, Some(&tc.input)).await {
                     let error_msg = format!("{}", e);
                     crate::logging::warn(&error_msg);
                     Bus::global().publish(BusEvent::ToolUpdated(ToolEvent {

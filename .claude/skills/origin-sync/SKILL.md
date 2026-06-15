@@ -493,3 +493,39 @@ Then run `cargo generate-lockfile` or just `cargo check`.
 - **Status**: diverged (regenerate counts with `git rev-list --left-right --count master...upstream/master`)
 - **Extracted repos**: 7 (casr, ffs, dcg, hashline, mempalace, dcp, rtco)
 - **Adapter code**: ~2687 lines across 4+ bridge files
+
+### Category G: Upstream Struct Field Addition (Silent Dependency Break)
+
+**Symptom**: Upstream added a field to a struct that both sides reference. Our fork's `git checkout --ours` keeps the struct *definition* without the new field, but other files that auto-merged from upstream (or `--theirs` resolved) already reference that field. Build fails with `missing field` or `no field named X` even though the merge had **no textual conflict**.
+
+**Root cause**: The conflict was in a *different* file. Upstream's struct change auto-merged cleanly into our struct definition file because that file had no merge conflict — but the `--ours` resolution for a *different conflict* reverted the struct change.
+
+OR: The struct is in a Category A (extracted) or Category B (fork-modified) file that we kept ours, while dependent code auto-merged from upstream uses the new field.
+
+**Detection**: Run `cargo check` after merge. If `no field named` errors point to a struct whose definition you kept ours, this is Category G.
+
+**Resolution: Accept upstream's struct changes, keep our struct initializers updated.**
+
+1. **Check what upstream added**: `git diff HEAD..upstream/master -- path/to/struct.rs`
+2. **Apply struct field addition ONLY** — NOT all upstream changes, just the field(s):
+   - Add the field definition (with `#[serde(default)]` if present)
+3. **Update all struct initializers** in the fork's code to include the new field:
+   - Category A/B files: add `field: default_value,`
+   - Search: `grep -rn 'StructName {' --include='*.rs' crates/`
+   - Add default value to every initializer
+
+**Example**: Upstream adds `embedding_model: Option<String>` to `MemoryEntry`. Our fork kept the old struct. Dependent code auto-merged uses it. Fix:
+```bash
+# 1. Add field definition
+sed -i '/pub confidence: f32/i\    pub embedding_model: Option<String>,' struct.rs
+# 2. Find & fix every initializer
+grep -rn 'MemoryEntry {' --include='*.rs' | grep -v 'fn\|pub struct'
+# Add embedding_model: None, to each
+```
+
+**Why `--ours` is wrong here**: The struct field is a *schema change*, not a code customization. It's safe to accept upstream's change because:
+- It doesn't override any of our custom logic
+- It's a data-carrying field (serialized with `#[serde(default)]`)
+- Without it, dependent code breaks at compile time
+
+**Prevention**: After merge, always run `cargo check` and grep for `missing field` / `no field named` errors before declaring merge complete. These are Category G signals.
