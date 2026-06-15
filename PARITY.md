@@ -216,44 +216,85 @@
 | **Session allow-list** | Per-session approved-tool cache. `approve_session_action()`, `approve_session_all()`, `session_allows_action()`. Always-allow persisted to config. | CCB (session rules, always-allow config) | `dcg_bridge.rs`: `SESSION_ALLOWED_ACTIONS`. `config.rs`: `always_allow_tools`. | ✅ | — |
 | **Sandbox integration** | Auto-sandbox flagged dangerous commands (Docker/container). | CCB (sandbox integration) | — | ❌ | Requires container/sandbox infrastructure. Separate project. |
 
+
+## III. Hooks System
+
+*Lifecycle hooks for tool execution, session management, permission events, agent lifecycle, compaction, and setup.*
+
+| Name | Description | Source Repo(s) | jcode Impl | Status | Remaining |
+|------|-------------|----------------|------------|--------|-----------|
+| **PreToolUse** | Blocking gate: runs before every tool call. Exit 0=allow, 2=block. Timeout configurable. | CCB (preToolUse), jcode HOOKS.md | `tool/mod.rs`: dispatch via `HookEvent::PreToolUse`. | ✅ | — |
+| **PostToolUse** | Fire-and-forget observer after successful tool call. | CCB (postToolUse) | `tool/mod.rs`: dispatch via `HookEvent::PostToolUse`. | ✅ | — |
+| **PostToolUseFailure** | Fire-and-forget observer after tool call failure. | CCB (postToolUseFailure) | `tool/mod.rs`: dispatch via `HookEvent::PostToolUseFailure`. | ✅ | — |
+| **ToolError** | Fire-and-forget diagnostic on tool execution error. | CCB (ToolError) | `tool/mod.rs`: dispatch via `HookEvent::ToolError`. | ✅ | — |
+| **UserPromptSubmit** | Blocking gate: can deny prompt before entering conversation. | CCB (userPromptSubmit) | `turn_execution.rs`: dispatch via `HookEvent::UserPromptSubmit`. | ✅ | — |
+| **UserPromptExpansion** | Fire-and-forget diagnostic after prompt expansion. | CCB (UserPromptExpansion) | `turn_execution.rs`: dispatch via `HookEvent::UserPromptExpansion`. | ✅ | — |
+| **SessionStart** | Fire-and-forget observer on session creation. | CCB (sessionStart) | `agent.rs`: dispatch via `HookEvent::SessionStart`. | ✅ | — |
+| **SessionEnd** | Fire-and-forget observer on session close. | CCB (sessionEnd) | `agent.rs`: dispatch via `HookEvent::SessionEnd`. | ✅ | — |
+| **SessionUpdated** | Fire-and-forget observer on session update. | CCB (SessionUpdated) | `agent.rs`: dispatch via `HookEvent::SessionUpdated`. | ✅ | — |
+| **SessionDiff** | Fire-and-forget observer on file diff detection. | CCB (SessionDiff) | `turn_loops.rs`, `turn_streaming_mpsc.rs`: dispatch via `HookEvent::SessionDiff`. | ✅ | — |
+| **SessionError** | Fire-and-forget observer on session error. | CCB (SessionError) | `client_lifecycle.rs`: dispatch via `HookEvent::SessionError`. | ✅ | — |
+| **SessionIdle** | Fire-and-forget observer on session idle timeout. | CCB (SessionIdle) | `client_lifecycle.rs`: dispatch via `HookEvent::SessionIdle`. | ✅ | — |
+| **PermissionRequest** | Blocking: runs when permission prompt is shown. | CCB (PermissionRequest) | `dcg_bridge.rs`: dispatch via `HookEvent::PermissionRequest`. | ✅ | — |
+| **PermissionDenied** | Fire-and-forget observer on permission denial. | CCB (PermissionDenied) | `dcg_bridge.rs`: dispatch via `HookEvent::PermissionDenied`. | ✅ | — |
+| **PermissionAsked** | Blocking: runs when pre-approval is requested. | CCB (PermissionAsked) | `dcg_bridge.rs`: dispatch via `HookEvent::PermissionAsked`. | ✅ | — |
+| **PermissionReplied** | Fire-and-forget observer on permission reply. | CCB (PermissionReplied) | `dcg_bridge.rs`: dispatch via `HookEvent::PermissionReplied`. | ✅ | — |
+| **AgentStart** | Fire-and-forget observer on agent start. | CCB (AgentStart) | `agent.rs`: dispatch via `HookEvent::AgentStart`. | ✅ | — |
+| **AgentEnd** | Fire-and-forget observer on agent end. | CCB (AgentEnd) | `agent.rs`: dispatch via `HookEvent::AgentEnd`. | ✅ | — |
+| **SubagentStart** | Fire-and-forget observer on subagent spawn. | CCB (SubagentStart) | `tool/task.rs`: dispatch via `HookEvent::SubagentStart`. | ✅ | — |
+| **SubagentStop** | Fire-and-forget observer on subagent stop. | CCB (SubagentStop) | `tool/task.rs`: dispatch via `HookEvent::SubagentStop`. | ✅ | — |
+| **TurnEnd** | Fire-and-forget observer on turn completion. Extra: duration, model, status, last text. | CCB (TurnEnd) | `turn_execution.rs`: dispatch via `HookEvent::TurnEnd`. | ✅ | — |
+| **Stop** | Blocking: runs on session stop/shutdown. | CCB (Stop) | `client_lifecycle.rs`: dispatch via `HookEvent::Stop`. | ✅ | — |
+| **PreCompact** | Blocking: runs before compaction starts. | CCB (PreCompact) | `compaction.rs`: dispatch via `HookEvent::PreCompact`. | ✅ | — |
+| **PostCompact** | Fire-and-forget observer after compaction. | CCB (PostCompact) | `compaction.rs`: dispatch via `HookEvent::PostCompact`. | ✅ | — |
+| **AutoCompactionControl** | Fire-and-forget observer for auto-compaction. | CCB (AutoCompactionControl) | `compaction.rs`: dispatch via `HookEvent::AutoCompactionControl`. | ✅ | — |
+| **TaskCreated** | Fire-and-forget observer on task creation. | CCB (TaskCreated) | `tool/todo.rs`: dispatch via `HookEvent::TaskCreated`. | ✅ | — |
+| **TaskCompleted** | Fire-and-forget observer on task completion. | CCB (TaskCompleted) | `tool/todo.rs`: dispatch via `HookEvent::TaskCompleted`. | ✅ | — |
+| **Setup** | Fire-and-forget observer on agent creation (initial setup). | CCB (Setup) | `agent.rs`: dispatch via `HookEvent::Setup`. | ✅ | — |
+| **Custom events** | User-defined hook events via TOML config. | CCB (Custom) | `config.rs`: `HookEvent::Custom(String)`. | ✅ | — |
+| **Legacy v1 bridge** | `turn_end`→TurnEnd, `session_start/end`→SessionStart/End, `pre_tool`→PreToolUse, `post_tool`→PostToolUse+Failure. Config via `[hooks]` TOML. | jcode HOOKS.md | `config.rs`: `legacy_v1_to_v2_handlers()`. | ✅ | — |
+| **Spawn hook** | Custom terminal spawn (`JCODE_SPAWN_HOOK`). Route headed sessions to tmux/kitty/zellij. | CCB (spawn hook) | `terminal_launch.rs`: spawn hook with `JCODE_SPAWN_*` env metadata. | ✅ | — |
+| **Focus hook** | Custom window focus (`JCODE_FOCUS_HOOK`). Bring session window to front. | CCB (focus hook) | `terminal_launch.rs`: focus hook with `JCODE_FOCUS_*` env metadata. | ✅ | — |
+| **Recursion guard** | `JCODE_HOOKS_DISABLED=1` suppresses hooks in nested jcode calls. | jcode HOOKS.md | `execute.rs`: recursion guard set in hook env. | ✅ | — |
 ## Summary
 
 | Section | Features | ✅ Complete | ⚠️ Partial | ❌ Missing |
 |---------|----------|-------------|-------------|-----------|
-| 1 — Running Items | 5 | 5 | 0 | 0 |
-| 2 — Detail Overlay | 5 | 5 | 0 | 0 |
-| 3 — Session Attachment | 4 | 3 | 0 | 1 |
-| 4 — Agent Definitions | 5 | 4 | 1 | 0 |
-| 5 — Agent Lifecycle | 6 | 6 | 0 | 0 |
-| 6 — Tool & Permission | 5 | 5 | 0 | 0 |
-| 7 — Agent Colors | 3 | 1 | 1 | 1 |
-| 8 — `/agents` Command | 7 | 7 | 0 | 0 |
-| 9 — Agent Creation | 6 | 1 | 1 | 4 |
-| 10 — `/tasks` Command | 3 | 0 | 0 | 3 |
-| 11 — Teams & Swarm | 4 | 3 | 1 | 0 |
-| 12 — Built-in Agents | 4 | 4 | 0 | 0 |
-| 13 — Model Override | 5 | 5 | 0 | 0 |
-| 14 — Permission System | 15 | 14 | 0 | 1 |
-| **Total** | **77** | **63 (82%)** | **4 (5%)** | **10 (13%)** |
+| I-1 — Running Items | 5 | 5 | 0 | 0 |
+| I-2 — Detail Overlay | 5 | 5 | 0 | 0 |
+| I-3 — Session Attachment | 4 | 3 | 0 | 1 |
+| I-4 — Agent Definitions | 5 | 4 | 1 | 0 |
+| I-5 — Agent Lifecycle | 6 | 6 | 0 | 0 |
+| I-6 — Tool & Permission | 5 | 5 | 0 | 0 |
+| I-7 — Agent Colors | 3 | 1 | 1 | 1 |
+| I-8 — `/agents` Command | 7 | 7 | 0 | 0 |
+| I-9 — Agent Creation | 6 | 1 | 1 | 4 |
+| I-10 — `/tasks` Command | 3 | 0 | 0 | 3 |
+| I-11 — Teams & Swarm | 4 | 3 | 1 | 0 |
+| I-12 — Built-in Agents | 4 | 4 | 0 | 0 |
+| I-13 — Model Override | 5 | 5 | 0 | 0 |
+| II — Permission System | 15 | 14 | 0 | 1 |
+| III — Hooks System | 34 | 34 | 0 | 0 |
+| **Total** | **111** | **97 (87%)** | **4 (4%)** | **10 (9%)** |
 
 ### Missing / Partial Features (Priority)
 
 | Priority | Feature | Section | Effort | Reference |
 |----------|---------|---------|--------|-----------|
-| P0 | `/tasks` command | 10 | Low | CCB: `src/commands/tasks/` |
-| P0 | `/agents save` | 9 | Low | Parse ```toml from assistant message |
-| P1 | AI auto-save | 9 | Medium | Hook turn completion |
-| P1 | Color picker UI | 7 | Medium | CCB: ColorPicker.tsx (8 swatches) |
-| P2 | Agent edit menu | 9 | Medium | CCB: AgentEditor.tsx |
-| P2 | Agent scopes | 4 | Low | CCB: 4 scopes -> add managed + plugin |
-| P2 | Context visualization | 3 | Medium | CCB: context command |
-| P2 | Creation wizard | 9 | High | CCB: CreateAgentWizard.tsx (10+ steps) |
-| P2 | Sandbox integration | 14 | High | CCB: sandbox integration |
-| P3 | Interactive team mgmt | 11 | High | oh-my-openagent: delegate-task |
-| — | Color badge rendering | 7 | Low | Plain ● -> ratatui Span color |
+| P0 | `/tasks` command | I-10 | Low | CCB: `src/commands/tasks/` |
+| P0 | `/agents save` | I-9 | Low | Parse ```toml from assistant message |
+| P1 | AI auto-save | I-9 | Medium | Hook turn completion |
+| P1 | Color picker UI | I-7 | Medium | CCB: ColorPicker.tsx (8 swatches) |
+| P2 | Agent edit menu | I-9 | Medium | CCB: AgentEditor.tsx |
+| P2 | Agent scopes | I-4 | Low | CCB: 4 scopes -> add managed + plugin |
+| P2 | Context visualization | I-3 | Medium | CCB: context command |
+| P2 | Creation wizard | I-9 | High | CCB: CreateAgentWizard.tsx (10+ steps) |
+| P2 | Sandbox integration | II | High | CCB: sandbox integration |
+| P3 | Interactive team mgmt | I-11 | High | oh-my-openagent: delegate-task |
+| — | Color badge rendering | I-7 | Low | Plain ● -> ratatui Span color |
 
 ### Adding New Features
 
-1. Pick the matching section (1-14). If none matches, add a new section.
+1. Pick the matching section (I-13, II, III). If none matches, add a new top-level section.
 2. Add a row: Name, Description, Source Repo(s), jcode Impl, Status, Remaining.
 3. Update the summary table at the bottom.
