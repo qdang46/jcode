@@ -194,9 +194,7 @@
 | **Memory override** | Model override for memory agent. | CCB | `AgentModelTarget::Memory` | ✅ | — |
 | **Ambient override** | Model override for ambient agent. | CCB | `AgentModelTarget::Ambient` | ✅ | — |
 
----
-
-### 14. Permission System
+## II. Permission System
 
 *Tool-level permission classification, mode management, dialog UI, and rule CRUD.*
 
@@ -217,9 +215,6 @@
 | **`/permissions` command** | Show mode, list modes, cycle, set by name. Also: `rules` list, `allow <tool>`, `deny <tool>`, `revoke` all. | CCB (/permissions command) | `state_ui.rs`: `/permissions` handler with CRUD subcommands. | ✅ | — |
 | **Session allow-list** | Per-session approved-tool cache. `approve_session_action()`, `approve_session_all()`, `session_allows_action()`. Always-allow persisted to config. | CCB (session rules, always-allow config) | `dcg_bridge.rs`: `SESSION_ALLOWED_ACTIONS`. `config.rs`: `always_allow_tools`. | ✅ | — |
 | **Sandbox integration** | Auto-sandbox flagged dangerous commands (Docker/container). | CCB (sandbox integration) | — | ❌ | Requires container/sandbox infrastructure. Separate project. |
-|
-
----
 
 ## Summary
 
