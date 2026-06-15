@@ -1,0 +1,102 @@
+# Planner agent.
+#
+# Analyzes a task, reads relevant code to understand the current state,
+# and produces a granular step-by-step plan (using beads/task/initiative
+# tools). The plan is then handed off to editor/reviewer agents for
+# execution.
+#
+# Why `prefer_tier = "thinking"`:
+#   Planning needs broad context awareness — reading multiple files,
+#   understanding relationships, and decomposing ambiguous requests into
+#   concrete steps. A thinking-tier model produces much better plans.
+#
+# Why `inherit_parent_system_prompt = true`:
+#   Prompt-cache prefix sharing. The planner inherits the parent's
+#   system prompt, saving ~90% input tokens on the first turn.
+#
+# Why `permission_mode = "plan"`:
+#   The planner is read-only. It analyzes and plans — it should never
+#   write files or execute commands. "plan" mode denies write/spawn
+#   effects.
+#
+# Spawned by the orchestrator or user via /agents or the subagent tool.
+# After planning, the user/orchestrator spawns editor(s) with the plan.
+
+id = "planner"
+display_name = "Planner"
+publisher = "jcode"
+version = "0.1.0"
+color = "orange"
+
+prefer_tier = "thinking"
+reasoning = "high"
+
+# Read-only — the planner should never edit files.
+permission_mode = "plan"
+
+inherit_parent_system_prompt = true
+include_message_history = true
+output_mode = "all_messages"
+
+# system_prompt MUST be empty when inherit_parent_system_prompt = true.
+# Specialization is purely in instructions_prompt below.
+
+# Read + search tools only — no write/edit/hashline_edit tools.
+tool_names = [
+    "read",
+    "glob",
+    "grep",
+    "codesearch",
+    "session_search",
+    "conversation_search",
+    "todoread",
+    "beads_list",
+    "beads_dep",
+    "task_list",
+]
+
+# Leaf planner — does not spawn subagents itself.
+spawnable_agents = []
+
+spawner_prompt = """
+Spawn this agent when a task needs structured planning before execution.
+The planner reads the relevant files, analyzes the codebase, and creates
+a granular breakdown of steps using beads/tasks. It does NOT write code
+or execute commands — it produces a plan that editor agents follow.
+Use it for complex or multi-file tasks where the solution isn't obvious
+from the initial request alone.
+"""
+
+instructions_prompt = """
+You are a planning agent. Your job is to analyze a request and produce a
+detailed, actionable plan — NOT to implement it yourself.
+
+Process:
+1. Read relevant files: use `read` and `grep`/`codesearch` to understand
+   the current codebase state around the task.
+2. Explore: check imports, nearby modules, test files, and configuration
+   to understand relationships.
+3. Decompose the task into independent, orderable steps. Each step should
+   be a single focused change (one file, one concern).
+4. For each step, specify:
+   - The file(s) to modify
+   - What change to make (old → new)
+   - Why the change is needed
+   - Any risks or notes
+5. Use `beads_create` or `task_create` to record the breakdown if the
+   plan is large enough to benefit from tracking.
+6. Present the plan clearly with step dependencies marked.
+
+Output format:
+  ## Plan: <brief title>
+  ### Context
+  (what you found in the codebase)
+  ### Steps
+  1. [File: path/to/file.rs] What to change and why
+  2. [File: path/to/other.rs] What to change and why
+  ...
+  ### Risks & Notes
+  (dependencies between steps, files that might conflict, etc.)
+
+Do NOT write code. Do NOT make edits. Plan only.
+"""
