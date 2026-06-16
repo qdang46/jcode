@@ -270,6 +270,21 @@
 | **14 workflow handlers** | Ultrawork, Ultragoal, Ultraqa, Ralplan, DeepInterview, TDD, CodeReview, SecurityReview, Ultrathink, Deepsearch, Analyze, Wiki, AiSlopCleaner, Cancel. Each has `build_prompt()`, `should_suppress()`, `phase_name()`. | CCB (workflow handlers) | `workflow/` directory: 14 handler modules. | ✅ | — |
 | **Deferred spawns** | Subagent spawn actions queued for later execution when SubagentTool is available. | CCB (deferred spawns) | `workflow/executor.rs`: `DeferredSpawn`, queued in `execute_active_workflows()` for Ultrawork and Ralplan workflows. | ⚠️ | Wiring to actual SubagentTool dispatch is pending (issue #391). |
 
+## V. Goal System
+
+*Multi-repo goal management: set objectives, track progress, auto-continuation, and success criteria across turns.*
+
+| Name | Description | Source Repo(s) | jcode Impl | Status | Remaining |
+|------|-------------|----------------|------------|--------|-----------|
+| **Hierarchical goals** | Epics → Goals → Milestones → Steps → Beads. Full nesting with status per level. | CCB (flat), codex (goals+criteria), oh-my-openagent (team tasklist), jcode (beads_rust) | `jcode-beads-bridge`: `Goal`, `GoalMilestone`, `GoalStep`. `GoalCreateInput` with success_criteria. | ✅ | — |
+| **`/goal` CLI command** | `/goal` — show active goals. `/goal <objective>` — set new. `/goal clear` — clear all. `/goal resume` — resume session goal. | CCB (`/goal` set/status/clear/pause/resume/continue/complete) | `commands.rs`: `handle_goal_or_mission_command()` with set/status/clear/resume. | ✅ | — |
+| **Auto-continuation** | After each turn, if goal is active and not complete, auto-queue continuation message. `goal_continuation_disabled` flag. | CCB (auto-continuation) | `local.rs`: `finish_turn()` checks active goals → queues "Continue working toward goal". `app.goal_continuation_disabled`. | ✅ | — |
+| **Success criteria** | Per-goal success criteria list. Checked for completion status. | codex (UlwLoopItem.successCriteria with pass/fail status per criterion) | `GoalCreateInput.success_criteria: Vec<String>`. Passed through beads_rust. | ✅ | — |
+| **Side panel display** | Goals overview in side panel. Detail page per goal. Attach to session. | jcode (beads_rust side panel) | `open_goals_overview_for_session()`, `open_goal_for_session()`, `write_goal_page()`. | ✅ | — |
+| **Dependencies** | Goal-blocking relationships via `blockers` + `beads_dep`. | oh-my-openagent (team tasklist dependencies) | `Goal.blockers: Vec<String>`, `beads_dep` tool for dependency graph. | ✅ | — |
+| **Progress tracking** | Progress percentage per goal. Updated via `update_goal()`. | CCB (token budget, turns) | `Goal.progress_percent: Option<u8>`. Updated through beads lifecycle. | ✅ | — |
+| **Goal lifecycle** | Status: active / done / cancelled / blocked. Create → update → complete. | CCB (set/clear/pause/resume/complete) | `GoalStatus` enum with full lifecycle. `create_goal()`, `update_goal()`, `load_goal()`. | ✅ | — |
+
 ## Summary
 | Section | Features | ✅ Complete | ⚠️ Partial | ❌ Missing |
 |---------|----------|-------------|-------------|-----------|
@@ -289,7 +304,8 @@
 | II — Permission System | 15 | 14 | 0 | 1 |
 | III — Hooks System | 34 | 34 | 0 | 0 |
 | IV — Keyword System | 10 | 9 | 1 | 0 |
-| **Total** | **129** | **122 (95%)** | **4 (3%)** | **1 (<1%)** |
+| V — Goal System | 8 | 8 | 0 | 0 |
+| **Total** | **137** | **130 (95%)** | **4 (3%)** | **1 (<1%)** |
 ### Missing / Partial Features (Priority)
 
 | Priority | Feature | Section | Effort | Reference | jcode Impl |
