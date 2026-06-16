@@ -918,3 +918,39 @@ fn append_option_row(lines: &mut Vec<Line<'static>>, sel: usize, dim: &Style, hl
     lines.push(Line::from(opt_line));
     lines.push(Line::from(Span::styled("  \u{2190}\u{2192} navigate  \u{23ce} Enter  Esc reject", (*dim).clone())));
 }
+
+
+/// Draw the teammate view banner at the top of the transcript area.
+/// Shows "Viewing: {name}" with Esc hint (CCB teammate view style).
+pub(super) fn draw_teammate_view_banner(
+    frame: &mut Frame,
+    area: Rect,
+    app: &dyn crate::tui::TuiState,
+) {
+    let sid = match app.viewing_teammate_session_id() {
+        Some(s) => s.to_string(),
+        None => return,
+    };
+    let short = if sid.len() > 8 { format!("…{}", &sid[sid.len()-8..]) } else { sid.clone() };
+
+    let banner_area = Rect::new(area.x, area.y, area.width.min(60), 3);
+    clear_area(frame, banner_area);
+
+    let dim = Style::default().fg(rgb(100, 100, 110));
+    let accent = Style::default().fg(rgb(80, 160, 255)).bold();
+
+    let mut lines = vec![
+        Line::from(Span::styled(
+            format!("╭── Viewing: session {} ─────────────────────", short),
+            Style::default().fg(rgb(80, 160, 255)),
+        )),
+        Line::from(vec![
+            Span::styled("  Viewing teammate stream", accent),
+            Span::styled("  ·  Esc to exit  ·  Ctrl+C to cancel", dim),
+        ]),
+    ];
+
+    let pg = Paragraph::new(lines).block(Block::default().borders(Borders::NONE));
+    frame.render_widget(pg, banner_area);
+    frame.render_widget(ratatui::widgets::Clear, area);
+}

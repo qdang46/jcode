@@ -1664,6 +1664,10 @@ impl crate::tui::TuiState for App {
         self.pending_permission_input.as_ref()
     }
 
+    fn viewing_teammate_session_id(&self) -> Option<&str> {
+        self.viewing_teammate_session_id.as_deref()
+    }
+
     fn now_millis(&self) -> u64 {
         self.app_started.elapsed().as_millis() as u64
     }

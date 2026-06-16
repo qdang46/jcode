@@ -2166,6 +2166,11 @@ fn draw_inner(frame: &mut Frame, app: &dyn TuiState) {
         overlays::draw_permission_dialog_overlay(frame, area, app);
     }
 
+    // Teammate view banner (CCB style): show when viewing a subagent's stream
+    if app.viewing_teammate_session_id().is_some() {
+        overlays::draw_teammate_view_banner(frame, area, app);
+    }
+
     if let Some(picker_cell) = app.session_picker_overlay() {
         let mut picker = picker_cell.borrow_mut();
         picker.render(frame);

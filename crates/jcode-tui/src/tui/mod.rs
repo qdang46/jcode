@@ -472,6 +472,11 @@ pub trait TuiState {
     fn pending_permission_input(&self) -> Option<&serde_json::Value> {
         None
     }
+
+    /// Teammate view: session_id being viewed (None = not in teammate view).
+    fn viewing_teammate_session_id(&self) -> Option<&str> {
+        None
+    }
     /// Working directory for this session
     // ---- Misc ----
     fn working_dir(&self) -> Option<String>;
