@@ -880,6 +880,79 @@ pub(crate) fn open_color_picker(app: &mut App, agent_id: &str) {
 }
 
 /// Open the agent creation wizard (3-step: name → tools → color/model).
+
+/// Open the tools picker for an agent.
+/// Shows a list of common tools the user can select for the agent.
+pub(crate) fn open_tools_picker(app: &mut App, agent_id: &str) {
+    let common_tools = [
+        ("read", "Read file contents"),
+        ("grep", "Search file contents"),
+        ("glob", "Find files by pattern"),
+        ("bash", "Run terminal commands"),
+        ("edit", "Edit files (hashline)"),
+        ("write", "Write new files"),
+        ("codesearch", "Code search"),
+        ("codesearch", "Search codebase"),
+        ("session_search", "Search sessions"),
+        ("todoread", "Read todos"),
+        ("beads_list", "List beads"),
+        ("beads_dep", "Bead dependencies"),
+        ("task_list", "List tasks"),
+        ("agentgrep", "Search agent chat"),
+        ("websearch", "Search web"),
+        ("webfetch", "Fetch web content"),
+    ];
+
+    let mut entries: Vec<PickerEntry> = Vec::new();
+
+    for (tool_name, description) in &common_tools {
+        entries.push(PickerEntry {
+            name: format!("  {}", tool_name),
+            options: vec![PickerOption {
+                provider: "tool".into(),
+                api_method: "toggle".into(),
+                available: true,
+                detail: description.to_string(),
+                estimated_reference_cost_micros: None,
+                context_window: None,
+                latency_ms: None,
+                cost_per_million_input: None,
+                cost_per_million_output: None,
+                is_free: false,
+                is_latest: false,
+            }],
+            action: crate::tui::PickerAction::SetAgentTools {
+                agent_id: agent_id.to_string(),
+                tools: vec![tool_name.to_string()],
+            },
+            selected_option: 0,
+            is_current: false,
+            is_default: false,
+            is_favorite: false,
+            recommended: false,
+            recommendation_rank: usize::MAX,
+            usage_score: 0,
+            old: false,
+            created_date: None,
+            effort: None,
+            is_free: false,
+            is_latest: false,
+        });
+    }
+
+    app.inline_view_state = None;
+    app.inline_interactive_state = Some(crate::tui::InlineInteractiveState {
+        kind: crate::tui::PickerKind::Model,
+        filtered: (0..entries.len()).collect(),
+        entries,
+        selected: 0,
+        column: 0,
+        filter: String::new(),
+        preview: false,
+    });
+    app.input.clear();
+    app.cursor_pos = 0;
+}
 /// After all steps, opens $EDITOR with a pre-filled template.
 pub(crate) fn open_creation_wizard(app: &mut App) {
     // Step 1: Edit name + description

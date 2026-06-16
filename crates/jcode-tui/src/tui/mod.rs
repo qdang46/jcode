@@ -1027,6 +1027,8 @@ pub enum PickerAction {
     OpenAgentModelPicker { agent_id: String },
     /// Open tools picker for an agent.
     OpenAgentToolsPicker { agent_id: String },
+    /// Set agent tool allowlist.
+    SetAgentTools { agent_id: String, tools: Vec<String> },
     /// Delete an agent definition file.
     DeleteAgent { agent_id: String, source_path: String },
 }
@@ -1132,6 +1134,7 @@ fn estimate_picker_action_bytes(action: &PickerAction) -> usize {
         | PickerAction::SetAgentColor { .. }
         | PickerAction::OpenAgentModelPicker { .. }
         | PickerAction::OpenAgentToolsPicker { .. } => 0,
+        | PickerAction::SetAgentTools { .. }
         PickerAction::Account(AccountPickerAction::Switch { provider_id, label }) => {
             provider_id.capacity() + label.capacity()
         }

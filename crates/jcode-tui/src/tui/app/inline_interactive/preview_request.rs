@@ -98,6 +98,7 @@ pub(super) fn picker_account_provider_scope(picker: &InlineInteractiveState) -> 
         | PickerAction::OpenColorPicker
         | PickerAction::SetAgentColor { .. }
         | PickerAction::OpenAgentModelPicker { .. }
+        | PickerAction::SetAgentTools { .. }
         | PickerAction::OpenAgentToolsPicker { .. } => None,
     })
 }

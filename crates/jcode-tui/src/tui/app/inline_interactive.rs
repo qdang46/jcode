@@ -3204,13 +3204,51 @@ User's request:
                             Err(e) => self.set_status_notice(format!("Failed to read agent: {}", e)),
                         }
                     }
+
+                    PickerAction::SetAgentTools { agent_id, tools } => {
+                        self.inline_interactive_state = None;
+                        let home = match dirs::home_dir() {
+                            Some(h) => h.join(".jcode").join("agents"),
+                            None => { self.set_status_notice("No home dir"); return Ok(()); }
+                        };
+                        let path = home.join(format!("{}.toml", agent_id));
+                        match std::fs::read_to_string(&path) {
+                            Ok(content) => {
+                                // Rewrite tool_names field
+                                let tools_json: String = tools.iter().map(|t| format!("\"{}\"", t)).collect::<Vec<_>>().join(", ");
+                                let lines: Vec<String> = content.lines()
+                                    .filter(|l| !l.trim().starts_with("tool_names"))
+                                    .collect::<Vec<_>>()
+                                    .iter()
+                                    .map(|l| l.to_string())
+                                    .collect();
+                                let new_content = if tools.is_empty() {
+                                    lines.join("\n")
+                                } else {
+                                    // Insert tool_names before system_prompt or at end
+                                    let idx = lines.iter().position(|l| l.trim().starts_with("system_prompt"))
+                                        .unwrap_or(lines.len());
+                                    let mut result = lines[..idx].join("\n");
+                                    result.push_str(&format!("\ntool_names = [{}]", tools_json));
+                                    if idx < lines.len() {
+                                        result.push('\n');
+                                        result.push_str(&lines[idx..].join("\n"));
+                                    }
+                                    result
+                                };
+                                let _ = std::fs::write(&path, &new_content);
+                                self.set_status_notice(format!("Agent {} tools set", agent_id));
+                            }
+                            Err(e) => self.set_status_notice(format!("Failed to read agent: {}", e)),
+                        }
+                    }
                     PickerAction::OpenAgentModelPicker { agent_id } => {
                         self.inline_interactive_state = None;
                         self.set_status_notice(format!("Model picker for {} — coming soon", agent_id));
                     }
                     PickerAction::OpenAgentToolsPicker { agent_id } => {
                         self.inline_interactive_state = None;
-                        self.set_status_notice(format!("Tools picker for {} — coming soon", agent_id));
+                        crate::tui::app::inline_interactive::openers::open_tools_picker(self, &agent_id);
                     }
                 }
             }
