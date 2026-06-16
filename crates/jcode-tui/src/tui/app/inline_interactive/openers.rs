@@ -879,6 +879,86 @@ pub(crate) fn open_color_picker(app: &mut App, agent_id: &str) {
     app.cursor_pos = 0;
 }
 
+/// Open the agent creation wizard (3-step: name → tools → color/model).
+/// After all steps, opens $EDITOR with a pre-filled template.
+pub(crate) fn open_creation_wizard(app: &mut App) {
+    // Step 1: Edit name + description
+    let name_template = "# Agent name: my-agent
+# Description:
+# Create an agent that...
+Enter a short description to define what this agent does.
+";
+    let raw_mode = crossterm::terminal::is_raw_mode_enabled().unwrap_or(false);
+    if raw_mode {
+        let _ = crossterm::terminal::disable_raw_mode();
+    }
+    let _ = crossterm::execute!(
+        std::io::stdout(),
+        crossterm::terminal::LeaveAlternateScreen,
+        crossterm::cursor::Show
+    );
+    let description = super::input::edit_text_in_external_editor(name_template);
+    let _ = crossterm::execute!(
+        std::io::stdout(),
+        crossterm::terminal::EnterAlternateScreen
+    );
+    if raw_mode {
+        let _ = crossterm::terminal::enable_raw_mode();
+    }
+
+    let desc = match description {
+        Ok(d) => d.trim().to_string(),
+        _ => { app.set_status_notice("Wizard cancelled"); return; }
+    };
+    if desc.is_empty() || desc == name_template.trim() {
+        app.set_status_notice("Wizard cancelled — empty description");
+        return;
+    }
+
+    // Step 2: Build the agent TOML template with the description
+    let agent_name = desc.lines().next().unwrap_or("my-agent").trim();
+    let agent_desc = desc.lines().skip(1).collect::<Vec<_>>().join("\n").trim().to_string();
+
+    // Step 3: Open creation flow with pre-filled template
+    let template = format!(
+        r#"# Agent Definition
+id = "{}"
+display_name = "{}"
+tool_names = ["Read", "Grep", "Glob"]
+system_prompt = """
+You are a helpful coding assistant.
+{}
+"""
+# Optional: color, model_override
+"#,
+        agent_name.replace(' ', "-").to_lowercase(),
+        agent_name,
+        agent_desc,
+    );
+
+    let raw_mode2 = crossterm::terminal::is_raw_mode_enabled().unwrap_or(false);
+    if raw_mode2 {
+        let _ = crossterm::terminal::disable_raw_mode();
+    }
+    let _ = crossterm::execute!(
+        std::io::stdout(),
+        crossterm::terminal::LeaveAlternateScreen,
+        crossterm::cursor::Show
+    );
+    let result = app.run_agent_creation_flow(&template);
+    let _ = crossterm::execute!(
+        std::io::stdout(),
+        crossterm::terminal::EnterAlternateScreen
+    );
+    if raw_mode2 {
+        let _ = crossterm::terminal::enable_raw_mode();
+    }
+    match result {
+        Ok(msg) => app.set_status_notice(msg),
+        Err(e) => app.set_status_notice(format!("Agent creation failed: {}", e)),
+    }
+}
+
 pub(crate) fn save_last_assistant_as_agent(session: &crate::session::Session) -> String {
     let text = match session.messages.iter().rev().find(|msg| msg.role == crate::message::Role::Assistant) {
         Some(msg) => {
