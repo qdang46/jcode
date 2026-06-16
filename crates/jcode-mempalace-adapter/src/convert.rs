@@ -14,6 +14,25 @@ use jcode_memory_types::{MemoryCategory, MemoryEntry, Reinforcement, TrustLevel}
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+// ---- Mirror of mempalace's MemoryTier (ADR-13 / mp-051) -------------
+
+/// Mirror of mempalace's `MemoryTier` enum.
+///
+/// Matches `crates/core/src/palace.rs` exactly.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum MemoryTier {
+    /// Raw observation — verbatim content, not yet consolidated.
+    #[default]
+    Working,
+    /// Episodic summary of a session or batch ingest.
+    Episodic,
+    /// Fact surfaced via KG consolidation (Phase 5).
+    Semantic,
+    /// Learned procedure/skill (Phase 5).
+    Procedural,
+}
+
 // ---- Local mirror types (match mempalace's public surface) -----------
 
 /// Mirror of mempalace's `DrawerKind` enum.
@@ -77,12 +96,20 @@ pub struct MpReinforcement {
 /// Mirror of mempalace's `Drawer` struct.
 ///
 /// Fields match `crates/core/src/palace.rs` Drawer struct exactly,
-/// including the new typed fields from issues #25-#27.
+/// including the new typed fields from issues #25-#27 and mp-migration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Drawer {
     pub id: Option<DrawerId>,
     pub content: String,
     pub kind: DrawerKind,
+    /// Memory lifecycle tier (ADR-13 / mp-051). Defaults to `Working`.
+    #[serde(default)]
+    pub tier: MemoryTier,
+    /// Wing (project/person). `None` means the palace default wing.
+    pub wing: Option<String>,
+    /// Room (specific topic within the wing). `None` means unfiled.
+    pub room: Option<String>,
+    /// Tags for cross-referencing.
     pub tags: Vec<String>,
     pub metadata: HashMap<String, serde_json::Value>,
     pub created_at: DateTime<Utc>,
@@ -92,6 +119,8 @@ pub struct Drawer {
     pub access_count: u64,
     pub superseded_by: Option<DrawerId>,
     pub reinforcements: Vec<MpReinforcement>,
+    /// Last time this drawer was retrieved. `None` on brand-new drawers.
+    pub last_accessed: Option<DateTime<Utc>>,
     pub confidence: f64,
     pub consolidation_strength: u32,
     pub derived_from: Vec<DrawerId>,
@@ -104,6 +133,9 @@ impl Drawer {
             id: None,
             content: content.into(),
             kind: DrawerKind::Raw,
+            tier: MemoryTier::Working,
+            wing: None,
+            room: None,
             tags: vec![],
             metadata: HashMap::new(),
             created_at: now,
@@ -113,6 +145,7 @@ impl Drawer {
             access_count: 0,
             superseded_by: None,
             reinforcements: vec![],
+            last_accessed: None,
             confidence: 1.0,
             consolidation_strength: 1,
             derived_from: vec![],
@@ -159,8 +192,8 @@ pub fn category_to_kind(cat: &MemoryCategory) -> DrawerKind {
 
 /// Convert mirror `DrawerKind` back to jcode's `MemoryCategory`.
 ///
-/// Non-jcode kinds (`Event`, `Discovery`, `Advice`, `Raw`) map to
-/// `MemoryCategory::Fact` as a safe default.
+/// Non-jcode kinds (`Event`, `Discovery`, `Advice`, `Raw`) are mapped to
+/// `MemoryCategory::Fact` (best-effort lossy mapping).
 pub fn kind_to_category(kind: &DrawerKind) -> MemoryCategory {
     match kind {
         DrawerKind::Fact => MemoryCategory::Fact,
@@ -230,6 +263,12 @@ pub fn memory_entry_to_drawer(
     drawer.trust = Some(trust_to_string(&entry.trust));
     drawer.access_count = entry.access_count as u64;
     drawer.superseded_by = entry.superseded_by.as_ref().map(|s| DrawerId(s.clone()));
+
+    // Map scope to wing for project-scoped memories
+    drawer.wing = match scope {
+        jcode_memory_types::MemoryScope::Project => Some("project".to_string()),
+        _ => None,
+    };
 
     drawer.reinforcements = entry
         .reinforcements

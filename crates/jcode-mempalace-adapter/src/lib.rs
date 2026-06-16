@@ -61,6 +61,14 @@ pub fn mirror_drawer_to_real(drawer: &Drawer) -> MpDrawer {
     let mut real = MpDrawer::new(&drawer.content);
     real.id = drawer.id.as_ref().map(|id| MpDrawerId::new(&id.0));
     real.kind = kind;
+    real.tier = match drawer.tier {
+        crate::convert::MemoryTier::Working => mempalace_core::palace::MemoryTier::Working,
+        crate::convert::MemoryTier::Episodic => mempalace_core::palace::MemoryTier::Episodic,
+        crate::convert::MemoryTier::Semantic => mempalace_core::palace::MemoryTier::Semantic,
+        crate::convert::MemoryTier::Procedural => mempalace_core::palace::MemoryTier::Procedural,
+    };
+    real.wing = drawer.wing.clone();
+    real.room = drawer.room.clone();
     real.tags = drawer.tags.clone();
     real.metadata = drawer.metadata.clone();
     real.created_at = drawer.created_at;
@@ -81,6 +89,7 @@ pub fn mirror_drawer_to_real(drawer: &Drawer) -> MpDrawer {
             timestamp: r.timestamp,
         })
         .collect();
+    real.last_accessed = drawer.last_accessed;
     real.confidence = drawer.confidence;
     real.consolidation_strength = drawer.consolidation_strength;
     real.derived_from = drawer
@@ -93,7 +102,7 @@ pub fn mirror_drawer_to_real(drawer: &Drawer) -> MpDrawer {
 
 // Re-export mirror types at crate root for ergonomic imports.
 pub use convert::{
-    Drawer, DrawerId, DrawerKind, MemoryScope, MpReinforcement, category_to_kind,
+    Drawer, DrawerId, DrawerKind, MemoryScope, MemoryTier, MpReinforcement, category_to_kind,
     drawer_to_memory_entry, jcode_scope_from_mp, kind_to_category, memory_entry_to_drawer,
     mp_scope_from_jcode, string_to_trust, trust_to_string,
 };
@@ -779,6 +788,10 @@ mod tests {
         assert!((d.confidence - 1.0).abs() < 0.01);
         assert_eq!(d.consolidation_strength, 1);
         assert!(d.tags.is_empty());
+        assert_eq!(d.tier, crate::convert::MemoryTier::Working);
+        assert_eq!(d.wing, None);
+        assert_eq!(d.room, None);
+        assert_eq!(d.last_accessed, None);
     }
 
     #[test]

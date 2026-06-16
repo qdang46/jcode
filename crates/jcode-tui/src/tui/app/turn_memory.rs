@@ -73,6 +73,17 @@ impl App {
             for conflict in &result.conflicts {
                 crate::logging::warn(&jcode_keywords::conflict::format_warning(conflict));
             }
+
+            // Show status notice for activated modes (so user sees something happen)
+            if result.keyword_prompt.is_some() {
+                let mode_state = crate::jcode_keywords::state::load_state(
+                    self.session.working_dir.as_deref().map(std::path::Path::new),
+                );
+                if let Some(active) = mode_state.active_modes.first() {
+                    self.set_status_notice(format!("🧠 {} mode activated", active.workflow));
+                }
+            }
+
             result.keyword_prompt
         };
 
@@ -287,26 +298,12 @@ impl App {
                     };
 
                     // Create memory entry
-                    let entry = crate::memory::MemoryEntry {
-                        id: format!("auto_{}", chrono::Utc::now().timestamp_millis()),
-                        category,
-                        content: memory.content,
-                        tags: Vec::new(),
-                        search_text: String::new(),
-                        created_at: chrono::Utc::now(),
-                        updated_at: chrono::Utc::now(),
-                        access_count: 0,
-                        trust,
-                        active: true,
-                        superseded_by: None,
-                        strength: 1,
-                        source: Some(self.session.id.clone()),
-                        reinforcements: Vec::new(),
-                        embedding: None, // Will be generated when stored
-                        embedding_model: None,
-                        confidence: 1.0,
-                    };
+                    let entry = crate::memory::MemoryEntry::new(category, memory.content)
+                        .with_id(format!("auto_{}", chrono::Utc::now().timestamp_millis()))
+                        .with_source(self.session.id.clone())
+                        .with_trust(trust);
 
+                    // Store memory
                     if manager.remember_project(entry).is_ok() {
                         stored_count += 1;
                     }

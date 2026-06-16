@@ -323,7 +323,9 @@ impl SkillRegistry {
 
     /// List all available skills
     pub fn list(&self) -> Vec<&Skill> {
-        self.skills.values().collect()
+        let mut skills: Vec<&Skill> = self.skills.values().collect();
+        skills.sort_by(|a, b| a.name.cmp(&b.name));
+        skills
     }
 
     /// Reload a specific skill by name
