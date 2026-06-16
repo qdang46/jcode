@@ -1305,6 +1305,8 @@ pub struct App {
     pub viewing_teammate_session_id: Option<String>,
     /// Selection mode: true when user is in selecting-teammate mode.
     pub view_teammate_selection: bool,
+    /// When true, auto-continuation after each turn is disabled.
+    pub goal_continuation_disabled: bool,
 }
 
 /// Inert provider used by runtime modes whose output is supplied by another source.

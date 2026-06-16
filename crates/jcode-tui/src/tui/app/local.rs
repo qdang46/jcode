@@ -526,6 +526,22 @@ pub(super) fn finish_turn(app: &mut App) {
     {
         app.clear_visible_turn_started();
     }
+
+    // Auto-continuation: if an active goal exists and is not yet complete,
+    // queue a continuation message so the model keeps working.
+    if !app.goal_continuation_disabled {
+        let wd = app.session.working_dir.as_deref().map(std::path::Path::new);
+        if let Ok(goals) = crate::goal::list_relevant_goals(wd) {
+            let has_active = goals.iter().any(|g| g.status != "done" && g.status != "cancelled");
+            if has_active {
+                // Queue a continuation prompt to keep the model working
+                app.queued_messages.push(
+                    "Continue working toward the active goal. Report progress.".to_string()
+                );
+                app.set_status_notice("Continuing toward goal...");
+            }
+        }
+    }
     let _ = super::commands::maybe_begin_pending_local_transfer(app);
 }
 impl App {

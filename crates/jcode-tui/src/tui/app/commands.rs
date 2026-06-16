@@ -1859,7 +1859,7 @@ pub(super) fn handle_session_command(app: &mut App, trimmed: &str) -> bool {
         return true;
     }
 
-    if handle_disabled_mission_command(app, trimmed) {
+    if handle_goal_or_mission_command(app, trimmed) {
         return true;
     }
 
@@ -2327,19 +2327,107 @@ pub(super) fn handle_goals_command(app: &mut App, trimmed: &str) -> bool {
     true
 }
 
-pub(super) fn handle_disabled_mission_command(app: &mut App, trimmed: &str) -> bool {
-    if slash_command_rest(trimmed, "/mission").is_none()
-        && slash_command_rest(trimmed, "/goal").is_none()
-    {
+pub(super) fn handle_goal_or_mission_command(app: &mut App, trimmed: &str) -> bool {
+    let Some(rest) = slash_command_rest(trimmed, "/goal")
+        .or_else(|| slash_command_rest(trimmed, "/mission"))
+    else {
         return false;
+    };
+    let rest = rest.trim();
+
+    // /goal or /mission with no args → show status
+    if rest.is_empty() {
+        let wd = active_working_dir(app).as_deref();
+        let goals = crate::goal::list_relevant_goals(wd).unwrap_or_default();
+        let active: Vec<_> = goals.iter().filter(|g| g.status != "done" && g.status != "cancelled").collect();
+        if active.is_empty() {
+            app.push_display_message(DisplayMessage::system(
+                "No active goals. Set one with `/goal <objective>`.".to_string(),
+            ));
+        } else {
+            let mut msg = format!("**Active Goals ({}):**\n", active.len());
+            for g in &active {
+                let pct = g.progress_percent.map(|p| format!("{}%", p)).unwrap_or_default();
+                msg.push_str(&format!("\n- **{}** [{}] {} — {}", g.title, g.status, g.scope, pct));
+                if let Some(ns) = g.next_steps.first() {
+                    msg.push_str(&format!("\n  Next: {}", ns));
+                }
+            }
+            app.push_display_message(DisplayMessage::system(msg).with_title("Goals"));
+        }
+        app.set_status_notice("Goals");
+        return true;
+    }
+
+    let lower = rest.to_lowercase();
+
+    if lower == "status" {
+        // Already handled above for bare command
+        return true;
+    }
+
+    if lower == "clear" {
+        let wd = active_working_dir(app).as_deref();
+        // Complete all active goals
+        let goals = crate::goal::list_relevant_goals(wd).unwrap_or_default();
+        for g in &goals {
+            if g.status != "done" && g.status != "cancelled" {
+                let _ = crate::goal::update_goal(&g.id, None, wd, crate::goal::GoalUpdateInput {
+                    status: Some("done".to_string()),
+                    ..Default::default()
+                });
+            }
+        }
+        app.push_display_message(DisplayMessage::system("All goals cleared.".to_string()));
+        return true;
+    }
+
+    if lower == "resume" {
+        let wd = active_working_dir(app).as_deref();
+        match crate::goal::resume_goal_for_session(
+            active_session_id(app).as_str(),
+            wd,
+            true,
+        ) {
+            Ok(Some(result)) => {
+                app.set_side_panel_snapshot(result.snapshot);
+                app.push_display_message(DisplayMessage::system(
+                    format!("Resumed goal: {}.", result.goal.title)
+                ));
+            }
+            Ok(None) => app.push_display_message(DisplayMessage::system(
+                "No resumable goals for this session.".to_string(),
+            )),
+            Err(e) => app.push_display_message(DisplayMessage::error(format!("Error: {}", e))),
+        }
+        return true;
+    }
+
+    // /goal <objective> — set new goal
+    let objective = rest;
+    if !objective.is_empty() && !matches!(lower.as_str(), "status" | "clear" | "resume" | "pause" | "goal complete" | "continue") {
+        let wd = active_working_dir(app).as_deref();
+        match crate::goal::create_goal(crate::goal::GoalCreateInput {
+            title: objective.chars().take(80).collect(),
+            description: objective.to_string(),
+            ..Default::default()
+        }, wd) {
+            Ok(goal) => {
+                app.push_display_message(DisplayMessage::system(format!(
+                    "**Goal set:** {}\nID: {}  \nUse `/goal status` to track progress.", goal.title, goal.id
+                )).with_title("Goal"));
+                app.set_status_notice(format!("Goal: {}", goal.title));
+            }
+            Err(e) => app.push_display_message(DisplayMessage::error(format!("Failed: {}", e))),
+        }
+        return true;
     }
 
     app.push_display_message(DisplayMessage::system(
-        "The /mission and /goal commands are disabled in this build.".to_string(),
+        "Usage: `/goal` — show status\n       `/goal <objective>` — set goal\n       `/goal clear` — clear all\n       `/goal resume` — resume session goal".to_string(),
     ));
     true
 }
-
 pub(super) fn handle_test_command(app: &mut App, trimmed: &str) -> bool {
     let Some(rest) = slash_command_rest(trimmed, "/test") else {
         return false;
