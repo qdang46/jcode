@@ -178,8 +178,8 @@
 | **basher** | Run terminal commands. One-shot bash executor. prefer_tier=routine, max_turns=10, permission_mode=accept-edits. | codebuff (bash agent), CCB (shell tools) | `.jcode/agents/basher.toml`. color=green. | ✅ | — |
 | **code-reviewer** | Review code changes for bugs and regressions. prefer_tier=thinking, inherit_parent_system_prompt=true, permission_mode=plan. | codebuff (reviewer agent) | `.jcode/agents/code-reviewer.toml`. color=purple. | ✅ | — |
 | **editor** | Precise code edits with hashline_edit. prefer_tier=thinking, inherit_parent_system_prompt=true, permission_mode=accept-edits. | oh-my-pi (hashline_edit), CCB (editor) | `.jcode/agents/editor.toml`. color=blue. | ✅ | — |
+| **planner** | Create step-by-step plans for complex tasks. Read-only, uses beads/tasks. Analysis-first approach. prefer_tier=thinking, reasoning=high, permission_mode=plan. | codebuff (planner agent) | `.jcode/agents/planner.toml`. color=orange. | ✅ | — |
 | **file-picker** | Find relevant files in codebase. prefer_tier=routine, permission_mode=plan, max_turns=5. | codebuff (file-picker agent) | `.jcode/agents/file-picker.toml`. color=cyan. | ✅ | — |
-
 ---
 
 ### 13. Model Override (Built-in Agent Types)
@@ -271,11 +271,11 @@
 | I-9 — Agent Creation | 6 | 1 | 1 | 4 |
 | I-10 — `/tasks` Command | 3 | 0 | 0 | 3 |
 | I-11 — Teams & Swarm | 4 | 3 | 1 | 0 |
-| I-12 — Built-in Agents | 4 | 4 | 0 | 0 |
+| I-12 — Built-in Agents | 5 | 5 | 0 | 0 |
 | I-13 — Model Override | 5 | 5 | 0 | 0 |
 | II — Permission System | 15 | 14 | 0 | 1 |
 | III — Hooks System | 34 | 34 | 0 | 0 |
-| **Total** | **111** | **97 (87%)** | **4 (4%)** | **10 (9%)** |
+| **Total** | **112** | **98 (88%)** | **4 (4%)** | **10 (9%)** |
 
 ### Missing / Partial Features (Priority)
 
