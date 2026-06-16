@@ -964,36 +964,18 @@ You are a helpful coding assistant.
 pub(super) fn load_session_messages(session_id: &str) -> Vec<crate::tui::DisplayMessage> {
     use crate::session::Session;
 
-    let snapshot_path = crate::session::session_path(session_id);
-    if !snapshot_path.exists() {
-        return Vec::new();
-    }
-
-    // Load session from snapshot file
+    let snapshot_path = match crate::session::session_path(session_id) {
+        Ok(p) => p,
+        Err(_) => return Vec::new(),
+    };
     let bytes = match std::fs::read(&snapshot_path) {
         Ok(b) => b,
         Err(_) => return Vec::new(),
     };
-    let mut session: Session = match serde_json::from_slice(&bytes) {
+    let session: Session = match serde_json::from_slice(&bytes) {
         Ok(s) => s,
         Err(_) => return Vec::new(),
     };
-
-    // Merge messages from journal file
-    let journal_path = crate::session::session_journal_path(session_id);
-    if journal_path.exists() {
-        use std::io::BufRead;
-        if let Ok(file) = std::fs::File::open(&journal_path) {
-            let reader = std::io::BufReader::new(file);
-            for line in reader.lines().flatten() {
-                let trimmed = line.trim();
-                if trimmed.is_empty() { continue; }
-                if let Ok(entry) = serde_json::from_str::<crate::session::SessionJournalEntry>(trimmed) {
-                    session.messages.merge(entry.append_messages);
-                }
-            }
-        }
-    }
 
     crate::tui::display_messages_from_session(&session)
 }
