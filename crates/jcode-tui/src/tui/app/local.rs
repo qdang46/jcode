@@ -510,6 +510,9 @@ pub(super) fn finish_turn(app: &mut App) {
     app.is_processing = false;
     app.status = ProcessingStatus::Idle;
     app.stream_message_ended = false;
+    // AI auto-save: if the last assistant message contains a ```toml agent,
+    // automatically save it to the agents directory.
+    app.auto_save_turn_agent();
     app.processing_started = None;
     app.interleave_message = None;
     app.pending_soft_interrupts.clear();
@@ -524,6 +527,18 @@ pub(super) fn finish_turn(app: &mut App) {
         app.clear_visible_turn_started();
     }
     let _ = super::commands::maybe_begin_pending_local_transfer(app);
+}
+impl App {
+    /// After a turn completes, check if the last assistant message contains a TOML
+    /// agent definition and auto-save it to the agents directory.
+    /// This enables the "AI auto-save" flow: model generates → auto-parse → auto-save.
+    pub fn auto_save_turn_agent(&mut self) {
+        let result = super::inline_interactive::openers::save_last_assistant_as_agent(&self.session);
+        if result.starts_with("Agent '") {
+            self.set_status_notice(result);
+        }
+        // Silently ignore errors — not every turn produces an agent.
+    }
 }
 
 /// Strip ANSI/VT escape sequences and control characters from text before
