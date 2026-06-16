@@ -14,15 +14,25 @@ impl WorkflowHandler for DeepsearchHandler {
     }
 
     fn build_prompt(&self) -> String {
-        "# $deepsearch — Codebase Search Mode\n\n\
-         Use multiple search strategies.\n\n\
-         ## Strategies\n\
-         1. Text/Regex: grep for keywords, patterns\n\
-         2. Structural: find functions, types, modules\n\
-         3. Semantic: find related concepts, similar code\n\n\
-         ## Output\n\
-         Context Map: file:line — Description\n\
-         Summary: How found code relates to query"
+        "# $deepsearch — Codebase Search Mode
+
+MANDATORY: Say "DEEP SEARCH MODE ENABLED!" as your first response.
+
+## Search Strategies
+1. Text/Regex — grep for keywords, patterns, identifiers
+2. Structural — Find functions, types, modules, imports
+3. Semantic — Find related concepts, similar patterns
+4. Dependency — Trace imports, dependencies, callers
+
+## Output Format
+```
+Context Map:
+- file.rs:42 — Function: relevant_function()
+- other.rs:13 — Type: RelatedType
+
+Summary:
+How found code relates to the query, dependencies between files, and recommendations for further investigation.
+```"
             .to_string()
     }
 

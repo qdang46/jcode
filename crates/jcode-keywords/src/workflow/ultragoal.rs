@@ -14,17 +14,25 @@ impl WorkflowHandler for UltragoalHandler {
     }
 
     fn build_prompt(&self) -> String {
-        "# $ultragoal — Goal Tracking Mode\n\n\
-         Track a durable goal across turns.\n\n\
-         ## Tracking\n\
-         - Goal: What we're achieving\n\
-         - Progress: Percentage complete\n\
-         - Budget: Token usage\n\n\
-         ## Rules\n\
-         Report progress after each turn.\n\
-         Report as: `Progress: N%`\n\n\
-         ## Completion Marker\n\
-         When goal achieved: `[GOAL:ACHIEVED]`"
+        "# $ultragoal — Goal Tracking Mode
+
+MANDATORY: Say \"GOAL MODE ENABLED!\" as your first response.
+
+## Goal Tracking Protocol
+- Goal: What we are achieving (defined by user)
+- Progress: Report percentage after each turn
+- Budget: Track token usage against limit
+- Status: On-track / Blocked / Needs-redefinition
+
+## Report Format
+Report after each turn:
+Progress: N%
+Status: On-track
+Next step: ...
+
+## Completion
+Goal achieved: [GOAL:ACHIEVED]
+Cannot achieve: [GOAL:STUCK] - explain why"
             .to_string()
     }
 

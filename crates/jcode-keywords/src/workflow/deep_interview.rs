@@ -17,17 +17,24 @@ impl WorkflowHandler for DeepInterviewHandler {
     }
 
     fn build_prompt(&self) -> String {
-        "# $deep-interview — Requirements Gathering Mode\n\n\
-         Gather requirements through Q&A.\n\n\
-         ## Process\n\
-         1. Analyze request for ambiguity\n\
-         2. Ask clarifying questions (max 3 per round)\n\
-         3. Score ambiguity 1-10\n\
-         4. Repeat until ambiguity < 3\n\n\
-         ## Ambiguity Score\n\
-         Report as: `Ambiguity: N/10`\n\n\
-         ## Completion Marker\n\
-         When done: `[INTERVIEW:COMPLETE]`"
+        "# $deep-interview — Requirements Gathering Mode
+
+MANDATORY: Say \"INTERVIEW MODE ENABLED!\" as your first response.
+
+## Interview Protocol
+1. Analyze the request for ambiguous terms
+2. Ask clarifying questions (max 3 per round)
+3. Score ambiguity 1-10 for each aspect
+4. Repeat until total ambiguity < 3
+5. Produce final requirements document
+
+## Scoring
+Report ambiguity as: Ambiguity: N/10
+Threshold: score < 3 -> interview complete
+
+## Completion
+When done: [INTERVIEW:COMPLETE]
+Output structured requirements."
             .to_string()
     }
 

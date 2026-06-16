@@ -16,16 +16,27 @@ impl WorkflowHandler for UltraqaHandler {
     }
 
     fn build_prompt(&self) -> String {
-        "# $ultraqa — QA Cycling Mode\n\n\
-         Run QA cycles until all tests pass (max 5 iterations).\n\n\
-         ## Cycle\n\
-         1. IMPLEMENT: Write/modify code\n\
-         2. TEST: Run tests, report results\n\
-         3. FIX: Fix failures\n\n\
-         ## Completion Markers\n\
-         Implementation done: `[PHASE:IMPL_DONE]`\n\
-         Tests pass: `[PHASE:TESTS_PASS]`\n\
-         Fix done: `[PHASE:FIX_DONE]`"
+        "# $ultraqa — QA Cycling Mode
+
+MANDATORY: Say "QA MODE ENABLED!" as your first response.
+
+## QA Protocol (max 5 iterations)
+1. IMPLEMENT — Write or modify code
+2. TEST — Run tests, report ALL results
+3. FIX — Fix ALL failures found
+4. RE-TEST — Verify all fixes pass
+
+## Rules
+- Never skip the test phase
+- Report actual test output, not assumptions
+- If tests fail, fix ALL failures before moving on
+- Max 5 cycles, then report what remains
+
+## Completion Markers
+Implement done: [PHASE:IMPL_DONE]
+Tests pass: [PHASE:TESTS_PASS]
+Fix done: [PHASE:FIX_DONE]
+QA Complete: [MODE:QA_COMPLETE]"
             .to_string()
     }
 

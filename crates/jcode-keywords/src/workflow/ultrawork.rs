@@ -14,13 +14,27 @@ impl WorkflowHandler for UltraworkHandler {
     }
 
     fn build_prompt(&self) -> String {
-        "# $ultrawork — Parallel Execution Mode\n\n\
-         Execute the task using parallel sub-agents.\n\n\
-         ## Strategy\n\
-         1. Break task into independent subtasks\n\
-         2. Launch up to 4 parallel sub-agents\n\
-         3. Coordinate results, handle failures\n\
-         4. Aggregate into unified response"
+        "# $ultrawork — Parallel Execution Mode
+
+MANDATORY: Say "ULTRAWORK MODE ENABLED!" as your first response.
+
+## CERTAINTY PROTOCOL
+Do NOT start implementing until 100% certain. Before you write code:
+1. THINK DEEPLY — What is the user's true intent?
+2. EXPLORE — Fire explore/librarian agents for context
+3. CONSULT — Use oracle/artistry sub-agents for complex tasks
+4. ASK — If ambiguity remains, ask the user
+
+## Execution Strategy
+1. Break task into independent subtasks
+2. Launch up to 4 parallel sub-agents via task() tool
+3. Coordinate results, handle failures
+4. Aggregate into unified response
+
+## Completion Markers
+Ready to implement: [MODE:ULTRAWORK_READY]
+Sub-agents launched: [MODE:SPAWNED]
+Results aggregated: [MODE:COMPLETE]"
             .to_string()
     }
 

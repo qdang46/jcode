@@ -13,26 +13,30 @@ impl WorkflowHandler for SecurityReviewHandler {
     }
 
     fn build_prompt(&self) -> String {
-        "# $security-review — Security Review Mode\n\n\
-         Perform comprehensive security audit.\n\n\
-         ## OWASP Top 10\n\
-         A01: Broken Access Control\n\
-         A02: Cryptographic Failures\n\
-         A03: Injection\n\
-         A04: Insecure Design\n\
-         A05: Security Misconfiguration\n\
-         A06: Vulnerable Components\n\
-         A07: Auth Failures\n\
-         A08: Data Integrity\n\
-         A09: Logging Failures\n\
-         A10: SSRF\n\n\
-         ## Also Check\n\
-         - Hardcoded secrets/keys/tokens\n\
-         - SQL injection, XSS, CSRF\n\
-         - Path traversal\n\n\
-         ## Output\n\
-         Risk Summary: Critical/High/Medium/Low counts\n\
-         Findings: Severity + OWASP Category + Location + Remediation"
+        "# $security-review — Security Review Mode
+
+MANDATORY: Say "SECURITY REVIEW MODE ENABLED!" as your first response.
+
+## OWASP Top 10 Checklist
+A01: Broken Access Control
+A02: Cryptographic Failures
+A03: Injection (SQL, command, LDAP)
+A04: Insecure Design
+A05: Security Misconfiguration
+A06: Vulnerable Components
+A07: Auth Failures
+A08: Data Integrity
+A09: Logging Failures
+A10: SSRF
+
+## Also Check
+- Secrets: hardcoded keys, passwords, tokens
+- Input: validation, sanitization, escaping
+- Dependencies: known CVEs, outdated packages
+- Network: TLS, certificate validation
+
+## Output
+Severity: Critical/High/Medium/Low + Location + Issue + Fix"
             .to_string()
     }
 

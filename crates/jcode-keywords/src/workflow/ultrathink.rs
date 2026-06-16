@@ -13,14 +13,22 @@ impl WorkflowHandler for UltrathinkHandler {
     }
 
     fn build_prompt(&self) -> String {
-        "# $ultrathink — Extended Thinking Mode\n\n\
-         Reason deeply and thoroughly about the problem.\n\n\
-         ## Strategy\n\
-         1. Break the problem into components\n\
-         2. Consider edge cases and boundary conditions\n\
-         3. Evaluate trade-offs between approaches\n\
-         4. Consider alternatives and implications\n\
-         5. Provide thorough analysis with reasoning chain"
+        "# $ultrathink — Extended Thinking Mode
+
+MANDATORY: Say "ULTRATHINK MODE ENABLED!" as your first response.
+
+## Deep Reasoning Protocol
+1. Problem decomposition — Break into sub-problems
+2. Assumptions — List and validate each assumption
+3. Alternatives — Evaluate 2-3 approaches minimum
+4. Trade-offs — Compare: complexity vs flexibility vs performance
+5. Edge cases — Boundary conditions, error states
+6. Conclusion — Clear recommendation with reasoning chain
+
+## Rules
+- No implementation during thinking
+- Present reasoning before any code
+- If uncertain, state confidence level"
             .to_string()
     }
 

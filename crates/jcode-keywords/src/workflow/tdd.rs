@@ -14,20 +14,28 @@ impl WorkflowHandler for TddHandler {
     }
 
     fn build_prompt(&self) -> String {
-        "# $tdd — Test-Driven Development Mode\n\n\
-         Follow the Red → Green → Refactor cycle.\n\n\
-         ## Cycle\n\
-         1. RED: Write a failing test\n\
-         2. GREEN: Write minimal code to pass\n\
-         3. REFACTOR: Clean up while keeping tests green\n\n\
-         ## Rules\n\
-         - Never write code without a failing test\n\
-         - Write the simplest code that works\n\
-         - Refactor only when tests are green\n\n\
-         ## Completion Markers\n\
-         When done with RED phase, say: `[PHASE:RED_DONE]`\n\
-         When done with GREEN phase, say: `[PHASE:GREEN_DONE]`\n\
-         When done with REFACTOR, say: `[PHASE:REFACTORED]`"
+        "# $tdd — Test-Driven Development Mode
+
+MANDATORY: Say "TDD MODE ENABLED!" as your first response.
+
+## Red → Green → Refactor Cycle
+1. RED — Write a failing test FIRST
+Verify the test fails with actual output
+2. GREEN — Write minimal code to pass
+Verify all tests pass before continuing
+3. REFACTOR — Clean up while keeping tests green
+
+## Rules
+- NEVER write code without a failing test
+- Write the simplest code that works
+- Refactor only when tests are green
+- Never skip the RED phase
+
+## Completion Markers
+Red done: [PHASE:RED_DONE]
+Green done: [PHASE:GREEN_DONE]
+Refactored: [PHASE:REFACTORED]
+TDD Complete: [MODE:TDD_COMPLETE]"
             .to_string()
     }
 

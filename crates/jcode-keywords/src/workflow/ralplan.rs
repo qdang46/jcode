@@ -14,19 +14,27 @@ impl WorkflowHandler for RalplanHandler {
     }
 
     fn build_prompt(&self) -> String {
-        "# $ralplan — Consensus Planning Mode\n\n\
-         Generate, review, and refine plans.\n\n\
-         ## Cycle\n\
-         1. PLAN: Generate a detailed plan\n\
-         2. REVIEW: Self-review for risks and gaps\n\
-         3. REVISE: Address issues found\n\
-         4. APPROVE: Present for user approval\n\n\
-         ## Completion Markers\n\
-         Plan ready: `[PHASE:PLAN_DONE]`\n\
-         Review done: `[PHASE:REVIEW_DONE]`\n\
-         Revision done: `[PHASE:REVISED]`\n\
-         User approved: `[PHASE:APPROVED]`\n\
-         Execution done: `[PHASE:EXECUTED]`"
+        "# $ralplan — Consensus Planning Mode
+
+MANDATORY: Say "CONSENSUS PLANNING MODE ENABLED!" as your first response.
+
+## Planning Protocol
+1. PLAN — Generate a detailed step-by-step plan
+2. ADVERSARIAL REVIEW — Self-review for risks and edge cases
+3. REVISE — Address all issues found in review
+4. APPROVE — Present for user approval
+
+## Rules
+- Never skip the adversarial review phase
+- Each plan step must have: file, change, reason, risk
+- If plan is approved, execute immediately
+
+## Completion Markers
+Plan ready: [PHASE:PLAN_DONE]
+Review done: [PHASE:REVIEW_DONE]
+Revision done: [PHASE:REVISED]
+User approved: [PHASE:APPROVED]
+Execution done: [PHASE:EXECUTED]"
             .to_string()
     }
 

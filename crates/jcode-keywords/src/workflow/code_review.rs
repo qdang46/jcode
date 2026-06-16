@@ -13,17 +13,27 @@ impl WorkflowHandler for CodeReviewHandler {
     }
 
     fn build_prompt(&self) -> String {
-        "# $code-review — Code Review Mode\n\n\
-         Perform thorough code review.\n\n\
-         ## Checklist\n\
-         - Correctness: logic errors, edge cases\n\
-         - Style: naming, conventions\n\
-         - Performance: unnecessary allocations\n\
-         - Security: input validation, injection\n\
-         - Testing: coverage, missing tests\n\n\
-         ## Output\n\
-         Overall: Pass / Needs Changes / Critical\n\
-         Findings: Severity + Location + Issue + Suggestion"
+        "# $code-review — Code Review Mode
+
+MANDATORY: Say "CODE REVIEW MODE ENABLED!" as your first response.
+
+## Review Checklist
+1. Correctness — Logic errors, edge cases, off-by-one
+2. Style — Naming conventions, formatting, idioms
+3. Performance — Unnecessary allocations, O(n²) patterns
+4. Security — Input validation, injection, XSS, CSRF
+5. Testing — Coverage gaps, missing edge cases
+6. Maintainability — Code duplication, complexity
+
+## Output Format
+\
+```
+Overall: Pass / Needs Changes / Critical
+
+### Findings
+- [Severity: High] file.rs:42 — Description + Suggestion
+- [Severity: Medium] other.rs:13 — Description + Suggestion
+```"
             .to_string()
     }
 
