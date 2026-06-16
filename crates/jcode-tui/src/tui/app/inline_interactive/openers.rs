@@ -959,6 +959,19 @@ You are a helpful coding assistant.
     }
 }
 
+/// Load a session's messages from its journal file and return as DisplayMessages.
+/// Used by teammate view to show the subagent's messages inline.
+pub(super) fn load_session_messages(session_id: &str) -> Vec<crate::tui::DisplayMessage> {
+    let journal_path = crate::session::session_journal_path(session_id);
+    if !journal_path.exists() {
+        return Vec::new();
+    }
+    match crate::session::load_session_from_journal(&journal_path) {
+        Ok(session) => crate::tui::display_messages_from_session(&session),
+        Err(_) => Vec::new(),
+    }
+}
+
 pub(crate) fn save_last_assistant_as_agent(session: &crate::session::Session) -> String {
     let text = match session.messages.iter().rev().find(|msg| msg.role == crate::message::Role::Assistant) {
         Some(msg) => {
