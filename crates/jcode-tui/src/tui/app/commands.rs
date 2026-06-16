@@ -1867,6 +1867,10 @@ pub(super) fn handle_session_command(app: &mut App, trimmed: &str) -> bool {
         return true;
     }
 
+    if handle_export_command(app, trimmed) {
+        return true;
+    }
+
     if trimmed == "/swarm" || trimmed == "/swarm status" {
         let default_enabled = crate::config::config().features.swarm;
         app.push_display_message(DisplayMessage::system(format!(
@@ -2426,6 +2430,70 @@ pub(super) fn handle_goal_or_mission_command(app: &mut App, trimmed: &str) -> bo
     app.push_display_message(DisplayMessage::system(
         "Usage: `/goal` — show status\n       `/goal <objective>` — set goal\n       `/goal clear` — clear all\n       `/goal resume` — resume session goal".to_string(),
     ));
+    true
+}
+
+/// Handle /export command — export session conversation to a file.
+pub(super) fn handle_export_command(app: &mut App, trimmed: &str) -> bool {
+    let Some(filename) = trimmed.strip_prefix("/export ").or_else(|| trimmed.strip_prefix("/export\t")) else {
+        app.push_display_message(DisplayMessage::system(
+            "Usage: `/export <filename>` — export conversation to a .txt file.\n\
+             Example: `/export my-conversation.txt`".to_string(),
+        ));
+        return true;
+    };
+    let filename = filename.trim();
+    if filename.is_empty() {
+        app.push_display_message(DisplayMessage::error(
+            "Usage: /export <filename>".to_string(),
+        ));
+        return true;
+    }
+
+    // Build export content from session messages
+    let msgs = app.session.messages();
+    let mut content = String::new();
+    content.push_str(&format!("# Session Export\n\nSession ID: {}\n\n---\n\n", app.session.id));
+
+    for msg in msgs.iter() {
+        let role = match msg.role.as_str() {
+            "user" => "User",
+            "assistant" => "Assistant",
+            "system" => "System",
+            _ => msg.role.as_str(),
+        };
+        content.push_str(&format!("### {}\n\n", role));
+
+        for block in &msg.content {
+            if let crate::bus::ContentBlock::Text { text: t, .. } = block {
+                content.push_str(t);
+                content.push('\n');
+            }
+        }
+        content.push('\n');
+    }
+
+    // Determine file path
+    let wd = app.working_dir().map(PathBuf::from).unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
+    let final_name = if filename.ends_with(".txt") { filename.to_string() } else { format!("{}.txt", filename) };
+    let out_path = wd.join(&final_name);
+
+    match std::fs::write(&out_path, &content) {
+        Ok(_) => {
+            app.push_display_message(DisplayMessage::system(format!(
+                "**Conversation exported** to: `{}`  \n{} messages, {} KB",
+                out_path.display(),
+                msgs.len(),
+                content.len() / 1024,
+            )));
+            app.set_status_notice(format!("Exported → {}", final_name));
+        }
+        Err(e) => {
+            app.push_display_message(DisplayMessage::error(format!(
+                "Failed to export: {}", e
+            )));
+        }
+    }
     true
 }
 pub(super) fn handle_test_command(app: &mut App, trimmed: &str) -> bool {
