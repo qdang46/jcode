@@ -26,6 +26,23 @@ pub struct TeamMemberView {
     pub color: Option<String>,
 }
 
+
+/// Interactive team view with keyboard selection.
+/// Allows selecting tasks/members and performing actions (claim, close, view).
+#[derive(Debug, Clone, Default)]
+pub(super) struct TeamViewInteraction {
+    /// Currently selected index (0 = header, 1+ = members then tasks).
+    pub selected: usize,
+    /// Whether selection mode is active.
+    pub active: bool,
+}
+
+impl TeamViewInteraction {
+    /// Total interactive slots in the current view.
+    pub fn slot_count(member_count: usize, task_count: usize) -> usize {
+        1 + member_count.min(5) + task_count.min(3) // header + members + tasks
+    }
+}
 #[derive(Debug, Clone)]
 pub struct TeamTaskView {
     pub id: String,
