@@ -253,6 +253,23 @@
 | **Focus hook** | Custom window focus (`JCODE_FOCUS_HOOK`). Bring session window to front. | CCB (focus hook) | `terminal_launch.rs`: focus hook with `JCODE_FOCUS_*` env metadata. | ✅ | — |
 | **Recursion guard** | `JCODE_HOOKS_DISABLED=1` suppresses hooks in nested jcode calls. | jcode HOOKS.md | `execute.rs`: recursion guard set in hook env. | ✅ | — |
 
+## IV. Keyword System
+
+*Natural language keyword triggers that activate persistent workflow modes, inject system prompts, and manage mode lifecycle across turns.*
+
+| Name | Description | Source Repo(s) | jcode Impl | Status | Remaining |
+|------|-------------|----------------|------------|--------|-----------|
+| **Keyword detection** | Scan user input for predefined keyword triggers (`$ultrawork`, `$ralplan`, etc.) with exact + fuzzy matching. Levenshtein distance ≤ 2 for aliases. | CCB (keyword detection) | `detector.rs`: `detect_keywords()`, `find_fuzzy()`, `levenshtein_distance()`. Sanitizer strips ANSI, normalizes whitespace. | ✅ | — |
+| **Keyword registry** | 14 keywords + aliases, priority-sorted, deduplicated by workflow. Keywords: `$ultrawork`, `$ralplan`, `$ultragoal`, `$ultraqa`, `$deep-interview`, `$ultrathink`, `$deepsearch`, `$tdd`, `$code-review`, `$security-review`, `$analyze`, `$wiki`, `canceljcode`, `ai-slop-cleaner`. | CCB (keyword registry) | `registry.rs`: `KeywordEntry` struct, `build_registry()` with OnceLock. 14 WorkflowKind variants. | ✅ | — |
+| **Mode state persistence** | Active modes persisted to `.jcode/state/modes.toml`. Turn counting, auto-expiry after 10 turns, cancel all. | CCB (mode state) | `state.rs`: `ModeState`, `ActiveMode`, `update_modes()`, `load_state()`, `save_state()`, `clear_modes()`. | ✅ | — |
+| **Workflow execution** | Execute active workflows each turn. Get handler → build prompt → apply actions (deferred spawns for subagent). Heavy workflows suppressed for Simple tasks (< 50 chars). | CCB (workflow executor) | `workflow/executor.rs`: `process_turn()`, `execute_active_workflows()`, `apply_actions()`, `build_workflow_prompt()`. | ✅ | — |
+| **System prompt injection** | Keyword prompt injected into system prompt's dynamic part. Both TUI and agent-runtime paths run `process_turn()` independently. | CCB (system prompt injection) | `turn_memory.rs` (TUI path), `prompting.rs` (agent-runtime path): both call `jcode_keywords::process_turn()`. | ✅ | — |
+| **User feedback** | Status notice when keyword activates a mode. Shows "🧠 Ultrawork mode activated" in status bar. | CCB (mode feedback) | `turn_memory.rs`: post-`process_turn()` check → `self.set_status_notice()`. | ✅ | — |
+| **Task size classification** | Simple (< 50 chars) / Medium (50-200 chars) / Heavy (> 200 chars). Heavy workflows suppressed for Simple tasks. | CCB (task size) | `task_size.rs`: `classify()`, `should_suppress()`. | ✅ | — |
+| **Conflict detection** | Detect conflicting active modes (e.g., TDD + Ultrawork). Log warnings. | CCB (conflict detection) | `conflict.rs`: `check_conflicts()`, `format_warning()`. | ✅ | — |
+| **14 workflow handlers** | Ultrawork, Ultragoal, Ultraqa, Ralplan, DeepInterview, TDD, CodeReview, SecurityReview, Ultrathink, Deepsearch, Analyze, Wiki, AiSlopCleaner, Cancel. Each has `build_prompt()`, `should_suppress()`, `phase_name()`. | CCB (workflow handlers) | `workflow/` directory: 14 handler modules. | ✅ | — |
+| **Deferred spawns** | Subagent spawn actions queued for later execution when SubagentTool is available. | CCB (deferred spawns) | `workflow/executor.rs`: `DeferredSpawn`, queued in `execute_active_workflows()` for Ultrawork and Ralplan workflows. | ⚠️ | Wiring to actual SubagentTool dispatch is pending (issue #391). |
+
 ## Summary
 | Section | Features | ✅ Complete | ⚠️ Partial | ❌ Missing |
 |---------|----------|-------------|-------------|-----------|
@@ -271,7 +288,8 @@
 | I-13 — Model Override | 5 | 5 | 0 | 0 |
 | II — Permission System | 15 | 14 | 0 | 1 |
 | III — Hooks System | 34 | 34 | 0 | 0 |
-| **Total** | **119** | **113 (95%)** | **3 (3%)** | **1 (<1%)** |
+| IV — Keyword System | 10 | 9 | 1 | 0 |
+| **Total** | **129** | **122 (95%)** | **4 (3%)** | **1 (<1%)** |
 ### Missing / Partial Features (Priority)
 
 | Priority | Feature | Section | Effort | Reference | jcode Impl |
