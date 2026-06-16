@@ -151,7 +151,7 @@ jcode-hooks = { path = "crates/jcode-hooks" }
 # reproducible and doesn't accidentally pick up in-flight changes. Bump the
 # `rev` value (or switch to a `tag = "vX.Y.Z"`) when you want to pull a newer
 # CASR snapshot.
-casr = { git = "https://github.com/quangdang46/cross_agent_session_resumer", package = "cross_agent_session_resumer", rev = "aaee83d0049e2801aa1ffc5d18f22026bf78b225" }
+casr = { git = "https://github.com/quangdang46/cross_agent_session_resumer", package = "cross_agent_session_resumer", rev = "bac44dd20a9ccab2ba49e5821d2d5c0b7603f978" }
 
 # TOON format output for the `jcode run --toon` flag — token-efficient JSON
 # alternative. Pinned to a specific commit SHA so the dependency is reproducible.

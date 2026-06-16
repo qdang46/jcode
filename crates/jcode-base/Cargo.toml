@@ -126,7 +126,7 @@ jcode-best-of-n = { path = "../jcode-best-of-n" }
 flate2 = "1"
 tempfile = "3"
 agentgrep = { git = "https://github.com/1jehuang/agentgrep.git", tag = "v0.1.2" }
-casr = { git = "https://github.com/quangdang46/cross_agent_session_resumer", package = "cross_agent_session_resumer", rev = "aaee83d0049e2801aa1ffc5d18f22026bf78b225" }
+casr = { git = "https://github.com/quangdang46/cross_agent_session_resumer", package = "cross_agent_session_resumer", rev = "bac44dd20a9ccab2ba49e5821d2d5c0b7603f978" }
 qrcode = { version = "0.14.1", default-features = false }
 
 [features]
