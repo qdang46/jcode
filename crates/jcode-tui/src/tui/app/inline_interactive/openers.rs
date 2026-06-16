@@ -735,7 +735,17 @@ impl App {
 /// Map agent color name to a colored badge character.
 /// The actual color is rendered in the detail text.
 fn agent_color_icon(color: &str) -> Option<&'static str> {
-    Some("●")
+    match color {
+        "red" => Some("❤"),
+        "blue" => Some("💙"),
+        "green" => Some("💚"),
+        "yellow" => Some("💛"),
+        "purple" => Some("💜"),
+        "orange" => Some("🧡"),
+        "pink" => Some("🩷"),
+        "cyan" => Some("🩵"),
+        _ => Some("●"),
+    }
 }
 
 pub(crate) fn save_last_assistant_as_agent(session: &crate::session::Session) -> String {
