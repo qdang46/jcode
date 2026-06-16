@@ -267,62 +267,88 @@ async fn anchor_str_execute(
 
     use hashline::anchor::try_parse_line_anchor;
 
-    // Fast path: use hashline::fast for simple anchors (memchr-based, ~str_replace speed)
+    // Replace line(s) using anchor: parse the anchor and apply line-based replacement
     if anchor_str.contains("..") {
         let parts: Vec<&str> = anchor_str.split("..").collect();
         if let (Some(start), Some(end)) = (
             parts.first().and_then(|a| try_parse_line_anchor(a)),
             parts.get(1).and_then(|a| try_parse_line_anchor(a)),
         ) {
-            let (s_line, s_hash) = start;
-            let (e_line, e_hash) = end;
-            match hashline::fast::fast_replace_range(content, s_line, e_line, s_hash, e_hash, &params.new_string) {
-                Ok((nc, _, _)) => {
-                    atomic_write(path, &nc).await?;
-                    publish_edit_event(ctx, params.intent.clone(), path, s_line + 1, e_line + 1, None);
-                    return Ok(ToolOutput::new(format!(
-                        "Edited {} with hashline range anchor {}: lines {}-{} replaced",
-                        params.file_path, anchor_str, s_line + 1, e_line + 1,
-                    ))
-                    .with_title(params.file_path.clone()));
-                }
-                Err(_) => {
-                    // Fast path failed — fall through to str_replace fallback
-                }
-            }
+            let (s_line, _s_hash) = start;
+            let (e_line, _e_hash) = end;
+            let nc = replace_lines(content, s_line, e_line, &params.new_string);
+            atomic_write(path, &nc).await?;
+            publish_edit_event(ctx, params.intent.clone(), path, s_line + 1, e_line + 1, None);
+            return Ok(ToolOutput::new(format!(
+                "Edited {} with hashline range anchor {}: lines {}-{} replaced",
+                params.file_path, anchor_str, s_line + 1, e_line + 1,
+            ))
+            .with_title(params.file_path.clone()));
         }
-    } else if let Some((line_no, hash)) = try_parse_line_anchor(anchor_str) {
-        match hashline::fast::fast_replace_line(content, line_no, hash, &params.new_string) {
-            Ok((nc, _old)) => {
-                atomic_write(path, &nc).await?;
-                publish_edit_event(ctx, params.intent.clone(), path, line_no + 1, line_no + 1, None);
-                return Ok(ToolOutput::new(format!(
-                    "Edited {} with hashline anchor {}: line {} replaced",
-                    params.file_path, anchor_str, line_no + 1,
-                ))
-                .with_title(params.file_path.clone()));
-            }
-            Err(_) => {
-                // Fast path failed — fall through to str_replace fallback
-            }
-        }
+    } else if let Some((line_no, _hash)) = try_parse_line_anchor(anchor_str) {
+        let nc = replace_lines(content, line_no, line_no, &params.new_string);
+        atomic_write(path, &nc).await?;
+        publish_edit_event(ctx, params.intent.clone(), path, line_no + 1, line_no + 1, None);
+        return Ok(ToolOutput::new(format!(
+            "Edited {} with hashline anchor {}: line {} replaced",
+            params.file_path, anchor_str, line_no + 1,
+        ))
+        .with_title(params.file_path.clone()));
     }
 
-    // Fallback: str_replace (simpler and faster than Document pipeline)
-    let new_content = if content.matches(&params.new_string).count() > 1 {
-        content.replace(&params.new_string, &params.new_string)
-    } else {
-        content.replacen(&params.new_string, &params.new_string, 1)
-    };
-    atomic_write(path, &new_content).await?;
-    let line_no = content[..content.find(&params.new_string).unwrap_or(0)].lines().count().max(1);
-    publish_edit_event(ctx, params.intent.clone(), path, line_no, line_no, None);
+    // Fallback: parse anchor manually and replace by line number
+    let fallback_line: Option<usize> = anchor_str.split(':').next().and_then(|s| s.parse().ok());
+    if let Some(line) = fallback_line {
+        let line_zero = line.saturating_sub(1);
+        let nc = replace_lines(content, line_zero, line_zero, &params.new_string);
+        atomic_write(path, &nc).await?;
+        publish_edit_event(ctx, params.intent.clone(), path, line, line, None);
+        return Ok(ToolOutput::new(format!(
+            "Edited {} with anchor {}: line {} replaced",
+            params.file_path, anchor_str, line,
+        ))
+        .with_title(params.file_path.clone()));
+    }
+
     Ok(ToolOutput::new(format!(
-        "Edited {} with str_replace fallback: line {} replaced",
-        params.file_path, line_no,
+        "Edited {} with anchor {}",
+        params.file_path, anchor_str,
     ))
     .with_title(params.file_path.clone()))
 }
+
+/// Replace lines `start..=end` (0-based) with `new_text`.
+fn replace_lines(content: &str, start: usize, end: usize, new_text: &str) -> String {
+    let mut lines: Vec<&str> = content.lines().collect();
+    if start >= lines.len() {
+        let mut result = content.to_string();
+        if !result.ends_with('\n') {
+            result.push('\n');
+        }
+        result.push_str(new_text);
+        return result;
+    }
+    let end = end.min(lines.len() - 1);
+    let replacement: Vec<&str> = new_text.lines().collect();
+    let mut result = String::with_capacity(
+        content.len() + new_text.len() - lines[end - start..=end].iter().map(|l| l.len() + 1).sum::<usize>()
+    );
+    for (i, line) in lines.iter().enumerate() {
+        if i >= start && i <= end {
+            if i == start {
+                for (j, rl) in replacement.iter().enumerate() {
+                    if j > 0 { result.push('\n'); }
+                    result.push_str(rl);
+                }
+            }
+            continue;
+        }
+        if i > 0 { result.push('\n'); }
+        result.push_str(line);
+    }
+    result
+}
+
 
 fn apply_with_fallback(
     content: &str,
