@@ -279,19 +279,19 @@
 
 ### Missing / Partial Features (Priority)
 
-| Priority | Feature | Section | Effort | Reference |
-|----------|---------|---------|--------|-----------|
-| P0 | `/tasks` command | I-10 | Low | CCB: `src/commands/tasks/` |
-| P0 | `/agents save` | I-9 | Low | Parse ```toml from assistant message |
-| P1 | AI auto-save | I-9 | Medium | Hook turn completion |
-| P1 | Color picker UI | I-7 | Medium | CCB: ColorPicker.tsx (8 swatches) |
-| P2 | Agent edit menu | I-9 | Medium | CCB: AgentEditor.tsx |
-| P2 | Agent scopes | I-4 | Low | CCB: 4 scopes -> add managed + plugin |
-| P2 | Context visualization | I-3 | Medium | CCB: context command |
-| P2 | Creation wizard | I-9 | High | CCB: CreateAgentWizard.tsx (10+ steps) |
-| P2 | Sandbox integration | II | High | CCB: sandbox integration |
-| P3 | Interactive team mgmt | I-11 | High | oh-my-openagent: delegate-task |
-| — | Color badge rendering | I-7 | Low | Plain ● -> ratatui Span color |
+| Priority | Feature | Section | Effort | Reference | jcode Impl |
+|----------|---------|---------|--------|-----------|------------|
+| P0 | `/tasks` command | I-10 | Low | CCB: `src/commands/tasks/` | ✅ `/tasks` opens running items list |
+| P0 | `/agents save` | I-9 | Low | Parse ```toml from assistant message | ✅ `save_last_assistant_as_agent()` |
+| P1 | AI auto-save | I-9 | Medium | Hook turn completion | ✅ `auto_save_turn_agent()` in finish_turn |
+| P1 | Color picker UI | I-7 | Medium | CCB: ColorPicker.tsx (8 swatches) | ✅ `open_color_picker()` with 9 entries |
+| P2 | Agent edit menu | I-9 | Medium | CCB: AgentEditor.tsx | ⚠️ `SetAgentColor` done, model/tools pickers placeholder |
+| P2 | Agent scopes | I-4 | Low | CCB: 4 scopes | ✅ Builtin/UserGlobal/ProjectLocal |
+| P2 | Context visualization | I-3 | Medium | CCB: context command | ✅ ContextUsage widget wired |
+| P2 | Creation wizard | I-9 | High | CCB: CreateAgentWizard.tsx (10+ steps) | ❌ Not started |
+| P2 | Sandbox integration | II | High | CCB: sandbox integration | ❌ Skipped per request |
+| P3 | Interactive team mgmt | I-11 | High | oh-my-openagent: delegate-task | ❌ Not started |
+| — | Color badge rendering | I-7 | Low | Plain ● -> ratatui Span color | ✅ Emoji badges per color |
 
 ### Adding New Features
 
