@@ -530,6 +530,51 @@ grep -rn 'MemoryEntry {' --include='*.rs' | grep -v 'fn\|pub struct'
 
 **Prevention**: After merge, always run `cargo check` and grep for `missing field` / `no field named` errors before declaring merge complete. These are Category G signals.
 
+---
+
+## Sync Log
+
+### 2026-06-16 — v0.29.0 upstream sync (commit ff54caec)
+**Files**: 201 changed (+14848 -2850). **123 commits**. **Conflicts resolved**: 31 files.
+
+| Category | Area | Description |
+|----------|------|-------------|
+| 🔧 Refactor | **Anthropic 404 fallback** | `auth/lifecycle.rs` +644 -21, `provider/anthropic.rs` +347 -67 |
+| ✨ Feature | **Memory hybrid retrieval** | `find_similar_hybrid` (BM25 + RRF), `memory_rerank.rs` (+475), `embedding_backend.rs` (+120) |
+| ✨ Feature | **Sidecar all providers** | `SidecarBackend::Provider`, `ACTIVE_PROVIDER` static + `active_provider_fork()` |
+| 🐛 Bugfix | **Skill sort** | `skill.rs` `list()` sorts by name for deterministic KV cache — cherry-picked into ours |
+| 🐛 Bugfix | **Memory model tagging** | `MemoryEntry.embedding_model` field |
+| 🐛 Bugfix | **Swarm Inline** | `comm_session.rs` — Inline = Headless, `output_tail` field |
+| 🏗️ Build | **CI improvements** | Pre-install rust-src, pin RUSTUP_TOOLCHAIN=stable |
+| 🏗️ Build | **Version bump** | v0.29.0 |
+
+### 2026-06-15 — v0.28.0 upstream sync (commit 5bc6cf6b)
+**Files**: 85 changed (+5415 -278). **42 commits**. **Conflicts resolved**: 26 files.
+
+| Category | Area | Description |
+|----------|------|-------------|
+| ✨ Feature | **Swarm Inline Gallery** | `SwarmSpawnMode::Inline`, `output_tail`, live viewport |
+| 🐛 Bugfix | **Reload signal dedup** | Stale signal ignore on startup |
+| 🐛 Bugfix | **Browser focus** | `#[cfg()]` simplification |
+| 🐛 Bugfix | **CI race** | Replace sccache with rust-cache |
+| 🏗️ Build | **Version bump** | v0.28.0 |
+
+### 2026-06-14 — v0.27.0 upstream sync (commit 9a3faf37)
+**Files**: 146 changed (+6249 -193). **Conflicts resolved**: 26 files.
+
+| Category | Area | Description |
+|----------|------|-------------|
+| 🔧 Refactor | **Auth lifecycle** | `lifecycle.rs` rewrite (+287 -14) |
+| ✨ Feature | **Swarm Inline Gallery** | `SwarmSpawnMode::Inline`, live viewport tiles |
+| ✨ Feature | **Anthropic 404 Fallback** | Retry/fallback logic |
+| ✨ Feature | **CrossEncoder reranker** | `jcode-embedding` crate, memory refactor |
+| 🐛 Bugfix | **CI** | Pin `RUSTUP_TOOLCHAIN=stable`, pre-install `rust-src` |
+| 🏗️ Build | **Version bump** | v0.27.0 |
+
+---
+
+## Category Definitions (Summary)
+
 ### Category H: Blind Keep Ours Trap (NEW)
 
 **Symptom**: After resolving all conflicts with `--ours`, the fork works — but upstream's fix for a real bug was silently discarded.
