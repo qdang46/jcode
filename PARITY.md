@@ -285,6 +285,24 @@
 | **Progress tracking** | Progress percentage per goal. Updated via `update_goal()`. | CCB (token budget, turns) | `Goal.progress_percent: Option<u8>`. Updated through beads lifecycle. | ✅ | — |
 | **Goal lifecycle** | Status: active / done / cancelled / blocked. Create → update → complete. | CCB (set/clear/pause/resume/complete) | `GoalStatus` enum with full lifecycle. `create_goal()`, `update_goal()`, `load_goal()`. | ✅ | — |
 
+## VI. Session System
+
+*Session persistence, resume, cross-agent conversion, export, and compact.*
+
+| Name | Description | Source Repo(s) | jcode Impl | Status | Remaining |
+|------|-------------|----------------|------------|--------|-----------|
+| **JSONL snapshot + journal** | Session stored as JSON snapshot + append-only journal. Incremental save, atomic writes, backup files. | pi-agent-rust (SQLite), jcode (JSONL) | `persistence.rs`: `load_from_path()`, snapshot + journal merge. `load()`, `save()` with backup rotation. | ✅ | — |
+| **Session resume** | `jcode --resume <id>` to resume any session. Session picker with preview. | CCB (`claude --resume`), pi-agent-rust (`pi --session`) | `session_picker.rs`: full resume UI with preview. `workspace_client::queue_resume_session()`. | ✅ | — |
+| **Cross-agent session resume** | Convert sessions between 12 providers (jcode, CC, aider, opencode, codex, cursor, cline, pi, gemini, vibe, openclaw, chatgpt). `casr convert` pipeline. | CASR (cross_agent_session_resumer) | CASR v0.1.4 with 12 providers. `ConversionPipeline::convert()` with detection→read→validate→write→verify. Atomic write with backup. | ✅ | — |
+| **Session graph / memory topology** | Build graph topology from memory entries. Compute graph node scores for relevance ranking. | jcode (info_widget_graph) | `info_widget_graph.rs`: `build_graph_topology()`, `graph_node_score()`, `GraphEdge`, `GraphNode`. | ✅ | — |
+| **`/session` command** | View/manage current session. session info, history, resume. | CCB (`/session`) | `/session` command with session details. | ✅ | — |
+| **`/compact` command** | Compact session to reduce context window pressure. Micro-compact options. | CCB (`/compact`) | `/compact` command with mode selection. PreCompact/PostCompact hooks. | ✅ | — |
+| **`/export` command** | Export current conversation to `.txt` file. Format: Markdown with role headers. | CCB (`/export <filename>`) | `commands.rs`: `handle_export_command()` → writes to filename, shows message count + KB. | ✅ | — |
+| **`/transfer` command** | Transfer session to another jcode instance (remote). | CCB (session transfer) | `/transfer` command. | ✅ | — |
+| **Teammate view** | View subagent's stream inline without switching sessions. Panel with live status + output_tail + session load. | CCB (teammateView) | `viewing_teammate_session_id` field. Teammate view panel + output_tail + session file loading via snapshot. | ✅ | — |
+| **Session allow-list** | Per-session approved-tool cache for permission mode. `approve_session_action()`, `session_allows_action()`. | CCB (session permissions) | `dcg_bridge.rs`: `SESSION_ALLOWED_ACTIONS`. `approve_session_action()`, `clear_session_allowed_action()`. | ✅ | — |
+| **Session idle / error** | Session idle timeout handling. Session error reporting. | CCB (SessionIdle, SessionError) | `client_lifecycle.rs`: SessionIdle + SessionError hook dispatches. | ✅ | — |
+
 ## Summary
 | Section | Features | ✅ Complete | ⚠️ Partial | ❌ Missing |
 |---------|----------|-------------|-------------|-----------|
@@ -305,7 +323,8 @@
 | III — Hooks System | 34 | 34 | 0 | 0 |
 | IV — Keyword System | 10 | 9 | 1 | 0 |
 | V — Goal System | 8 | 8 | 0 | 0 |
-| **Total** | **137** | **130 (95%)** | **4 (3%)** | **1 (<1%)** |
+| VI — Session System | 11 | 11 | 0 | 0 |
+| **Total** | **148** | **141 (95%)** | **4 (3%)** | **1 (<1%)** |
 ### Missing / Partial Features (Priority)
 
 | Priority | Feature | Section | Effort | Reference | jcode Impl |
