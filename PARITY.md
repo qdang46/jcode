@@ -69,6 +69,7 @@
 | **Storage scopes** | Agent file directories. | CCB (managed/project/user/plugin) | `~/.jcode/agents/`, `.jcode/agents/` | ⚠️ | Add managed (read-only) + plugin scope. |
 | **Validation** | Validate agent file on load. Error/warning reporting. | CCB (AgentValidationResult) | `AgentDefinition::validate()` | ✅ | — |
 | **Prompt system** | 5 prompt slots. Cache sharing via inherit_parent_system_prompt (prompt cache prefix trick). | CCB (AgentTool prompts), oh-my-openagent (per-model prompts) | `definition.rs`: system/instructions/step/spawner prompts | ✅ | — |
+| **Snapshot update notification** | Detect agent file changes since last session. Show notification on startup. | CCB (SnapshotUpdateDialog) | `check_agent_snapshots()` in `openers.rs`. Runs at startup, compares mtime. | ✅ | — |
 
 ---
 
@@ -139,7 +140,7 @@
 | **`/agents save`** | Save generated agent TOML from last model response. | CCB (auto-save after AI gen) | `save_last_assistant_as_agent()` in `openers.rs` | ✅ | — |
 | **AI auto-save** | Model generates → auto-parse → auto-save. Zero manual steps. | CCB (generateAgent → programmatic save) | `auto_save_turn_agent()` in `local.rs` finish_turn hook | ✅ | — |
 | **Creation wizard** | Multi-step guided wizard: location → method → type → prompt → tools → model → color → confirm. | CCB (CreateAgentWizard.tsx — 10+ steps) | `open_creation_wizard()` in `openers.rs` (3-step: name → desc → $EDITOR) | ✅ | — |
-| **Edit menu** | Change model/tools/color via pickers, not raw file editing. | CCB (AgentEditor.tsx) | `SetAgentColor` via Library tab column 1, model/tools pickers via columns 2-3 | ⚠️ | Model/tools pickers wired but stubs |
+| **Edit menu** | Change model/tools/color via pickers, not raw file editing. | CCB (AgentEditor.tsx) | `SetAgentColor` via Library tab column 1, `SetAgentTools` via `open_tools_picker()` (16 tools), model picker via column 2 | ✅ | — |
 
 ---
 
@@ -163,7 +164,7 @@
 | **Swarm members** | Remote swarm member lifecycle. Status via ServerEvent::SwarmStatus. | CCB (swarm backends) | `remote_swarm_members: Vec<SwarmMemberStatus>` | ✅ | — |
 | **Swarm plan** | Plan synchronization. Plan proposals, coordinator mode. | CCB (coordinatorMode) | `swarm_plan_core.rs`, `ServerEvent::SwarmPlan` | ✅ | — |
 | **Info widget** | Swarm member status in margin. Icons, names, roles. | CCB (teammate banner) | `info_widget_swarm_background.rs`: `render_swarm_widget()` | ✅ | — |
-| **Agent teams** | Multi-agent task DAG. Team coordination. Interactive teammate view panel. | oh-my-openagent (Atlas/delegate-task), codebuff (4-agent pipeline), CCB (teams) | TeamView widget + teammate view panel + output_tail | ⚠️ | Panel shows live status, output_tail for inline output. Full session transcript loading via snapshot. |
+| **Agent teams** | Multi-agent task DAG. Team coordination. Interactive teammate view panel. | oh-my-openagent (Atlas/delegate-task), codebuff (4-agent pipeline), CCB (teams) | TeamView widget + `TeamViewInteraction` struct + teammate view panel + output_tail | ⚠️ | `TeamViewInteraction` struct added. Wire keyboard dispatch + claim/close actions. |
 
 ### 12. Built-in Agents
 
@@ -303,18 +304,17 @@
 | **Session allow-list** | Per-session approved-tool cache for permission mode. `approve_session_action()`, `session_allows_action()`. | CCB (session permissions) | `dcg_bridge.rs`: `SESSION_ALLOWED_ACTIONS`. `approve_session_action()`, `clear_session_allowed_action()`. | ✅ | — |
 | **Session idle / error** | Session idle timeout handling. Session error reporting. | CCB (SessionIdle, SessionError) | `client_lifecycle.rs`: SessionIdle + SessionError hook dispatches. | ✅ | — |
 
-## Summary
 | Section | Features | ✅ Complete | ⚠️ Partial | ❌ Missing |
 |---------|----------|-------------|-------------|-----------|
 | I-1 — Running Items | 5 | 5 | 0 | 0 |
 | I-2 — Detail Overlay | 5 | 5 | 0 | 0 |
 | I-3 — Session Attachment | 4 | 4 | 0 | 0 |
-| I-4 — Agent Definitions | 5 | 4 | 1 | 0 |
+| I-4 — Agent Definitions | 6 | 5 | 1 | 0 |
 | I-5 — Agent Lifecycle | 6 | 6 | 0 | 0 |
 | I-6 — Tool & Permission | 5 | 5 | 0 | 0 |
 | I-7 — Agent Colors | 3 | 3 | 0 | 0 |
 | I-8 — `/agents` Command | 7 | 7 | 0 | 0 |
-| I-9 — Agent Creation | 6 | 5 | 1 | 0 |
+| I-9 — Agent Creation | 6 | 6 | 0 | 0 |
 | I-10 — `/tasks` Command | 3 | 3 | 0 | 0 |
 | I-11 — Teams & Swarm | 4 | 3 | 1 | 0 |
 | I-12 — Built-in Agents | 5 | 5 | 0 | 0 |
@@ -324,14 +324,15 @@
 | IV — Keyword System | 10 | 9 | 1 | 0 |
 | V — Goal System | 8 | 8 | 0 | 0 |
 | VI — Session System | 11 | 11 | 0 | 0 |
-| **Total** | **148** | **141 (95%)** | **4 (3%)** | **1 (<1%)** |
+| **Total** | **149** | **143 (96%)** | **3 (2%)** | **1 (<1%)** |
+
 ### Missing / Partial Features (Priority)
 
 | Priority | Feature | Section | Effort | Reference | jcode Impl |
 |----------|---------|---------|--------|-----------|------------|
 | — | Agent scopes (plugin) | I-4 | Low | CCB: 4 scopes | ⚠️ Builtin/UserGlobal/ProjectLocal, plugin scope missing |
-| — | Agent edit menu (model/tools) | I-9 | Low | CCB: AgentEditor.tsx | ⚠️ Library tab columns 2-3 wired, need full implementation |
-| — | Agent teams interactive | I-11 | Low | CCB: teammate view | ⚠️ Teammate view panel + output_tail showing live output |
+| — | Agent teams interactive | I-11 | Low | CCB: teammate view | ⚠️ TeamViewInteraction struct added, needs keyboard wiring |
+| — | Deferred spawns | IV | Low | CCB: subagent spawn | ⚠️ DeferredSpawn queued, needs SubagentTool dispatch |
 | — | Sandbox integration | II | High | CCB: sandbox | ❌ Skipped per request |
 
 ### Adding New Features
