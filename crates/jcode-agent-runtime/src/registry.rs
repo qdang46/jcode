@@ -226,7 +226,9 @@ impl AgentRegistry {
                     let source = match source_kind {
                         SourceKind::Managed => AgentSource::Builtin,
                         SourceKind::UserGlobal => AgentSource::UserGlobal { path: path.clone() },
-                        SourceKind::ProjectLocal => AgentSource::ProjectLocal { path: path.clone() },
+                        SourceKind::ProjectLocal => {
+                            AgentSource::ProjectLocal { path: path.clone() }
+                        }
                     };
                     if matches!(source, AgentSource::ProjectLocal { .. })
                         && definition.permission_mode == Some(PermissionMode::BypassPermissions)

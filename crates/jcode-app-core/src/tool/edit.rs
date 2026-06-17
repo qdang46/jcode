@@ -83,9 +83,8 @@ fn apply_edit(
     let line_idx = line.saturating_sub(1);
 
     // Try xxh32 anchor verification (oh-my-pi native)
-    let anchor_valid = line_idx < entries.len()
-        && entries[line_idx].content.contains(old_string)
-        && {
+    let anchor_valid =
+        line_idx < entries.len() && entries[line_idx].content.contains(old_string) && {
             let short = hashline_hash::format_short_hash(entries[line_idx].short_hash);
             let anchor_str = format!("{}:{}", line, short);
             anchor::parse_anchor(&anchor_str)

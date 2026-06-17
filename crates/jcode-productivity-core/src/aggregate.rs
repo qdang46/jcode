@@ -106,7 +106,19 @@ pub fn build_report(scan: ScanResult) -> ProductivityReport {
     let tool = |name: &str| tools.get(name).copied().unwrap_or(0);
     r.code_edits = tool("edit") + tool("write") + tool("multiedit") + tool("apply_patch");
     r.commands_run = tool("bash");
-    r.searches = tool("grep") + tool("agentgrep") + tool("glob") + tool("ffs glob") + tool("ffs grep") + tool("ffs outline") + tool("ffs symbol") + tool("ffs find") + tool("ffs dispatch") + tool("ffs callers") + tool("ffs callees") + tool("ffs refs") + tool("ffs flow");
+    r.searches = tool("grep")
+        + tool("agentgrep")
+        + tool("glob")
+        + tool("ffs glob")
+        + tool("ffs grep")
+        + tool("ffs outline")
+        + tool("ffs symbol")
+        + tool("ffs find")
+        + tool("ffs dispatch")
+        + tool("ffs callers")
+        + tool("ffs callees")
+        + tool("ffs refs")
+        + tool("ffs flow");
     r.web_actions = tool("browser") + tool("websearch") + tool("webfetch");
 
     r.top_projects = top_n(projects, 8);

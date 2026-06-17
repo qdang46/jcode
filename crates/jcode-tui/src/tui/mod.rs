@@ -515,15 +515,25 @@ pub trait TuiState {
     fn suggestion_prompts(&self) -> Vec<(String, String)> {
         Vec::new()
     }
-    fn status_line_permission_mode(&self) -> &str { "default" }
+    fn status_line_permission_mode(&self) -> &str {
+        "default"
+    }
     /// Current model name for status line.
-    fn status_line_model(&self) -> String { String::new() }
+    fn status_line_model(&self) -> String {
+        String::new()
+    }
     /// Current provider name for status line.
-    fn status_line_provider(&self) -> String { String::new() }
+    fn status_line_provider(&self) -> String {
+        String::new()
+    }
     /// Context usage percentage (0-100).
-    fn status_line_context_pct(&self) -> Option<u8> { None }
+    fn status_line_context_pct(&self) -> Option<u8> {
+        None
+    }
     /// Tokens format in/out for status line.
-    fn status_line_tokens(&self) -> String { String::new() }
+    fn status_line_tokens(&self) -> String {
+        String::new()
+    }
     fn status_line_config(&self) -> &jcode_config_types::StatusLineConfig {
         static DEFAULT: std::sync::OnceLock<jcode_config_types::StatusLineConfig> =
             std::sync::OnceLock::new();
@@ -1018,19 +1028,31 @@ pub enum PickerAction {
     /// Generate an agent via AI ($EDITOR prompt → model generates → save).
     GenerateAgent,
     /// Open an existing agent definition file for editing.
-    EditAgent { agent_id: String, source_path: String },
+    EditAgent {
+        agent_id: String,
+        source_path: String,
+    },
     /// Open color picker for an agent.
     OpenColorPicker,
     /// Set agent color (None = automatic).
-    SetAgentColor { agent_id: String, color: Option<String> },
+    SetAgentColor {
+        agent_id: String,
+        color: Option<String>,
+    },
     /// Open model picker for an agent.
     OpenAgentModelPicker { agent_id: String },
     /// Open tools picker for an agent.
     OpenAgentToolsPicker { agent_id: String },
     /// Set agent tool allowlist.
-    SetAgentTools { agent_id: String, tools: Vec<String> },
+    SetAgentTools {
+        agent_id: String,
+        tools: Vec<String>,
+    },
     /// Delete an agent definition file.
-    DeleteAgent { agent_id: String, source_path: String },
+    DeleteAgent {
+        agent_id: String,
+        source_path: String,
+    },
 }
 
 /// Unified inline picker with three columns.
@@ -1133,14 +1155,12 @@ fn estimate_picker_action_bytes(action: &PickerAction) -> usize {
         | PickerAction::OpenColorPicker
         | PickerAction::SetAgentColor { .. }
         | PickerAction::OpenAgentModelPicker { .. }
-        | PickerAction::OpenAgentToolsPicker { .. } => 0,
-        | PickerAction::SetAgentTools { .. }
+        | PickerAction::OpenAgentToolsPicker { .. }
+        | PickerAction::SetAgentTools { .. } => 0,
         PickerAction::Account(AccountPickerAction::Switch { provider_id, label }) => {
             provider_id.capacity() + label.capacity()
         }
-        PickerAction::Account(AccountPickerAction::Add { provider_id }) => {
-            provider_id.capacity()
-        }
+        PickerAction::Account(AccountPickerAction::Add { provider_id }) => provider_id.capacity(),
         PickerAction::Account(AccountPickerAction::Replace { provider_id, label }) => {
             provider_id.capacity() + label.capacity()
         }
@@ -1420,7 +1440,11 @@ impl PickerOption {
             Some(cost) if cost > 0.0 => Some(format!("${:.2}/M in", cost)),
             Some(_) => Some("<$.01/M in".to_string()),
             None => self.estimated_reference_cost_micros.map(|c| {
-                if c == 0 { "Free".to_string() } else { format!("{}µs ref", c) }
+                if c == 0 {
+                    "Free".to_string()
+                } else {
+                    format!("{}µs ref", c)
+                }
             }),
         }
     }

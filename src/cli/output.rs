@@ -16,7 +16,10 @@ pub enum OutputFormat {
 /// # Panics
 /// Panics if `format` is [`OutputFormat::Plain`] — use `Plain` to select the
 /// human-readable path before calling this helper.
-pub fn emit_json_or_toon<T: serde::Serialize>(report: &T, format: OutputFormat) -> anyhow::Result<()> {
+pub fn emit_json_or_toon<T: serde::Serialize>(
+    report: &T,
+    format: OutputFormat,
+) -> anyhow::Result<()> {
     match format {
         OutputFormat::Json => {
             println!("{}", serde_json::to_string_pretty(report)?);

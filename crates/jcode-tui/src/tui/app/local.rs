@@ -532,12 +532,13 @@ pub(super) fn finish_turn(app: &mut App) {
     if !app.goal_continuation_disabled {
         let wd = app.session.working_dir.as_deref().map(std::path::Path::new);
         if let Ok(goals) = crate::goal::list_relevant_goals(wd) {
-            let has_active = goals.iter().any(|g| g.status != "done" && g.status != "cancelled");
+            let has_active = goals
+                .iter()
+                .any(|g| g.status != "done" && g.status != "cancelled");
             if has_active {
                 // Queue a continuation prompt to keep the model working
-                app.queued_messages.push(
-                    "Continue working toward the active goal. Report progress.".to_string()
-                );
+                app.queued_messages
+                    .push("Continue working toward the active goal. Report progress.".to_string());
                 app.set_status_notice("Continuing toward goal...");
             }
         }
@@ -549,7 +550,8 @@ impl App {
     /// agent definition and auto-save it to the agents directory.
     /// This enables the "AI auto-save" flow: model generates → auto-parse → auto-save.
     pub fn auto_save_turn_agent(&mut self) {
-        let result = super::inline_interactive::openers::save_last_assistant_as_agent(&self.session);
+        let result =
+            super::inline_interactive::openers::save_last_assistant_as_agent(&self.session);
         if result.starts_with("Agent '") {
             self.set_status_notice(result);
         }

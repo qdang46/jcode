@@ -13,7 +13,6 @@ use unicode_width::UnicodeWidthStr;
 
 const MAX_INLINE_DIFF_LINES: usize = 12;
 
-
 fn prefer_width_stable_system_glyphs() -> bool {
     std::env::var("TERM_PROGRAM")
         .ok()
@@ -1833,9 +1832,13 @@ pub(crate) fn render_tool_message(
         let detail_width = row_width.saturating_sub(4).max(1);
         if detail_width >= 20 {
             let summary = tools_ui::get_tool_summary_with_budget(tc, 60, Some(detail_width));
-            let cmd_display = if !summary.trim().is_empty() { summary }
-            else {
-                let input_val = tc.input.get("command").and_then(|v| v.as_str())
+            let cmd_display = if !summary.trim().is_empty() {
+                summary
+            } else {
+                let input_val = tc
+                    .input
+                    .get("command")
+                    .and_then(|v| v.as_str())
                     .or_else(|| tc.input.get("file_path").and_then(|v| v.as_str()))
                     .or_else(|| tc.input.get("path").and_then(|v| v.as_str()))
                     .or_else(|| tc.input.get("name").and_then(|v| v.as_str()))
@@ -1845,14 +1848,19 @@ pub(crate) fn render_tool_message(
                     .or_else(|| tc.input.get("message").and_then(|v| v.as_str()))
                     .or_else(|| tc.input.get("spec").and_then(|v| v.as_str()))
                     .unwrap_or("");
-                if input_val.is_empty() { String::new() }
-                else { format!("$ {}", input_val) }
+                if input_val.is_empty() {
+                    String::new()
+                } else {
+                    format!("$ {}", input_val)
+                }
             };
 
             if !cmd_display.is_empty() {
                 // Build oh-my-pi style box manually (render_sharp_box adds │ to separator).
                 let box_w = row_width.min(120) as usize;
-                if box_w < 20 { return lines; }
+                if box_w < 20 {
+                    return lines;
+                }
                 let inner_w = box_w.saturating_sub(4);
 
                 // Top: ┌─ bash ─┐
@@ -1866,8 +1874,19 @@ pub(crate) fn render_tool_message(
                 )));
 
                 // Command: │ $ cargo build │
-                let cmd_text = format!("│ {} {} │", cmd_display, " ".repeat(inner_w.saturating_sub(unicode_width::UnicodeWidthStr::width(cmd_display.as_str()))));
-                lines.push(Line::from(Span::styled(cmd_text, Style::default().fg(box_color))));
+                let cmd_text = format!(
+                    "│ {} {} │",
+                    cmd_display,
+                    " ".repeat(
+                        inner_w.saturating_sub(unicode_width::UnicodeWidthStr::width(
+                            cmd_display.as_str()
+                        ))
+                    )
+                );
+                lines.push(Line::from(Span::styled(
+                    cmd_text,
+                    Style::default().fg(box_color),
+                )));
                 // Always show full output (collapse is at GROUP level, not per-tool).
                 let output_lines = render_plaintext_lines(&msg.content, inner_w.min(detail_width));
                 let total_output = output_lines.len();
@@ -1886,24 +1905,49 @@ pub(crate) fn render_tool_message(
                         let mut w = 0usize;
                         for ch in lt.chars() {
                             let cw = unicode_width::UnicodeWidthChar::width(ch).unwrap_or(0);
-                            if w + cw > inner_w { break; }
+                            if w + cw > inner_w {
+                                break;
+                            }
                             trimmed.push(ch);
                             w += cw;
                         }
-                        let padded = format!("│ {} {} │", trimmed, " ".repeat(inner_w.saturating_sub(w)));
-                        lines.push(Line::from(Span::styled(padded, Style::default().fg(rgb(180, 180, 190)))));
+                        let padded =
+                            format!("│ {} {} │", trimmed, " ".repeat(inner_w.saturating_sub(w)));
+                        lines.push(Line::from(Span::styled(
+                            padded,
+                            Style::default().fg(rgb(180, 180, 190)),
+                        )));
                     }
                     if total_output > max_show {
                         let more = format!("  … {} more lines", total_output - max_show);
-                        let padded = format!("│ {}{} │", more, " ".repeat(inner_w.saturating_sub(unicode_width::UnicodeWidthStr::width(more.as_str()))));
-                        lines.push(Line::from(Span::styled(padded, Style::default().fg(rgb(120, 120, 130)))));
+                        let padded = format!(
+                            "│ {}{} │",
+                            more,
+                            " ".repeat(inner_w.saturating_sub(
+                                unicode_width::UnicodeWidthStr::width(more.as_str())
+                            ))
+                        );
+                        lines.push(Line::from(Span::styled(
+                            padded,
+                            Style::default().fg(rgb(120, 120, 130)),
+                        )));
                     }
                 }
                 // Footer: exit status when failed
                 if is_error {
                     let exit_text = " ⟦ exit 1 ⟧ ";
-                    let padded = format!("│ {}{} │", exit_text, " ".repeat(inner_w.saturating_sub(unicode_width::UnicodeWidthStr::width(exit_text))));
-                    lines.push(Line::from(Span::styled(padded, Style::default().fg(rgb(100, 100, 110)))));
+                    let padded = format!(
+                        "│ {}{} │",
+                        exit_text,
+                        " ".repeat(
+                            inner_w
+                                .saturating_sub(unicode_width::UnicodeWidthStr::width(exit_text))
+                        )
+                    );
+                    lines.push(Line::from(Span::styled(
+                        padded,
+                        Style::default().fg(rgb(100, 100, 110)),
+                    )));
                 }
 
                 // Bottom: └──┘

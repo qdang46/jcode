@@ -223,18 +223,38 @@ fn save_model_prefs(prefs: &ModelPreferences) {
 }
 
 fn model_prefs_push_recent(prefs: &mut ModelPreferences, entry_name: &str, route: &PickerOption) {
-    prefs.recent.retain(|e| !(e.model_name == entry_name && e.provider == route.provider && e.api_method == route.api_method));
-    prefs.recent.insert(0, ModelRecentEntry {
-        model_name: entry_name.to_string(),
-        provider: route.provider.clone(),
-        api_method: route.api_method.clone(),
-        selected_at_unix: std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs(),
+    prefs.recent.retain(|e| {
+        !(e.model_name == entry_name
+            && e.provider == route.provider
+            && e.api_method == route.api_method)
     });
+    prefs.recent.insert(
+        0,
+        ModelRecentEntry {
+            model_name: entry_name.to_string(),
+            provider: route.provider.clone(),
+            api_method: route.api_method.clone(),
+            selected_at_unix: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs(),
+        },
+    );
     prefs.recent.truncate(5);
 }
 
 fn model_prefs_recent_models(prefs: &ModelPreferences) -> Vec<(String, String, String)> {
-    prefs.recent.iter().map(|e| (e.model_name.clone(), e.provider.clone(), e.api_method.clone())).collect()
+    prefs
+        .recent
+        .iter()
+        .map(|e| {
+            (
+                e.model_name.clone(),
+                e.provider.clone(),
+                e.api_method.clone(),
+            )
+        })
+        .collect()
 }
 
 fn picker_is_runtime_model_picker(picker: &InlineInteractiveState) -> bool {
@@ -1057,10 +1077,19 @@ impl App {
             model_options
                 .entry(r.model.clone())
                 .or_default()
-                .push(PickerOption { provider: r.provider.clone(),
-                api_method: r.api_method.clone(),
-                available: r.available,
-                detail: r.detail.clone(), estimated_reference_cost_micros: r.estimated_reference_cost_micros(), context_window: None, latency_ms: None, cost_per_million_input: None, cost_per_million_output: None, is_free: false, is_latest: false, });
+                .push(PickerOption {
+                    provider: r.provider.clone(),
+                    api_method: r.api_method.clone(),
+                    available: r.available,
+                    detail: r.detail.clone(),
+                    estimated_reference_cost_micros: r.estimated_reference_cost_micros(),
+                    context_window: None,
+                    latency_ms: None,
+                    cost_per_million_input: None,
+                    cost_per_million_output: None,
+                    is_free: false,
+                    is_latest: false,
+                });
         }
         let grouping_ms = grouping_started.elapsed().as_millis();
 
@@ -1183,34 +1212,38 @@ impl App {
                                 &current_model,
                                 &current_provider,
                             );
-                        entries.push(PickerEntry { name: display_name.clone(),
-                        options: vec![route.clone()],
-                        action: PickerAction::Model,
-                        selected_option: 0,
-                        is_current: is_this_current,
-                        recommended: *effort == "high"
-                            && model_picker_route_is_recommended(name, route),
-                        recommendation_rank: model_picker_recommendation_rank(name),
-                        usage_score: model_picker_usage_score(
-                            &usage_store,
-                            name,
-                            route,
-                            Some(effort),
-                        ),
-                        old: old_threshold_secs > 0
-                            && or_created.map(|t| t < old_threshold_secs).unwrap_or(false),
-                        created_date: or_created.map(format_created),
-                        effort: Some(effort.to_string()),
-                        is_default: is_config_default(name, route),
-                        is_favorite: model_picker_is_favorite(
-                            &favorites_store,
-                            name,
-                            route,
-                            Some(effort),
-                        ),
-                        is_free: route.estimated_reference_cost_micros == Some(0),
-                        is_latest: latest_threshold_secs > 0
-                            && or_created.map(|t| t > latest_threshold_secs).unwrap_or(false), });
+                        entries.push(PickerEntry {
+                            name: display_name.clone(),
+                            options: vec![route.clone()],
+                            action: PickerAction::Model,
+                            selected_option: 0,
+                            is_current: is_this_current,
+                            recommended: *effort == "high"
+                                && model_picker_route_is_recommended(name, route),
+                            recommendation_rank: model_picker_recommendation_rank(name),
+                            usage_score: model_picker_usage_score(
+                                &usage_store,
+                                name,
+                                route,
+                                Some(effort),
+                            ),
+                            old: old_threshold_secs > 0
+                                && or_created.map(|t| t < old_threshold_secs).unwrap_or(false),
+                            created_date: or_created.map(format_created),
+                            effort: Some(effort.to_string()),
+                            is_default: is_config_default(name, route),
+                            is_favorite: model_picker_is_favorite(
+                                &favorites_store,
+                                name,
+                                route,
+                                Some(effort),
+                            ),
+                            is_free: route.estimated_reference_cost_micros == Some(0),
+                            is_latest: latest_threshold_secs > 0
+                                && or_created
+                                    .map(|t| t > latest_threshold_secs)
+                                    .unwrap_or(false),
+                        });
                     }
                 }
             } else {
@@ -1226,22 +1259,26 @@ impl App {
                         &current_provider,
                     );
                     let is_default = is_config_default(name, &route);
-                    entries.push(PickerEntry { name: name.clone(),
-                    options: vec![route.clone()],
-                    action: PickerAction::Model,
-                    selected_option: 0,
-                    is_current,
-                    recommended: is_recommended,
-                    recommendation_rank: model_picker_recommendation_rank(name),
-                    usage_score: model_picker_usage_score(&usage_store, name, &route, None),
-                    old: is_old,
-                    created_date: or_created.map(format_created),
-                    effort: None,
-                    is_default,
-                    is_favorite: model_picker_is_favorite(&favorites_store, name, &route, None),
+                    entries.push(PickerEntry {
+                        name: name.clone(),
+                        options: vec![route.clone()],
+                        action: PickerAction::Model,
+                        selected_option: 0,
+                        is_current,
+                        recommended: is_recommended,
+                        recommendation_rank: model_picker_recommendation_rank(name),
+                        usage_score: model_picker_usage_score(&usage_store, name, &route, None),
+                        old: is_old,
+                        created_date: or_created.map(format_created),
+                        effort: None,
+                        is_default,
+                        is_favorite: model_picker_is_favorite(&favorites_store, name, &route, None),
                         is_free: route.estimated_reference_cost_micros == Some(0),
                         is_latest: latest_threshold_secs > 0
-                            && or_created.map(|t| t > latest_threshold_secs).unwrap_or(false), });
+                            && or_created
+                                .map(|t| t > latest_threshold_secs)
+                                .unwrap_or(false),
+                    });
                 }
             }
         }
@@ -1320,7 +1357,11 @@ impl App {
         // Insert section headers grouped by provider name.
         // Walk the sorted entries and group by provider (from first option).
         // Prepend a SectionHeader entry before each provider group.
-        if !entries.is_empty() && entries.iter().any(|e| matches!(e.action, PickerAction::Model)) {
+        if !entries.is_empty()
+            && entries
+                .iter()
+                .any(|e| matches!(e.action, PickerAction::Model))
+        {
             let mut sectioned: Vec<PickerEntry> = Vec::with_capacity(entries.len() + 16);
             let mut current_provider: Option<String> = None;
             for entry in &entries {
@@ -2631,7 +2672,7 @@ impl App {
                     if picker.uses_compact_navigation() {
                         return Ok(());
                     }
-                if picker.kind == PickerKind::Agents  {
+                    if picker.kind == PickerKind::Agents {
                         if picker.column == 0 {
                             picker.column = 1;
                             picker.selected = 0;
@@ -2639,7 +2680,10 @@ impl App {
                         }
                         return Ok(());
                     }
-                    if matches!(code, KeyCode::Tab) && picker.column == 0 && !picker.filter.is_empty() {
+                    if matches!(code, KeyCode::Tab)
+                        && picker.column == 0
+                        && !picker.filter.is_empty()
+                    {
                         Self::tab_complete_inline_interactive_filter(picker);
                     } else if picker.column < picker.max_navigable_column()
                         && let Some(&idx) = picker.filtered.get(picker.selected)
@@ -2651,7 +2695,7 @@ impl App {
             }
             KeyCode::BackTab | KeyCode::Left => {
                 if let Some(ref mut picker) = self.inline_interactive_state {
-                    if picker.kind == PickerKind::Agents  {
+                    if picker.kind == PickerKind::Agents {
                         if picker.column >= 1 {
                             picker.column = 0;
                             picker.selected = 0;
@@ -2769,14 +2813,15 @@ impl App {
 
                 if matches!(entry.action, PickerAction::SectionHeader) {
                     // Section headers are not selectable — move to next entry.
-                    picker.selected = picker.selected.saturating_add(1).min(
-                        picker.filtered.len().saturating_sub(1),
-                    );
+                    picker.selected = picker
+                        .selected
+                        .saturating_add(1)
+                        .min(picker.filtered.len().saturating_sub(1));
                     return Ok(());
                 }
 
                 // Agents picker: Running tab → open running items list
-                if picker.kind == PickerKind::Agents  && picker.column == 0 {
+                if picker.kind == PickerKind::Agents && picker.column == 0 {
                     self.inline_interactive_state = None;
                     self.running_items_state.visible = true;
                     self.running_items_state.detail_open = false;
@@ -2796,14 +2841,19 @@ impl App {
                             // Column 1: open color picker
                             let id = agent_id.clone();
                             self.inline_interactive_state = None;
-                            crate::tui::app::inline_interactive::openers::open_color_picker(self, &id);
+                            crate::tui::app::inline_interactive::openers::open_color_picker(
+                                self, &id,
+                            );
                             return Ok(());
                         }
                         if picker.column == 2 {
                             // Column 2: open model picker
                             self.inline_interactive_state = None;
                             // Open the existing model picker for this agent
-                            self.set_status_notice(format!("Model picker for {} — coming soon", agent_id));
+                            self.set_status_notice(format!(
+                                "Model picker for {} — coming soon",
+                                agent_id
+                            ));
                             return Ok(());
                         }
                     }
@@ -2889,14 +2939,23 @@ impl App {
 # Example: Create a code reviewer that uses Read, Grep, and Glob to review PRs.
 ";
                         let raw = crossterm::terminal::is_raw_mode_enabled().unwrap_or(false);
-                        if raw { let _ = crossterm::terminal::disable_raw_mode(); }
-                        let _ = crossterm::execute!(std::io::stdout(),
+                        if raw {
+                            let _ = crossterm::terminal::disable_raw_mode();
+                        }
+                        let _ = crossterm::execute!(
+                            std::io::stdout(),
                             crossterm::terminal::LeaveAlternateScreen,
-                            crossterm::cursor::Show);
-                        let description = super::input::edit_text_in_external_editor(prompt_template);
-                        let _ = crossterm::execute!(std::io::stdout(),
-                            crossterm::terminal::EnterAlternateScreen);
-                        if raw { let _ = crossterm::terminal::enable_raw_mode(); }
+                            crossterm::cursor::Show
+                        );
+                        let description =
+                            super::input::edit_text_in_external_editor(prompt_template);
+                        let _ = crossterm::execute!(
+                            std::io::stdout(),
+                            crossterm::terminal::EnterAlternateScreen
+                        );
+                        if raw {
+                            let _ = crossterm::terminal::enable_raw_mode();
+                        }
                         match description {
                             Ok(desc) if !desc.trim().is_empty() => {
                                 // Queue to current model
@@ -2908,14 +2967,19 @@ Wrap in ```toml ... ``` code block.
 
 User's request:
 {}
-"#, desc.trim());
+"#,
+                                    desc.trim()
+                                );
                                 self.queued_messages.push(request);
                                 self.set_status_notice("Generating agent via AI... see response above. Save with /agents save");
                             }
                             _ => self.set_status_notice("Agent generation canceled"),
                         }
                     }
-                    PickerAction::EditAgent { agent_id, source_path } => {
+                    PickerAction::EditAgent {
+                        agent_id,
+                        source_path,
+                    } => {
                         self.inline_interactive_state = None;
                         let raw = crossterm::terminal::is_raw_mode_enabled().unwrap_or(false);
                         if raw {
@@ -2941,14 +3005,23 @@ User's request:
                         }
                         match status {
                             Ok(_) => self.set_status_notice(format!("Edited agent: {}", agent_id)),
-                            Err(e) => self.set_status_notice(format!("Failed to edit agent: {}", e)),
+                            Err(e) => {
+                                self.set_status_notice(format!("Failed to edit agent: {}", e))
+                            }
                         }
                     }
-                    PickerAction::DeleteAgent { agent_id, source_path } => {
+                    PickerAction::DeleteAgent {
+                        agent_id,
+                        source_path,
+                    } => {
                         self.inline_interactive_state = None;
                         match std::fs::remove_file(&source_path) {
-                            Ok(()) => self.set_status_notice(format!("Deleted agent: {}", agent_id)),
-                            Err(e) => self.set_status_notice(format!("Failed to delete agent: {}", e)),
+                            Ok(()) => {
+                                self.set_status_notice(format!("Deleted agent: {}", agent_id))
+                            }
+                            Err(e) => {
+                                self.set_status_notice(format!("Failed to delete agent: {}", e))
+                            }
                         }
                     }
                     PickerAction::AgentTarget(target) => {
@@ -3092,10 +3165,13 @@ User's request:
                             self.pending_route_selection = Some(route_selection);
                             self.pending_model_switch = Some(spec);
                         } else {
-                            let route_result = self.provider.set_route_selection(&route_selection).or_else(|_| {
-                                self.provider.on_auth_changed();
-                                self.provider.set_route_selection(&route_selection)
-                            });
+                            let route_result = self
+                                .provider
+                                .set_route_selection(&route_selection)
+                                .or_else(|_| {
+                                    self.provider.on_auth_changed();
+                                    self.provider.set_route_selection(&route_selection)
+                                });
                             match route_result {
                                 Ok(()) => {
                                     self.inline_interactive_state = None;
@@ -3115,9 +3191,8 @@ User's request:
                                     self.session.route_api_method =
                                         Some(route_selection.api_method.clone());
                                     // Persist the model as default for future sessions.
-                                    match crate::config::Config::set_default_model_only(
-                                        Some(&spec),
-                                    ) {
+                                    match crate::config::Config::set_default_model_only(Some(&spec))
+                                    {
                                         Ok(()) => {}
                                         Err(e) => {
                                             crate::logging::warn(&format!(
@@ -3184,24 +3259,36 @@ User's request:
                         self.inline_interactive_state = None;
                         let home = match dirs::home_dir() {
                             Some(h) => h.join(".jcode").join("agents"),
-                            None => { self.set_status_notice("No home dir"); return Ok(()); }
+                            None => {
+                                self.set_status_notice("No home dir");
+                                return Ok(());
+                            }
                         };
                         let path = home.join(format!("{}.toml", agent_id));
                         match std::fs::read_to_string(&path) {
                             Ok(content) => {
                                 // Rewrite the file with/without color field
                                 let color_val = color.as_deref().unwrap_or("");
-                                let lines: Vec<&str> = content.lines().filter(|l| !l.starts_with("color =")).collect();
+                                let lines: Vec<&str> = content
+                                    .lines()
+                                    .filter(|l| !l.starts_with("color ="))
+                                    .collect();
                                 let new_content = if color_val.is_empty() {
                                     lines.join("\n")
                                 } else {
-                                    let base = lines.iter().copied().collect::<Vec<&str>>().join("\n");
+                                    let base =
+                                        lines.iter().copied().collect::<Vec<&str>>().join("\n");
                                     format!("{}\ncolor = \"{}\"", base, color_val)
                                 };
                                 let _ = std::fs::write(&path, &new_content);
-                                self.set_status_notice(format!("Agent {} color set to {}", agent_id, color_val));
+                                self.set_status_notice(format!(
+                                    "Agent {} color set to {}",
+                                    agent_id, color_val
+                                ));
                             }
-                            Err(e) => self.set_status_notice(format!("Failed to read agent: {}", e)),
+                            Err(e) => {
+                                self.set_status_notice(format!("Failed to read agent: {}", e))
+                            }
                         }
                     }
 
@@ -3209,14 +3296,22 @@ User's request:
                         self.inline_interactive_state = None;
                         let home = match dirs::home_dir() {
                             Some(h) => h.join(".jcode").join("agents"),
-                            None => { self.set_status_notice("No home dir"); return Ok(()); }
+                            None => {
+                                self.set_status_notice("No home dir");
+                                return Ok(());
+                            }
                         };
                         let path = home.join(format!("{}.toml", agent_id));
                         match std::fs::read_to_string(&path) {
                             Ok(content) => {
                                 // Rewrite tool_names field
-                                let tools_json: String = tools.iter().map(|t| format!("\"{}\"", t)).collect::<Vec<_>>().join(", ");
-                                let lines: Vec<String> = content.lines()
+                                let tools_json: String = tools
+                                    .iter()
+                                    .map(|t| format!("\"{}\"", t))
+                                    .collect::<Vec<_>>()
+                                    .join(", ");
+                                let lines: Vec<String> = content
+                                    .lines()
                                     .filter(|l| !l.trim().starts_with("tool_names"))
                                     .collect::<Vec<_>>()
                                     .iter()
@@ -3226,7 +3321,9 @@ User's request:
                                     lines.join("\n")
                                 } else {
                                     // Insert tool_names before system_prompt or at end
-                                    let idx = lines.iter().position(|l| l.trim().starts_with("system_prompt"))
+                                    let idx = lines
+                                        .iter()
+                                        .position(|l| l.trim().starts_with("system_prompt"))
                                         .unwrap_or(lines.len());
                                     let mut result = lines[..idx].join("\n");
                                     result.push_str(&format!("\ntool_names = [{}]", tools_json));
@@ -3239,16 +3336,23 @@ User's request:
                                 let _ = std::fs::write(&path, &new_content);
                                 self.set_status_notice(format!("Agent {} tools set", agent_id));
                             }
-                            Err(e) => self.set_status_notice(format!("Failed to read agent: {}", e)),
+                            Err(e) => {
+                                self.set_status_notice(format!("Failed to read agent: {}", e))
+                            }
                         }
                     }
                     PickerAction::OpenAgentModelPicker { agent_id } => {
                         self.inline_interactive_state = None;
-                        self.set_status_notice(format!("Model picker for {} — coming soon", agent_id));
+                        self.set_status_notice(format!(
+                            "Model picker for {} — coming soon",
+                            agent_id
+                        ));
                     }
                     PickerAction::OpenAgentToolsPicker { agent_id } => {
                         self.inline_interactive_state = None;
-                        crate::tui::app::inline_interactive::openers::open_tools_picker(self, &agent_id);
+                        crate::tui::app::inline_interactive::openers::open_tools_picker(
+                            self, &agent_id,
+                        );
                     }
                 }
             }

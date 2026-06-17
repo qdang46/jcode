@@ -91,7 +91,8 @@ fn emit_report(report: &DoctorReport, emit_json: bool, emit_toon: bool) {
         } else {
             crate::cli::output::OutputFormat::Json
         };
-        crate::cli::output::emit_json_or_toon(&report_to_json_value(report), fmt).unwrap_or_default();
+        crate::cli::output::emit_json_or_toon(&report_to_json_value(report), fmt)
+            .unwrap_or_default();
     } else {
         let colorize = std::io::stdout().is_terminal()
             && std::env::var_os("NO_COLOR").is_none()
@@ -238,6 +239,5 @@ fn report_to_json_value(report: &DoctorReport) -> serde_json::Value {
 }
 
 fn report_to_json(report: &DoctorReport) -> String {
-    serde_json::to_string_pretty(&report_to_json_value(report))
-        .unwrap_or_else(|_| "{}".to_string())
+    serde_json::to_string_pretty(&report_to_json_value(report)).unwrap_or_else(|_| "{}".to_string())
 }

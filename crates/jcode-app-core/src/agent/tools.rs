@@ -137,7 +137,8 @@ pub(super) fn print_tool_summary(tool: &ToolCall) {
                 println!("{}", path);
             }
         }
-        "glob" | "ffs glob" | "grep" | "ffs grep" | "ffs outline" | "ffs symbol" | "ffs find" | "ffs dispatch" | "ffs callers" | "ffs callees" | "ffs refs" | "ffs flow" => {
+        "glob" | "ffs glob" | "grep" | "ffs grep" | "ffs outline" | "ffs symbol" | "ffs find"
+        | "ffs dispatch" | "ffs callers" | "ffs callees" | "ffs refs" | "ffs flow" => {
             if let Some(pattern) = tool.input.get("pattern").and_then(|v| v.as_str()) {
                 println!("'{}'", pattern);
             }

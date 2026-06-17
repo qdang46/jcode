@@ -1403,15 +1403,22 @@ pub(super) fn handle_alt_key(app: &mut App, code: KeyCode) -> bool {
             let mode_str = crate::dcg_bridge::mode_to_str(mode);
             let _ = crate::config::Config::set_permission_mode(mode_str);
             if mode_str == "plan" {
-                app.set_status_notice("⚠ Plan mode: writes are blocked. Read-only. Esc to exit plan mode.");
+                app.set_status_notice(
+                    "⚠ Plan mode: writes are blocked. Read-only. Esc to exit plan mode.",
+                );
             } else if mode_str == "auto" {
-                app.set_status_notice("Permission mode → auto (strip dangerous rules, AI-autopilot)");
+                app.set_status_notice(
+                    "Permission mode → auto (strip dangerous rules, AI-autopilot)",
+                );
             } else {
                 app.set_status_notice(format!("Permission mode → {mode_str}"));
             }
             // Safety: strip dangerous permissions when entering Auto mode
             if mode_str == "auto" {
-                crate::dcg_bridge::strip_dangerous_permissions_for_mode(&app.session.id, crate::dcg_bridge::current_mode());
+                crate::dcg_bridge::strip_dangerous_permissions_for_mode(
+                    &app.session.id,
+                    crate::dcg_bridge::current_mode(),
+                );
             }
             true
         }
@@ -1806,15 +1813,12 @@ pub(super) fn handle_modal_key(
         match code {
             // Up/Down arrows or Tab/Shift+Tab to cycle selection
             KeyCode::Up | KeyCode::Char('k') if modifiers == KeyModifiers::ALT => {
-                app.pending_permission_selected =
-                    app.pending_permission_selected.saturating_sub(1);
+                app.pending_permission_selected = app.pending_permission_selected.saturating_sub(1);
                 return Ok(true);
             }
             KeyCode::Down | KeyCode::Char('j') if modifiers == KeyModifiers::ALT => {
-                app.pending_permission_selected = app
-                    .pending_permission_selected
-                    .saturating_add(1)
-                    .min(3);
+                app.pending_permission_selected =
+                    app.pending_permission_selected.saturating_add(1).min(3);
                 return Ok(true);
             }
             KeyCode::Tab | KeyCode::BackTab => {
@@ -1822,10 +1826,8 @@ pub(super) fn handle_modal_key(
                     app.pending_permission_selected =
                         app.pending_permission_selected.saturating_sub(1);
                 } else {
-                    app.pending_permission_selected = app
-                        .pending_permission_selected
-                        .saturating_add(1)
-                        .min(3);
+                    app.pending_permission_selected =
+                        app.pending_permission_selected.saturating_add(1).min(3);
                 }
                 return Ok(true);
             }
@@ -2289,7 +2291,6 @@ impl App {
             return Ok(());
         }
 
-
         // Running items list navigation (when visible below status bar)
         if self.running_items_state.visible {
             match code {
@@ -2309,8 +2310,15 @@ impl App {
                 KeyCode::Enter => {
                     if self.running_items_state.detail_open {
                         // Enter while detail is open: enter teammate view (CCB style)
-                        let session_switch = self.running_items_state.items.get(self.running_items_state.selected)
-                            .and_then(|item| item.session_id.as_ref().map(|sid| (item.label.clone(), sid.clone())));
+                        let session_switch = self
+                            .running_items_state
+                            .items
+                            .get(self.running_items_state.selected)
+                            .and_then(|item| {
+                                item.session_id
+                                    .as_ref()
+                                    .map(|sid| (item.label.clone(), sid.clone()))
+                            });
                         if let Some((label, sid)) = session_switch {
                             self.running_items_state.visible = false;
                             self.running_items_state.detail_open = false;
@@ -2343,7 +2351,10 @@ impl App {
                     return Ok(());
                 }
                 // Ctrl+C while viewing teammate → cancel the teammate
-                KeyCode::Char('c') if self.viewing_teammate_session_id.is_some() && modifiers.contains(KeyModifiers::CONTROL) => {
+                KeyCode::Char('c')
+                    if self.viewing_teammate_session_id.is_some()
+                        && modifiers.contains(KeyModifiers::CONTROL) =>
+                {
                     self.set_status_notice("Cancelled teammate");
                     self.viewing_teammate_session_id = None;
                     self.view_teammate_selection = false;
@@ -2351,8 +2362,15 @@ impl App {
                     return Ok(());
                 }
                 // Cancel/stop the selected running item (Ctrl+C or Backspace when detail open)
-                KeyCode::Char('c') if self.running_items_state.detail_open && modifiers.contains(KeyModifiers::CONTROL) => {
-                    if let Some(item) = self.running_items_state.items.get(self.running_items_state.selected) {
+                KeyCode::Char('c')
+                    if self.running_items_state.detail_open
+                        && modifiers.contains(KeyModifiers::CONTROL) =>
+                {
+                    if let Some(item) = self
+                        .running_items_state
+                        .items
+                        .get(self.running_items_state.selected)
+                    {
                         self.set_status_notice(format!("Cancel requested for: {}", item.label));
                         self.cancel_requested = true;
                     }
@@ -2360,7 +2378,11 @@ impl App {
                     return Ok(());
                 }
                 KeyCode::Backspace if self.running_items_state.detail_open => {
-                    if let Some(item) = self.running_items_state.items.get(self.running_items_state.selected) {
+                    if let Some(item) = self
+                        .running_items_state
+                        .items
+                        .get(self.running_items_state.selected)
+                    {
                         self.set_status_notice(format!("Cancel requested for: {}", item.label));
                         self.cancel_requested = true;
                     }

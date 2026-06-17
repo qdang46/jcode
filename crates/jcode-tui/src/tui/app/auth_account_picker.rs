@@ -510,40 +510,44 @@ impl App {
             {
                 selected = idx;
             }
-            models.push(crate::tui::PickerEntry { name: account.label.clone(),
-            options: vec![crate::tui::PickerOption {
-                provider: "Claude".to_string(),
-                api_method: if is_active {
-                    "active".to_string()
-                } else {
-                    "saved".to_string()
-                },
-                available: true,
-                detail: format!("{} - {} - plan {}", email, status, plan),
-                estimated_reference_cost_micros: None,
-                context_window: None,
-                latency_ms: None,
-                cost_per_million_input: None,
-                cost_per_million_output: None,
+            models.push(crate::tui::PickerEntry {
+                name: account.label.clone(),
+                options: vec![crate::tui::PickerOption {
+                    provider: "Claude".to_string(),
+                    api_method: if is_active {
+                        "active".to_string()
+                    } else {
+                        "saved".to_string()
+                    },
+                    available: true,
+                    detail: format!("{} - {} - plan {}", email, status, plan),
+                    estimated_reference_cost_micros: None,
+                    context_window: None,
+                    latency_ms: None,
+                    cost_per_million_input: None,
+                    cost_per_million_output: None,
+                    is_free: false,
+                    is_latest: false,
+                }],
+                action: crate::tui::PickerAction::Account(
+                    crate::tui::AccountPickerAction::Switch {
+                        provider_id: "claude".to_string(),
+                        label: account.label.clone(),
+                    },
+                ),
+                selected_option: 0,
+                is_current: is_active,
+                is_default: false,
+                is_favorite: false,
+                recommended: false,
+                recommendation_rank: usize::MAX,
+                usage_score: 0,
+                old: false,
+                created_date: None,
+                effort: None,
                 is_free: false,
                 is_latest: false,
-            }],
-            action: crate::tui::PickerAction::Account(
-                crate::tui::AccountPickerAction::Switch {
-                    provider_id: "claude".to_string(),
-                    label: account.label.clone(),
-                },
-            ),
-            selected_option: 0,
-            is_current: is_active,
-            is_default: false,
-            is_favorite: false,
-            recommended: false,
-            recommendation_rank: usize::MAX,
-            usage_score: 0,
-            old: false,
-            created_date: None,
-            effort: None, is_free: false, is_latest: false, });
+            });
         }
 
         for account in &openai_accounts {
@@ -563,16 +567,203 @@ impl App {
             if is_active && current_provider.contains("openai") {
                 selected = idx;
             }
-            models.push(crate::tui::PickerEntry { name: account.label.clone(),
+            models.push(crate::tui::PickerEntry {
+                name: account.label.clone(),
+                options: vec![crate::tui::PickerOption {
+                    provider: "OpenAI".to_string(),
+                    api_method: if is_active {
+                        "active".to_string()
+                    } else {
+                        "saved".to_string()
+                    },
+                    available: true,
+                    detail: format!("{} - {} - acct {}", email, status, account_id),
+                    estimated_reference_cost_micros: None,
+                    context_window: None,
+                    latency_ms: None,
+                    cost_per_million_input: None,
+                    cost_per_million_output: None,
+                    is_free: false,
+                    is_latest: false,
+                }],
+                action: crate::tui::PickerAction::Account(
+                    crate::tui::AccountPickerAction::Switch {
+                        provider_id: "openai".to_string(),
+                        label: account.label.clone(),
+                    },
+                ),
+                selected_option: 0,
+                is_current: is_active,
+                is_default: false,
+                is_favorite: false,
+                recommended: false,
+                recommendation_rank: usize::MAX,
+                usage_score: 0,
+                old: false,
+                created_date: None,
+                effort: None,
+                is_free: false,
+                is_latest: false,
+            });
+        }
+
+        models.push(crate::tui::PickerEntry {
+            name: "new Claude account".to_string(),
+            options: vec![crate::tui::PickerOption {
+                provider: "Claude".to_string(),
+                api_method: "new".to_string(),
+                available: true,
+                detail: format!("create {}", next_claude),
+                estimated_reference_cost_micros: None,
+                context_window: None,
+                latency_ms: None,
+                cost_per_million_input: None,
+                cost_per_million_output: None,
+                is_free: false,
+                is_latest: false,
+            }],
+            action: crate::tui::PickerAction::Account(crate::tui::AccountPickerAction::Add {
+                provider_id: "claude".to_string(),
+            }),
+            selected_option: 0,
+            is_current: false,
+            is_default: false,
+            is_favorite: false,
+            recommended: false,
+            recommendation_rank: usize::MAX,
+            usage_score: 0,
+            old: false,
+            created_date: None,
+            effort: None,
+            is_free: false,
+            is_latest: false,
+        });
+
+        models.push(crate::tui::PickerEntry {
+            name: "new OpenAI account".to_string(),
             options: vec![crate::tui::PickerOption {
                 provider: "OpenAI".to_string(),
-                api_method: if is_active {
-                    "active".to_string()
-                } else {
-                    "saved".to_string()
-                },
+                api_method: "new".to_string(),
                 available: true,
-                detail: format!("{} - {} - acct {}", email, status, account_id),
+                detail: format!("create {}", next_openai),
+                estimated_reference_cost_micros: None,
+                context_window: None,
+                latency_ms: None,
+                cost_per_million_input: None,
+                cost_per_million_output: None,
+                is_free: false,
+                is_latest: false,
+            }],
+            action: crate::tui::PickerAction::Account(crate::tui::AccountPickerAction::Add {
+                provider_id: "openai".to_string(),
+            }),
+            selected_option: 0,
+            is_current: false,
+            is_default: false,
+            is_favorite: false,
+            recommended: false,
+            recommendation_rank: usize::MAX,
+            usage_score: 0,
+            old: false,
+            created_date: None,
+            effort: None,
+            is_free: false,
+            is_latest: false,
+        });
+
+        let replace_claude = claude_accounts
+            .iter()
+            .find(|account| account.label == claude_active)
+            .map(|account| account.label.clone())
+            .or_else(|| claude_accounts.first().map(|account| account.label.clone()))
+            .unwrap_or_else(crate::auth::claude::primary_account_label);
+        models.push(crate::tui::PickerEntry {
+            name: "replace Claude account".to_string(),
+            options: vec![crate::tui::PickerOption {
+                provider: "Claude".to_string(),
+                api_method: "replace".to_string(),
+                available: !claude_accounts.is_empty(),
+                detail: if claude_accounts.is_empty() {
+                    "no saved accounts yet".to_string()
+                } else {
+                    format!("refresh {}", replace_claude)
+                },
+                estimated_reference_cost_micros: None,
+                context_window: None,
+                latency_ms: None,
+                cost_per_million_input: None,
+                cost_per_million_output: None,
+                is_free: false,
+                is_latest: false,
+            }],
+            action: crate::tui::PickerAction::Account(crate::tui::AccountPickerAction::Replace {
+                provider_id: "claude".to_string(),
+                label: replace_claude,
+            }),
+            selected_option: 0,
+            is_current: false,
+            is_default: false,
+            is_favorite: false,
+            recommended: false,
+            recommendation_rank: usize::MAX,
+            usage_score: 0,
+            old: false,
+            created_date: None,
+            effort: None,
+            is_free: false,
+            is_latest: false,
+        });
+
+        let replace_openai = openai_accounts
+            .iter()
+            .find(|account| account.label == openai_active)
+            .map(|account| account.label.clone())
+            .or_else(|| openai_accounts.first().map(|account| account.label.clone()))
+            .unwrap_or_else(crate::auth::codex::primary_account_label);
+        models.push(crate::tui::PickerEntry {
+            name: "replace OpenAI account".to_string(),
+            options: vec![crate::tui::PickerOption {
+                provider: "OpenAI".to_string(),
+                api_method: "replace".to_string(),
+                available: !openai_accounts.is_empty(),
+                detail: if openai_accounts.is_empty() {
+                    "no saved accounts yet".to_string()
+                } else {
+                    format!("refresh {}", replace_openai)
+                },
+                estimated_reference_cost_micros: None,
+                context_window: None,
+                latency_ms: None,
+                cost_per_million_input: None,
+                cost_per_million_output: None,
+                is_free: false,
+                is_latest: false,
+            }],
+            action: crate::tui::PickerAction::Account(crate::tui::AccountPickerAction::Replace {
+                provider_id: "openai".to_string(),
+                label: replace_openai,
+            }),
+            selected_option: 0,
+            is_current: false,
+            is_default: false,
+            is_favorite: false,
+            recommended: false,
+            recommendation_rank: usize::MAX,
+            usage_score: 0,
+            old: false,
+            created_date: None,
+            effort: None,
+            is_free: false,
+            is_latest: false,
+        });
+
+        models.push(crate::tui::PickerEntry {
+            name: "account center".to_string(),
+            options: vec![crate::tui::PickerOption {
+                provider: "Accounts".to_string(),
+                api_method: "manage".to_string(),
+                available: true,
+                detail: "settings, defaults, and other providers".to_string(),
                 estimated_reference_cost_micros: None,
                 context_window: None,
                 latency_ms: None,
@@ -582,13 +773,12 @@ impl App {
                 is_latest: false,
             }],
             action: crate::tui::PickerAction::Account(
-                crate::tui::AccountPickerAction::Switch {
-                    provider_id: "openai".to_string(),
-                    label: account.label.clone(),
+                crate::tui::AccountPickerAction::OpenCenter {
+                    provider_filter: None,
                 },
             ),
             selected_option: 0,
-            is_current: is_active,
+            is_current: false,
             is_default: false,
             is_favorite: false,
             recommended: false,
@@ -596,172 +786,10 @@ impl App {
             usage_score: 0,
             old: false,
             created_date: None,
-            effort: None, is_free: false, is_latest: false, });
-        }
-
-        models.push(crate::tui::PickerEntry { name: "new Claude account".to_string(),
-        options: vec![crate::tui::PickerOption {
-            provider: "Claude".to_string(),
-            api_method: "new".to_string(),
-            available: true,
-            detail: format!("create {}", next_claude),
-            estimated_reference_cost_micros: None,
-            context_window: None,
-            latency_ms: None,
-            cost_per_million_input: None,
-            cost_per_million_output: None,
+            effort: None,
             is_free: false,
             is_latest: false,
-        }],
-        action: crate::tui::PickerAction::Account(crate::tui::AccountPickerAction::Add {
-            provider_id: "claude".to_string(),
-        }),
-        selected_option: 0,
-        is_current: false,
-        is_default: false,
-        is_favorite: false,
-        recommended: false,
-        recommendation_rank: usize::MAX,
-        usage_score: 0,
-        old: false,
-        created_date: None,
-        effort: None, is_free: false, is_latest: false, });
-
-        models.push(crate::tui::PickerEntry { name: "new OpenAI account".to_string(),
-        options: vec![crate::tui::PickerOption {
-            provider: "OpenAI".to_string(),
-            api_method: "new".to_string(),
-            available: true,
-            detail: format!("create {}", next_openai),
-            estimated_reference_cost_micros: None,
-            context_window: None,
-            latency_ms: None,
-            cost_per_million_input: None,
-            cost_per_million_output: None,
-            is_free: false,
-            is_latest: false,
-        }],
-        action: crate::tui::PickerAction::Account(crate::tui::AccountPickerAction::Add {
-            provider_id: "openai".to_string(),
-        }),
-        selected_option: 0,
-        is_current: false,
-        is_default: false,
-        is_favorite: false,
-        recommended: false,
-        recommendation_rank: usize::MAX,
-        usage_score: 0,
-        old: false,
-        created_date: None,
-        effort: None, is_free: false, is_latest: false, });
-
-        let replace_claude = claude_accounts
-            .iter()
-            .find(|account| account.label == claude_active)
-            .map(|account| account.label.clone())
-            .or_else(|| claude_accounts.first().map(|account| account.label.clone()))
-            .unwrap_or_else(crate::auth::claude::primary_account_label);
-        models.push(crate::tui::PickerEntry { name: "replace Claude account".to_string(),
-        options: vec![crate::tui::PickerOption {
-            provider: "Claude".to_string(),
-            api_method: "replace".to_string(),
-            available: !claude_accounts.is_empty(),
-            detail: if claude_accounts.is_empty() {
-                "no saved accounts yet".to_string()
-            } else {
-                format!("refresh {}", replace_claude)
-            },
-            estimated_reference_cost_micros: None,
-            context_window: None,
-            latency_ms: None,
-            cost_per_million_input: None,
-            cost_per_million_output: None,
-            is_free: false,
-            is_latest: false,
-        }],
-        action: crate::tui::PickerAction::Account(crate::tui::AccountPickerAction::Replace {
-            provider_id: "claude".to_string(),
-            label: replace_claude,
-        }),
-        selected_option: 0,
-        is_current: false,
-        is_default: false,
-        is_favorite: false,
-        recommended: false,
-        recommendation_rank: usize::MAX,
-        usage_score: 0,
-        old: false,
-        created_date: None,
-        effort: None, is_free: false, is_latest: false, });
-
-        let replace_openai = openai_accounts
-            .iter()
-            .find(|account| account.label == openai_active)
-            .map(|account| account.label.clone())
-            .or_else(|| openai_accounts.first().map(|account| account.label.clone()))
-            .unwrap_or_else(crate::auth::codex::primary_account_label);
-        models.push(crate::tui::PickerEntry { name: "replace OpenAI account".to_string(),
-        options: vec![crate::tui::PickerOption {
-            provider: "OpenAI".to_string(),
-            api_method: "replace".to_string(),
-            available: !openai_accounts.is_empty(),
-            detail: if openai_accounts.is_empty() {
-                "no saved accounts yet".to_string()
-            } else {
-                format!("refresh {}", replace_openai)
-            },
-            estimated_reference_cost_micros: None,
-            context_window: None,
-            latency_ms: None,
-            cost_per_million_input: None,
-            cost_per_million_output: None,
-            is_free: false,
-            is_latest: false,
-        }],
-        action: crate::tui::PickerAction::Account(crate::tui::AccountPickerAction::Replace {
-            provider_id: "openai".to_string(),
-            label: replace_openai,
-        }),
-        selected_option: 0,
-        is_current: false,
-        is_default: false,
-        is_favorite: false,
-        recommended: false,
-        recommendation_rank: usize::MAX,
-        usage_score: 0,
-        old: false,
-        created_date: None,
-        effort: None, is_free: false, is_latest: false, });
-
-        models.push(crate::tui::PickerEntry { name: "account center".to_string(),
-        options: vec![crate::tui::PickerOption {
-            provider: "Accounts".to_string(),
-            api_method: "manage".to_string(),
-            available: true,
-            detail: "settings, defaults, and other providers".to_string(),
-            estimated_reference_cost_micros: None,
-            context_window: None,
-            latency_ms: None,
-            cost_per_million_input: None,
-            cost_per_million_output: None,
-            is_free: false,
-            is_latest: false,
-        }],
-        action: crate::tui::PickerAction::Account(
-            crate::tui::AccountPickerAction::OpenCenter {
-                provider_filter: None,
-            },
-        ),
-        selected_option: 0,
-        is_current: false,
-        is_default: false,
-        is_favorite: false,
-        recommended: false,
-        recommendation_rank: usize::MAX,
-        usage_score: 0,
-        old: false,
-        created_date: None,
-        effort: None, is_free: false, is_latest: false, });
+        });
 
         if models.is_empty() {
             selected = 0;
@@ -796,16 +824,128 @@ impl App {
                 .map(mask_email)
                 .unwrap_or_else(|| "unknown".to_string());
             let plan = account.subscription_type.as_deref().unwrap_or("unknown");
-            models.push(crate::tui::PickerEntry { name: account.label.clone(),
+            models.push(crate::tui::PickerEntry {
+                name: account.label.clone(),
+                options: vec![crate::tui::PickerOption {
+                    provider: "Claude".to_string(),
+                    api_method: if is_active {
+                        "active".to_string()
+                    } else {
+                        "saved".to_string()
+                    },
+                    available: true,
+                    detail: format!("{} - {} - plan {}", email, status, plan),
+                    estimated_reference_cost_micros: None,
+                    context_window: None,
+                    latency_ms: None,
+                    cost_per_million_input: None,
+                    cost_per_million_output: None,
+                    is_free: false,
+                    is_latest: false,
+                }],
+                action: crate::tui::PickerAction::Account(
+                    crate::tui::AccountPickerAction::Switch {
+                        provider_id: "claude".to_string(),
+                        label: account.label.clone(),
+                    },
+                ),
+                selected_option: 0,
+                is_current: is_active,
+                is_default: false,
+                is_favorite: false,
+                recommended: false,
+                recommendation_rank: usize::MAX,
+                usage_score: 0,
+                old: false,
+                created_date: None,
+                effort: None,
+                is_free: false,
+                is_latest: false,
+            });
+        }
+
+        models.push(crate::tui::PickerEntry {
+            name: "new account".to_string(),
             options: vec![crate::tui::PickerOption {
                 provider: "Claude".to_string(),
-                api_method: if is_active {
-                    "active".to_string()
-                } else {
-                    "saved".to_string()
-                },
+                api_method: "new".to_string(),
                 available: true,
-                detail: format!("{} - {} - plan {}", email, status, plan),
+                detail: format!("create {}", next_label),
+                estimated_reference_cost_micros: None,
+                context_window: None,
+                latency_ms: None,
+                cost_per_million_input: None,
+                cost_per_million_output: None,
+                is_free: false,
+                is_latest: false,
+            }],
+            action: crate::tui::PickerAction::Account(crate::tui::AccountPickerAction::Add {
+                provider_id: "claude".to_string(),
+            }),
+            selected_option: 0,
+            is_current: false,
+            is_default: false,
+            is_favorite: false,
+            recommended: false,
+            recommendation_rank: usize::MAX,
+            usage_score: 0,
+            old: false,
+            created_date: None,
+            effort: None,
+            is_free: false,
+            is_latest: false,
+        });
+
+        let replace_target = accounts
+            .iter()
+            .find(|account| account.label == active_label)
+            .map(|account| account.label.clone())
+            .or_else(|| accounts.first().map(|account| account.label.clone()))
+            .unwrap_or_else(crate::auth::claude::primary_account_label);
+        models.push(crate::tui::PickerEntry {
+            name: "replace account".to_string(),
+            options: vec![crate::tui::PickerOption {
+                provider: "Claude".to_string(),
+                api_method: "replace".to_string(),
+                available: !accounts.is_empty(),
+                detail: if accounts.is_empty() {
+                    "no saved accounts yet".to_string()
+                } else {
+                    format!("refresh {}", replace_target)
+                },
+                estimated_reference_cost_micros: None,
+                context_window: None,
+                latency_ms: None,
+                cost_per_million_input: None,
+                cost_per_million_output: None,
+                is_free: false,
+                is_latest: false,
+            }],
+            action: crate::tui::PickerAction::Account(crate::tui::AccountPickerAction::Replace {
+                provider_id: "claude".to_string(),
+                label: replace_target,
+            }),
+            selected_option: 0,
+            is_current: false,
+            is_default: false,
+            is_favorite: false,
+            recommended: false,
+            recommendation_rank: usize::MAX,
+            usage_score: 0,
+            old: false,
+            created_date: None,
+            effort: None,
+            is_free: false,
+            is_latest: false,
+        });
+
+        models.push(crate::tui::PickerEntry {
+            name: "account center".to_string(),
+            options: vec![crate::tui::PickerOption {
+                provider: "Claude".to_string(),
+                api_method: "manage".to_string(),
+                available: true,
+                detail: "full Claude account center and settings".to_string(),
                 estimated_reference_cost_micros: None,
                 context_window: None,
                 latency_ms: None,
@@ -815,13 +955,12 @@ impl App {
                 is_latest: false,
             }],
             action: crate::tui::PickerAction::Account(
-                crate::tui::AccountPickerAction::Switch {
-                    provider_id: "claude".to_string(),
-                    label: account.label.clone(),
+                crate::tui::AccountPickerAction::OpenCenter {
+                    provider_filter: Some("claude".to_string()),
                 },
             ),
             selected_option: 0,
-            is_current: is_active,
+            is_current: false,
             is_default: false,
             is_favorite: false,
             recommended: false,
@@ -829,105 +968,10 @@ impl App {
             usage_score: 0,
             old: false,
             created_date: None,
-            effort: None, is_free: false, is_latest: false, });
-        }
-
-        models.push(crate::tui::PickerEntry { name: "new account".to_string(),
-        options: vec![crate::tui::PickerOption {
-            provider: "Claude".to_string(),
-            api_method: "new".to_string(),
-            available: true,
-            detail: format!("create {}", next_label),
-            estimated_reference_cost_micros: None,
-            context_window: None,
-            latency_ms: None,
-            cost_per_million_input: None,
-            cost_per_million_output: None,
+            effort: None,
             is_free: false,
             is_latest: false,
-        }],
-        action: crate::tui::PickerAction::Account(crate::tui::AccountPickerAction::Add {
-            provider_id: "claude".to_string(),
-        }),
-        selected_option: 0,
-        is_current: false,
-        is_default: false,
-        is_favorite: false,
-        recommended: false,
-        recommendation_rank: usize::MAX,
-        usage_score: 0,
-        old: false,
-        created_date: None,
-        effort: None, is_free: false, is_latest: false, });
-
-        let replace_target = accounts
-            .iter()
-            .find(|account| account.label == active_label)
-            .map(|account| account.label.clone())
-            .or_else(|| accounts.first().map(|account| account.label.clone()))
-            .unwrap_or_else(crate::auth::claude::primary_account_label);
-        models.push(crate::tui::PickerEntry { name: "replace account".to_string(),
-        options: vec![crate::tui::PickerOption {
-            provider: "Claude".to_string(),
-            api_method: "replace".to_string(),
-            available: !accounts.is_empty(),
-            detail: if accounts.is_empty() {
-                "no saved accounts yet".to_string()
-            } else {
-                format!("refresh {}", replace_target)
-            },
-            estimated_reference_cost_micros: None,
-            context_window: None,
-            latency_ms: None,
-            cost_per_million_input: None,
-            cost_per_million_output: None,
-            is_free: false,
-            is_latest: false,
-        }],
-        action: crate::tui::PickerAction::Account(crate::tui::AccountPickerAction::Replace {
-            provider_id: "claude".to_string(),
-            label: replace_target,
-        }),
-        selected_option: 0,
-        is_current: false,
-        is_default: false,
-        is_favorite: false,
-        recommended: false,
-        recommendation_rank: usize::MAX,
-        usage_score: 0,
-        old: false,
-        created_date: None,
-        effort: None, is_free: false, is_latest: false, });
-
-        models.push(crate::tui::PickerEntry { name: "account center".to_string(),
-        options: vec![crate::tui::PickerOption {
-            provider: "Claude".to_string(),
-            api_method: "manage".to_string(),
-            available: true,
-            detail: "full Claude account center and settings".to_string(),
-            estimated_reference_cost_micros: None,
-            context_window: None,
-            latency_ms: None,
-            cost_per_million_input: None,
-            cost_per_million_output: None,
-            is_free: false,
-            is_latest: false,
-        }],
-        action: crate::tui::PickerAction::Account(
-            crate::tui::AccountPickerAction::OpenCenter {
-                provider_filter: Some("claude".to_string()),
-            },
-        ),
-        selected_option: 0,
-        is_current: false,
-        is_default: false,
-        is_favorite: false,
-        recommended: false,
-        recommendation_rank: usize::MAX,
-        usage_score: 0,
-        old: false,
-        created_date: None,
-        effort: None, is_free: false, is_latest: false, });
+        });
 
         if accounts.is_empty() {
             selected = 0;
@@ -962,16 +1006,128 @@ impl App {
                 .map(mask_email)
                 .unwrap_or_else(|| "unknown".to_string());
             let account_id = account.account_id.as_deref().unwrap_or("unknown");
-            models.push(crate::tui::PickerEntry { name: account.label.clone(),
+            models.push(crate::tui::PickerEntry {
+                name: account.label.clone(),
+                options: vec![crate::tui::PickerOption {
+                    provider: "OpenAI".to_string(),
+                    api_method: if is_active {
+                        "active".to_string()
+                    } else {
+                        "saved".to_string()
+                    },
+                    available: true,
+                    detail: format!("{} - {} - acct {}", email, status, account_id),
+                    estimated_reference_cost_micros: None,
+                    context_window: None,
+                    latency_ms: None,
+                    cost_per_million_input: None,
+                    cost_per_million_output: None,
+                    is_free: false,
+                    is_latest: false,
+                }],
+                action: crate::tui::PickerAction::Account(
+                    crate::tui::AccountPickerAction::Switch {
+                        provider_id: "openai".to_string(),
+                        label: account.label.clone(),
+                    },
+                ),
+                selected_option: 0,
+                is_current: is_active,
+                is_default: false,
+                is_favorite: false,
+                recommended: false,
+                recommendation_rank: usize::MAX,
+                usage_score: 0,
+                old: false,
+                created_date: None,
+                effort: None,
+                is_free: false,
+                is_latest: false,
+            });
+        }
+
+        models.push(crate::tui::PickerEntry {
+            name: "new account".to_string(),
             options: vec![crate::tui::PickerOption {
                 provider: "OpenAI".to_string(),
-                api_method: if is_active {
-                    "active".to_string()
-                } else {
-                    "saved".to_string()
-                },
+                api_method: "new".to_string(),
                 available: true,
-                detail: format!("{} - {} - acct {}", email, status, account_id),
+                detail: format!("create {}", next_label),
+                estimated_reference_cost_micros: None,
+                context_window: None,
+                latency_ms: None,
+                cost_per_million_input: None,
+                cost_per_million_output: None,
+                is_free: false,
+                is_latest: false,
+            }],
+            action: crate::tui::PickerAction::Account(crate::tui::AccountPickerAction::Add {
+                provider_id: "openai".to_string(),
+            }),
+            selected_option: 0,
+            is_current: false,
+            is_default: false,
+            is_favorite: false,
+            recommended: false,
+            recommendation_rank: usize::MAX,
+            usage_score: 0,
+            old: false,
+            created_date: None,
+            effort: None,
+            is_free: false,
+            is_latest: false,
+        });
+
+        let replace_target = accounts
+            .iter()
+            .find(|account| account.label == active_label)
+            .map(|account| account.label.clone())
+            .or_else(|| accounts.first().map(|account| account.label.clone()))
+            .unwrap_or_else(crate::auth::codex::primary_account_label);
+        models.push(crate::tui::PickerEntry {
+            name: "replace account".to_string(),
+            options: vec![crate::tui::PickerOption {
+                provider: "OpenAI".to_string(),
+                api_method: "replace".to_string(),
+                available: !accounts.is_empty(),
+                detail: if accounts.is_empty() {
+                    "no saved accounts yet".to_string()
+                } else {
+                    format!("refresh {}", replace_target)
+                },
+                estimated_reference_cost_micros: None,
+                context_window: None,
+                latency_ms: None,
+                cost_per_million_input: None,
+                cost_per_million_output: None,
+                is_free: false,
+                is_latest: false,
+            }],
+            action: crate::tui::PickerAction::Account(crate::tui::AccountPickerAction::Replace {
+                provider_id: "openai".to_string(),
+                label: replace_target,
+            }),
+            selected_option: 0,
+            is_current: false,
+            is_default: false,
+            is_favorite: false,
+            recommended: false,
+            recommendation_rank: usize::MAX,
+            usage_score: 0,
+            old: false,
+            created_date: None,
+            effort: None,
+            is_free: false,
+            is_latest: false,
+        });
+
+        models.push(crate::tui::PickerEntry {
+            name: "account center".to_string(),
+            options: vec![crate::tui::PickerOption {
+                provider: "OpenAI".to_string(),
+                api_method: "manage".to_string(),
+                available: true,
+                detail: "full OpenAI account center and settings".to_string(),
                 estimated_reference_cost_micros: None,
                 context_window: None,
                 latency_ms: None,
@@ -981,13 +1137,12 @@ impl App {
                 is_latest: false,
             }],
             action: crate::tui::PickerAction::Account(
-                crate::tui::AccountPickerAction::Switch {
-                    provider_id: "openai".to_string(),
-                    label: account.label.clone(),
+                crate::tui::AccountPickerAction::OpenCenter {
+                    provider_filter: Some("openai".to_string()),
                 },
             ),
             selected_option: 0,
-            is_current: is_active,
+            is_current: false,
             is_default: false,
             is_favorite: false,
             recommended: false,
@@ -995,105 +1150,10 @@ impl App {
             usage_score: 0,
             old: false,
             created_date: None,
-            effort: None, is_free: false, is_latest: false, });
-        }
-
-        models.push(crate::tui::PickerEntry { name: "new account".to_string(),
-        options: vec![crate::tui::PickerOption {
-            provider: "OpenAI".to_string(),
-            api_method: "new".to_string(),
-            available: true,
-            detail: format!("create {}", next_label),
-            estimated_reference_cost_micros: None,
-            context_window: None,
-            latency_ms: None,
-            cost_per_million_input: None,
-            cost_per_million_output: None,
+            effort: None,
             is_free: false,
             is_latest: false,
-        }],
-        action: crate::tui::PickerAction::Account(crate::tui::AccountPickerAction::Add {
-            provider_id: "openai".to_string(),
-        }),
-        selected_option: 0,
-        is_current: false,
-        is_default: false,
-        is_favorite: false,
-        recommended: false,
-        recommendation_rank: usize::MAX,
-        usage_score: 0,
-        old: false,
-        created_date: None,
-        effort: None, is_free: false, is_latest: false, });
-
-        let replace_target = accounts
-            .iter()
-            .find(|account| account.label == active_label)
-            .map(|account| account.label.clone())
-            .or_else(|| accounts.first().map(|account| account.label.clone()))
-            .unwrap_or_else(crate::auth::codex::primary_account_label);
-        models.push(crate::tui::PickerEntry { name: "replace account".to_string(),
-        options: vec![crate::tui::PickerOption {
-            provider: "OpenAI".to_string(),
-            api_method: "replace".to_string(),
-            available: !accounts.is_empty(),
-            detail: if accounts.is_empty() {
-                "no saved accounts yet".to_string()
-            } else {
-                format!("refresh {}", replace_target)
-            },
-            estimated_reference_cost_micros: None,
-            context_window: None,
-            latency_ms: None,
-            cost_per_million_input: None,
-            cost_per_million_output: None,
-            is_free: false,
-            is_latest: false,
-        }],
-        action: crate::tui::PickerAction::Account(crate::tui::AccountPickerAction::Replace {
-            provider_id: "openai".to_string(),
-            label: replace_target,
-        }),
-        selected_option: 0,
-        is_current: false,
-        is_default: false,
-        is_favorite: false,
-        recommended: false,
-        recommendation_rank: usize::MAX,
-        usage_score: 0,
-        old: false,
-        created_date: None,
-        effort: None, is_free: false, is_latest: false, });
-
-        models.push(crate::tui::PickerEntry { name: "account center".to_string(),
-        options: vec![crate::tui::PickerOption {
-            provider: "OpenAI".to_string(),
-            api_method: "manage".to_string(),
-            available: true,
-            detail: "full OpenAI account center and settings".to_string(),
-            estimated_reference_cost_micros: None,
-            context_window: None,
-            latency_ms: None,
-            cost_per_million_input: None,
-            cost_per_million_output: None,
-            is_free: false,
-            is_latest: false,
-        }],
-        action: crate::tui::PickerAction::Account(
-            crate::tui::AccountPickerAction::OpenCenter {
-                provider_filter: Some("openai".to_string()),
-            },
-        ),
-        selected_option: 0,
-        is_current: false,
-        is_default: false,
-        is_favorite: false,
-        recommended: false,
-        recommendation_rank: usize::MAX,
-        usage_score: 0,
-        old: false,
-        created_date: None,
-        effort: None, is_free: false, is_latest: false, });
+        });
 
         if accounts.is_empty() {
             selected = 0;

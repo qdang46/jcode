@@ -128,11 +128,14 @@ impl Agent {
                     .prompt(user_message)
                     .build();
                 let event = HookEvent::UserPromptExpansion;
-                let handlers: Vec<jcode_hooks::HookHandlerConfig> = handlers.into_iter().cloned().collect();
+                let handlers: Vec<jcode_hooks::HookHandlerConfig> =
+                    handlers.into_iter().cloned().collect();
                 let dispatch_config = self.dispatch_config.clone();
                 tokio::spawn(async move {
                     let refs: Vec<&jcode_hooks::HookHandlerConfig> = handlers.iter().collect();
-                    let _ = jcode_hooks::dispatch_hooks(&event, &hook_input, &refs, &dispatch_config).await;
+                    let _ =
+                        jcode_hooks::dispatch_hooks(&event, &hook_input, &refs, &dispatch_config)
+                            .await;
                 });
             }
         }
@@ -569,7 +572,11 @@ impl Agent {
         Ok(())
     }
 
-    pub(super) async fn validate_tool_allowed(&self, name: &str, input: Option<&serde_json::Value>) -> Result<()> {
+    pub(super) async fn validate_tool_allowed(
+        &self,
+        name: &str,
+        input: Option<&serde_json::Value>,
+    ) -> Result<()> {
         if let Some(allowed) = self.allowed_tools.as_ref()
             && !allowed.contains(name)
         {
@@ -624,9 +631,8 @@ impl Agent {
                     alternatives,
                 } => {
                     // Publish bus event so TUI can show a permission dialog
-                    let tool_input = input.and_then(|v| {
-                        if v.is_null() { None } else { Some(v.clone()) }
-                    });
+                    let tool_input =
+                        input.and_then(|v| if v.is_null() { None } else { Some(v.clone()) });
                     crate::bus::Bus::global().publish(crate::bus::BusEvent::PermissionRequested(
                         crate::bus::PermissionRequested {
                             session_id: self.session.id.clone(),

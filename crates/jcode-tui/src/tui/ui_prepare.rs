@@ -1717,10 +1717,16 @@ pub(super) fn prepare_body(
         }
     }
 
-
     // Show thinking indicator when processing but no stream output yet (Claude Code style).
-    if include_streaming && app.is_processing() && app.streaming_text().is_empty()
-        && matches!(app.status(), ProcessingStatus::Sending | ProcessingStatus::Connecting(_) | ProcessingStatus::Thinking(_))
+    if include_streaming
+        && app.is_processing()
+        && app.streaming_text().is_empty()
+        && matches!(
+            app.status(),
+            ProcessingStatus::Sending
+                | ProcessingStatus::Connecting(_)
+                | ProcessingStatus::Thinking(_)
+        )
     {
         if !lines.is_empty() {
             lines.push(Line::from(""));

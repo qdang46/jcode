@@ -344,7 +344,10 @@ pub(super) fn draw_help_overlay(frame: &mut Frame, area: Rect, scroll: usize, ap
         "/debug-visual",
         "Enable visual debugging for TUI issues",
     ));
-    lines.push(help_entry("/permissions", "Show DCG permission mode and recent decisions"));
+    lines.push(help_entry(
+        "/permissions",
+        "Show DCG permission mode and recent decisions",
+    ));
     lines.push(help_entry("/quit", "Exit jcode"));
 
     let skills = app.available_skills();
@@ -663,7 +666,10 @@ pub(super) fn draw_permission_dialog_overlay(
     let bold = Style::default().add_modifier(Modifier::BOLD);
     let hlbg = Style::default().fg(rgb(20, 22, 26)).bg(accent_color());
     let sel = app.pending_permission_selected().unwrap_or(0);
-    let tool = app.pending_permission_tool().unwrap_or("unknown").to_string();
+    let tool = app
+        .pending_permission_tool()
+        .unwrap_or("unknown")
+        .to_string();
 
     // Worker badge: show session_id if different from current
     let current_sid = app.current_session_id().unwrap_or_default();
@@ -689,10 +695,32 @@ pub(super) fn draw_permission_dialog_overlay(
     };
 
     let mut lines = match tool.as_str() {
-        "bash" => build_bash_permission_lines(app, dialog_w, tool_display, sel, &dim, &warn, &bold, &hlbg),
-        "edit" | "hashline_edit" => build_edit_permission_lines(app, dialog_w, tool_display, sel, &dim, &warn, &bold, &hlbg),
-        "write" => build_write_permission_lines(app, dialog_w, tool_display, sel, &dim, &warn, &bold, &hlbg),
-        _ => build_generic_permission_lines(app, dialog_w, tool_display, sel, &dim, &warn, &bold, &hlbg),
+        "bash" => {
+            build_bash_permission_lines(app, dialog_w, tool_display, sel, &dim, &warn, &bold, &hlbg)
+        }
+        "edit" | "hashline_edit" => {
+            build_edit_permission_lines(app, dialog_w, tool_display, sel, &dim, &warn, &bold, &hlbg)
+        }
+        "write" => build_write_permission_lines(
+            app,
+            dialog_w,
+            tool_display,
+            sel,
+            &dim,
+            &warn,
+            &bold,
+            &hlbg,
+        ),
+        _ => build_generic_permission_lines(
+            app,
+            dialog_w,
+            tool_display,
+            sel,
+            &dim,
+            &warn,
+            &bold,
+            &hlbg,
+        ),
     };
 
     // Render risk badge in dialog
@@ -720,17 +748,32 @@ pub(super) fn draw_permission_dialog_overlay(
 
 /// Generic permission dialog (fallback). Shows tool name + reason.
 fn build_generic_permission_lines(
-    app: &dyn crate::tui::TuiState, dialog_w: u16, tool: String, sel: usize,
-    dim: &Style, warn: &Style, bold: &Style, hlbg: &Style,
+    app: &dyn crate::tui::TuiState,
+    dialog_w: u16,
+    tool: String,
+    sel: usize,
+    dim: &Style,
+    warn: &Style,
+    bold: &Style,
+    hlbg: &Style,
 ) -> Vec<Line<'static>> {
     let reason = app.pending_permission_reason().unwrap_or("");
     let iw = dialog_w.saturating_sub(4) as usize;
     let title = format!(" Permission request: {} ", tool);
     let sep = "─".repeat(iw.saturating_sub(title.chars().count()) / 2);
-    let top = format!("╭{}{}{}╮", sep, title, "─".repeat(iw.saturating_sub(title.chars().count()) - sep.len()));
+    let top = format!(
+        "╭{}{}{}╮",
+        sep,
+        title,
+        "─".repeat(iw.saturating_sub(title.chars().count()) - sep.len())
+    );
 
     let mut lines = vec![Line::from(Span::styled(top, *warn))];
-    let r_text = if reason.len() > iw { format!("{}…", &reason[..iw.saturating_sub(1)]) } else { reason.to_string() };
+    let r_text = if reason.len() > iw {
+        format!("{}…", &reason[..iw.saturating_sub(1)])
+    } else {
+        reason.to_string()
+    };
     lines.push(Line::from(vec![
         Span::styled(format!("  {}  ", tool), (*bold).clone()),
         Span::styled(format!("({})", r_text), (*dim).clone()),
@@ -742,14 +785,21 @@ fn build_generic_permission_lines(
 
 /// Bash permission dialog — shows the actual command being run.
 fn build_bash_permission_lines(
-    app: &dyn crate::tui::TuiState, dialog_w: u16, tool: String, sel: usize,
-    dim: &Style, warn: &Style, _bold: &Style, hlbg: &Style,
+    app: &dyn crate::tui::TuiState,
+    dialog_w: u16,
+    tool: String,
+    sel: usize,
+    dim: &Style,
+    warn: &Style,
+    _bold: &Style,
+    hlbg: &Style,
 ) -> Vec<Line<'static>> {
     let iw = dialog_w.saturating_sub(4) as usize;
     let title = format!(" Permission: {} ", tool);
 
     // Extract command from input
-    let command = app.pending_permission_input()
+    let command = app
+        .pending_permission_input()
         .and_then(|v| v.get("command"))
         .and_then(|v| v.as_str())
         .unwrap_or("(unknown)");
@@ -764,14 +814,20 @@ fn build_bash_permission_lines(
     let reason = app.pending_permission_reason().unwrap_or("");
 
     let sep = "─".repeat(iw.saturating_sub(title.chars().count()) / 2);
-    let top = format!("╭{}{}{}╮", sep, title, "─".repeat(iw.saturating_sub(title.chars().count()) - sep.len()));
+    let top = format!(
+        "╭{}{}{}╮",
+        sep,
+        title,
+        "─".repeat(iw.saturating_sub(title.chars().count()) - sep.len())
+    );
 
     let mut lines = vec![Line::from(Span::styled(top, *warn))];
 
     // Command line (monospace-style)
-    lines.push(Line::from(vec![
-        Span::styled(format!("  $ {}  ", display_cmd), Style::default().fg(rgb(80, 220, 100))),
-    ]));
+    lines.push(Line::from(vec![Span::styled(
+        format!("  $ {}  ", display_cmd),
+        Style::default().fg(rgb(80, 220, 100)),
+    )]));
 
     // Reason line
     if !reason.is_empty() {
@@ -781,7 +837,8 @@ fn build_bash_permission_lines(
             reason.to_string()
         };
         lines.push(Line::from(Span::styled(
-            format!("  ({})", reason_text), (*dim).clone(),
+            format!("  ({})", reason_text),
+            (*dim).clone(),
         )));
     }
 
@@ -792,13 +849,24 @@ fn build_bash_permission_lines(
 
 /// Edit permission dialog — shows file path + inline diff.
 fn build_edit_permission_lines(
-    app: &dyn crate::tui::TuiState, dialog_w: u16, tool: String, sel: usize,
-    dim: &Style, warn: &Style, _bold: &Style, hlbg: &Style,
+    app: &dyn crate::tui::TuiState,
+    dialog_w: u16,
+    tool: String,
+    sel: usize,
+    dim: &Style,
+    warn: &Style,
+    _bold: &Style,
+    hlbg: &Style,
 ) -> Vec<Line<'static>> {
     let iw = dialog_w.saturating_sub(4) as usize;
     let title = format!(" Permission: {} ", tool);
     let sep = "─".repeat(iw.saturating_sub(title.chars().count()) / 2);
-    let top = format!("╭{}{}{}╮", sep, title, "─".repeat(iw.saturating_sub(title.chars().count()) - sep.len()));
+    let top = format!(
+        "╭{}{}{}╮",
+        sep,
+        title,
+        "─".repeat(iw.saturating_sub(title.chars().count()) - sep.len())
+    );
 
     let input = app.pending_permission_input();
     let file_path = input
@@ -839,12 +907,14 @@ fn build_edit_permission_lines(
         } else {
             new_string.to_string()
         };
-        lines.push(Line::from(vec![
-            Span::styled(format!("  ─ {}", old_display), Style::default().fg(rgb(255, 100, 100))),
-        ]));
-        lines.push(Line::from(vec![
-            Span::styled(format!("  + {}", new_display), Style::default().fg(rgb(80, 220, 100))),
-        ]));
+        lines.push(Line::from(vec![Span::styled(
+            format!("  ─ {}", old_display),
+            Style::default().fg(rgb(255, 100, 100)),
+        )]));
+        lines.push(Line::from(vec![Span::styled(
+            format!("  + {}", new_display),
+            Style::default().fg(rgb(80, 220, 100)),
+        )]));
     }
 
     lines.push(Line::from(""));
@@ -854,13 +924,24 @@ fn build_edit_permission_lines(
 
 /// Write permission dialog — shows file path + content preview.
 fn build_write_permission_lines(
-    app: &dyn crate::tui::TuiState, dialog_w: u16, tool: String, sel: usize,
-    dim: &Style, warn: &Style, _bold: &Style, hlbg: &Style,
+    app: &dyn crate::tui::TuiState,
+    dialog_w: u16,
+    tool: String,
+    sel: usize,
+    dim: &Style,
+    warn: &Style,
+    _bold: &Style,
+    hlbg: &Style,
 ) -> Vec<Line<'static>> {
     let iw = dialog_w.saturating_sub(4) as usize;
     let title = format!(" Permission: {} ", tool);
     let sep = "─".repeat(iw.saturating_sub(title.chars().count()) / 2);
-    let top = format!("╭{}{}{}╮", sep, title, "─".repeat(iw.saturating_sub(title.chars().count()) - sep.len()));
+    let top = format!(
+        "╭{}{}{}╮",
+        sep,
+        title,
+        "─".repeat(iw.saturating_sub(title.chars().count()) - sep.len())
+    );
 
     let input = app.pending_permission_input();
     let file_path = input
@@ -906,17 +987,28 @@ fn build_write_permission_lines(
 
 /// Append the approve/deny option row to any dialog.
 fn append_option_row(lines: &mut Vec<Line<'static>>, sel: usize, dim: &Style, hlbg: &Style) {
-    let opts = ["\u{2714} Approve", "\u{1f513} Approve all", "\u{1f4be} Always allow", "\u{2716} Deny"];
+    let opts = [
+        "\u{2714} Approve",
+        "\u{1f513} Approve all",
+        "\u{1f4be} Always allow",
+        "\u{2716} Deny",
+    ];
     let mut opt_line = Vec::new();
     for (i, label) in opts.iter().enumerate() {
         if i == sel {
             opt_line.push(Span::styled(format!(" ❯{} ", label), (*hlbg).clone()));
         } else {
-            opt_line.push(Span::styled(format!("  ◯{} ", label), Style::default().fg(rgb(180, 180, 190))));
+            opt_line.push(Span::styled(
+                format!("  ◯{} ", label),
+                Style::default().fg(rgb(180, 180, 190)),
+            ));
         }
     }
     lines.push(Line::from(opt_line));
-    lines.push(Line::from(Span::styled("  \u{2190}\u{2192} navigate  \u{23ce} Enter  Esc reject", (*dim).clone())));
+    lines.push(Line::from(Span::styled(
+        "  \u{2190}\u{2192} navigate  \u{23ce} Enter  Esc reject",
+        (*dim).clone(),
+    )));
 }
 
 /// Draw the teammate view panel — shows the teammate's live status, detail,
@@ -930,19 +1022,32 @@ pub(super) fn draw_teammate_view_panel(
         Some(s) => s,
         None => return,
     };
-    if area.width < 30 || area.height < 5 { return; }
+    if area.width < 30 || area.height < 5 {
+        return;
+    }
 
     let items = app.running_items();
-    let teammate = items.items.iter().find(|i| i.session_id.as_deref() == Some(sid));
+    let teammate = items
+        .items
+        .iter()
+        .find(|i| i.session_id.as_deref() == Some(sid));
     let (label, detail, status) = match teammate {
-        Some(t) => (t.label.clone(), t.detail.clone().unwrap_or_default(), t.status),
+        Some(t) => (
+            t.label.clone(),
+            t.detail.clone().unwrap_or_default(),
+            t.status,
+        ),
         None => return,
     };
 
     let dim = Style::default().fg(rgb(100, 100, 110));
     let iw = area.width.saturating_sub(4) as usize;
     let title = format!(" Viewing: {} ", label);
-    let top = format!("╭{}\u{2500}{}\u{2500}╮", "─".repeat(4), "─".repeat(iw.saturating_sub(title.chars().count())));
+    let top = format!(
+        "╭{}\u{2500}{}\u{2500}╮",
+        "─".repeat(4),
+        "─".repeat(iw.saturating_sub(title.chars().count()))
+    );
 
     let status_label = match status {
         crate::tui::RunningItemStatus::Running => "running",
@@ -966,7 +1071,11 @@ pub(super) fn draw_teammate_view_panel(
     ];
 
     if !detail.is_empty() {
-        let dt = if detail.len() > iw { format!("{}…", &detail[..iw.saturating_sub(1)]) } else { detail };
+        let dt = if detail.len() > iw {
+            format!("{}…", &detail[..iw.saturating_sub(1)])
+        } else {
+            detail
+        };
         lines.push(Line::from(Span::styled(
             format!("  {}", dt),
             Style::default().fg(rgb(200, 200, 210)),
@@ -997,4 +1106,3 @@ pub(super) fn draw_teammate_view_panel(
     let para = Paragraph::new(lines);
     frame.render_widget(para, inner);
 }
-

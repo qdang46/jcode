@@ -63,7 +63,13 @@ pub fn build_tools(tools: &[ToolDefinition]) -> Vec<Value> {
             let safe_name: String = t
                 .name
                 .chars()
-                .map(|c| if c.is_ascii_alphanumeric() || c == '_' || c == '-' { c } else { '_' })
+                .map(|c| {
+                    if c.is_ascii_alphanumeric() || c == '_' || c == '-' {
+                        c
+                    } else {
+                        '_'
+                    }
+                })
                 .collect();
             serde_json::json!({
                 "type": "function",

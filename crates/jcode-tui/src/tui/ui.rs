@@ -2156,9 +2156,7 @@ fn expand_badge_start_col(text: &str) -> Option<usize> {
     let icon = crate::tui::ui::inline_image_ui::EXPAND_BADGE_CLICK_ICON;
     // Prefer the click icon (the badge's first cell); fall back to the dots so a
     // future icon change can never silently drop the whole hit-region.
-    let byte_idx = text
-        .find(icon)
-        .or_else(|| text.find(['○', '●']))?;
+    let byte_idx = text.find(icon).or_else(|| text.find(['○', '●']))?;
     Some(line_display_width(&text[..byte_idx]))
 }
 
@@ -2711,10 +2709,10 @@ fn draw_inner(frame: &mut Frame, app: &dyn TuiState) {
                 Constraint::Length(inline_block_height),  // Inline UI
                 Constraint::Length(inline_ui_gap_height), // Inline UI/input spacing
                 Constraint::Length(input_height),         // Input
-                Constraint::Length(1),                     // Separator (─── line)
-                Constraint::Length(status_height),         // Status bar
-                Constraint::Length(running_items_height),  // Running items list
-                Constraint::Length(donut_height),          // Donut animation
+                Constraint::Length(1),                    // Separator (─── line)
+                Constraint::Length(status_height),        // Status bar
+                Constraint::Length(running_items_height), // Running items list
+                Constraint::Length(donut_height),         // Donut animation
             ]
         })
         .split(chat_area);
@@ -2723,10 +2721,7 @@ fn draw_inner(frame: &mut Frame, app: &dyn TuiState) {
     // Draw the inline swarm gallery band (above the chat) if present.
     if let Some(band) = swarm_gallery_area {
         clear_area(frame, band);
-        frame.render_widget(
-            Paragraph::new(swarm_gallery_lines.clone()),
-            band,
-        );
+        frame.render_widget(Paragraph::new(swarm_gallery_lines.clone()), band);
     }
 
     // Capture layout info for visual debug
@@ -2935,12 +2930,7 @@ fn draw_inner(frame: &mut Frame, app: &dyn TuiState) {
             let label_w = label.chars().count();
             let left = (sep_w - label_w) / 2;
             let right = sep_w - label_w - left;
-            let sep_str = format!(
-                "{}{}{}",
-                "─".repeat(left),
-                label,
-                "─".repeat(right),
-            );
+            let sep_str = format!("{}{}{}", "─".repeat(left), label, "─".repeat(right),);
             let sep_line = Line::from(Span::styled(sep_str, Style::default().fg(rgb(50, 55, 65))));
             frame.render_widget(Paragraph::new(sep_line), chunks[4]);
         }
@@ -2975,7 +2965,10 @@ fn draw_inner(frame: &mut Frame, app: &dyn TuiState) {
             x: chat_area.x + 2,
             y: chunks[8].y,
             width: chat_area.width.saturating_sub(4).max(20),
-            height: chunks[8].height.saturating_add(6).min(chat_area.height.saturating_sub(chunks[8].y)),
+            height: chunks[8]
+                .height
+                .saturating_add(6)
+                .min(chat_area.height.saturating_sub(chunks[8].y)),
         };
         super::ui_running_items::draw_running_item_detail(frame, app, detail_area);
     }

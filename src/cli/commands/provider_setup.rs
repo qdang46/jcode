@@ -56,7 +56,11 @@ pub(crate) fn run_provider_add_command(options: ProviderAddOptions) -> Result<()
     let report = configure_provider_profile(options)?;
 
     if emit_json || emit_toon {
-        let fmt = if emit_toon { crate::cli::output::OutputFormat::Toon } else { crate::cli::output::OutputFormat::Json };
+        let fmt = if emit_toon {
+            crate::cli::output::OutputFormat::Toon
+        } else {
+            crate::cli::output::OutputFormat::Json
+        };
         crate::cli::output::emit_json_or_toon(&report, fmt)?;
     } else {
         println!("Added provider profile '{}'", report.profile);

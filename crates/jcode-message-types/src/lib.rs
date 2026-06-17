@@ -541,7 +541,8 @@ impl ToolCall {
             serde_json::Value::Object(map) => map,
             _ => return String::new(),
         };
-        let parts: Vec<String> = obj.iter()
+        let parts: Vec<String> = obj
+            .iter()
             .filter(|(k, v)| !v.is_null())
             .map(|(k, v)| {
                 let val_str = match v {
@@ -554,8 +555,11 @@ impl ToolCall {
                 format!("{}={}", k, val_str)
             })
             .collect();
-        if parts.is_empty() { String::new() }
-        else { parts.join(" ") }
+        if parts.is_empty() {
+            String::new()
+        } else {
+            parts.join(" ")
+        }
     }
 }
 fn json_value_kind(value: &serde_json::Value) -> &'static str {

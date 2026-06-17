@@ -2,14 +2,10 @@ use super::{RunningItem, RunningItemKind, RunningItemStatus};
 use crate::tui::color_support::rgb;
 use ratatui::prelude::*;
 use ratatui::widgets::Paragraph;
-use unicode_width::UnicodeWidthStr;
 use std::time::Duration;
+use unicode_width::UnicodeWidthStr;
 
-pub(super) fn draw_running_items(
-    frame: &mut Frame,
-    app: &dyn super::TuiState,
-    area: Rect,
-) {
+pub(super) fn draw_running_items(frame: &mut Frame, app: &dyn super::TuiState, area: Rect) {
     let items_state = app.running_items();
     if !items_state.visible || items_state.items.is_empty() {
         return;
@@ -91,7 +87,10 @@ pub(super) fn draw_running_items(
 
         if let Some(elapsed) = item.elapsed {
             let elapsed_str = format_elapsed(elapsed);
-            let line_w: usize = spans.iter().map(|s| UnicodeWidthStr::width(s.content.as_ref())).sum();
+            let line_w: usize = spans
+                .iter()
+                .map(|s| UnicodeWidthStr::width(s.content.as_ref()))
+                .sum();
             let padding = inner_w.saturating_sub(line_w + elapsed_str.chars().count());
             if padding > 1 {
                 spans.push(Span::raw(" ".repeat(padding)));
@@ -111,11 +110,7 @@ pub(super) fn draw_running_items(
 
 /// Draw a detail overlay showing LIVE info about the selected running item.
 /// Content is rebuilt every frame so status/elapsed update in real-time.
-pub(super) fn draw_running_item_detail(
-    frame: &mut Frame,
-    app: &dyn super::TuiState,
-    area: Rect,
-) {
+pub(super) fn draw_running_item_detail(frame: &mut Frame, app: &dyn super::TuiState, area: Rect) {
     let items_state = app.running_items();
     if !items_state.detail_open {
         return;
@@ -155,7 +150,10 @@ pub(super) fn draw_running_item_detail(
     // Title
     lines.push(Line::from(vec![
         Span::styled(format!("{} ", icon), Style::default().fg(icon_color)),
-        Span::styled(item.label.clone(), Style::default().fg(rgb(220, 220, 230)).bold()),
+        Span::styled(
+            item.label.clone(),
+            Style::default().fg(rgb(220, 220, 230)).bold(),
+        ),
     ]));
 
     // Status row (built every frame = real-time)
@@ -163,7 +161,10 @@ pub(super) fn draw_running_item_detail(
     if let Some(elapsed) = item.elapsed {
         status_row.push_str(&format!(" · elapsed: {}", format_elapsed(elapsed)));
     }
-    lines.push(Line::from(Span::styled(status_row, Style::default().fg(status_color))));
+    lines.push(Line::from(Span::styled(
+        status_row,
+        Style::default().fg(status_color),
+    )));
 
     // Session ID
     if let Some(sid) = &item.session_id {
@@ -227,7 +228,11 @@ pub(super) fn draw_running_item_detail(
     } else {
         0
     };
-    let visible: Vec<Line<'static>> = lines.into_iter().skip(start_line as usize).take(inner.height as usize).collect();
+    let visible: Vec<Line<'static>> = lines
+        .into_iter()
+        .skip(start_line as usize)
+        .take(inner.height as usize)
+        .collect();
     let para = Paragraph::new(visible);
     frame.render_widget(para, inner);
 }
@@ -259,7 +264,9 @@ fn truncate_to_width(s: &str, max_width: usize) -> String {
     } else {
         let mut out = String::with_capacity(max_width);
         for c in s.chars() {
-            if UnicodeWidthStr::width(out.as_str()) + UnicodeWidthStr::width(c.to_string().as_str()) > max_width.saturating_sub(1) {
+            if UnicodeWidthStr::width(out.as_str()) + UnicodeWidthStr::width(c.to_string().as_str())
+                > max_width.saturating_sub(1)
+            {
                 break;
             }
             out.push(c);

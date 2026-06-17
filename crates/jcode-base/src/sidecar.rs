@@ -293,9 +293,7 @@ impl Sidecar {
                         );
                         crate::logging::info(&format!(
                             "Sidecar fallback: {} also unavailable in ChatGPT OAuth mode; falling back to Claude {} ({})",
-                            SIDECAR_OPENAI_OAUTH_FALLBACK_MODEL,
-                            SIDECAR_CLAUDE_MODEL,
-                            reason
+                            SIDECAR_OPENAI_OAUTH_FALLBACK_MODEL, SIDECAR_CLAUDE_MODEL, reason
                         ));
                         let claude = Self {
                             client: self.client.clone(),

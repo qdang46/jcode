@@ -383,7 +383,11 @@ fn run_cloud_sessions_status(json: bool, toon: bool) -> Result<()> {
         user_id: config.user_id,
     };
     if json || toon {
-        let fmt = if toon { output::OutputFormat::Toon } else { output::OutputFormat::Json };
+        let fmt = if toon {
+            output::OutputFormat::Toon
+        } else {
+            output::OutputFormat::Json
+        };
         output::emit_json_or_toon(&status, fmt)?;
     } else {
         println!("Jade cloud sessions config: {}", status.path);
@@ -662,7 +666,11 @@ fn run_cloud_sessions_sync(request: CloudSessionsSyncRequest) -> Result<()> {
                 entries: Vec::new(),
             };
             if request.json || request.toon {
-                let fmt = if request.toon { output::OutputFormat::Toon } else { output::OutputFormat::Json };
+                let fmt = if request.toon {
+                    output::OutputFormat::Toon
+                } else {
+                    output::OutputFormat::Json
+                };
                 output::emit_json_or_toon(&report, fmt)?;
             } else {
                 println!(
@@ -793,7 +801,11 @@ fn run_cloud_sessions_sync(request: CloudSessionsSyncRequest) -> Result<()> {
     }
 
     if request.json || request.toon {
-        let fmt = if request.toon { output::OutputFormat::Toon } else { output::OutputFormat::Json };
+        let fmt = if request.toon {
+            output::OutputFormat::Toon
+        } else {
+            output::OutputFormat::Json
+        };
         output::emit_json_or_toon(&report, fmt)?;
     } else {
         let verb = if request.dry_run {
@@ -1503,7 +1515,11 @@ pub fn run_session_rename_command(
     };
 
     if json || toon {
-        let fmt = if toon { output::OutputFormat::Toon } else { output::OutputFormat::Json };
+        let fmt = if toon {
+            output::OutputFormat::Toon
+        } else {
+            output::OutputFormat::Json
+        };
         output::emit_json_or_toon(&output, fmt)?;
     } else if clear {
         println!(
@@ -2070,7 +2086,11 @@ pub async fn run_usage_command(emit_json: bool, emit_toon: bool) -> Result<()> {
 /// - With `force == true`, the server reloads unconditionally.
 /// - If no server is running, this is a successful no-op so installers can call
 ///   it unconditionally.
-pub async fn run_server_reload_command(force: bool, emit_json: bool, emit_toon: bool) -> Result<()> {
+pub async fn run_server_reload_command(
+    force: bool,
+    emit_json: bool,
+    emit_toon: bool,
+) -> Result<()> {
     use crate::protocol::ServerEvent;
     use std::time::Duration;
 
@@ -2089,7 +2109,11 @@ pub async fn run_server_reload_command(force: bool, emit_json: bool, emit_toon: 
 
     let emit = |report: ServerReloadReport| -> Result<()> {
         if emit_json || emit_toon {
-            let fmt = if emit_toon { output::OutputFormat::Toon } else { output::OutputFormat::Json };
+            let fmt = if emit_toon {
+                output::OutputFormat::Toon
+            } else {
+                output::OutputFormat::Json
+            };
             output::emit_json_or_toon(&report, fmt)?
         } else if !report.detail.is_empty() {
             println!("{}", report.detail)
@@ -2234,7 +2258,11 @@ pub async fn run_server_stop_command(force: bool, emit_json: bool, emit_toon: bo
 Prefer `jcode server reload` to pick up an upgrade gracefully. \
 Re-run with `--force` if you really want to stop the server.";
         if emit_json || emit_toon {
-            let fmt = if emit_toon { output::OutputFormat::Toon } else { output::OutputFormat::Json };
+            let fmt = if emit_toon {
+                output::OutputFormat::Toon
+            } else {
+                output::OutputFormat::Json
+            };
             output::emit_json_or_toon(
                 &serde_json::json!({
                     "stopped": false,
@@ -3127,7 +3155,11 @@ pub async fn run_model_command(
                 })
                 .collect(),
         };
-        let fmt = if emit_toon { output::OutputFormat::Toon } else { output::OutputFormat::Json };
+        let fmt = if emit_toon {
+            output::OutputFormat::Toon
+        } else {
+            output::OutputFormat::Json
+        };
         output::emit_json_or_toon(&report, fmt)?;
     } else {
         if verbose {

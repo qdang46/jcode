@@ -65,14 +65,15 @@ fn verify_xxh32_anchor(content: &str, anchor_line: usize, expected_hash: &str) -
     if actual != expected_hash {
         return Err(anyhow::anyhow!(
             "anchor line {}: expected hash {}, actual hash {}",
-            anchor_line, expected_hash, actual
+            anchor_line,
+            expected_hash,
+            actual
         ));
     }
     // Also verify anchor resolve succeeds (full content hash is consistent)
     let anchor = anchor::parse_anchor(&format!("{}:{}", anchor_line, actual))
         .map_err(|e| anyhow::anyhow!("invalid anchor: {e}"))?;
-    anchor::resolve(&anchor, &fc)
-        .map_err(|e| anyhow::anyhow!("anchor resolve failed: {e}"))?;
+    anchor::resolve(&anchor, &fc).map_err(|e| anyhow::anyhow!("anchor resolve failed: {e}"))?;
     Ok(())
 }
 
@@ -273,20 +274,39 @@ async fn anchor_str_execute(
             let (e_line, _e_hash) = end;
             let nc = replace_lines(content, s_line, e_line, &params.new_string);
             atomic_write(path, &nc).await?;
-            publish_edit_event(ctx, params.intent.clone(), path, s_line + 1, e_line + 1, None);
+            publish_edit_event(
+                ctx,
+                params.intent.clone(),
+                path,
+                s_line + 1,
+                e_line + 1,
+                None,
+            );
             return Ok(ToolOutput::new(format!(
                 "Edited {} with hashline range anchor {}: lines {}-{} replaced",
-                params.file_path, anchor_str, s_line + 1, e_line + 1,
+                params.file_path,
+                anchor_str,
+                s_line + 1,
+                e_line + 1,
             ))
             .with_title(params.file_path.clone()));
         }
     } else if let Some((line_no, _hash)) = try_parse_line_anchor(anchor_str) {
         let nc = replace_lines(content, line_no, line_no, &params.new_string);
         atomic_write(path, &nc).await?;
-        publish_edit_event(ctx, params.intent.clone(), path, line_no + 1, line_no + 1, None);
+        publish_edit_event(
+            ctx,
+            params.intent.clone(),
+            path,
+            line_no + 1,
+            line_no + 1,
+            None,
+        );
         return Ok(ToolOutput::new(format!(
             "Edited {} with hashline anchor {}: line {} replaced",
-            params.file_path, anchor_str, line_no + 1,
+            params.file_path,
+            anchor_str,
+            line_no + 1,
         ))
         .with_title(params.file_path.clone()));
     }
@@ -326,24 +346,31 @@ fn replace_lines(content: &str, start: usize, end: usize, new_text: &str) -> Str
     let end = end.min(lines.len() - 1);
     let replacement: Vec<&str> = new_text.lines().collect();
     let mut result = String::with_capacity(
-        content.len() + new_text.len() - lines[end - start..=end].iter().map(|l| l.len() + 1).sum::<usize>()
+        content.len() + new_text.len()
+            - lines[end - start..=end]
+                .iter()
+                .map(|l| l.len() + 1)
+                .sum::<usize>(),
     );
     for (i, line) in lines.iter().enumerate() {
         if i >= start && i <= end {
             if i == start {
                 for (j, rl) in replacement.iter().enumerate() {
-                    if j > 0 { result.push('\n'); }
+                    if j > 0 {
+                        result.push('\n');
+                    }
                     result.push_str(rl);
                 }
             }
             continue;
         }
-        if i > 0 { result.push('\n'); }
+        if i > 0 {
+            result.push('\n');
+        }
         result.push_str(line);
     }
     result
 }
-
 
 fn apply_with_xxh32_fallback(
     content: &str,

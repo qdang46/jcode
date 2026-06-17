@@ -324,10 +324,7 @@ impl Config {
         if !config.always_allow_tools.contains(&tool) {
             config.always_allow_tools.push(tool);
             config.save()?;
-            crate::logging::info(&format!(
-                "Saved always-allow tool to config: {}",
-                tool_name
-            ));
+            crate::logging::info(&format!("Saved always-allow tool to config: {}", tool_name));
         }
         Ok(())
     }

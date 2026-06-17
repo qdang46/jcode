@@ -374,7 +374,6 @@ impl Agent {
         // Pre-approve tools from the always-allow config list.
         crate::dcg_bridge::init_session_allow_list(&agent.session.id);
 
-
         // Setup hook (fire-and-forget, fires once on agent creation)
         {
             let registry = agent.hook_registry.clone();

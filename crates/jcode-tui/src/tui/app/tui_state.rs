@@ -711,18 +711,25 @@ impl crate::tui::TuiState for App {
                 label: member.friendly_name.clone().unwrap_or_default(),
                 status,
                 detail: match (&member.detail, &member.output_tail) {
-                    (Some(d), Some(t)) => Some(format!("{} — {}", d, t.lines().last().unwrap_or(t))),
+                    (Some(d), Some(t)) => {
+                        Some(format!("{} — {}", d, t.lines().last().unwrap_or(t)))
+                    }
                     (Some(d), None) => Some(d.clone()),
                     (None, Some(t)) => Some(t.lines().last().unwrap_or(t).to_string()),
                     (None, None) => None,
                 },
-                elapsed: member.status_age_secs.map(|s| std::time::Duration::from_secs(s)),
+                elapsed: member
+                    .status_age_secs
+                    .map(|s| std::time::Duration::from_secs(s)),
                 session_id: Some(member.session_id.clone()),
             });
         }
 
         // Cap selected index
-        let selected = self.running_items_state.selected.min(items.len().saturating_sub(1));
+        let selected = self
+            .running_items_state
+            .selected
+            .min(items.len().saturating_sub(1));
 
         crate::tui::RunningItemsState {
             visible: self.running_items_state.visible,
@@ -1868,7 +1875,9 @@ impl crate::tui::TuiState for App {
         // Return the deepest match (most recent user message matching this input).
         let pos = *positions.last()?;
         // Use the same total as the status bar label for consistency.
-        let total = self.display_user_message_count.saturating_sub(self.compacted_hidden_user_prompts());
+        let total = self
+            .display_user_message_count
+            .saturating_sub(self.compacted_hidden_user_prompts());
         Some((pos, total.max(1)))
     }
 }

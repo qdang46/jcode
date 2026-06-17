@@ -246,19 +246,23 @@ mod tests {
     use crate::tui::{PickerAction, PickerEntry, PickerOption};
 
     fn entry(model: &str, route: PickerOption) -> PickerEntry {
-        PickerEntry { name: model.to_string(),
-        options: vec![route],
-        action: PickerAction::Model,
-        selected_option: 0,
-        is_current: false,
-        is_default: false,
-        is_favorite: false,
-        recommended: false,
-        recommendation_rank: 0,
-        usage_score: 0,
-        old: false,
-        created_date: None,
-        effort: None, is_free: false, is_latest: false, }
+        PickerEntry {
+            name: model.to_string(),
+            options: vec![route],
+            action: PickerAction::Model,
+            selected_option: 0,
+            is_current: false,
+            is_default: false,
+            is_favorite: false,
+            recommended: false,
+            recommendation_rank: 0,
+            usage_score: 0,
+            old: false,
+            created_date: None,
+            effort: None,
+            is_free: false,
+            is_latest: false,
+        }
     }
 
     fn route(provider: &str, api_method: &str) -> PickerOption {

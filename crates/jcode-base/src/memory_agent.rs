@@ -702,8 +702,7 @@ impl MemoryAgent {
                 )
                 .await;
                 let turn = self.session_state(session_id).turn_count;
-                let result: Vec<_> =
-                    reranked.into_iter().take(MAX_MEMORIES_PER_TURN).collect();
+                let result: Vec<_> = reranked.into_iter().take(MAX_MEMORIES_PER_TURN).collect();
                 {
                     let ss = self.session_state(session_id);
                     ss.last_rerank_turn = Some(turn);

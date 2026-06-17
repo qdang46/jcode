@@ -173,8 +173,7 @@ impl HookEvent {
                 | Self::PermissionAsked
                 | Self::AgentStart
                 | Self::Stop
-                | Self::PreCompact
-                // TurnEnd is an observer event — never blocks
+                | Self::PreCompact // TurnEnd is an observer event — never blocks
         )
     }
 
@@ -1434,7 +1433,8 @@ command = "noop"
 
     #[test]
     fn bridge_turn_end_only() {
-        let entries = legacy_v1_to_v2_handlers(Some("turn_end.sh".into()), None, None, None, None, None);
+        let entries =
+            legacy_v1_to_v2_handlers(Some("turn_end.sh".into()), None, None, None, None, None);
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].0, "TurnEnd");
         assert_eq!(entries[0].1.len(), 1);
@@ -1442,13 +1442,15 @@ command = "noop"
 
     #[test]
     fn bridge_empty_string_filters_out() {
-        let entries = legacy_v1_to_v2_handlers(Some("".into()), Some("".into()), None, None, None, None);
+        let entries =
+            legacy_v1_to_v2_handlers(Some("".into()), Some("".into()), None, None, None, None);
         assert!(entries.is_empty());
     }
 
     #[test]
     fn bridge_post_tool_maps_to_both_events() {
-        let entries = legacy_v1_to_v2_handlers(None, None, None, None, None, Some("notify.sh".into()));
+        let entries =
+            legacy_v1_to_v2_handlers(None, None, None, None, None, Some("notify.sh".into()));
         assert_eq!(entries.len(), 2);
         let event_names: Vec<&str> = entries.iter().map(|(name, _)| name.as_str()).collect();
         assert!(event_names.contains(&"PostToolUse"));
@@ -1464,13 +1466,17 @@ command = "noop"
                 }
             })
             .collect();
-        assert_eq!(cmds[0], cmds[1], "both PostToolUse and PostToolUseFailure should have the same command");
+        assert_eq!(
+            cmds[0], cmds[1],
+            "both PostToolUse and PostToolUseFailure should have the same command"
+        );
     }
 
     #[test]
     fn bridge_pre_tool_timeout_conversion() {
         // 500ms -> 1s (min clamp)
-        let entries = legacy_v1_to_v2_handlers(None, None, None, Some("check.sh".into()), Some(500), None);
+        let entries =
+            legacy_v1_to_v2_handlers(None, None, None, Some("check.sh".into()), Some(500), None);
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].0, "PreToolUse");
         if let HookHandlerConfig::Command(cmd) = &entries[0].1[0] {
@@ -1480,7 +1486,8 @@ command = "noop"
         }
 
         // 3000ms -> 3s
-        let entries = legacy_v1_to_v2_handlers(None, None, None, Some("check.sh".into()), Some(3000), None);
+        let entries =
+            legacy_v1_to_v2_handlers(None, None, None, Some("check.sh".into()), Some(3000), None);
         if let HookHandlerConfig::Command(cmd) = &entries[0].1[0] {
             assert_eq!(cmd.timeout_secs, Some(3));
         } else {
@@ -1488,7 +1495,8 @@ command = "noop"
         }
 
         // None -> default 30s
-        let entries = legacy_v1_to_v2_handlers(None, None, None, Some("check.sh".into()), None, None);
+        let entries =
+            legacy_v1_to_v2_handlers(None, None, None, Some("check.sh".into()), None, None);
         if let HookHandlerConfig::Command(cmd) = &entries[0].1[0] {
             assert_eq!(cmd.timeout_secs, Some(30));
         } else {
@@ -1502,7 +1510,9 @@ command = "noop"
             None,
             Some("start.sh".into()),
             Some("end.sh".into()),
-            None, None, None,
+            None,
+            None,
+            None,
         );
         assert_eq!(entries.len(), 2);
         let mut map: std::collections::HashMap<&str, &str> = std::collections::HashMap::new();
@@ -1529,7 +1539,14 @@ command = "noop"
         // Expect: TurnEnd, SessionStart, SessionEnd, PreToolUse, PostToolUse, PostToolUseFailure = 6
         assert_eq!(entries.len(), 6);
         let names: Vec<&str> = entries.iter().map(|(n, _)| n.as_str()).collect();
-        for expected in &["TurnEnd", "SessionStart", "SessionEnd", "PreToolUse", "PostToolUse", "PostToolUseFailure"] {
+        for expected in &[
+            "TurnEnd",
+            "SessionStart",
+            "SessionEnd",
+            "PreToolUse",
+            "PostToolUse",
+            "PostToolUseFailure",
+        ] {
             assert!(names.contains(expected), "missing {expected}");
         }
     }

@@ -27,31 +27,35 @@ fn render_inline_picker(state: &TestState, width: u16, height: u16) -> Vec<Strin
 }
 
 fn model_picker_entry() -> crate::tui::PickerEntry {
-    crate::tui::PickerEntry { name: "gpt-5.4".to_string(),
-    options: vec![crate::tui::PickerOption {
-        provider: "openai".to_string(),
-        api_method: "oauth".to_string(),
-        available: true,
-        detail: String::new(),
-        estimated_reference_cost_micros: None,
-        context_window: None,
-        latency_ms: None,
-        cost_per_million_input: None,
-        cost_per_million_output: None,
+    crate::tui::PickerEntry {
+        name: "gpt-5.4".to_string(),
+        options: vec![crate::tui::PickerOption {
+            provider: "openai".to_string(),
+            api_method: "oauth".to_string(),
+            available: true,
+            detail: String::new(),
+            estimated_reference_cost_micros: None,
+            context_window: None,
+            latency_ms: None,
+            cost_per_million_input: None,
+            cost_per_million_output: None,
+            is_free: false,
+            is_latest: false,
+        }],
+        action: crate::tui::PickerAction::Model,
+        selected_option: 0,
+        is_current: true,
+        is_default: false,
+        is_favorite: false,
+        recommended: true,
+        recommendation_rank: 0,
+        usage_score: 0,
+        old: false,
+        created_date: None,
+        effort: None,
         is_free: false,
         is_latest: false,
-    }],
-    action: crate::tui::PickerAction::Model,
-    selected_option: 0,
-    is_current: true,
-    is_default: false,
-    is_favorite: false,
-    recommended: true,
-    recommendation_rank: 0,
-    usage_score: 0,
-    old: false,
-    created_date: None,
-    effort: None, is_free: false, is_latest: false, }
+    }
 }
 
 fn model_picker_state() -> TestState {

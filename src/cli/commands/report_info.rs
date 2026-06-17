@@ -138,7 +138,11 @@ struct UsageReport {
 pub(super) fn run_auth_status_command(emit_json: bool, emit_toon: bool) -> Result<()> {
     let report = build_auth_status_report();
     if emit_json || emit_toon {
-        let fmt = if emit_toon { crate::cli::output::OutputFormat::Toon } else { crate::cli::output::OutputFormat::Json };
+        let fmt = if emit_toon {
+            crate::cli::output::OutputFormat::Toon
+        } else {
+            crate::cli::output::OutputFormat::Json
+        };
         crate::cli::output::emit_json_or_toon(&report, fmt)?;
     } else {
         for provider in report.providers {
@@ -203,7 +207,11 @@ pub(super) async fn run_auth_doctor_command(
     let report = build_auth_doctor_report(provider_arg, validate).await?;
 
     if emit_json || emit_toon {
-        let fmt = if emit_toon { crate::cli::output::OutputFormat::Toon } else { crate::cli::output::OutputFormat::Json };
+        let fmt = if emit_toon {
+            crate::cli::output::OutputFormat::Toon
+        } else {
+            crate::cli::output::OutputFormat::Json
+        };
         crate::cli::output::emit_json_or_toon(&report, fmt)?;
         return Ok(());
     }
@@ -374,7 +382,11 @@ pub(super) fn run_provider_list_command(emit_json: bool, emit_toon: bool) -> Res
 
     if emit_json || emit_toon {
         let report = ProviderListReport { providers };
-        let fmt = if emit_toon { crate::cli::output::OutputFormat::Toon } else { crate::cli::output::OutputFormat::Json };
+        let fmt = if emit_toon {
+            crate::cli::output::OutputFormat::Toon
+        } else {
+            crate::cli::output::OutputFormat::Json
+        };
         crate::cli::output::emit_json_or_toon(&report, fmt)?;
     } else {
         for provider in providers {
@@ -404,7 +416,11 @@ pub(super) async fn run_provider_current_command(
     };
 
     if emit_json || emit_toon {
-        let fmt = if emit_toon { crate::cli::output::OutputFormat::Toon } else { crate::cli::output::OutputFormat::Json };
+        let fmt = if emit_toon {
+            crate::cli::output::OutputFormat::Toon
+        } else {
+            crate::cli::output::OutputFormat::Json
+        };
         crate::cli::output::emit_json_or_toon(&report, fmt)?;
     } else {
         println!("requested_provider\t{}", report.requested_provider);
@@ -433,7 +449,11 @@ pub(super) fn run_version_command(emit_json: bool, emit_toon: bool) -> Result<()
     };
 
     if emit_json || emit_toon {
-        let fmt = if emit_toon { crate::cli::output::OutputFormat::Toon } else { crate::cli::output::OutputFormat::Json };
+        let fmt = if emit_toon {
+            crate::cli::output::OutputFormat::Toon
+        } else {
+            crate::cli::output::OutputFormat::Json
+        };
         crate::cli::output::emit_json_or_toon(&report, fmt)?;
     } else {
         println!("version\t{}", report.version);
@@ -458,7 +478,11 @@ pub(super) async fn run_usage_command(emit_json: bool, emit_toon: bool) -> Resul
     };
 
     if emit_json || emit_toon {
-        let fmt = if emit_toon { crate::cli::output::OutputFormat::Toon } else { crate::cli::output::OutputFormat::Json };
+        let fmt = if emit_toon {
+            crate::cli::output::OutputFormat::Toon
+        } else {
+            crate::cli::output::OutputFormat::Json
+        };
         crate::cli::output::emit_json_or_toon(&report, fmt)?;
         return Ok(());
     }

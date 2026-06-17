@@ -149,11 +149,7 @@ impl App {
             crate::auth::AuthState::NotConfigured => "—",
         };
         let providers = crate::provider_catalog::auth_status_login_providers();
-        let mut rows: Vec<[String; 3]> = vec![[
-            "Provider".into(),
-            "  ".into(),
-            "Auth".into(),
-        ]];
+        let mut rows: Vec<[String; 3]> = vec![["Provider".into(), "  ".into(), "Auth".into()]];
         for provider in providers {
             let assessment = status.assessment_for_provider(provider);
             let auth_str = match assessment.state {
@@ -168,7 +164,11 @@ impl App {
                 .map(crate::auth::validation::format_record_label)
                 .unwrap_or_default();
             let health = if assessment.state == crate::auth::AuthState::Available {
-                let v = if valid_str.is_empty() { "" } else { &*valid_str };
+                let v = if valid_str.is_empty() {
+                    ""
+                } else {
+                    &*valid_str
+                };
                 format!("{}·{}", assessment.method_detail, v)
             } else {
                 String::new()
@@ -185,7 +185,10 @@ impl App {
             widths[2] = widths[2].max(row[2].chars().count().min(30));
         }
         let mut message = String::from("Auth\n");
-        message.push_str(&repeat_char('─', widths.iter().sum::<usize>() + widths[0] + 4));
+        message.push_str(&repeat_char(
+            '─',
+            widths.iter().sum::<usize>() + widths[0] + 4,
+        ));
         message.push('\n');
         for (ri, row) in rows.iter().enumerate() {
             let line = format!(
@@ -199,11 +202,17 @@ impl App {
             message.push_str(line.trim_end());
             message.push('\n');
             if ri == 0 {
-                message.push_str(&repeat_char('─', widths.iter().sum::<usize>() + widths[0] + 4));
+                message.push_str(&repeat_char(
+                    '─',
+                    widths.iter().sum::<usize>() + widths[0] + 4,
+                ));
                 message.push('\n');
             }
         }
-        message.push_str(&repeat_char('─', widths.iter().sum::<usize>() + widths[0] + 4));
+        message.push_str(&repeat_char(
+            '─',
+            widths.iter().sum::<usize>() + widths[0] + 4,
+        ));
         message.push_str("\n/login <provider> · /account · /auth doctor");
         self.push_display_message(DisplayMessage::system(message));
     }

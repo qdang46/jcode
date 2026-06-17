@@ -539,10 +539,7 @@ fn apply_set_model(
                 active, provider_key
             ));
             if let Err(e) =
-                crate::config::Config::set_default_model(
-                    Some(&active),
-                    provider_key.as_deref(),
-                )
+                crate::config::Config::set_default_model(Some(&active), provider_key.as_deref())
             {
                 crate::logging::warn(&format!(
                     "Failed to persist default model '{}' on server: {}",
@@ -606,10 +603,7 @@ fn apply_set_route(
                 active, provider_key
             ));
             if let Err(e) =
-                crate::config::Config::set_default_model(
-                    Some(&active),
-                    provider_key.as_deref(),
-                )
+                crate::config::Config::set_default_model(Some(&active), provider_key.as_deref())
             {
                 crate::logging::warn(&format!(
                     "Failed to persist default model '{}' on server (route): {}",

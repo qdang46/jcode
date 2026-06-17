@@ -128,7 +128,9 @@ impl App {
         // Load agent definitions from disk
         let mut registry = jcode_agent_runtime::AgentRegistry::new();
         let home = dirs::home_dir().map(|h| h.join(".jcode/agents"));
-        let cwd = std::env::current_dir().ok().map(|d| d.join(".jcode/agents"));
+        let cwd = std::env::current_dir()
+            .ok()
+            .map(|d| d.join(".jcode/agents"));
         if let Some(path) = &home {
             let _ = registry.load_directory(path, jcode_agent_runtime::SourceKind::UserGlobal);
         }
@@ -144,7 +146,9 @@ impl App {
             for loaded in &sorted {
                 let def = &loaded.definition;
                 // Color badge for agent entry name
-                let badge = def.color.as_deref()
+                let badge = def
+                    .color
+                    .as_deref()
                     .and_then(agent_color_icon)
                     .unwrap_or("  ");
                 let display_name = format!("{} {}", badge, def.display_name);
@@ -156,7 +160,8 @@ impl App {
                             provider: "config".into(),
                             api_method: "edit".into(),
                             available: true,
-                            detail: format!("{} tools · model: {} · color: {}",
+                            detail: format!(
+                                "{} tools · model: {} · color: {}",
                                 def.tool_names.len(),
                                 def.model_override.as_deref().unwrap_or("inherit"),
                                 def.color.as_deref().unwrap_or("default"),
@@ -174,7 +179,10 @@ impl App {
                             provider: "color".into(),
                             api_method: "pick".into(),
                             available: true,
-                            detail: format!("Change color (current: {})", def.color.as_deref().unwrap_or("inherit")),
+                            detail: format!(
+                                "Change color (current: {})",
+                                def.color.as_deref().unwrap_or("inherit")
+                            ),
                             estimated_reference_cost_micros: None,
                             context_window: None,
                             latency_ms: None,
@@ -188,7 +196,10 @@ impl App {
                             provider: "model".into(),
                             api_method: "pick".into(),
                             available: true,
-                            detail: format!("Model (current: {})", def.model_override.as_deref().unwrap_or("inherit")),
+                            detail: format!(
+                                "Model (current: {})",
+                                def.model_override.as_deref().unwrap_or("inherit")
+                            ),
                             estimated_reference_cost_micros: None,
                             context_window: None,
                             latency_ms: None,
@@ -200,8 +211,12 @@ impl App {
                     ],
                     action: {
                         let source_path = match &loaded.source {
-                            jcode_agent_runtime::registry::AgentSource::UserGlobal { path } => path.to_string_lossy().to_string(),
-                            jcode_agent_runtime::registry::AgentSource::ProjectLocal { path } => path.to_string_lossy().to_string(),
+                            jcode_agent_runtime::registry::AgentSource::UserGlobal { path } => {
+                                path.to_string_lossy().to_string()
+                            }
+                            jcode_agent_runtime::registry::AgentSource::ProjectLocal { path } => {
+                                path.to_string_lossy().to_string()
+                            }
                             jcode_agent_runtime::registry::AgentSource::Builtin => String::new(),
                         };
                         PickerAction::EditAgent {
@@ -222,7 +237,7 @@ impl App {
                     is_free: false,
                     is_latest: false,
                 });
-        }
+            }
         }
 
         // Also add the 5 built-in agent model override entries
@@ -370,66 +385,74 @@ impl App {
                     crate::auth::AuthState::Expired => "attention",
                     crate::auth::AuthState::NotConfigured => "setup",
                 };
-                PickerEntry { name: provider.display_name.to_string(),
-                options: vec![PickerOption {
-                    provider: provider.auth_kind.label().to_string(),
-                    api_method: state_label.to_string(),
-                    available: true,
-                    detail: format!("{} · {}", assessment.method_detail, provider.menu_detail),
-                    estimated_reference_cost_micros: None,
-                    context_window: None,
-                    latency_ms: None,
-                    cost_per_million_input: None,
-                    cost_per_million_output: None,
+                PickerEntry {
+                    name: provider.display_name.to_string(),
+                    options: vec![PickerOption {
+                        provider: provider.auth_kind.label().to_string(),
+                        api_method: state_label.to_string(),
+                        available: true,
+                        detail: format!("{} · {}", assessment.method_detail, provider.menu_detail),
+                        estimated_reference_cost_micros: None,
+                        context_window: None,
+                        latency_ms: None,
+                        cost_per_million_input: None,
+                        cost_per_million_output: None,
+                        is_free: false,
+                        is_latest: false,
+                    }],
+                    action: if logout {
+                        PickerAction::Logout(provider)
+                    } else {
+                        PickerAction::Login(provider)
+                    },
+                    selected_option: 0,
+                    is_current: auth_state == crate::auth::AuthState::Available,
+                    is_default: false,
+                    is_favorite: false,
+                    recommended: provider.recommended,
+                    recommendation_rank: usize::MAX,
+                    usage_score: 0,
+                    old: false,
+                    created_date: None,
+                    effort: None,
                     is_free: false,
                     is_latest: false,
-                }],
-                action: if logout {
-                    PickerAction::Logout(provider)
-                } else {
-                    PickerAction::Login(provider)
-                },
-                selected_option: 0,
-                is_current: auth_state == crate::auth::AuthState::Available,
-                is_default: false,
-                is_favorite: false,
-                recommended: provider.recommended,
-                recommendation_rank: usize::MAX,
-                usage_score: 0,
-                old: false,
-                created_date: None,
-                effort: None, is_free: false, is_latest: false, }
+                }
             })
             .collect::<Vec<_>>();
 
         if logout {
             models.insert(
                 0,
-                PickerEntry { name: "All providers".to_string(),
-                options: vec![PickerOption {
-                    provider: "all".to_string(),
-                    api_method: "logout".to_string(),
-                    available: true,
-                    detail: "Log out of every provider with a saved session".to_string(),
-                    estimated_reference_cost_micros: None,
-                    context_window: None,
-                    latency_ms: None,
-                    cost_per_million_input: None,
-                    cost_per_million_output: None,
+                PickerEntry {
+                    name: "All providers".to_string(),
+                    options: vec![PickerOption {
+                        provider: "all".to_string(),
+                        api_method: "logout".to_string(),
+                        available: true,
+                        detail: "Log out of every provider with a saved session".to_string(),
+                        estimated_reference_cost_micros: None,
+                        context_window: None,
+                        latency_ms: None,
+                        cost_per_million_input: None,
+                        cost_per_million_output: None,
+                        is_free: false,
+                        is_latest: false,
+                    }],
+                    action: PickerAction::LogoutAll,
+                    selected_option: 0,
+                    is_current: false,
+                    is_default: false,
+                    is_favorite: false,
+                    recommended: false,
+                    recommendation_rank: usize::MAX,
+                    usage_score: 0,
+                    old: false,
+                    created_date: None,
+                    effort: None,
                     is_free: false,
                     is_latest: false,
-                }],
-                action: PickerAction::LogoutAll,
-                selected_option: 0,
-                is_current: false,
-                is_default: false,
-                is_favorite: false,
-                recommended: false,
-                recommendation_rank: usize::MAX,
-                usage_score: 0,
-                old: false,
-                created_date: None,
-                effort: None, is_free: false, is_latest: false, },
+                },
             );
         }
 
@@ -491,68 +514,76 @@ impl App {
                 if !already_present {
                     picker.entries.insert(
                         0,
-                        PickerEntry { name: saved.to_string(),
-                        options: vec![PickerOption {
-                            provider: "saved override".to_string(),
-                            api_method: agent_model_target_config_path(target).to_string(),
-                            available: true,
-                            detail: "not in current picker catalog".to_string(),
-                            estimated_reference_cost_micros: None,
-                            context_window: None,
-                            latency_ms: None,
-                            cost_per_million_input: None,
-                            cost_per_million_output: None,
+                        PickerEntry {
+                            name: saved.to_string(),
+                            options: vec![PickerOption {
+                                provider: "saved override".to_string(),
+                                api_method: agent_model_target_config_path(target).to_string(),
+                                available: true,
+                                detail: "not in current picker catalog".to_string(),
+                                estimated_reference_cost_micros: None,
+                                context_window: None,
+                                latency_ms: None,
+                                cost_per_million_input: None,
+                                cost_per_million_output: None,
+                                is_free: false,
+                                is_latest: false,
+                            }],
+                            action: PickerAction::AgentModelChoice {
+                                target,
+                                clear_override: false,
+                            },
+                            selected_option: 0,
+                            is_current: true,
+                            is_default: false,
+                            is_favorite: false,
+                            recommended: false,
+                            recommendation_rank: usize::MAX,
+                            usage_score: 0,
+                            old: false,
+                            created_date: None,
+                            effort: None,
                             is_free: false,
                             is_latest: false,
-                        }],
-                        action: PickerAction::AgentModelChoice {
-                            target,
-                            clear_override: false,
                         },
-                        selected_option: 0,
-                        is_current: true,
-                        is_default: false,
-                        is_favorite: false,
-                        recommended: false,
-                        recommendation_rank: usize::MAX,
-                        usage_score: 0,
-                        old: false,
-                        created_date: None,
-                        effort: None, is_free: false, is_latest: false, },
                     );
                 }
             }
 
             picker.entries.insert(
                 0,
-                PickerEntry { name: format!("inherit ({})", inherit_summary),
-                options: vec![PickerOption {
-                    provider: "default".to_string(),
-                    api_method: agent_model_target_config_path(target).to_string(),
-                    available: true,
-                    detail: "clear saved override".to_string(),
-                    estimated_reference_cost_micros: None,
-                    context_window: None,
-                    latency_ms: None,
-                    cost_per_million_input: None,
-                    cost_per_million_output: None,
+                PickerEntry {
+                    name: format!("inherit ({})", inherit_summary),
+                    options: vec![PickerOption {
+                        provider: "default".to_string(),
+                        api_method: agent_model_target_config_path(target).to_string(),
+                        available: true,
+                        detail: "clear saved override".to_string(),
+                        estimated_reference_cost_micros: None,
+                        context_window: None,
+                        latency_ms: None,
+                        cost_per_million_input: None,
+                        cost_per_million_output: None,
+                        is_free: false,
+                        is_latest: false,
+                    }],
+                    action: PickerAction::AgentModelChoice {
+                        target,
+                        clear_override: true,
+                    },
+                    selected_option: 0,
+                    is_current: configured.is_none(),
+                    is_default: false,
+                    is_favorite: false,
+                    recommended: false,
+                    recommendation_rank: usize::MAX,
+                    usage_score: 0,
+                    old: false,
+                    created_date: None,
+                    effort: None,
                     is_free: false,
                     is_latest: false,
-                }],
-                action: PickerAction::AgentModelChoice {
-                    target,
-                    clear_override: true,
                 },
-                selected_option: 0,
-                is_current: configured.is_none(),
-                is_default: false,
-                is_favorite: false,
-                recommended: false,
-                recommendation_rank: usize::MAX,
-                usage_score: 0,
-                old: false,
-                created_date: None,
-                effort: None, is_free: false, is_latest: false, },
             );
 
             picker.filtered = (0..picker.entries.len()).collect();
@@ -572,7 +603,9 @@ impl App {
 
         // 1. Subagent status
         if let Some(status) = &self.subagent_status {
-            let elapsed = self.processing_started.map(|t| t.elapsed())
+            let elapsed = self
+                .processing_started
+                .map(|t| t.elapsed())
                 .map(|d| format_elapsed_secs(d.as_secs()))
                 .unwrap_or_default();
             entries.push(PickerEntry {
@@ -686,7 +719,11 @@ impl App {
                 _ => "○",
             };
             entries.push(PickerEntry {
-                name: format!("{} {}", icon, member.friendly_name.as_deref().unwrap_or("agent")),
+                name: format!(
+                    "{} {}",
+                    icon,
+                    member.friendly_name.as_deref().unwrap_or("agent")
+                ),
                 options: vec![PickerOption {
                     provider: member.status.clone(),
                     api_method: "view".into(),
@@ -756,7 +793,11 @@ impl App {
             std::fs::create_dir_all(&agents_dir)?;
             let dest = agents_dir.join(format!("{}.toml", def.id));
             std::fs::write(&dest, &content)?;
-            Ok(format!("Created agent: {} → {}", def.display_name, dest.display()))
+            Ok(format!(
+                "Created agent: {} → {}",
+                def.display_name,
+                dest.display()
+            ))
         } else {
             anyhow::bail!("No home directory found");
         }
@@ -960,7 +1001,9 @@ pub(super) fn check_agent_snapshots(app: &mut App) {
         Some(h) => h.join(".jcode").join("agents"),
         None => return,
     };
-    if !agents_path.is_dir() { return; }
+    if !agents_path.is_dir() {
+        return;
+    }
 
     let mut current: Vec<(String, std::time::SystemTime)> = Vec::new();
     let mut changed = Vec::new();
@@ -968,8 +1011,14 @@ pub(super) fn check_agent_snapshots(app: &mut App) {
     if let Ok(entries) = std::fs::read_dir(&agents_path) {
         for entry in entries.flatten() {
             let path = entry.path();
-            if path.extension().and_then(|e| e.to_str()) != Some("toml") { continue; }
-            let name = path.file_stem().and_then(|s| s.to_str()).unwrap_or("").to_string();
+            if path.extension().and_then(|e| e.to_str()) != Some("toml") {
+                continue;
+            }
+            let name = path
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or("")
+                .to_string();
             if let Ok(meta) = entry.metadata() {
                 if let Ok(mtime) = meta.modified() {
                     let was = app.agent_snapshot_cache.iter().find(|(n, _)| n == &name);
@@ -992,7 +1041,8 @@ pub(super) fn check_agent_snapshots(app: &mut App) {
             crate::tui::DisplayMessage::system(format!(
                 "Agent definition(s) changed since last session: {}.\nCheck /agents for updates.",
                 changed.join(", "),
-            )).with_title("Agent Snapshots"),
+            ))
+            .with_title("Agent Snapshots"),
         );
     }
 }
@@ -1014,17 +1064,17 @@ Enter a short description to define what this agent does.
         crossterm::cursor::Show
     );
     let description = super::input::edit_text_in_external_editor(name_template);
-    let _ = crossterm::execute!(
-        std::io::stdout(),
-        crossterm::terminal::EnterAlternateScreen
-    );
+    let _ = crossterm::execute!(std::io::stdout(), crossterm::terminal::EnterAlternateScreen);
     if raw_mode {
         let _ = crossterm::terminal::enable_raw_mode();
     }
 
     let desc = match description {
         Ok(d) => d.trim().to_string(),
-        _ => { app.set_status_notice("Wizard cancelled"); return; }
+        _ => {
+            app.set_status_notice("Wizard cancelled");
+            return;
+        }
     };
     if desc.is_empty() || desc == name_template.trim() {
         app.set_status_notice("Wizard cancelled — empty description");
@@ -1033,7 +1083,13 @@ Enter a short description to define what this agent does.
 
     // Step 2: Build the agent TOML template with the description
     let agent_name = desc.lines().next().unwrap_or("my-agent").trim();
-    let agent_desc = desc.lines().skip(1).collect::<Vec<_>>().join("\n").trim().to_string();
+    let agent_desc = desc
+        .lines()
+        .skip(1)
+        .collect::<Vec<_>>()
+        .join("\n")
+        .trim()
+        .to_string();
 
     // Step 3: Open creation flow with pre-filled template
     let template = format!(
@@ -1062,10 +1118,7 @@ You are a helpful coding assistant.
         crossterm::cursor::Show
     );
     let result = app.run_agent_creation_flow(&template);
-    let _ = crossterm::execute!(
-        std::io::stdout(),
-        crossterm::terminal::EnterAlternateScreen
-    );
+    let _ = crossterm::execute!(std::io::stdout(), crossterm::terminal::EnterAlternateScreen);
     if raw_mode2 {
         let _ = crossterm::terminal::enable_raw_mode();
     }
@@ -1097,14 +1150,24 @@ pub(super) fn load_session_messages(session_id: &str) -> Vec<crate::tui::Display
 }
 
 pub(crate) fn save_last_assistant_as_agent(session: &crate::session::Session) -> String {
-    let text = match session.messages.iter().rev().find(|msg| msg.role == crate::message::Role::Assistant) {
-        Some(msg) => {
-            msg.content.iter().filter_map(|block| {
+    let text = match session
+        .messages
+        .iter()
+        .rev()
+        .find(|msg| msg.role == crate::message::Role::Assistant)
+    {
+        Some(msg) => msg
+            .content
+            .iter()
+            .filter_map(|block| {
                 if let crate::message::ContentBlock::Text { text: t, .. } = block {
                     Some(t.as_str())
-                } else { None }
-            }).collect::<Vec<_>>().join("\n")
-        }
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>()
+            .join("\n"),
         None => return "No assistant message found.".to_string(),
     };
     let toml_start = match text.find("```toml") {

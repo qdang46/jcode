@@ -235,8 +235,13 @@ pub(crate) async fn run_main(mut args: Args) -> Result<()> {
                 commands::run_provider_list_command(json, toon)?;
             }
             ProviderCommand::Current { json, toon } => {
-                commands::run_provider_current_command(&args.provider, args.model.as_deref(), json, toon)
-                    .await?;
+                commands::run_provider_current_command(
+                    &args.provider,
+                    args.model.as_deref(),
+                    json,
+                    toon,
+                )
+                .await?;
             }
             ProviderCommand::Add {
                 name,
@@ -288,7 +293,9 @@ pub(crate) async fn run_main(mut args: Args) -> Result<()> {
                 clear,
                 json,
                 toon,
-            } => commands::run_session_rename_command(&session, name.as_deref(), clear, json, toon)?,
+            } => {
+                commands::run_session_rename_command(&session, name.as_deref(), clear, json, toon)?
+            }
         },
         Some(Command::Secrets(subcmd)) => match subcmd {
             SecretsCommand::Set {

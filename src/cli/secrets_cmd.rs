@@ -67,7 +67,11 @@ pub fn run_set(name: &str, value: Option<&str>, env: bool, json: bool, toon: boo
         status: "set",
     };
     if json || toon {
-        let fmt = if toon { crate::cli::output::OutputFormat::Toon } else { crate::cli::output::OutputFormat::Json };
+        let fmt = if toon {
+            crate::cli::output::OutputFormat::Toon
+        } else {
+            crate::cli::output::OutputFormat::Json
+        };
         crate::cli::output::emit_json_or_toon(&out, fmt)?;
     } else {
         println!("Set {} ({}).", out.name, out.scope);
@@ -117,7 +121,11 @@ pub fn run_get(name: &str, env: bool, json: bool, toon: bool) -> Result<()> {
             found: value.is_some(),
             value,
         };
-        let fmt = if toon { crate::cli::output::OutputFormat::Toon } else { crate::cli::output::OutputFormat::Json };
+        let fmt = if toon {
+            crate::cli::output::OutputFormat::Toon
+        } else {
+            crate::cli::output::OutputFormat::Json
+        };
         crate::cli::output::emit_json_or_toon(&out, fmt)?;
     } else {
         match value {
@@ -170,7 +178,11 @@ pub fn run_delete(name: &str, env: bool, json: bool, toon: bool) -> Result<()> {
         deleted,
     };
     if json || toon {
-        let fmt = if toon { crate::cli::output::OutputFormat::Toon } else { crate::cli::output::OutputFormat::Json };
+        let fmt = if toon {
+            crate::cli::output::OutputFormat::Toon
+        } else {
+            crate::cli::output::OutputFormat::Json
+        };
         crate::cli::output::emit_json_or_toon(&out, fmt)?;
     } else if deleted {
         println!("Deleted {} ({}).", out.name, out.scope);
@@ -233,7 +245,11 @@ pub fn run_list(env: bool, json: bool, toon: bool) -> Result<()> {
             .collect(),
     };
     if json || toon {
-        let fmt = if toon { crate::cli::output::OutputFormat::Toon } else { crate::cli::output::OutputFormat::Json };
+        let fmt = if toon {
+            crate::cli::output::OutputFormat::Toon
+        } else {
+            crate::cli::output::OutputFormat::Json
+        };
         crate::cli::output::emit_json_or_toon(&out, fmt)?;
     } else if out.secrets.is_empty() {
         println!("No secrets stored.");
@@ -284,8 +300,17 @@ pub fn run_init(json: bool, toon: bool) -> Result<()> {
     let manager = manager()?;
     manager.initialize()?;
     if json || toon {
-        let fmt = if toon { crate::cli::output::OutputFormat::Toon } else { crate::cli::output::OutputFormat::Json };
-        crate::cli::output::emit_json_or_toon(&InitOutput { status: "initialized" }, fmt)?;
+        let fmt = if toon {
+            crate::cli::output::OutputFormat::Toon
+        } else {
+            crate::cli::output::OutputFormat::Json
+        };
+        crate::cli::output::emit_json_or_toon(
+            &InitOutput {
+                status: "initialized",
+            },
+            fmt,
+        )?;
     } else {
         println!("Initialized encrypted secrets store and OS keychain passphrase.");
     }
@@ -318,7 +343,11 @@ pub fn run_purge(yes: bool, json: bool, toon: bool) -> Result<()> {
     let manager = manager()?;
     manager.purge()?;
     if json || toon {
-        let fmt = if toon { crate::cli::output::OutputFormat::Toon } else { crate::cli::output::OutputFormat::Json };
+        let fmt = if toon {
+            crate::cli::output::OutputFormat::Toon
+        } else {
+            crate::cli::output::OutputFormat::Json
+        };
         crate::cli::output::emit_json_or_toon(&PurgeOutput { status: "purged" }, fmt)?;
     } else {
         println!("Purged all stored secrets and removed the keychain passphrase.");

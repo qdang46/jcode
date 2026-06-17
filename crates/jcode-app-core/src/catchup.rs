@@ -421,7 +421,9 @@ fn tool_use_step(block: &ContentBlock) -> Option<String> {
     };
     let obj = input.as_object();
     match name.as_str() {
-        "agentgrep" | "grep" | "ffs grep" | "glob" | "ffs glob" | "ls" | "codesearch" | "session_search" | "ffs outline" | "ffs symbol" | "ffs find" | "ffs dispatch" | "ffs callers" | "ffs callees" | "ffs refs" | "ffs flow" => {
+        "agentgrep" | "grep" | "ffs grep" | "glob" | "ffs glob" | "ls" | "codesearch"
+        | "session_search" | "ffs outline" | "ffs symbol" | "ffs find" | "ffs dispatch"
+        | "ffs callers" | "ffs callees" | "ffs refs" | "ffs flow" => {
             Some("Searched code and session context".to_string())
         }
         "read" => Some(

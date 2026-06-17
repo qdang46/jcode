@@ -144,8 +144,14 @@ const REGISTERED_COMMANDS: &[RegisteredCommand] = &[
     RegisteredCommand::public("/transfer", "Compact context into a fresh handoff session"),
     RegisteredCommand::public("/workspace", "Niri-style session workspace"),
     RegisteredCommand::public("/quit", "Exit jcode"),
-    RegisteredCommand::public("/experiment", "List/show/enable/disable experimental feature flags"),
-    RegisteredCommand::public("/permissions", "Show DCG permission mode and recent decisions"),
+    RegisteredCommand::public(
+        "/experiment",
+        "List/show/enable/disable experimental feature flags",
+    ),
+    RegisteredCommand::public(
+        "/permissions",
+        "Show DCG permission mode and recent decisions",
+    ),
     RegisteredCommand::public("/auth", "Show authentication status"),
     RegisteredCommand::public("/login", "Login to a provider"),
     RegisteredCommand::public("/logout", "Log out of a provider"),
@@ -1050,8 +1056,14 @@ impl App {
             return self.rank_suggestions(
                 input,
                 vec![
-                    ("/experiment list".into(), "List all experimental feature flags and their state"),
-                    ("/experiment".into(), "Open interactive experimental features popup"),
+                    (
+                        "/experiment list".into(),
+                        "List all experimental feature flags and their state",
+                    ),
+                    (
+                        "/experiment".into(),
+                        "Open interactive experimental features popup",
+                    ),
                 ],
             );
         }
@@ -1160,7 +1172,6 @@ impl App {
                 ],
             );
         }
-
 
         if prefix.starts_with("/alignment ") {
             return self.rank_suggestions(

@@ -112,7 +112,8 @@ pub async fn generate_tasks(config: &GenerateConfig) -> anyhow::Result<Vec<EditT
                 &mut rng,
                 &mut used_regions,
                 config.min_score,
-            ).await;
+            )
+            .await;
 
             if task.is_none() {
                 // Try fallback difficulties
@@ -127,7 +128,8 @@ pub async fn generate_tasks(config: &GenerateConfig) -> anyhow::Result<Vec<EditT
                         &mut rng,
                         &mut used_regions,
                         None,
-                    ).await;
+                    )
+                    .await;
                     if task.is_some() {
                         eprintln!(
                             "Note: {} case {} fell back from {} to {}",
@@ -332,7 +334,8 @@ async fn try_generate(
             let f1 = format_content(&entry.path, &mutated_content).await;
             let f2 = format_content(&entry.path, &entry.content).await;
             (f1.formatted, f2.formatted)
-        }.await;
+        }
+        .await;
 
         // Mark this line as used
         used.insert(info.line_number);
@@ -470,6 +473,9 @@ async fn write_fixtures(tasks: &[EditTask], output_dir: &Path) -> anyhow::Result
             .map(|m| &m.file_name)
             .cloned()
             .unwrap_or_else(|| "source.rs".to_string());
+
+        // Create task directory
+        std::fs::create_dir_all(&task_dir)?;
 
         // Write prompt
         std::fs::write(task_dir.join("prompt.md"), &task.prompt)?;

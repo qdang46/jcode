@@ -1342,7 +1342,9 @@ pub struct StatusLineConfig {
     pub command: Option<String>,
 }
 
-fn default_status_line_enabled() -> bool { true }
+fn default_status_line_enabled() -> bool {
+    true
+}
 
 impl Default for StatusLineConfig {
     fn default() -> Self {

@@ -26,7 +26,6 @@ pub struct TeamMemberView {
     pub color: Option<String>,
 }
 
-
 /// Interactive team view with keyboard selection.
 /// Allows selecting tasks/members and performing actions (claim, close, view).
 #[derive(Debug, Clone, Default)]

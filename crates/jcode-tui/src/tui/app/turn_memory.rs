@@ -77,7 +77,10 @@ impl App {
             // Show status notice for activated modes (so user sees something happen)
             if result.keyword_prompt.is_some() {
                 let mode_state = crate::jcode_keywords::state::load_state(
-                    self.session.working_dir.as_deref().map(std::path::Path::new),
+                    self.session
+                        .working_dir
+                        .as_deref()
+                        .map(std::path::Path::new),
                 );
                 if let Some(active) = mode_state.active_modes.first() {
                     self.set_status_notice(format!("🧠 {} mode activated", active.workflow));

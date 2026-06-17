@@ -250,10 +250,7 @@ pub enum Request {
 
     /// Set the permission mode for tool execution.
     #[serde(rename = "set_permission_mode")]
-    SetPermissionMode {
-        id: u64,
-        mode: String,
-    },
+    SetPermissionMode { id: u64, mode: String },
 
     /// Set or clear the active session's custom display title.
     #[serde(rename = "rename_session")]

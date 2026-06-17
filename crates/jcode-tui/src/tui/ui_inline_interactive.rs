@@ -988,36 +988,40 @@ mod tests {
         }];
 
         if mixed_providers {
-            models.push(crate::tui::PickerEntry { name: "personal".to_string(),
-            options: vec![crate::tui::PickerOption {
-                provider: "OpenAI".to_string(),
-                api_method: "saved".to_string(),
-                available: true,
-                detail: String::new(),
-                estimated_reference_cost_micros: None,
-                context_window: None,
-                latency_ms: None,
-                cost_per_million_input: None,
-                cost_per_million_output: None,
+            models.push(crate::tui::PickerEntry {
+                name: "personal".to_string(),
+                options: vec![crate::tui::PickerOption {
+                    provider: "OpenAI".to_string(),
+                    api_method: "saved".to_string(),
+                    available: true,
+                    detail: String::new(),
+                    estimated_reference_cost_micros: None,
+                    context_window: None,
+                    latency_ms: None,
+                    cost_per_million_input: None,
+                    cost_per_million_output: None,
+                    is_free: false,
+                    is_latest: false,
+                }],
+                action: crate::tui::PickerAction::Account(
+                    crate::tui::AccountPickerAction::Switch {
+                        provider_id: "openai".to_string(),
+                        label: "personal".to_string(),
+                    },
+                ),
+                selected_option: 0,
+                is_current: false,
+                is_default: false,
+                is_favorite: false,
+                recommended: false,
+                recommendation_rank: usize::MAX,
+                usage_score: 0,
+                old: false,
+                created_date: None,
+                effort: None,
                 is_free: false,
                 is_latest: false,
-            }],
-            action: crate::tui::PickerAction::Account(
-                crate::tui::AccountPickerAction::Switch {
-                    provider_id: "openai".to_string(),
-                    label: "personal".to_string(),
-                },
-            ),
-            selected_option: 0,
-            is_current: false,
-            is_default: false,
-            is_favorite: false,
-            recommended: false,
-            recommendation_rank: usize::MAX,
-            usage_score: 0,
-            old: false,
-            created_date: None,
-            effort: None, is_free: false, is_latest: false, });
+            });
         }
 
         crate::tui::InlineInteractiveState {

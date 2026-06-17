@@ -564,27 +564,48 @@ pub(super) fn draw_status(frame: &mut Frame, app: &dyn TuiState, area: Rect, pen
             Span::styled(perm_label, Style::default().fg(rgb(200, 200, 210))),
         ];
         if mode_str != "default" {
-            spans.push(Span::styled(" ⟦shift+tab⟧", Style::default().fg(rgb(100, 100, 110))));
+            spans.push(Span::styled(
+                " ⟦shift+tab⟧",
+                Style::default().fg(rgb(100, 100, 110)),
+            ));
         }
 
         // Model + provider + context separator
         let sep = || Span::styled(" │ ", Style::default().fg(rgb(100, 100, 110)));
         let data = app.info_widget_data();
-        let model = data.model.clone().filter(|m| !m.is_empty()).unwrap_or_else(|| app.provider_model());
+        let model = data
+            .model
+            .clone()
+            .filter(|m| !m.is_empty())
+            .unwrap_or_else(|| app.provider_model());
         if !model.is_empty() {
             spans.push(sep());
-            spans.push(Span::styled(model, Style::default().fg(rgb(255, 150, 200)).bold()));
+            spans.push(Span::styled(
+                model,
+                Style::default().fg(rgb(255, 150, 200)).bold(),
+            ));
         }
-        let provider = data.provider_name.clone().filter(|p| !p.is_empty()).unwrap_or_else(|| app.provider_name());
+        let provider = data
+            .provider_name
+            .clone()
+            .filter(|p| !p.is_empty())
+            .unwrap_or_else(|| app.provider_name());
         if !provider.is_empty() {
             spans.push(sep());
-            spans.push(Span::styled(provider, Style::default().fg(rgb(140, 180, 255))));
+            spans.push(Span::styled(
+                provider,
+                Style::default().fg(rgb(140, 180, 255)),
+            ));
         }
         // Context usage
         if let Some((used, limit)) = overscroll_context_usage(&data) {
             spans.push(sep());
             spans.push(Span::styled(
-                format!("{}/{} ", overscroll_format_tokens(used), overscroll_format_tokens(limit)),
+                format!(
+                    "{}/{} ",
+                    overscroll_format_tokens(used),
+                    overscroll_format_tokens(limit)
+                ),
                 Style::default().fg(rgb(140, 140, 150)),
             ));
             spans.extend(overscroll_context_bar(used, limit, 10));
@@ -603,8 +624,16 @@ pub(super) fn draw_status(frame: &mut Frame, app: &dyn TuiState, area: Rect, pen
         // Build JSON input matching Claude Code's StatusLineCommandInput format
         let data = app.info_widget_data();
         let (used_tokens, limit) = overscroll_context_usage(&data).unwrap_or((0, 1));
-        let model = data.model.clone().filter(|m| !m.is_empty()).unwrap_or_else(|| app.provider_model());
-        let provider = data.provider_name.clone().filter(|p| !p.is_empty()).unwrap_or_else(|| app.provider_name());
+        let model = data
+            .model
+            .clone()
+            .filter(|m| !m.is_empty())
+            .unwrap_or_else(|| app.provider_model());
+        let provider = data
+            .provider_name
+            .clone()
+            .filter(|p| !p.is_empty())
+            .unwrap_or_else(|| app.provider_name());
         let json_input = serde_json::json!({
             "session_id": "",
             "cwd": std::env::current_dir().ok().map(|d| d.to_string_lossy().to_string()),
@@ -656,7 +685,10 @@ pub(super) fn draw_status(frame: &mut Frame, app: &dyn TuiState, area: Rect, pen
 
     let mut base_spans = if let Some(custom_text) = run_custom_command(app) {
         // Layer 3: custom shell command output
-        vec![Span::styled(format!("  {}", custom_text), Style::default().fg(rgb(200, 200, 210)))]
+        vec![Span::styled(
+            format!("  {}", custom_text),
+            Style::default().fg(rgb(200, 200, 210)),
+        )]
     } else {
         status_line_text(app)
     };

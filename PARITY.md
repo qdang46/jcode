@@ -3,6 +3,13 @@
 > Feature inventory tracking implementation status and source references across reference repos (Claude Code, opencode, codebuff, pi-agent-rust, oh-my-openagent, codex, oh-my-pi, oh-my-claudecode, oh-my-codex).  
 > Organized by feature domain. New features should be added to the appropriate section.
 
+> **⚠️ DISCLAIMER:** This registry is a living document. Features listed here have been 
+> preliminarily checked against the codebase but are **not guaranteed to be complete or 
+> fully verified**. Many gaps, missing features, and unimplemented capabilities exist 
+> beyond what is tracked here. Treat each row as a best-effort snapshot, not a 
+> certification. Contributions and corrections welcome.
+
+
 ---
 
 ## I. Subagent
@@ -324,8 +331,8 @@
 | IV — Keyword System | 10 | 9 | 1 | 0 |
 | V — Goal System | 8 | 8 | 0 | 0 |
 | VI — Session System | 11 | 11 | 0 | 0 |
-| VII — Benchmarking | 18 | 18 | 0 | 0 |
-| **Total** | **158** | **154 (97%)** | **3 (2%)** | **1 (<1%)** |
+| VII — Benchmarking | 18 | 13 | 5 | 0 |
+| **Total** | **158** | **149 (94%)** | **8 (5%)** | **1 (<1%)** |
 
 ### Missing / Partial Features
 
@@ -348,6 +355,11 @@
 
 *Edit quality benchmarks, eval framework, and performance measurement scripts.*
 
+> **⚠️ PRELIMINARY:** This section was added during a brief codebase scan. Features listed here
+> are **not fully verified**. Some may require external dependencies (API keys, jcode binary in
+> PATH, ONNX models, rustfmt, etc.) to actually run end-to-end. Treat status indicators as
+> tentative until each feature is independently validated.
+
 | Name | Description | Source Repo(s) | jcode Impl | Status | Remaining |
 |------|-------------|----------------|------------|--------|-----------|
 | **Edit benchmark** | Mutation-based edit benchmark harness. Generates tasks via tree-sitter AST mutations (25 mutation types), runs agents in parallel (best-of-N), verifies with rustfmt normalization. | oh-my-pi (typescript-edit-benchmark) | `evals/jcode-edit-bench/`: `generate.rs`, `runner.rs`, `verify.rs`, `mutation.rs`, `difficulty.rs`, `report.rs`, `formatter.rs`, `fixtures.rs` | ✅ | — |
@@ -356,12 +368,12 @@
 | **Parallel agent runner** | Semaphore-limited concurrent agent subprocesses via `jcode agent run`. Timeout + retry per attempt. | oh-my-pi (runner.ts) | `runner.rs`: `run_benchmark()`, `run_single_attempt()` with tokio semaphore (max 8 concurrent). | ✅ | — |
 | **Report generation** | JSON + Markdown report output. Task-level summarization, best-of-N selection, pass rates, token/tool-call stats. | oh-my-pi (report.ts) | `report.rs`: `generate_json_report()`, `generate_markdown_report()`, `pick_best_run_index()`, `summarize_task()`. | ✅ | — |
 | **Fixture management** | Load tasks from fixture directories (input/expected/prompt/metadata). Validate fixture integrity. | oh-my-pi (fixtures) | `fixtures.rs`: `load_tasks_from_dir()`, `validate_fixtures()`, `list_files()`, `save_task()`. | ✅ | — |
-| **JBench eval framework** | Git-commit-reconstruction eval framework. Reconstruct commits from parent, compare agent diff vs ground truth. | codebuff (BuffBench) | `evals/jbench/`: `types.rs`, `agent_runner.rs`, `judge.rs`, `lessons.rs`. CLI via `bin/jbench.rs`. | ✅ | — |
-| **Agent runner** | Spawn jcode agent in prepared repo clone, capture diff + trace. Resolves agent from AgentRegistry. | codebuff (agent-runner.ts) | `agent_runner.rs`: `run_agent_in_repo()`, `extract_diff_from_repo()`. | ✅ | — |
-| **Three-judge pipeline** | Grade agent diffs with 3 frontier models in parallel (gpt-5, gemini-pro, claude-sonnet). Median overall_score. | codebuff (judge.ts) | `judge.rs`: `JudgeProviderKind` (OpenAI, Anthropic), `judge_commit_result()`, `median_score()`. | ✅ | — |
-| **Lessons extractor** | Compare agent diff vs ground truth → distilled lessons for system prompt improvement. | codebuff (lessons-extractor.ts) | `lessons.rs`: `Lesson` struct, `RunLessonsConfig`, `extract_lessons()`. | ✅ | — |
+| **JBench eval framework** | Git-commit-reconstruction eval framework. Reconstruct commits from parent, compare agent diff vs ground truth. | codebuff (BuffBench) | `evals/jbench/`: `types.rs`, `agent_runner.rs`, `judge.rs`, `lessons.rs`. CLI via `bin/jbench.rs`. | ⚠️ | Library crate says `unimplemented!()` stubs. Real API calls (reqwest) exist in judge/lessons. Needs end-to-end validation. |
+| **Agent runner** | Spawn jcode agent in prepared repo clone, capture diff + trace. Resolves agent from AgentRegistry. | codebuff (agent-runner.ts) | `agent_runner.rs`: `run_agent_in_repo()`, `extract_diff_from_repo()`. | ⚠️ | Code spawns `jcode` subprocess. Needs jcode binary in PATH + registered agent. Not tested. |
+| **Three-judge pipeline** | Grade agent diffs with 3 frontier models in parallel (gpt-5, gemini-pro, claude-sonnet). Median overall_score. | codebuff (judge.ts) | `judge.rs`: `JudgeProviderKind` (OpenAI, Anthropic), `judge_commit_result()`, `median_score()`. | ⚠️ | Code exists with real reqwest calls. Requires API keys (`JBENCH_API_KEY`). Not tested end-to-end. |
+| **Lessons extractor** | Compare agent diff vs ground truth → distilled lessons for system prompt improvement. | codebuff (lessons-extractor.ts) | `lessons.rs`: `Lesson` struct, `RunLessonsConfig`, `extract_lessons()`. | ⚠️ | Code exists with API calls. Requires API keys. Not tested. |
 | **TUI rendering benchmark** | Measure TUI frame rendering performance with synthetic session data. | jcode | `src/bin/tui_bench.rs`: ratatui TestBackend, configurable message count. | ✅ | — |
-| **Memory recall benchmark** | Offline memory retrieval accuracy harness. Uses real MemoryGraph, all-MiniLM-L6-v2 ONNX embedding. | jcode | `src/bin/memory_recall_bench.rs`: `score_and_filter` with cosine + gap filter. Data outside repo. | ✅ | — |
+| **Memory recall benchmark** | Offline memory retrieval accuracy harness. Uses real MemoryGraph, all-MiniLM-L6-v2 ONNX embedding. | jcode | `src/bin/memory_recall_bench.rs`: `score_and_filter` with cosine + gap filter. Data outside repo. | ⚠️ | Binary exists. Requires ONNX model + external data. Needs end-to-end test. |
 | **Startup time benchmark** | Measure cold client startup time in isolated JCODE_HOME/JCODE_RUNTIME_DIR. | jcode | `scripts/bench_startup.py`: PTY-based startup profiling with regression check. | ✅ | — |
 | **Tool call benchmark** | Measure execution time for each tool with representative inputs. | jcode | `scripts/benchmark_tools.sh`: CSV results, configurable iterations. | ✅ | — |
 | **Swarm benchmark** | Compare single agent vs swarm on Anthropic Performance Take-Home (VLIW SIMD kernel). | jcode | `scripts/benchmark_swarm.py`, `scripts/benchmark_takehome.py`: timed trials, configurable timeout. | ✅ | — |

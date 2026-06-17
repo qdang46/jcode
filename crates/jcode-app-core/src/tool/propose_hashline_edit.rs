@@ -136,7 +136,9 @@ impl Tool for ProposeHashlineEditTool {
             if actual != params.anchor.hash {
                 return Err(anyhow::anyhow!(
                     "anchor hash mismatch at line {}: expected {}, actual {}",
-                    params.anchor.line, params.anchor.hash, actual
+                    params.anchor.line,
+                    params.anchor.hash,
+                    actual
                 ));
             }
             let anchor_obj = anchor::parse_anchor(&format!("{}:{}", params.anchor.line, actual))
@@ -149,7 +151,10 @@ impl Tool for ProposeHashlineEditTool {
         let mut lines: Vec<String> = content.lines().map(String::from).collect();
         let line_idx = params.anchor.line.saturating_sub(1);
         if line_idx >= lines.len() || !lines[line_idx].contains(&params.old_string) {
-            return Err(anyhow::anyhow!("old_string not found on line {}", params.anchor.line));
+            return Err(anyhow::anyhow!(
+                "old_string not found on line {}",
+                params.anchor.line
+            ));
         }
         lines[line_idx] = lines[line_idx].replacen(&params.old_string, &params.new_string, 1);
         let new_content = lines.join("\n");

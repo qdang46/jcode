@@ -57,8 +57,8 @@ use crate::provider::Provider;
 use crate::skill::SkillRegistry;
 use anyhow::Result;
 use jcode_hooks::{
-    legacy_v1_to_v2_handlers, DispatchConfig, HookContext, HookEvent, HookInputBuilder,
-    HookRegistry,
+    DispatchConfig, HookContext, HookEvent, HookInputBuilder, HookRegistry,
+    legacy_v1_to_v2_handlers,
 };
 use jcode_message_types::ToolDefinition;
 use serde_json::Value;
@@ -1020,11 +1020,7 @@ impl Registry {
                     } else {
                         format!("user approval required by hook: {}", ask_reasons.join("; "))
                     };
-                    return Err(anyhow::anyhow!(
-                        "Tool '{}': {}",
-                        resolved_name,
-                        reason
-                    ));
+                    return Err(anyhow::anyhow!("Tool '{}': {}", resolved_name, reason));
                 }
             }
         }
@@ -1113,8 +1109,13 @@ impl Registry {
                     if !handlers.is_empty() {
                         tokio::spawn(async move {
                             let refs: Vec<_> = handlers.iter().collect();
-                            jcode_hooks::dispatch_hooks(&event, &hook_input, &refs, &dispatch_config)
-                                .await;
+                            jcode_hooks::dispatch_hooks(
+                                &event,
+                                &hook_input,
+                                &refs,
+                                &dispatch_config,
+                            )
+                            .await;
                         });
                     }
                 }

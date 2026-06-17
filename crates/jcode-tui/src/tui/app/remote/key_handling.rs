@@ -695,8 +695,15 @@ async fn handle_remote_key_internal(
             }
             KeyCode::Enter => {
                 if app.running_items_state.detail_open {
-                    let session_switch = app.running_items_state.items.get(app.running_items_state.selected)
-                        .and_then(|item| item.session_id.as_ref().map(|sid| (item.label.clone(), sid.clone())));
+                    let session_switch = app
+                        .running_items_state
+                        .items
+                        .get(app.running_items_state.selected)
+                        .and_then(|item| {
+                            item.session_id
+                                .as_ref()
+                                .map(|sid| (item.label.clone(), sid.clone()))
+                        });
                     if let Some((label, sid)) = session_switch {
                         app.running_items_state.visible = false;
                         app.running_items_state.detail_open = false;
@@ -726,7 +733,11 @@ async fn handle_remote_key_internal(
                 return Ok(());
             }
             KeyCode::Backspace if app.running_items_state.detail_open => {
-                if let Some(item) = app.running_items_state.items.get(app.running_items_state.selected) {
+                if let Some(item) = app
+                    .running_items_state
+                    .items
+                    .get(app.running_items_state.selected)
+                {
                     app.set_status_notice(format!("Cancel requested for: {}", item.label));
                     app.cancel_requested = true;
                 }
@@ -1183,9 +1194,8 @@ async fn handle_remote_key_internal(
                             mode_str
                         )));
                     } else if crate::dcg_bridge::set_mode_from_str(mode_name) {
-                        let mode_str = crate::dcg_bridge::mode_to_str(
-                            crate::dcg_bridge::current_mode(),
-                        );
+                        let mode_str =
+                            crate::dcg_bridge::mode_to_str(crate::dcg_bridge::current_mode());
                         // Change locally AND notify server.
                         let _ = remote.set_permission_mode(mode_str).await;
                         let _ = crate::config::Config::set_permission_mode(mode_str);

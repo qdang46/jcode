@@ -34,7 +34,7 @@ Overall: Pass / Needs Changes / Critical
 - [Severity: High] file.rs:42 — Description + Suggestion
 - [Severity: Medium] other.rs:13 — Description + Suggestion
 ```"
-            .to_string()
+        .to_string()
     }
 
     fn execute(&self, ctx: &WorkflowContext) -> WorkflowAction {

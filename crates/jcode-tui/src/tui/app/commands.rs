@@ -2332,8 +2332,8 @@ pub(super) fn handle_goals_command(app: &mut App, trimmed: &str) -> bool {
 }
 
 pub(super) fn handle_goal_or_mission_command(app: &mut App, trimmed: &str) -> bool {
-    let Some(rest) = slash_command_rest(trimmed, "/goal")
-        .or_else(|| slash_command_rest(trimmed, "/mission"))
+    let Some(rest) =
+        slash_command_rest(trimmed, "/goal").or_else(|| slash_command_rest(trimmed, "/mission"))
     else {
         return false;
     };
@@ -2343,7 +2343,10 @@ pub(super) fn handle_goal_or_mission_command(app: &mut App, trimmed: &str) -> bo
     if rest.is_empty() {
         let wd = active_working_dir(app).as_deref();
         let goals = crate::goal::list_relevant_goals(wd).unwrap_or_default();
-        let active: Vec<_> = goals.iter().filter(|g| g.status != "done" && g.status != "cancelled").collect();
+        let active: Vec<_> = goals
+            .iter()
+            .filter(|g| g.status != "done" && g.status != "cancelled")
+            .collect();
         if active.is_empty() {
             app.push_display_message(DisplayMessage::system(
                 "No active goals. Set one with `/goal <objective>`.".to_string(),
@@ -2351,8 +2354,14 @@ pub(super) fn handle_goal_or_mission_command(app: &mut App, trimmed: &str) -> bo
         } else {
             let mut msg = format!("**Active Goals ({}):**\n", active.len());
             for g in &active {
-                let pct = g.progress_percent.map(|p| format!("{}%", p)).unwrap_or_default();
-                msg.push_str(&format!("\n- **{}** [{}] {} — {}", g.title, g.status, g.scope, pct));
+                let pct = g
+                    .progress_percent
+                    .map(|p| format!("{}%", p))
+                    .unwrap_or_default();
+                msg.push_str(&format!(
+                    "\n- **{}** [{}] {} — {}",
+                    g.title, g.status, g.scope, pct
+                ));
                 if let Some(ns) = g.next_steps.first() {
                     msg.push_str(&format!("\n  Next: {}", ns));
                 }
@@ -2376,10 +2385,15 @@ pub(super) fn handle_goal_or_mission_command(app: &mut App, trimmed: &str) -> bo
         let goals = crate::goal::list_relevant_goals(wd).unwrap_or_default();
         for g in &goals {
             if g.status != "done" && g.status != "cancelled" {
-                let _ = crate::goal::update_goal(&g.id, None, wd, crate::goal::GoalUpdateInput {
-                    status: Some("done".to_string()),
-                    ..Default::default()
-                });
+                let _ = crate::goal::update_goal(
+                    &g.id,
+                    None,
+                    wd,
+                    crate::goal::GoalUpdateInput {
+                        status: Some("done".to_string()),
+                        ..Default::default()
+                    },
+                );
             }
         }
         app.push_display_message(DisplayMessage::system("All goals cleared.".to_string()));
@@ -2388,16 +2402,13 @@ pub(super) fn handle_goal_or_mission_command(app: &mut App, trimmed: &str) -> bo
 
     if lower == "resume" {
         let wd = active_working_dir(app).as_deref();
-        match crate::goal::resume_goal_for_session(
-            active_session_id(app).as_str(),
-            wd,
-            true,
-        ) {
+        match crate::goal::resume_goal_for_session(active_session_id(app).as_str(), wd, true) {
             Ok(Some(result)) => {
                 app.set_side_panel_snapshot(result.snapshot);
-                app.push_display_message(DisplayMessage::system(
-                    format!("Resumed goal: {}.", result.goal.title)
-                ));
+                app.push_display_message(DisplayMessage::system(format!(
+                    "Resumed goal: {}.",
+                    result.goal.title
+                )));
             }
             Ok(None) => app.push_display_message(DisplayMessage::system(
                 "No resumable goals for this session.".to_string(),
@@ -2409,17 +2420,29 @@ pub(super) fn handle_goal_or_mission_command(app: &mut App, trimmed: &str) -> bo
 
     // /goal <objective> — set new goal
     let objective = rest;
-    if !objective.is_empty() && !matches!(lower.as_str(), "status" | "clear" | "resume" | "pause" | "goal complete" | "continue") {
+    if !objective.is_empty()
+        && !matches!(
+            lower.as_str(),
+            "status" | "clear" | "resume" | "pause" | "goal complete" | "continue"
+        )
+    {
         let wd = active_working_dir(app).as_deref();
-        match crate::goal::create_goal(crate::goal::GoalCreateInput {
-            title: objective.chars().take(80).collect(),
-            description: objective.to_string(),
-            ..Default::default()
-        }, wd) {
+        match crate::goal::create_goal(
+            crate::goal::GoalCreateInput {
+                title: objective.chars().take(80).collect(),
+                description: objective.to_string(),
+                ..Default::default()
+            },
+            wd,
+        ) {
             Ok(goal) => {
-                app.push_display_message(DisplayMessage::system(format!(
-                    "**Goal set:** {}\nID: {}  \nUse `/goal status` to track progress.", goal.title, goal.id
-                )).with_title("Goal"));
+                app.push_display_message(
+                    DisplayMessage::system(format!(
+                        "**Goal set:** {}\nID: {}  \nUse `/goal status` to track progress.",
+                        goal.title, goal.id
+                    ))
+                    .with_title("Goal"),
+                );
                 app.set_status_notice(format!("Goal: {}", goal.title));
             }
             Err(e) => app.push_display_message(DisplayMessage::error(format!("Failed: {}", e))),
@@ -2435,10 +2458,14 @@ pub(super) fn handle_goal_or_mission_command(app: &mut App, trimmed: &str) -> bo
 
 /// Handle /export command — export session conversation to a file.
 pub(super) fn handle_export_command(app: &mut App, trimmed: &str) -> bool {
-    let Some(filename) = trimmed.strip_prefix("/export ").or_else(|| trimmed.strip_prefix("/export\t")) else {
+    let Some(filename) = trimmed
+        .strip_prefix("/export ")
+        .or_else(|| trimmed.strip_prefix("/export\t"))
+    else {
         app.push_display_message(DisplayMessage::system(
             "Usage: `/export <filename>` — export conversation to a .txt file.\n\
-             Example: `/export my-conversation.txt`".to_string(),
+             Example: `/export my-conversation.txt`"
+                .to_string(),
         ));
         return true;
     };
@@ -2453,7 +2480,10 @@ pub(super) fn handle_export_command(app: &mut App, trimmed: &str) -> bool {
     // Build export content from session messages
     let msgs = app.session.messages();
     let mut content = String::new();
-    content.push_str(&format!("# Session Export\n\nSession ID: {}\n\n---\n\n", app.session.id));
+    content.push_str(&format!(
+        "# Session Export\n\nSession ID: {}\n\n---\n\n",
+        app.session.id
+    ));
 
     for msg in msgs.iter() {
         let role = match msg.role.as_str() {
@@ -2474,8 +2504,15 @@ pub(super) fn handle_export_command(app: &mut App, trimmed: &str) -> bool {
     }
 
     // Determine file path
-    let wd = app.working_dir().map(PathBuf::from).unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
-    let final_name = if filename.ends_with(".txt") { filename.to_string() } else { format!("{}.txt", filename) };
+    let wd = app
+        .working_dir()
+        .map(PathBuf::from)
+        .unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
+    let final_name = if filename.ends_with(".txt") {
+        filename.to_string()
+    } else {
+        format!("{}.txt", filename)
+    };
     let out_path = wd.join(&final_name);
 
     match std::fs::write(&out_path, &content) {
@@ -2489,9 +2526,7 @@ pub(super) fn handle_export_command(app: &mut App, trimmed: &str) -> bool {
             app.set_status_notice(format!("Exported → {}", final_name));
         }
         Err(e) => {
-            app.push_display_message(DisplayMessage::error(format!(
-                "Failed to export: {}", e
-            )));
+            app.push_display_message(DisplayMessage::error(format!("Failed to export: {}", e)));
         }
     }
     true
@@ -3104,7 +3139,6 @@ pub(super) fn handle_config_command(app: &mut App, trimmed: &str) -> bool {
     if handle_usage_command(app, trimmed) {
         return true;
     }
-
 
     if trimmed == "/config" {
         use crate::config::config;
