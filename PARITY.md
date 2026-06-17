@@ -343,14 +343,6 @@
 | — | Deferred spawns | IV | Low | CCB: subagent spawn | ⚠️ DeferredSpawn queued, keyword prompt injected. Model spawns via subagent tool. |
 | — | Sandbox integration | II | High | CCB: sandbox | ❌ Skipped per request |
 
-### Adding New Features
-
-1. Pick the matching section (I-13, II, III). If none matches, add a new top-level section.
-2. Add a row: Name, Description, Source Repo(s), jcode Impl, Status, Remaining.
-3. Update the summary table at the bottom.
-
----
-
 ## VII. Benchmarking
 
 *Edit quality benchmarks, eval framework, and performance measurement scripts.*
@@ -380,3 +372,52 @@
 | **Compile benchmark** | Measure cargo check/build/release compilation times. | jcode | `scripts/bench_compile.sh`: targets for check, build, release-jcode. | ✅ | — |
 | **Self-dev checkpoint bench** | Benchmark self-development checkpoint operations. | jcode | `scripts/bench_selfdev_checkpoints.sh`: timing for dev loop steps. | ✅ | — |
 | **Terminal bench campaign** | Run terminal-based benchmark campaigns with harbor deployment. | jcode | `scripts/run_terminal_bench_campaign.py`, `scripts/run_terminal_bench_harbor.sh`: parallel campaign orchestration. | ✅ | — |
+
+---
+
+## VIII. Known Gaps — Features Not Yet Tracked
+
+> **⛔ UNTRACKED DOMAINS:** The following areas have significant code in the jcode
+> repository but are **not yet cataloged** in this registry. Each domain should be
+> broken into individual features in a future pass.
+
+| Domain | Crates / Files | Approx. Scope | Notes |
+|--------|---------------|---------------|-------|
+| **Tools (42 total, ~33 untracked)** | `crates/jcode-app-core/src/tool/*.rs` | `read`, `edit`, `write`, `bash`, `browser`, `lsp`, `mcp`, `codesearch`, `websearch`, `webfetch`, `gmail`, `memory`, `notepad`, `patch`, `apply_patch`, `hashline_edit`, `multiedit`, `propose_*`, `agentgrep`, `bg`, `batch`, `beads`, `best_of_n`, `communicate`, `conversation_search`, `coordination`, `dcp_compress`, `debug_socket`, `goal`, `invalid`, `ls`, `open`, `session_search`, `side_panel`, `skill`, `task`, `task_management`, `team`, `todo` | ~42 tools implemented; only 9 tool references in current PARITY.md |
+| **Plugin system** | `jcode-plugin-core/`, `jcode-plugin-runtime/` | Manifest, security, sandbox, dispatcher, TUI host, native plugins, transpiler, loader, server | Full plugin runtime with capabilities-based security. Not in PARITY.md. |
+| **Provider system (10 crates)** | `jcode-provider-core/`, `jcode-provider-anthropic/`, `-openai/`, `-gemini/`, `-bedrock/`, `-copilot/`, `-openrouter/`, `-antigravity/`, `-env/`, `-metadata/` | Provider abstraction, auth, failover, model selection, pricing | 10 provider crates implementing multiple LLM backends. Not tracked. |
+| **Desktop app** | `jcode-desktop/` | Rich text, IPC, animations, config, gallery, issue browser | Full native desktop UI. Not in PARITY.md. |
+| **Mobile** | `jcode-mobile-core/`, `jcode-mobile-sim/` | Mobile protocol, simulation | Mobile agent runtime. Not in PARITY.md. |
+| **Overnight mode** | `jcode-overnight-core/` | Background overnight processing | Not in PARITY.md. |
+| **Embedding / Memory** | `jcode-embedding/`, `jcode-mempalace-adapter/`, `jcode-memory-types/` | ONNX embedding, memory palace | Memory system partially covered in VI (session graph). Full embedding pipeline untracked. |
+| **Auth & Secrets** | `jcode-auth-types/`, `jcode-azure-auth/`, `jcode-keyring-store/`, `jcode-secrets/` | OAuth, Azure auth, OS keyring | Not in PARITY.md. |
+| **Swarm core** | `jcode-swarm-core/` | Multi-agent coordination | Partially covered in I-11. Full swarm protocol not tracked. |
+| **Update system** | `jcode-update-core/` | Self-update mechanism | Not in PARITY.md. |
+| **Notifications** | `jcode-notify-email/` | Email notifications | Not in PARITY.md. |
+| **TUI framework (14 crates)** | `jcode-tui/`, `jcode-tui-core/`, `jcode-tui-*` | Render, markdown, mermaid, messages, permissions, styles, account picker, session picker, tool display, usage overlay, visual debug, workspace, anim | Full TUI framework. Only the app-level TUI features are in PARITY.md. |
+| **Protocol** | `jcode-protocol/` | Wire protocol, message types | Not tracked directly (implied by session system). |
+| **Config system** | `jcode-config-types/` | Full configuration schema | Not in PARITY.md. |
+| **Import / Export** | `jcode-import-core/` | Session import from external tools | Not in PARITY.md. |
+| **Redact / Security** | `jcode-redact/` | Sensitive data redaction | Not in PARITY.md. |
+| **Telemetry** | `jcode-telemetry-core/` | Usage telemetry | Not in PARITY.md. |
+| **Build & Release** | `jcode-build-meta/`, `jcode-build-support/` | Build system, release infrastructure | Not in PARITY.md. |
+| **Self-dev** | `jcode-selfdev-types/` | Self-development support | Not in PARITY.md. |
+| **Productivity** | `jcode-productivity-core/` | Developer productivity tracking | Not in PARITY.md. |
+
+### Reference Repo Feature Gaps (from feature-planning skill)
+
+| Feature | Source Repo | jcode Status | Notes |
+|---------|-------------|-------------|-------|
+| **WASM extension security** | pi-agent-rust | ❌ Not implemented | pi-agent-rust has WASM-based extension sandboxing. jcode has plugin system but no WASM sandbox. |
+| **SSE streaming** | pi-agent-rust | ❌ Not found | Server-Sent Events for real-time streaming. May exist in jcode protocol layer. |
+| **ACP / Remote control** | claude-code (CCB) | ⚠️ Partial | jcode has remote protocol (`jcode-protocol`) but ACP-style remote agent control not verified. |
+| **Sandbox execution** | codex | ❌ Skipped | Marked as skipped in PARITY.md. Requires container infrastructure. |
+| **40+ providers** | oh-my-pi | ⚠️ Partial | jcode has 10 provider crates + core abstraction. oh-my-pi claims 40+. |
+| **IDE wiring** | oh-my-pi | ❌ Not found | VS Code / editor integration. jcode is terminal-first. |
+| **DAP operations** | oh-my-pi | ⚠️ Not verified | jcode has LSP tool but DAP (Debug Adapter Protocol) not confirmed. |
+
+### Adding New Features
+
+1. Pick the matching section (I-XIII, II-VIII). If none matches, add a new top-level section.
+2. Add a row: Name, Description, Source Repo(s), jcode Impl, Status, Remaining.
+3. Update the summary table at the bottom.

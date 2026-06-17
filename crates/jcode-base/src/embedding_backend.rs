@@ -24,7 +24,7 @@
 
 use anyhow::Result;
 
-use crate::memory_types::LEGACY_EMBEDDING_MODEL;
+use crate::memory_types::MemoryEntry;
 
 /// A source of embedding vectors for memory retrieval.
 ///
@@ -77,7 +77,7 @@ impl EmbeddingBackend for LocalOnnxBackend {
     fn model_id(&self) -> &str {
         // Matches MemoryEntry::effective_embedding_model() for untagged legacy
         // memories, so existing embeddings remain comparable with new ones.
-        LEGACY_EMBEDDING_MODEL
+        "bge-small-en-v1.5"
     }
 
     fn dim(&self) -> usize {
@@ -108,7 +108,7 @@ mod tests {
     fn local_backend_model_id_matches_legacy_tag() {
         // Critical for backward compatibility: the local backend's model id must
         // equal the legacy tag so pre-tagging memories stay in the same space.
-        assert_eq!(LocalOnnxBackend.model_id(), LEGACY_EMBEDDING_MODEL);
+        assert_eq!(LocalOnnxBackend.model_id(), "bge-small-en-v1.5");
     }
 
     #[test]
