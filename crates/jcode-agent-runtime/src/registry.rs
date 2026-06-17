@@ -224,12 +224,10 @@ impl AgentRegistry {
                         continue;
                     }
                     let source = match source_kind {
+                        SourceKind::Managed => AgentSource::Builtin,
                         SourceKind::UserGlobal => AgentSource::UserGlobal { path: path.clone() },
-                        SourceKind::ProjectLocal => {
-                            AgentSource::ProjectLocal { path: path.clone() }
-                        }
+                        SourceKind::ProjectLocal => AgentSource::ProjectLocal { path: path.clone() },
                     };
-                    let mut definition = definition;
                     if matches!(source, AgentSource::ProjectLocal { .. })
                         && definition.permission_mode == Some(PermissionMode::BypassPermissions)
                     {
@@ -286,6 +284,16 @@ impl AgentRegistry {
                 });
             }
         }
+        // Managed agents: ~/.jcode/managed-agents/ (read-only, lower priority)
+        if let Some(home) = home_dir {
+            let managed_dir = home.join(".jcode").join("managed-agents");
+            if let Err(err) = self.load_directory(&managed_dir, SourceKind::Managed) {
+                self.load_errors.push(LoadError::Io {
+                    path: managed_dir,
+                    source: err,
+                });
+            }
+        }
         if let Some(root) = project_root {
             let project_dir = root.join(".jcode").join("agents");
             if let Err(err) = self.load_directory(&project_dir, SourceKind::ProjectLocal) {
@@ -302,7 +310,11 @@ impl AgentRegistry {
 /// labeled. The function itself doesn't care about jcode's path convention.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SourceKind {
+    /// Read-only agents shipped with jcode or installed by admin.
+    Managed,
+    /// User-global agents at ~/.jcode/agents/.
     UserGlobal,
+    /// Project-local agents at .jcode/agents/.
     ProjectLocal,
 }
 
