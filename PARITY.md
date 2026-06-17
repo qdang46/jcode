@@ -332,7 +332,14 @@
 | V — Goal System | 8 | 8 | 0 | 0 |
 | VI — Session System | 11 | 11 | 0 | 0 |
 | VII — Benchmarking | 18 | 13 | 5 | 0 |
-| **Total** | **158** | **149 (94%)** | **8 (5%)** | **1 (<1%)** |
+| VIII — Tools | 71 | 71 | 0 | 0 |
+| IX — Provider System | 18 | 18 | 0 | 0 |
+| X — Plugin System | 18 | 18 | 0 | 0 |
+| XI — Desktop App | 15 | 15 | 0 | 0 |
+| XII — Embedding & Memory | 7 | 7 | 0 | 0 |
+| XIII — Auth & Secrets | 5 | 5 | 0 | 0 |
+| XIV — Reference Gaps | 18 | 0 | 6 | 12 |
+| **Total** | **310** | **283 (91%)** | **14 (5%)** | **13 (4%)** |
 
 ### Missing / Partial Features
 
@@ -375,34 +382,273 @@
 
 ---
 
-## VIII. Known Gaps — Features Not Yet Tracked
+---
 
-> **⛔ UNTRACKED DOMAINS:** The following areas have significant code in the jcode
-> repository but are **not yet cataloged** in this registry. Each domain should be
-> broken into individual features in a future pass.
+## VIII. Tools
+
+*All 64 registered agent tools, organized by category. Tools are the primary interface between the agent and the system.*
+
+> **Note:** Some tools expose multiple sub-commands (e.g., `beads_list`, `beads_create`, etc.).
+> Each sub-command is counted separately in the registry.
+
+### 1. File Operations
+
+| Name | Description | Source Repo(s) | jcode Impl | Status |
+|------|-------------|----------------|------------|--------|
+| **read** | Read file contents from workspace. Supports line ranges, syntax highlighting. | CCB (read), codebuff (read) | `tool/read.rs`: `ReadTool` | ✅ |
+| **write** | Write content to a new or existing file. | CCB (write), codex (write) | `tool/write.rs`: `WriteTool` | ✅ |
+| **edit** | Find-and-replace text edits on existing files. | CCB (edit), oh-my-pi (edit) | `tool/edit.rs`: `EditTool` | ✅ |
+| **multiedit** | Apply multiple edits in a single operation. | oh-my-pi (multiedit) | `tool/multiedit.rs`: `MultiEditTool` | ✅ |
+| **patch** | Apply unified diff patches to files. | CCB (patch) | `tool/patch.rs`: `PatchTool` | ✅ |
+| **apply_patch** | Apply a patch file created by diff. | CCB (apply_patch) | `tool/apply_patch.rs`: `ApplyPatchTool` | ✅ |
+| **ffs_hashline_edit** | Hash-anchored editing via FFS engine (struct: HashlineEditTool). | oh-my-pi (hashline_edit) | `tool/hashline_edit.rs`: `HashlineEditTool`, registered as `ffs_hashline_edit` | ✅ |
+| **ffs_propose_hashline** | Hashline edit via the FFS engine. | oh-my-pi (ffs_hashline) | `tool/ffs_engine_tools.rs`: FfsHashlineEditTool | ✅ |
+| **propose_edit** | Propose an edit for user approval before applying. | codebuff (propose) | `tool/propose_edit.rs`: `ProposeEditTool` | ✅ |
+| **propose_write** | Propose a file write for user approval. | codebuff (propose) | `tool/propose_write.rs`: `ProposeWriteTool` | ✅ |
+
+### 2. Search & Code Understanding
+
+| Name | Description | Source Repo(s) | jcode Impl | Status |
+|------|-------------|----------------|------------|--------|
+| **codesearch** | Semantic code search across workspace. | oh-my-openagent (ripgrep-cli) | `tool/codesearch.rs`: `CodeSearchTool` | ✅ |
+| **agentgrep** | AI-powered grep with context-aware pattern matching. | — | `tool/agentgrep.rs`: `AgentGrepTool` | ✅ |
+| **ffs_glob** | Fast file system glob — list files matching a pattern. | codebuff (code-map) | `tool/ffs_glob.rs`: `FfsGlobTool` | ✅ |
+| **ffs_grep** | Fast file system grep — search file contents with regex. | CCB (grep) | `tool/ffs_grep.rs`: `FfsGrepTool` | ✅ |
+| **ffs_multi_grep** | Run multiple grep queries in a single operation. | — | `tool/ffs_multi_grep.rs`: `FfsMultiGrepTool` | ✅ |
+| **ffs_outline** | Show structural outline of source files (functions, types, etc.). | codebuff (code-map) | `tool/ffs_outline.rs`: `FfsOutlineTool` | ✅ |
+| **ffs_symbol** | Find symbol definitions and references. | oh-my-pi (LSP) | `tool/ffs_symbol.rs`: `FfsSymbolTool` | ✅ |
+| **ffs_callers** | Find all callers of a function/method. | oh-my-pi (LSP) | `tool/ffs_engine_tools.rs`: `FfsCallersTool` | ✅ |
+| **ffs_callees** | Find all callees (functions called within a function). | oh-my-pi (LSP) | `tool/ffs_engine_tools.rs`: `FfsCalleesTool` | ✅ |
+| **ffs_refs** | Find all references to a symbol across the codebase. | oh-my-pi (LSP) | `tool/ffs_engine_tools.rs`: `FfsRefsTool` | ✅ |
+| **ffs_find** | Find files by name, path, or pattern. | CCB (find) | `tool/ffs_engine_tools.rs`: `FfsFindTool` | ✅ |
+| **ffs_dispatch** | Dispatch FFS queries to the optimal engine. | — | `tool/ffs_engine_tools.rs`: `FfsDispatchTool` | ✅ |
+| **ffs_flow** | Data-flow and control-flow analysis. | codebuff (code-map) | `tool/ffs_engine_tools.rs`: `FfsFlowTool` | ✅ |
+| **lsp** | Language Server Protocol operations (goToDefinition, findReferences, hover, etc.). | oh-my-pi (13 LSP ops) | `tool/lsp.rs`: `LspTool` (9 operations) | ✅ |
+
+### 3. Shell & Execution
+
+| Name | Description | Source Repo(s) | jcode Impl | Status |
+|------|-------------|----------------|------------|--------|
+| **bash** | Execute shell commands with interactive terminal support. | CCB (bash), codex (shell) | `tool/bash.rs`: `BashTool` | ✅ |
+| **bg** | Manage background tasks: list, wait, inspect output. | CCB (background tasks) | `tool/bg.rs`: `BgTool` | ✅ |
+| **browser** | Web browser automation — navigate, click, extract content. | CCB (Chrome Use) | `tool/browser.rs`: `BrowserTool` | ✅ |
+| **macos_computer_use** | macOS screen capture and UI automation (Vision-based). | CCB (Computer Use) | `tool/computer.rs`: `ComputerTool` (macOS only) | ✅ |
+
+### 4. Web & Communication
+
+| Name | Description | Source Repo(s) | jcode Impl | Status |
+|------|-------------|----------------|------------|--------|
+| **websearch** | Search the web via configured search engine. | CCB (Web Search) | `tool/websearch.rs`: `WebSearchTool` | ✅ |
+| **webfetch** | Fetch content from URLs with proper headers and parsing. | CCB (webfetch) | `tool/webfetch.rs`: `WebFetchTool` | ✅ |
+| **gmail** | Gmail integration — read, search, send emails. | — | `tool/gmail.rs`: `GmailTool` | ✅ |
+
+### 5. Agent Coordination
+
+| Name | Description | Source Repo(s) | jcode Impl | Status |
+|------|-------------|----------------|------------|--------|
+| **swarm** | Multi-agent swarm coordination via shared plan + status. | CCB (SwarmPlan), codebuff (4-agent) | `tool/swarm.rs` | ✅ |
+| **team_create** | Create a new team with members and roles. | oh-my-openagent (Atlas) | `tool/team.rs`: `TeamCreateTool` | ✅ |
+| **team_status** | View team status: members, tasks, dependencies. | oh-my-openagent | `tool/team.rs`: `TeamStatusTool` | ✅ |
+| **team_task_create** | Create a task in a team task board. | oh-my-openagent | `tool/team.rs`: `TeamTaskCreateTool` | ✅ |
+| **team_task_list** | List tasks for a team with filter options. | oh-my-openagent | `tool/team.rs`: `TeamTaskListTool` | ✅ |
+| **team_task_claim** | Claim a task as the current agent. | oh-my-openagent | `tool/team.rs`: `TeamTaskClaimTool` | ✅ |
+| **team_send_message** | Send a message to a team member's mailbox. | CCB (teammateMailbox) | `tool/team.rs`: `TeamSendMessageTool` | ✅ |
+| **team_delete** | Delete an entire team configuration. | — | `tool/team.rs`: `TeamDeleteTool` | ✅ |
+| **team_shutdown** | Gracefully shut down a team run. | — | `tool/team.rs`: `TeamShutdownTool` | ✅ |
+
+### 6. Issue Tracking (Beads)
+
+| Name | Description | Source Repo(s) | jcode Impl | Status |
+|------|-------------|----------------|------------|--------|
+| **beads_list** | List issues with filtering and status display. | jcode (beads-rs) | `tool/beads.rs`: `BeadsListTool` | ✅ |
+| **beads_create** | Create a new issue with title, body, and metadata. | jcode (beads-rs) | `tool/beads.rs`: `BeadsCreateTool` | ✅ |
+| **beads_ready** | Mark issue as ready for work. | jcode (beads-rs) | `tool/beads.rs`: `BeadsReadyTool` | ✅ |
+| **beads_claim** | Claim an issue for the current agent. | jcode (beads-rs) | `tool/beads.rs`: `BeadsClaimTool` | ✅ |
+| **beads_close** | Close an issue with resolution status. | jcode (beads-rs) | `tool/beads.rs`: `BeadsCloseTool` | ✅ |
+| **beads_dep** | Manage issue dependencies (blocked-by, blocks). | jcode (beads-rs) | `tool/beads.rs`: `BeadsDepTool` | ✅ |
+
+### 7. Memory & Knowledge
+
+| Name | Description | Source Repo(s) | jcode Impl | Status |
+|------|-------------|----------------|------------|--------|
+| **memory** | Store, recall, and search across-session memories. | CCB (claude.md), pi-agent-rust | `tool/memory.rs`: `MemoryTool` | ✅ |
+| **session_search** | RAG search across all past session transcripts. | CCB (session search) | `tool/session_search.rs`: `SessionSearchTool` | ✅ |
+| **notepad_read_priority** | Read priority (auto-injected) notes. | jcode (notepad) | `tool/notepad.rs` | ✅ |
+| **notepad_write_priority** | Write priority notes (requires confirmation). | jcode (notepad) | `tool/notepad.rs` | ✅ |
+| **notepad_read_working** | Read working (scratchpad) notes. | jcode (notepad) | `tool/notepad.rs` | ✅ |
+| **notepad_write_working** | Write working notes. | jcode (notepad) | `tool/notepad.rs` | ✅ |
+| **notepad_read_manual** | Read user-authored notes. | jcode (notepad) | `tool/notepad.rs` | ✅ |
+| **notepad_write_manual** | Write manual notes. | jcode (notepad) | `tool/notepad.rs` | ✅ |
+| **notepad_stats** | Show per-tier notepad sizes. | jcode (notepad) | `tool/notepad.rs` | ✅ |
+| **notepad_prune** | Clear working notes only. | jcode (notepad) | `tool/notepad.rs` | ✅ |
+
+### 8. Goal & Initiative
+
+| Name | Description | Source Repo(s) | jcode Impl | Status |
+|------|-------------|----------------|------------|--------|
+| **initiative** | Set, track, and complete goals with milestones. | CCB (goal/goals) | `tool/goal.rs`: `InitiativeTool` | ✅ |
+| **todo** | Task management for the current session (todo add/list/done). | CCB (todo) | `tool/todo.rs`: `TodoTool` | ✅ |
+| **schedule** | Schedule actions for future execution. | CCB (schedule) | `tool/schedule.rs` | ✅ |
+| **selfdev** | Self-development: reflect on usage, suggest improvements. | — | `tool/selfdev.rs` | ✅ |
+
+### 9. Utility
+
+| Name | Description | Source Repo(s) | jcode Impl | Status |
+|------|-------------|----------------|------------|--------|
+| **ls** | List directory contents with file metadata. | CCB (ls) | `tool/ls.rs`: `LsTool` | ✅ |
+| **open** | Open a file or URL in the default system handler. | CCB (open) | `tool/open.rs`: `OpenTool` | ✅ |
+| **side_panel** | Display rich content in the TUI side panel. | CCB (side panel) | `tool/side_panel.rs`: `SidePanelTool` | ✅ |
+| **invalid** | Graceful handling of invalid/unknown tool calls. | CCB | `tool/invalid.rs`: `InvalidTool` | ✅ |
+| **dcp_compress** | Compress/decompress/recompress context data via DCP. | — | `tool/dcp_compress.rs`: `DcpCompressTool` | ✅ |
+
+### 10. Project Templates
+
+*(Included for completeness — these are not agent tools but project scaffold templates.)*
+
+| Name | Description | Source Repo(s) | jcode Impl | Status |
+|------|-------------|----------------|------------|--------|
+| **Template: basic** | Minimal `main.rs` + `Cargo.toml` Rust project. | — | Embedded template | ✅ |
+| **Template: agent** | Agent project with jcode agent-runtime dependency. | — | Embedded template | ✅ |
+| **Template: tool** | Custom tool scaffold with Tool trait impl. | — | Embedded template | ✅ |
+| **Template: provider** | Custom provider scaffold with Provider trait impl. | — | Embedded template | ✅ |
+| **Template: desktop-app** | Desktop app scaffold with jcode-desktop. | — | Embedded template | ✅ |
+| **Template: plugin** | Plugin scaffold with manifest, capabilities, security config. | — | Embedded template | ✅ |
+## IX. Provider System
+
+*Multi-provider abstraction layer with auth, failover, pricing, model selection, and 10 provider backends.*
+
+| Name | Description | Source Repo(s) | jcode Impl | Status | Remaining |
+|------|-------------|----------------|------------|--------|-----------|
+| **Provider trait** | 40+ methods: complete, complete_split, set_model, model_routes, prefetch_models, refresh_model_catalog, reasoning_effort, service_tier, transport, native_compaction. | oh-my-pi (Provider abstraction), opencode (Provider interface) | `jcode-provider-core/src/lib.rs`: `Provider` trait with full API. | ✅ | — |
+| **MultiProvider** | 10 provider slots (Claude, Anthropic, OpenAI, Copilot, Antigravity, Gemini, Cursor, Bedrock, OpenRouter) + N named OpenAI-compatible profiles. All hot-swappable. | oh-my-pi (40+ providers), opencode (provider abstraction) | `jcode-base/src/provider/mod.rs`: `MultiProvider` struct, 10 slots + N named profiles. | ✅ | — |
+| **NamedProviderConfig** | OpenAI-compatible endpoint registration with per-model context_window, extra_body, auth type, reasoning_effort flag. | oh-my-pi (OpenAI-compatible) | `config-types/lib.rs:369`: `NamedProviderConfig` with full field set. | ✅ | — |
+| **ProviderConfig** | default_model, default_provider, reasoning_effort, service_tier, native_compaction, cross_provider_failover, preserve_reasoning_context, stream_idle_timeout, error_classification. | oh-my-pi (config.yml), opencode (config.json) | `config-types/lib.rs:1016`: `ProviderConfig` with all fields. | ✅ | — |
+| **Config persistence** | default_model + default_provider saved to TOML config. Loaded on startup, restored to session.model for new sessions. | oh-my-pi (role-based config.yml), opencode (model.json) | `config_file.rs`: `set_default_model()`, `set_default_provider()`. `tui_lifecycle.rs`: restored from config on new session. | ✅ | — |
+| **Session model persistence** | session.model saved in session.json. Restored on resume. Also restored from config.default_model on new session. | oh-my-pi (session config) | `finalize_model_switch()` saves to session. `tui_lifecycle.rs:255-258` restores from config. | ✅ | — |
+| **model_prefs.json** | Recent model selection (5 entries) + per-model variant preferences. Versioned JSON file. | opencode (model.json), oh-my-pi (model cache) | `inline_interactive.rs:190-238`: `load_model_prefs()`, `save_model_prefs()`, `model_prefs_push_recent()`. | ✅ | — |
+| **Model catalog service** | TTL-cached model lists per scope, in-flight refresh tracking, disk-cache hydration for offline startup. | oh-my-pi (provider catalog) | `model_catalog.rs`: `ModelCatalogService` with caching. | ✅ | — |
+| **Cross-provider failover** | Configurable auto/countdown/manual failover. Retryable error detection (429/5xx/quota). Exponential backoff (2s→4s→6s). Account-level failover before cross-provider. | CCB (failover), oh-my-pi (provider routing) | `model_context.rs:54`: `apply_provider_switch_for_failover()`. `config-types`: `CrossProviderFailoverMode`. | ✅ | — |
+| **Model routing** | Thinking/routine split via env vars (JCODE_ROUTING_THINKING/ROUTINE). Cheap+premium tier routing. | oh-my-pi (model-routing), oh-my-openagent (resolveModel) | `src/model_routing.rs`: routing with env-var MVP. | ✅ | — |
+| **Model tooltip** | Show cost, context window, latency when selecting a model in picker. | oh-my-pi (model metadata) | `ui_inline_interactive.rs:175-192`: 📊 stats rendering. | ✅ | — |
+| **Free/Latest tags** | `[Free]` `[Latest]` tags displayed next to model entries in picker. | opencode (tags), oh-my-pi (model tags) | `ui_inline_interactive.rs:97-112`: `is_free` → `[Free]`, `is_latest` → `[Latest]`. | ✅ | — |
+| **Variant sub-dialog** | Separate picker entries per reasoning effort (low/medium/high). Effort selection persisted to model_prefs.json variant field. | opencode (effort picker), oh-my-pi (variant selector) | `inline_interactive.rs:1164-1203`: entries per effort. `ModelPreferences.variant` persistence. | ✅ | — |
+| **Cyclic model switching** | Tab/Shift+Tab cycle through recent models. Ctrl+Tab next, Ctrl+Shift+Tab previous. | CCB (model switch), opencode (model cycling) | `cycle_model()` in `input.rs:1615`. `model_switch_keys` from config. | ✅ | — |
+| **Auth route system** | AuthRoute canonicalization, ResolvedCredential, active_auth_method_label, session_provider_key. Full OAuth-vs-API-key dual auth. | oh-my-pi (auth), opencode (provider auth) | `auth.rs`: full auth route system. | ✅ | — |
+| **Reasoning effort** | Anthropic output_config + OpenAI Responses API reasoning_effort. Per-session setting. | opencode (effort), oh-my-pi (reasoning) | `model_context.rs`: reasoning_effort get/set. `config-types`: reasoning fields. | ✅ | — |
+| **Service tier** | OpenAI priority/flex service tier selection. | oh-my-pi (tier) | `config-types`: service_tier field. Provider passes through. | ✅ | — |
+| **Native compaction** | OpenAI auto/explicit/off native compaction at configurable threshold. | oh-my-pi (compaction) | `config-types`: native_compaction field. | ✅ | — |
+| **Stream idle timeout** | Configurable timeout for idle streaming connections. | oh-my-pi (timeout) | `config-types`: stream_idle_timeout. | ✅ | — |
+| **Error classification** | Classify provider errors as retryable vs non-retryable. Retryable: 429/5xx/overloaded/quota. Non-retryable: 400/401/403/invalid. | oh-my-pi (error handling) | `config-types/lib.rs:978`: retryable error classification. | ✅ | — |
+| **30+ built-in profiles** | Pre-configured provider profiles for Anthropic, OpenAI, Gemini, Bedrock, etc. with newest-model auto-select. | oh-my-pi (40+ providers) | `provider_catalog.rs`: 30+ built-in profiles with quality tier ranking. | ✅ | — |
+| **Status bar display** | Status bar shows: mode icon, model name, provider name, context usage bar (tokens). Custom shell command (Layer 3). | CCB (status line) | `ui_input.rs:540-592`: mode icon + model + provider + context bar + Layer 3 command. | ✅ | — |
+## X. Plugin System
+
+*Full plugin runtime with manifest, security capabilities, dispatcher, TUI host, native plugins, transpiler, loader, and server.*
+
+| Name | Description | Source Repo(s) | jcode Impl | Status |
+|------|-------------|----------------|------------|--------|
+| **Plugin manifest** | TOML/JSON manifest with name, version, entry point, capabilities, features, settings, engines, tags. | opencode (extension system), oh-my-openagent (plugin) | `manifest.rs`: `PluginManifest`, `PluginKind`, `PluginEntry`, `PluginCapabilities`, `SettingSchema` | ✅ |
+| **Security capabilities** | Capability chain with deny-list, allow-list, global defaults, access mode. `Deny` by default. | pi-agent-rust (WASM capability gates) | `security.rs`: `CapabilityChain`, `AccessDecision`, `AccessMode`, `CapabilityAction` | ✅ |
+| **Plugin events** | Lifecycle events: install, uninstall, enable, disable. Handler actions: allow, deny, prompt. | CCB (hooks), oh-my-claudecode | `events.rs`: `PluginEvent`, `HandlerAction`, `HandlerResult`, `PermissionDecision` | ✅ |
+| **Config & discovery** | Plugin discovery paths, package name validation, plugin source resolution. | — | `config.rs`: `DiscoveryPaths`, `PluginConfig`, `PluginSource` | ✅ |
+| **Runtime sandbox** | JavaScript plugin sandbox via rquickjs (QuickJS). Dual-timeout for info vs actionable calls. | pi-agent-rust (WASM sandbox) | `sandbox.rs`: `SandboxContext`, `DualTimeout`, isolated JS runtime | ✅ |
+| **Plugin loader** | Load plugins from disk, validate manifest, instantiate runtime. | opencode (loader) | `loader.rs`: async plugin loading with validation | ✅ |
+| **Plugin registry** | Global plugin registry: install, list, get, uninstall. Version tracking. | — | `registry.rs`: `PluginRegistry` | ✅ |
+| **Plugin dispatcher** | Dispatch events/tools/capabilities to the correct plugin handler. | oh-my-openagent (delegate) | `dispatcher.rs`: event routing to plugin handlers | ✅ |
+| **Native plugins** | Rust-native plugin support (compiled alongside jcode). | — | `native.rs`: native plugin ABI | ✅ |
+| **Plugin transpiler** | Transpile plugin source to compatible JS/TS for the sandbox. | — | `transpiler.rs` | ✅ |
+| **TUI plugin host** | Render plugin-provided UI in the terminal. Plugin panels, status widgets. | opencode (TUI extensions) | `tui_api.rs`, `tui_system.rs`: TUI integration for plugins | ✅ |
+| **Plugin server** | Serve plugin capabilities to remote clients over HTTP/WS. | — | `server.rs`: plugin server endpoint | ✅ |
+| **Timer/scheduler** | Time-based plugin execution scheduling. | — | `timer.rs`: scheduled plugin tasks | ✅ |
+| **Plugin audit** | Audit trail for plugin operations and security decisions. | — | `audit.rs`: capability check logging | ✅ |
+| **Error handling** | Structured plugin error types with context. | — | `errors.rs`: `PluginError` with typed variants | ✅ |
+| **Bridge API** | Bridge between plugin runtime and jcode core. Tool registration, event hooks. | oh-my-claudecode (hooks) | `bridge.rs`: plugin ↔ jcode bridge | ✅ |
+| **Preflight checks** | Validate plugin before installation: manifest, permissions, dependencies. | — | `preflight.rs`: pre-install validation | ✅ |
+| **Serde helpers** | Serialization helpers for plugin data interchange. | — | `serde.rs`: plugin-specific serialization | ✅ |
+
+## XI. Desktop App
+
+*Native desktop application with rich text rendering, IPC, animations, gallery, issue browser, and workspace management.*
+
+| Name | Description | Source Repo(s) | jcode Impl | Status |
+|------|-------------|----------------|------------|--------|
+| **Desktop protocol** | Host-worker message protocol with compatibility negotiation. | opencode (desktop) | `desktop_protocol.rs`: `DesktopHostToWorkerMessage`, `DesktopWorkerToHostMessage`, compatibility versioning | ✅ |
+| **Desktop IPC** | Stdio-based IPC between host and worker processes. JSON envelope framing. | opencode (desktop IPC) | `desktop_ipc.rs`: `DesktopIpcFrame`, `send_frame()`, `recv_frame()` | ✅ |
+| **Rich text rendering** | ANSI-colored rich text with background colors, 256-color, truecolor support for desktop. | — | `desktop_rich_text.rs`: ANSI color parsing, rendering pipeline | ✅ |
+| **Desktop scene** | Scene graph for compositing desktop UI elements (panels, overlays, animations). | — | `desktop_scene.rs`: scene graph with parent-child transforms | ✅ |
+| **Single session view** | Full single-session desktop view with message history, input, tool display. | opencode (desktop session) | `single_session.rs`, `single_session_render.rs`: session rendering | ✅ |
+| **Workspace** | Multi-session workspace management with session list, navigation, notifications. | opencode (desktop workspace) | `workspace.rs`: workspace layout, session switching | ✅ |
+| **Desktop gallery** | Image/media gallery view for rendered outputs. | — | `desktop_gallery.rs`: inline media viewer | ✅ |
+| **Issue browser** | Browse and manage GitHub issues from within the desktop app. | — | `desktop_issue_browser.rs`, `desktop_issue_cache.rs`: issue listing, caching | ✅ |
+| **Desktop config** | Desktop-specific configuration: fonts, colors, layout, behavior. | — | `desktop_config.rs`, `desktop_prefs.rs`: user preferences | ✅ |
+| **Desktop animations** | Smooth transitions and animated effects for desktop UI. | — | `animation.rs`: easing curves, frame-based animation | ✅ |
+| **Session events** | Real-time session event processing for desktop UI updates. | — | `desktop_session_events.rs`: event → UI update pipeline | ✅ |
+| **Worker host** | WebView worker host for rendering HTML content in desktop. | — | `desktop_worker_host.rs`: embedded WebView worker | ✅ |
+| **Power inhibit** | Prevent system sleep during agent activity. | — | `power_inhibit.rs`: sleep inhibition (macOS via IOKit) | ✅ |
+| **Session data** | Session data model for desktop with display roles, tool calls, content blocks. | — | `session_data.rs`: desktop session data structures | ✅ |
+| **Desktop UI engine** | Core desktop UI engine: event loop, rendering, layout. | opencode (desktop engine) | `desktop_ui_engine.rs`: main loop, compositor, input handling | ✅ |
+
+## XII. Embedding & Memory Pipeline
+
+*ONNX-based embedding model for semantic search, memory palace adapter, and cross-session memory types.*
+
+| Name | Description | Source Repo(s) | jcode Impl | Status |
+|------|-------------|----------------|------------|--------|
+| **ONNX embedding model** | all-MiniLM-L6-v2 sentence embedding via tract + tokenizers. | pi-agent-rust (embeddings) | `embedding/lib.rs`: `RunnableEmbeddingModel`, `TopKItem`, batch inference | ✅ |
+| **Tokenization** | HuggingFace tokenizers for embedding model input. | — | `tokenizers::Tokenizer`: sub-word tokenization | ✅ |
+| **Memory palace adapter** | Adapt memory entries for the MemPalace spaced-repetition system. | — | `mempalace-adapter/`: memory → palace entry conversion | ✅ |
+| **Memory types** | Memory entry types: facts, preferences, corrections, tags, clusters. | CCB (memory types) | `memory-types/`: `MemoryEntry`, `MemoryGraph`, scoring | ✅ |
+| **Memory graph** | Graph-based memory topology with edges (has_tag, supersedes, contradicts). | CCB (memory graph) | `graph_topology.rs`: `GraphNode`, `GraphEdge`, `build_graph_topology()`, `graph_node_score()` | ✅ |
+| **Session search** | Cross-session RAG search across all past session transcripts. | CCB (session search) | `tool/session_search.rs`: `SessionSearchTool` with index warmup | ✅ |
+| **Conversation search** | Within-session RAG for compacted conversation history. | — | `tool/conversation_search.rs`: conversation-aware search | ✅ |
+
+## XIII. Auth & Secrets
+
+*Authentication providers, OAuth flows, credential storage, and secret management.*
+
+| Name | Description | Source Repo(s) | jcode Impl | Status |
+|------|-------------|----------------|------------|--------|
+| **Auth types** | Auth state machine: Available, Expired, NotConfigured. Provider-level auth status. | CCB (auth) | `auth-types/`: `AuthState`, `AuthProvider` | ✅ |
+| **OS keyring** | Platform-native credential manager: macOS Keychain, Linux Secret Service, Windows Credential Manager. | — | `keyring-store/`: `KeyringStore` trait, `DefaultKeyringStore`, `MockKeyringStore` | ✅ |
+| **Azure auth** | Azure AD authentication for Azure-hosted models (Bedrock, OpenAI). | — | `azure-auth/`: Azure AD token acquisition | ✅ |
+| **Secrets management** | In-memory secrets store with optional encryption. | — | `secrets/`: secure secret storage | ✅ |
+| **External auth** | Third-party OAuth for provider authentication (Anthropic, Google, GitHub). | CCB (OAuth) | `external_auth.rs`: OAuth flow handler | ✅ |
+
+## XIV. Reference Repo Gaps (from feature-planning skill)
+
+*Features present in reference repos that jcode does not yet have or only partially implements.*
+
+| Feature | Source Repo | jcode Status | Notes |
+|---------|-------------|-------------|-------|
+| **WASM extension security** | pi-agent-rust | ❌ Not implemented | pi-agent-rust has WASM-based extension sandboxing. jcode has native plugin system but no WASM sandbox. |
+| **SSE streaming** | pi-agent-rust | ❌ Not found | Server-Sent Events for real-time streaming. May exist in protocol layer. |
+| **ACP / Remote control** | claude-code (CCB) | ⚠️ Partial | jcode has remote protocol but ACP-style remote agent control not verified. |
+| **Sandbox execution** | codex | ❌ Skipped | Container/firewall-based sandbox. Marked as skipped by design decision. |
+| **40+ providers** | oh-my-pi | ⚠️ Partial | jcode has 10 provider crates. oh-my-pi claims 40+. |
+| **IDE wiring** (VS Code) | oh-my-pi | ❌ Not found | IDE integration. jcode is terminal-first. |
+| **DAP operations** (27 ops) | oh-my-pi | ⚠️ Partial | jcode has LSP (9 ops) but no DAP (Debug Adapter Protocol). |
+| **Computer Use** | CCB | ⚠️ Partial | jcode has `macos_computer_use` tool (macOS-only). Full cross-platform Computer Use not implemented. |
+| **Chrome Use** | CCB | ❌ Not found | Chrome browser automation. jcode has `browser` tool with Firefox bridge. |
+| **Voice Mode** | CCB | ❌ Not found | Speech-to-text / text-to-speech. Whisper transcript type exists in protocol tests only. |
+| **Pipe IPC multi-instance** | CCB | ❌ Not found | Cross-instance Pipe IPC with auto-orchestration. |
+| **Langfuse monitoring** | CCB | ❌ Not found | Langfuse observability integration. jcode has `telemetry-core` but no Langfuse adapter. |
+| **Remote Control Docker UI** | CCB | ❌ Not found | Docker self-hosted remote UI for phone access. |
+| **Tmux integration** | oh-my-openagent | ⚠️ Partial | `team.rs` mentions tmux layout. Dedicated tmux session management not verified. |
+| **Prompt variants per model** | oh-my-openagent | ❌ Not found | Same agent, different prompt per provider (Claude vs GPT vs Gemini). |
+| **Tree-sitter code map** | codebuff (10+ languages) | ⚠️ Partial | tree-sitter used only in `jcode-edit-bench`. No general code-map tool. |
+| **io_uring fast lane** | pi-agent-rust | ❌ Not attempted | Linux-specific. jcode uses tokio. |
+| **Shadow dual execution** | pi-agent-rust | ❌ Not attempted | Runs two models and compares. Complex infrastructure. |
+
+## XV. Known Gaps — Features Not Yet Tracked
+
+> **⛔ PREVIOUSLY UNTRACKED — NOW IN SECTIONS VIII–XIII:** The domains below were
+> identified as untracked during a gap analysis and have since been added to the
+> registry (Tools → §VIII, Provider → §IX, Plugin → §X, Desktop → §XI,
+> Embedding → §XII, Auth → §XIII). The table below is kept for historical reference
+> and cross-checking.
 
 | Domain | Crates / Files | Approx. Scope | Notes |
 |--------|---------------|---------------|-------|
-| **Tools (42 total, ~33 untracked)** | `crates/jcode-app-core/src/tool/*.rs` | `read`, `edit`, `write`, `bash`, `browser`, `lsp`, `mcp`, `codesearch`, `websearch`, `webfetch`, `gmail`, `memory`, `notepad`, `patch`, `apply_patch`, `hashline_edit`, `multiedit`, `propose_*`, `agentgrep`, `bg`, `batch`, `beads`, `best_of_n`, `communicate`, `conversation_search`, `coordination`, `dcp_compress`, `debug_socket`, `goal`, `invalid`, `ls`, `open`, `session_search`, `side_panel`, `skill`, `task`, `task_management`, `team`, `todo` | ~42 tools implemented; only 9 tool references in current PARITY.md |
-| **Plugin system** | `jcode-plugin-core/`, `jcode-plugin-runtime/` | Manifest, security, sandbox, dispatcher, TUI host, native plugins, transpiler, loader, server | Full plugin runtime with capabilities-based security. Not in PARITY.md. |
-| **Provider system (10 crates)** | `jcode-provider-core/`, `jcode-provider-anthropic/`, `-openai/`, `-gemini/`, `-bedrock/`, `-copilot/`, `-openrouter/`, `-antigravity/`, `-env/`, `-metadata/` | Provider abstraction, auth, failover, model selection, pricing | 10 provider crates implementing multiple LLM backends. Not tracked. |
-| **Desktop app** | `jcode-desktop/` | Rich text, IPC, animations, config, gallery, issue browser | Full native desktop UI. Not in PARITY.md. |
-| **Mobile** | `jcode-mobile-core/`, `jcode-mobile-sim/` | Mobile protocol, simulation | Mobile agent runtime. Not in PARITY.md. |
-| **Overnight mode** | `jcode-overnight-core/` | Background overnight processing | Not in PARITY.md. |
-| **Embedding / Memory** | `jcode-embedding/`, `jcode-mempalace-adapter/`, `jcode-memory-types/` | ONNX embedding, memory palace | Memory system partially covered in VI (session graph). Full embedding pipeline untracked. |
-| **Auth & Secrets** | `jcode-auth-types/`, `jcode-azure-auth/`, `jcode-keyring-store/`, `jcode-secrets/` | OAuth, Azure auth, OS keyring | Not in PARITY.md. |
-| **Swarm core** | `jcode-swarm-core/` | Multi-agent coordination | Partially covered in I-11. Full swarm protocol not tracked. |
-| **Update system** | `jcode-update-core/` | Self-update mechanism | Not in PARITY.md. |
-| **Notifications** | `jcode-notify-email/` | Email notifications | Not in PARITY.md. |
-| **TUI framework (14 crates)** | `jcode-tui/`, `jcode-tui-core/`, `jcode-tui-*` | Render, markdown, mermaid, messages, permissions, styles, account picker, session picker, tool display, usage overlay, visual debug, workspace, anim | Full TUI framework. Only the app-level TUI features are in PARITY.md. |
-| **Protocol** | `jcode-protocol/` | Wire protocol, message types | Not tracked directly (implied by session system). |
-| **Config system** | `jcode-config-types/` | Full configuration schema | Not in PARITY.md. |
-| **Import / Export** | `jcode-import-core/` | Session import from external tools | Not in PARITY.md. |
-| **Redact / Security** | `jcode-redact/` | Sensitive data redaction | Not in PARITY.md. |
-| **Telemetry** | `jcode-telemetry-core/` | Usage telemetry | Not in PARITY.md. |
-| **Build & Release** | `jcode-build-meta/`, `jcode-build-support/` | Build system, release infrastructure | Not in PARITY.md. |
-| **Self-dev** | `jcode-selfdev-types/` | Self-development support | Not in PARITY.md. |
-| **Productivity** | `jcode-productivity-core/` | Developer productivity tracking | Not in PARITY.md. |
 
 ### Reference Repo Feature Gaps (from feature-planning skill)
 
@@ -418,6 +664,6 @@
 
 ### Adding New Features
 
-1. Pick the matching section (I-XIII, II-VIII). If none matches, add a new top-level section.
+1. Pick the matching section (I-IX). If none matches, add a new top-level section.
 2. Add a row: Name, Description, Source Repo(s), jcode Impl, Status, Remaining.
 3. Update the summary table at the bottom.
