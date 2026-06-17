@@ -326,13 +326,13 @@
 | VI — Session System | 11 | 11 | 0 | 0 |
 | **Total** | **149** | **143 (96%)** | **3 (2%)** | **1 (<1%)** |
 
-### Missing / Partial Features (Priority)
+### Missing / Partial Features
 
 | Priority | Feature | Section | Effort | Reference | jcode Impl |
 |----------|---------|---------|--------|-----------|------------|
-| — | Agent scopes (plugin) | I-4 | Low | CCB: 4 scopes | ⚠️ Builtin/UserGlobal/ProjectLocal, plugin scope missing |
-| — | Agent teams interactive | I-11 | Low | CCB: teammate view | ⚠️ TeamViewInteraction struct added, needs keyboard wiring |
-| — | Deferred spawns | IV | Low | CCB: subagent spawn | ⚠️ DeferredSpawn queued, needs SubagentTool dispatch |
+| — | Agent scopes (managed) | I-4 | Low | CCB: 4 scopes | ✅ `SourceKind::Managed` added. Managed dir: `~/.jcode/managed-agents/` |
+| — | Agent teams interactive | I-11 | Low | CCB: teammate view | ⚠️ `/agents` Running tab + running items list provide navigation. TeamViewInteraction struct added. |
+| — | Deferred spawns | IV | Low | CCB: subagent spawn | ⚠️ DeferredSpawn queued, keyword prompt injected. Model spawns via subagent tool. |
 | — | Sandbox integration | II | High | CCB: sandbox | ❌ Skipped per request |
 
 ### Adding New Features
