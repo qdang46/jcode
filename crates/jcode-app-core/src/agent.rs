@@ -237,6 +237,8 @@ pub struct Agent {
     system_prompt_override: Option<String>,
     /// Whether memory features are enabled for this session
     memory_enabled: bool,
+    /// Whether this session streams an inline output tail to the bus (swarm worker).
+    inline_output_tap: bool,
     /// One-step undo snapshot captured before the most recent rewind.
     rewind_undo_snapshot: Option<RewindUndoSnapshot>,
     /// Channel for tools to request stdin input from the user
@@ -310,6 +312,7 @@ impl Agent {
             mcp_late_register_resolved: false,
             system_prompt_override: None,
             memory_enabled: crate::config::config().features.memory,
+            inline_output_tap: false,
             rewind_undo_snapshot: None,
             stdin_request_tx: None,
             provider_runtime_state: ProviderRuntimeState::observed(initial_provider_model),

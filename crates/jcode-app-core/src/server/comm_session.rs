@@ -439,6 +439,7 @@ async fn register_visible_spawned_member(
                 friendly_name: Some(friendly_name),
                 report_back_to_session_id: report_back_to_session_id.map(str::to_string),
                 latest_completion_report: None,
+                output_tail: None,
                 role: "agent".to_string(),
                 joined_at: now,
                 last_status_change: now,
@@ -528,8 +529,6 @@ pub(super) async fn spawn_swarm_agent(
             coordinator_is_canary,
             startup_message.as_deref(),
             |session_id, cwd, selfdev_requested, provider_key| {
-                // Tag the headed window as a swarm-agent spawn so spawn hooks
-                // and terminals can identify and reroute it (JCODE_SPAWN_*).
                 let context = crate::session_launch::SessionSpawnContext::kind("swarm-agent")
                     .env("JCODE_SPAWN_SWARM_ID", swarm_id)
                     .env("JCODE_SPAWN_COORDINATOR_SESSION_ID", req_session_id);
@@ -542,6 +541,7 @@ pub(super) async fn spawn_swarm_agent(
                 )
             },
         ),
+        SwarmSpawnMode::Inline => Ok((req_session_id.to_string(), false)),
     };
 
     let (new_session_id, is_headless_fallback) = match visible_spawn {
