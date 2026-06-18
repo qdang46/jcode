@@ -360,6 +360,22 @@ impl Agent {
         // allow-once cache) at the start of each new agent session.
         crate::execution_policy::reset_policy_session();
 
+        // FIX: Apply persisted default_model from config BEFORE build_base moves provider.
+        // Provider constructors only check env vars and hardcoded defaults (e.g.
+        // AnthropicProvider::new reads JCODE_ANTHROPIC_MODEL or "claude-opus-4-6"),
+        // never config.toml. After the user changes model via TUI (which writes
+        // config.toml via set_default_model), a restart loses that selection.
+        // Apply it here so the model survives restarts.
+        let config_model = crate::config::config().provider.default_model.clone();
+        if let Some(ref model) = config_model && !model.trim().is_empty() {
+            if let Err(e) = provider.set_model(model.trim()) {
+                crate::logging::warn(&format!(
+                    "Failed to apply config default_model '{}': {}; falling back to provider default {}",
+                    model.trim(), e, provider.model()
+                ));
+            }
+        }
+
         let tool_selection = crate::config::config().tools.selection();
         let mut agent = Self::build_base(
             provider,

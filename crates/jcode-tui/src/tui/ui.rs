@@ -2281,9 +2281,15 @@ fn draw_inner(frame: &mut Frame, app: &dyn TuiState) {
         overlays::draw_permission_dialog_overlay(frame, area, app);
     }
 
-    // Teammate view banner (CCB style): show when viewing a subagent's stream
+    // Teammate view panel (CCB style): full panel when viewing a subagent's stream
     if app.viewing_teammate_session_id().is_some() {
-        overlays::draw_teammate_view_banner(frame, area, app);
+        let panel_area = Rect {
+            x: area.x + area.width.saturating_sub(60).min(4),
+            y: area.y + 1,
+            width: area.width.min(60).min(area.width - 4),
+            height: 8.min(area.height.saturating_sub(2)),
+        };
+        overlays::draw_teammate_view_panel(frame, panel_area, app);
     }
 
     if let Some(picker_cell) = app.session_picker_overlay() {
