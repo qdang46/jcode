@@ -1,0 +1,226 @@
+use std::collections::HashMap;
+
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
+
+use crate::endpoint::Endpoint;
+use crate::framing::Framing;
+use crate::schema::ModelRef;
+use crate::transport::Transport;
+
+/// A fully-specified route that describes how to reach a provider endpoint,
+/// which protocol to speak, authentication method, and default parameters.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct Route {
+    /// Unique identifier for this route.
+    pub id: String,
+    /// The provider this route targets.
+    pub provider: ModelRef,
+    /// The wire-level protocol identifier (e.g. "anthropic-messages-2023-01-01").
+    pub protocol: String,
+    /// The endpoint describing how to reach the provider.
+    pub endpoint: Endpoint,
+    /// Authentication configuration (keys, tokens, etc.).
+    pub auth: HashMap<String, String>,
+    /// The framing strategy used for streaming responses.
+    pub framing: Framing,
+    /// The transport layer (HTTP or WebSocket).
+    pub transport: Transport,
+    /// Default generation parameters for this route.
+    #[serde(default)]
+    pub defaults: HashMap<String, serde_json::Value>,
+    /// Optional body overlay injected into every request.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub body_overlay: Option<serde_json::Value>,
+}
+
+impl<B, F, E, S> Route<B, F, E, S> {
+    /// Create a new route with the given id and provider.
+    pub fn new(id: impl Into<String>, provider: ModelRef) -> Self {
+        Route {
+            id: id.into(),
+            provider,
+            protocol: String::new(),
+            endpoint: Endpoint {
+                base_url: String::new(),
+                path: crate::endpoint::PathSpec::Static(String::new()),
+                query: None,
+            },
+            auth: HashMap::new(),
+            framing: Framing::Sse,
+            transport: Transport::Http,
+            defaults: HashMap::new(),
+            body_overlay: None,
+        }
+    }
+
+    /// Set the protocol identifier.
+    pub fn with_protocol(mut self, protocol: impl Into<String>) -> Self {
+        self.protocol = protocol.into();
+        self
+    }
+
+    /// Set the endpoint.
+    pub fn with_endpoint(mut self, endpoint: Endpoint) -> Self {
+        self.endpoint = endpoint;
+        self
+    }
+
+    /// Set the auth configuration.
+    pub fn with_auth(mut self, auth: HashMap<String, String>) -> Self {
+        self.auth = auth;
+        self
+    }
+
+    /// Set the framing strategy.
+    pub fn with_framing(mut self, framing: Framing) -> Self {
+        self.framing = framing;
+        self
+    }
+
+    /// Set the transport.
+    pub fn with_transport(mut self, transport: Transport) -> Self {
+        self.transport = transport;
+        self
+    }
+
+    /// Set the default parameters.
+    pub fn with_defaults(mut self, defaults: HashMap<String, serde_json::Value>) -> Self {
+        self.defaults = defaults;
+        self
+    }
+
+    /// Set the body overlay.
+    pub fn with_body_overlay(mut self, overlay: serde_json::Value) -> Self {
+        self.body_overlay = Some(overlay);
+        self
+    }
+
+    /// Return a reference to the model reference.
+    pub fn model(&self) -> &ModelRef {
+        &self.provider
+    }
+}
+
+/// A partial route that can be applied as a patch over an existing route.
+///
+/// All fields are optional; only present fields are applied.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct RoutePatch {
+    /// Optional new protocol identifier.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub protocol: Option<String>,
+    /// Optional new endpoint.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub endpoint: Option<Endpoint>,
+    /// Optional new auth configuration.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub auth: Option<HashMap<String, String>>,
+    /// Optional new framing.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub framing: Option<Framing>,
+    /// Optional new transport.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub transport: Option<Transport>,
+    /// Optional new defaults.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub defaults: Option<HashMap<String, serde_json::Value>>,
+    /// Optional new body overlay.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub body_overlay: Option<serde_json::Value>,
+}
+
+/// A prepared route that has been resolved and is ready for execution.
+///
+/// This type erases the generic type parameters of `Route` into concrete
+/// runtime values that the transport layer can use directly.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct PreparedRoute {
+    /// Unique identifier for this route.
+    pub id: String,
+    /// The provider model reference.
+    pub provider: ModelRef,
+    /// The protocol identifier.
+    pub protocol: String,
+    /// The resolved endpoint.
+    pub endpoint: Endpoint,
+    /// Authentication data.
+    pub auth: HashMap<String, String>,
+    /// Framing strategy.
+    pub framing: Framing,
+    /// Transport type.
+    pub transport: Transport,
+    /// Default parameters.
+    pub defaults: HashMap<String, serde_json::Value>,
+    /// Optional body overlay.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub body_overlay: Option<serde_json::Value>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::endpoint::{Endpoint, PathSpec};
+    use crate::framing::Framing;
+    use crate::schema::ModelRef;
+    use crate::transport::Transport;
+    use std::collections::HashMap;
+
+    // Concrete types for Route used in tests
+    type TestBody = serde_json::Value;
+    type TestEvent = String;
+    type TestState = ();
+
+    #[test]
+    fn test_route_new() {
+        let model = ModelRef::parse("anthropic/claude-sonnet-4-20250514").unwrap();
+        let route: Route<TestBody, TestEvent, TestEvent, TestState> =
+            Route::new("default", model.clone());
+
+        assert_eq!(route.id, "default");
+        assert_eq!(route.provider.id, "claude-sonnet-4-20250514");
+        assert_eq!(route.framing, Framing::Sse);
+        assert_eq!(route.transport, Transport::Http);
+        assert!(route.body_overlay.is_none());
+    }
+
+    #[test]
+    fn test_route_with_builder() {
+        let model = ModelRef::parse("openai/gpt-4o").unwrap();
+        let mut auth = HashMap::new();
+        auth.insert("api_key".into(), "sk-xxx".into());
+        let mut defaults = HashMap::new();
+        defaults.insert("temperature".into(), serde_json::json!(0.7));
+
+        let route: Route<TestBody, TestEvent, TestEvent, TestState> = Route::new("fast", model)
+            .with_protocol("openai-chat-2024")
+            .with_endpoint(Endpoint {
+                base_url: "https://api.openai.com".into(),
+                path: PathSpec::Static("/v1/chat/completions".into()),
+                query: None,
+            })
+            .with_auth(auth.clone())
+            .with_framing(Framing::Sse)
+            .with_transport(Transport::Http)
+            .with_defaults(defaults.clone())
+            .with_body_overlay(serde_json::json!({"model": "gpt-4o"}));
+
+        assert_eq!(route.id, "fast");
+        assert_eq!(route.protocol, "openai-chat-2024");
+        assert_eq!(route.auth.get("api_key").unwrap(), "sk-xxx");
+        assert_eq!(route.defaults.get("temperature").unwrap(), &serde_json::json!(0.7));
+        assert_eq!(
+            route.body_overlay.unwrap(),
+            serde_json::json!({"model": "gpt-4o"})
+        );
+    }
+
+    #[test]
+    fn test_route_model() {
+        let model = ModelRef::parse("gemini/gemini-2.5-pro").unwrap();
+        let route: Route<TestBody, TestEvent, TestEvent, TestState> =
+            Route::new("default", model.clone());
+
+        assert_eq!(route.model(), &model);
+    }
+}

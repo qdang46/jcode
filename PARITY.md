@@ -333,13 +333,13 @@
 | VI — Session System | 11 | 11 | 0 | 0 |
 | VII — Benchmarking | 18 | 13 | 5 | 0 |
 | VIII — Tools | 71 | 71 | 0 | 0 |
-| IX — Provider System | 18 | 18 | 0 | 0 |
+| IX — Provider System | 18 | 16 | 2 | 0 |
 | X — Plugin System | 18 | 18 | 0 | 0 |
 | XI — Desktop App | 15 | 15 | 0 | 0 |
 | XII — Embedding & Memory | 7 | 7 | 0 | 0 |
 | XIII — Auth & Secrets | 5 | 5 | 0 | 0 |
 | XIV — Reference Gaps | 18 | 0 | 6 | 12 |
-| **Total** | **310** | **283 (91%)** | **14 (5%)** | **13 (4%)** |
+| **Total** | **310** | **281 (91%)** | **16 (5%)** | **13 (4%)** |
 
 ### Missing / Partial Features
 
@@ -515,35 +515,47 @@
 | **Template: plugin** | Plugin scaffold with manifest, capabilities, security config. | — | Embedded template | ✅ |
 ## IX. Provider System
 
-*Multi-provider abstraction layer with auth, failover, pricing, model selection, and 10 provider backends.*
+*Multi-provider abstraction layer refactored to opencode-style 4-axis route + Catalog/Integration/Credential architecture (Phase 1–8, 86 beads).*
 
 | Name | Description | Source Repo(s) | jcode Impl | Status | Remaining |
-|------|-------------|----------------|------------|--------|-----------|
-| **Provider trait** | 40+ methods: complete, complete_split, set_model, model_routes, prefetch_models, refresh_model_catalog, reasoning_effort, service_tier, transport, native_compaction. | oh-my-pi (Provider abstraction), opencode (Provider interface) | `jcode-provider-core/src/lib.rs`: `Provider` trait with full API. | ✅ | — |
-| **MultiProvider** | 10 provider slots (Claude, Anthropic, OpenAI, Copilot, Antigravity, Gemini, Cursor, Bedrock, OpenRouter) + N named OpenAI-compatible profiles. All hot-swappable. | oh-my-pi (40+ providers), opencode (provider abstraction) | `jcode-base/src/provider/mod.rs`: `MultiProvider` struct, 10 slots + N named profiles. | ✅ | — |
-| **NamedProviderConfig** | OpenAI-compatible endpoint registration with per-model context_window, extra_body, auth type, reasoning_effort flag. | oh-my-pi (OpenAI-compatible) | `config-types/lib.rs:369`: `NamedProviderConfig` with full field set. | ✅ | — |
-| **ProviderConfig** | default_model, default_provider, reasoning_effort, service_tier, native_compaction, cross_provider_failover, preserve_reasoning_context, stream_idle_timeout, error_classification. | oh-my-pi (config.yml), opencode (config.json) | `config-types/lib.rs:1016`: `ProviderConfig` with all fields. | ✅ | — |
-| **Config persistence** | default_model + default_provider saved to TOML config. Loaded on startup, restored to session.model for new sessions. | oh-my-pi (role-based config.yml), opencode (model.json) | `config_file.rs`: `set_default_model()`, `set_default_provider()`. `tui_lifecycle.rs`: restored from config on new session. | ✅ | — |
-| **Session model persistence** | session.model saved in session.json. Restored on resume. Also restored from config.default_model on new session. | oh-my-pi (session config) | `finalize_model_switch()` saves to session. `tui_lifecycle.rs:255-258` restores from config. | ✅ | — |
-| **model_prefs.json** | Recent model selection (5 entries) + per-model variant preferences. Versioned JSON file. | opencode (model.json), oh-my-pi (model cache) | `inline_interactive.rs:190-238`: `load_model_prefs()`, `save_model_prefs()`, `model_prefs_push_recent()`. | ✅ | — |
-| **Model catalog service** | TTL-cached model lists per scope, in-flight refresh tracking, disk-cache hydration for offline startup. | oh-my-pi (provider catalog) | `model_catalog.rs`: `ModelCatalogService` with caching. | ✅ | — |
-| **Cross-provider failover** | Configurable auto/countdown/manual failover. Retryable error detection (429/5xx/quota). Exponential backoff (2s→4s→6s). Account-level failover before cross-provider. | CCB (failover), oh-my-pi (provider routing) | `model_context.rs:54`: `apply_provider_switch_for_failover()`. `config-types`: `CrossProviderFailoverMode`. | ✅ | — |
-| **Model routing** | Thinking/routine split via env vars (JCODE_ROUTING_THINKING/ROUTINE). Cheap+premium tier routing. | oh-my-pi (model-routing), oh-my-openagent (resolveModel) | `src/model_routing.rs`: routing with env-var MVP. | ✅ | — |
-| **Model tooltip** | Show cost, context window, latency when selecting a model in picker. | oh-my-pi (model metadata) | `ui_inline_interactive.rs:175-192`: 📊 stats rendering. | ✅ | — |
-| **Free/Latest tags** | `[Free]` `[Latest]` tags displayed next to model entries in picker. | opencode (tags), oh-my-pi (model tags) | `ui_inline_interactive.rs:97-112`: `is_free` → `[Free]`, `is_latest` → `[Latest]`. | ✅ | — |
-| **Variant sub-dialog** | Separate picker entries per reasoning effort (low/medium/high). Effort selection persisted to model_prefs.json variant field. | opencode (effort picker), oh-my-pi (variant selector) | `inline_interactive.rs:1164-1203`: entries per effort. `ModelPreferences.variant` persistence. | ✅ | — |
-| **Cyclic model switching** | Tab/Shift+Tab cycle through recent models. Ctrl+Tab next, Ctrl+Shift+Tab previous. | CCB (model switch), opencode (model cycling) | `cycle_model()` in `input.rs:1615`. `model_switch_keys` from config. | ✅ | — |
-| **Auth route system** | AuthRoute canonicalization, ResolvedCredential, active_auth_method_label, session_provider_key. Full OAuth-vs-API-key dual auth. | oh-my-pi (auth), opencode (provider auth) | `auth.rs`: full auth route system. | ✅ | — |
-| **Reasoning effort** | Anthropic output_config + OpenAI Responses API reasoning_effort. Per-session setting. | opencode (effort), oh-my-pi (reasoning) | `model_context.rs`: reasoning_effort get/set. `config-types`: reasoning fields. | ✅ | — |
-| **Service tier** | OpenAI priority/flex service tier selection. | oh-my-pi (tier) | `config-types`: service_tier field. Provider passes through. | ✅ | — |
-| **Native compaction** | OpenAI auto/explicit/off native compaction at configurable threshold. | oh-my-pi (compaction) | `config-types`: native_compaction field. | ✅ | — |
-| **Stream idle timeout** | Configurable timeout for idle streaming connections. | oh-my-pi (timeout) | `config-types`: stream_idle_timeout. | ✅ | — |
-| **Error classification** | Classify provider errors as retryable vs non-retryable. Retryable: 429/5xx/overloaded/quota. Non-retryable: 400/401/403/invalid. | oh-my-pi (error handling) | `config-types/lib.rs:978`: retryable error classification. | ✅ | — |
-| **30+ built-in profiles** | Pre-configured provider profiles for Anthropic, OpenAI, Gemini, Bedrock, etc. with newest-model auto-select. | oh-my-pi (40+ providers) | `provider_catalog.rs`: 30+ built-in profiles with quality tier ranking. | ✅ | — |
-| **Status bar display** | Status bar shows: mode icon, model name, provider name, context usage bar (tokens). Custom shell command (Layer 3). | CCB (status line) | `ui_input.rs:540-592`: mode icon + model + provider + context bar + Layer 3 command. | ✅ | — |
+|------|-------------|----------------|------------|--------|----------|
+| **Provider abstraction** | `Provider` trait + new 4-axis route (`Route = Protocol × Endpoint × Auth × Framing`). Adding a provider = 3 lines (metadata + registry + facade). 21+ providers planned. | opencode (`packages/llm/src/route/client.ts:36-53`), oh-my-pi (40+ providers), pi-agent-rust (`src/provider.rs:28-48`) | `provider-core/src/lib.rs` (old, 1.5K LOC) — to be replaced by `jcode-llm-core/{route,protocol,auth,endpoint,framing,transport}.rs` (new 4-axis) | 🔜 | Phase 1 skeleton created. Auth trait, Route/Framing, schema types pending in ultracode workflow |
+| **Auth modes (4-axis)** | `Auth` trait with 7 combinators: Bearer, Header, Remove, Custom, Optional, Config, OrElse. Chainable: `Auth.optional(key).orElse(Auth.config(env)).pipe(Auth.header("x-api-key"))`. | opencode (`packages/llm/src/route/auth.ts:25-38`) | `auth_mode.rs` (old) → `jcode-llm-core/src/auth.rs` (new Auth trait) | 🔜 | New Auth trait pending in workflow (agent a7f..4a4) |
+| **Route composition** | 4-axis: Protocol (wire format) + Endpoint (baseURL+path) + Auth + Framing/Transport (SSE/AWS-EventStream/WS). Provider = 1 Route.make(...) call. | opencode (`packages/llm/src/route/client.ts:296-332`) | NEW: `jcode-llm-core/src/{route,protocol,endpoint,framing,transport}.rs` | 🔜 | New Route/Framing pending in workflow |
+| **Canonical schema** | `LlmRequest`, `LlmEvent` (15 variants), `Usage` (inclusive + non-overlapping breakdown), `LlmError` (9 tagged reasons with HttpContext). All Schema-plugged. | opencode (`packages/llm/src/schema/{messages,events,errors}.ts`) | NEW: `jcode-llm-core/src/schema.rs` | 🔜 | New schema types pending in workflow (agent a7f..a4a) |
+| **Provider failover** | Reactive failover: detect RateLimit/503/529 → walk configurable `FailoverChain` → switch model + inject explanation prompt. | oh-my-openagent (`model-error-classifier.ts:9-35`), oh-my-pi (`rate-limit-utils.ts:30-93`) | `failover.rs`: `FailoverDecision`, `ErrorCode` (existing); bead 7.3 new reactive walker pending | ⚠️ | Existing failover.rs classifies error only. New reactive walker in Phase 7 (bead pjm.3) |
+| **Model selection** | Resolve `ModelRef` from user config → Catalog lookup → credential resolution → route construction. Per-agent model override. Single global default. | opencode (`packages/core/src/session/runner/model.ts:141-166`) | `selection.rs` (old 8 ActiveProvider) → Phase 6 Catalog + Integration service (new) | 🔜 | New Catalog/Integration in Phase 6 (bead gqw.1-6.3) |
+| **Model catalog** | Auto-bootstrap from `models.dev` JSON. 5-min disk cache, 7-day fingerprint, Flock file lock. 21+ providers with model list + cost + capabilities. | opencode (`packages/core/src/models-dev.ts`), oh-my-openagent (`models.dev`) | `catalog_refresh.rs` (old) → `jcode-models-dev` crate (new) | 🔜 | New models-dev crate in Phase 6 (bead gqw.3) |
+| **Pricing** | Token-based pricing calculator with per-model rates, cache read pricing, cost estimation. — Unchanged from existing. | pi-agent-rust (cost tracking) | `pricing.rs` (unchanged) | ✅ | — |
+| **Request fingerprinting** | Stable hash of provider inputs for dedup, logging, caching, and auditing. — Unchanged from existing. | — | `fingerprint.rs` (unchanged) | ✅ | — |
+| **OpenAI schema** | OpenAI Responses protocol (jcode-llm-protocols). HTTP + WebSocket transport. Provider-executed tools (web_search, etc.) with `provider_executed: true`. | opencode (`packages/llm/src/protocols/openai-responses.ts:33-160`) | NEW: `jcode-llm-protocols/src/openai_responses.rs` + `openai_chat.rs` | 🔜 | Protocol pending in workflow (agent a...2c9) |
+| **Anthropic schema** | Anthropic Messages protocol (jcode-llm-protocols). 4-breakpoint cache cap, OAuth beta headers, extended thinking, server tools. | opencode (`packages/llm/src/protocols/anthropic-messages.ts:822-844`) | NEW: `jcode-llm-protocols/src/anthropic_messages.rs` | 🔜 | Protocol pending in workflow (agent a...db9) |
+| **Inband dialect layer** | 13 dialects for non-JSON tool-call providers: anthropic, deepseek, gemini, gemma, glm, harmony, hermes, kimi, minimax, pi, qwen3, xml (fallback), jcode. Each has InbandScanner that parses proprietary XML/DSML tags from streaming text. | oh-my-pi (`packages/ai/src/dialect/factory.ts:15-28`) | NEW: `jcode-llm-dialects/src/dialects/` (13 dialect implementations) | 🔜 | Phase 5 (bead dpd.1-5.8). Foundation pending. |
+| **VCR test infrastructure** | Recorded-replay HTTP test infra. Cassette JSON format. 3 modes: Record (live API → save), Replay (no network), Disabled. 50+ cassettes for 21 providers. | pi-agent-rust (`src/vcr.rs`), opencode (`packages/llm/test/fixtures/recordings/`) | NEW: `jcode-llm-vcr/src/lib.rs`: `VcrRecorder`, `Cassette`, `VcrMode` | 🔜 | VCR pending in workflow (agent a...b9) |
+| **Provider: Anthropic** | Claude Opus 4.8, Sonnet 4.6, Haiku 4.5 via Anthropic API. — Will be migrated to AnthropicMessagesProtocol Phase 2. | opencode (`packages/llm/src/providers/anthropic.ts`) | `jcode-provider-anthropic/` (820 lines, old) → Phase 2 migrate | ✅ | Migrate to new architecture Phase 2 (bead 6it.1-6it.2) |
+| **Provider: OpenAI** | GPT 5.5→5.1 via OpenAI Responses API. — Will be migrated to OpenAiResponsesProtocol Phase 2. | opencode (`packages/llm/src/providers/openai.ts`) | `jcode-provider-openai/` (request+stream+websocket_health) → Phase 2 migrate | ✅ | Migrate to new architecture Phase 2 (bead 6it.3-6it.5) |
+| **Provider: Gemini** | Google Gemini models. Streaming currently ⚠️ (PARITY.md L534). Plan: implement GeminiProtocol Phase 3 + fix streaming. | opencode (`packages/llm/src/protocols/gemini.ts`) | `jcode-provider-gemini/` (748 lines) | ⚠️ | Phase 3 migrate + fix streaming (bead tfn.3-tfn.4) |
+| **Provider: Bedrock** | AWS Bedrock Converse stream. SigV4 auth. — Will be migrated to BedrockConverseProtocol Phase 3. | opencode (`packages/llm/src/protocols/bedrock-converse.ts`), pi-agent-rust (`src/providers/bedrock.rs`) | `jcode-provider-bedrock/` (1757 lines) | ✅ | Phase 3 migrate (bead tfn.1-tfn.2) |
+| **Provider: Copilot** | GitHub Copilot. Streaming currently ⚠️ (PARITY.md L536). Plan: implement via OpenAiChatProtocol + device flow Phase 3. | pi-agent-rust (`src/providers/copilot.rs:565 lines`), oh-my-pi (`github-copilot-headers.ts`) | `jcode-provider-copilot/` (236 lines) | ⚠️ | Phase 3 migrate + fix streaming (bead tfn.5) |
+| **Provider: OpenRouter** | OpenRouter unified API. Will be migrated to OpenAiChatProtocol with custom routing headers Phase 3. | oh-my-pi (`docs/adding-a-provider.md:25-46`) | `jcode-provider-openrouter/` (932 lines, 79 pub items) | ✅ | Phase 3 migrate (bead tfn.6) |
+| **Provider: Azure** | Azure OpenAI Responses. Uses `Auth.remove("Authorization").orElse(Auth.header("api-key", key))`. | codex (`codex-rs/codex-api/src/provider.rs:106-127`) | NEW: `jcode-provider-azure/` (Phase 4) | 🔜 | Bead 9ot.1 |
+| **Provider: Vertex** | Google Vertex AI (Claude + Gemini models). Application Default Credentials. | opencode (`packages/llm/src/providers/google.ts`), pi-agent-rust (`src/providers/vertex.rs`) | NEW: `jcode-provider-vertex/` (Phase 4) | 🔜 | Bead 9ot.2 |
+| **Provider: Groq + Mistral** | OpenAI-compatible gateways. 50 LOC each via OpenAiChatProtocol reuse. | opencode (`packages/llm/src/providers/openai-compatible-profile.ts:6-16`) | NEW: `jcode-provider-groq/` + `jcode-provider-mistral/` (Phase 4) | 🔜 | Bead 9ot.3-9ot.4 |
+| **Provider: Cohere** | Cohere v2 chat (tool.parameter_definitions format). | pi-agent-rust (`src/providers/cohere.rs:1962 lines`) | NEW: `jcode-provider-cohere/` (Phase 4) | 🔜 | Bead 9ot.5 |
+| **Provider: MiniMax/Kimi/ZAI/Zhipu/Alibaba/Qwen/DeepSeek** | 7 Chinese-ecosystem providers with inband tool-call dialect support (MiniMax dialect, Kimi dialect, Qwen3 dialect, GLM dialect, DeepSeek dialect). | oh-my-pi (`packages/ai/src/registry/{minimax,kimi,zai,...}.ts`) | NEW: 7 providers + 13 dialects (Phase 5) | 🔜 | Bead dpd.1-5.19 |
+| **Catalog service** | In-memory `Catalog` (Map&lt;ProviderId, ProviderEntry&gt;). Loaded from ALL_PROVIDERS metadata + models.dev snapshot + user config overrides. | opencode (`packages/core/src/catalog.ts:86-332`) | NEW: `jcode-provider-app/src/catalog.rs` (Phase 6) | 🔜 | Bead gqw.1-gqw.2 |
+| **Integration/Credential** | OAuth (PKCE loopback + device code) + API key + env var auth methods. 10-min attempt TTL. SQLite-backed credential store. | opencode (`packages/core/src/integration.ts:435-567`, `credential.ts`) | NEW: `jcode-provider-app/src/{integration,credential}.rs` (Phase 6) | 🔜 | Bead gqw.2 |
+| **TUI /provider** | `/provider` command: list 21 providers with status, login (OAuth/API key), logout, set default. Browser auto-opens for OAuth. | opencode TUI, oh-my-pi (`api-key-login.ts:51-109`, `oauth/callback-server.ts:33-90`) | NEW: `jcode-tui-provider/` (Phase 6) | ❌ | Bead gqw.4 |
+| **TUI /model** | `/model` command: list 50+ models with cost + capabilities, filter by provider, set default. Persists to config.toml. | opencode TUI | NEW: `jcode-tui-model/` (Phase 6) | ❌ | Bead gqw.5 |
+| **Model persistence** | Default model survives restarts. Config `default_model` is read on `Agent::new()` and `new_with_session()` before any hardcoded env var. Works for both client and server restart. | opencode (config persistence) | `agent.rs:370-385`: `config().provider.default_model` applied to provider before `build_base()` | ✅ | Fixed 2026-06-18, both constructors patched |
+| **VCR cassettes** | 50+ recorded-replay cassettes. 3 common use cases (basic text, tool_use, streaming) per provider. Cassette ≤ 200KB, total ≤ 10MB. | opencode (`packages/llm/test/fixtures/recordings/`) | NEW: `crates/jcode-llm-vcr/tests/fixtures/<provider>/<use_case>.json` | 🔜 | Phase 7 (bead 7.4) |
+| **Reactive failover walker** | On first retryable error per request, walk `FailoverChain` to next entry. Cooldown 300s. Prompt injection explaining the switch. | oh-my-openagent (`event-model-fallback.ts:96-116`) | NEW: `jcode-app-core/src/stream_completion.rs` (Phase 7) | 🔜 | Bead pjm.3 |
+| **Observability** | Per-provider Prometheus metrics: `provider_request_total{provider,model,status}` counter, `provider_request_duration_seconds` histogram, `provider_cost_micros` counter. Exported at /metrics. | — | NEW: extend `jcode-telemetry-core/` (Phase 7) | 🔜 | Bead pjm.8 |
 ## X. Plugin System
 
-*Full plugin runtime with manifest, security capabilities, dispatcher, TUI host, native plugins, transpiler, loader, and server.*
+*Full plugin runtime with manifest, security capabilities, dispatcher, TUI host, native plugins, transpiler, loader, server, and v2 hardenings.*
+
+### v1 — Existing (shipped)
 
 | Name | Description | Source Repo(s) | jcode Impl | Status |
 |------|-------------|----------------|------------|--------|
@@ -551,20 +563,39 @@
 | **Security capabilities** | Capability chain with deny-list, allow-list, global defaults, access mode. `Deny` by default. | pi-agent-rust (WASM capability gates) | `security.rs`: `CapabilityChain`, `AccessDecision`, `AccessMode`, `CapabilityAction` | ✅ |
 | **Plugin events** | Lifecycle events: install, uninstall, enable, disable. Handler actions: allow, deny, prompt. | CCB (hooks), oh-my-claudecode | `events.rs`: `PluginEvent`, `HandlerAction`, `HandlerResult`, `PermissionDecision` | ✅ |
 | **Config & discovery** | Plugin discovery paths, package name validation, plugin source resolution. | — | `config.rs`: `DiscoveryPaths`, `PluginConfig`, `PluginSource` | ✅ |
-| **Runtime sandbox** | JavaScript plugin sandbox via rquickjs (QuickJS). Dual-timeout for info vs actionable calls. | pi-agent-rust (WASM sandbox) | `sandbox.rs`: `SandboxContext`, `DualTimeout`, isolated JS runtime | ✅ |
+| **QuickJS sandbox** | JavaScript plugin sandbox via rquickjs (QuickJS). Dual-timeout for info vs actionable calls. | pi-agent-rust (WASM sandbox) | `sandbox.rs`: `SandboxContext`, `DualTimeout`, isolated JS runtime | ✅ |
 | **Plugin loader** | Load plugins from disk, validate manifest, instantiate runtime. | opencode (loader) | `loader.rs`: async plugin loading with validation | ✅ |
 | **Plugin registry** | Global plugin registry: install, list, get, uninstall. Version tracking. | — | `registry.rs`: `PluginRegistry` | ✅ |
-| **Plugin dispatcher** | Dispatch events/tools/capabilities to the correct plugin handler. | oh-my-openagent (delegate) | `dispatcher.rs`: event routing to plugin handlers | ✅ |
+| **Plugin dispatcher** | Dispatch events/tools/capabilities to the correct plugin handler. | oh-my-openagent (delegate) | `dispatcher.rs`: event routing to plugin handlers, RCU snapshot | ✅ |
 | **Native plugins** | Rust-native plugin support (compiled alongside jcode). | — | `native.rs`: native plugin ABI | ✅ |
-| **Plugin transpiler** | Transpile plugin source to compatible JS/TS for the sandbox. | — | `transpiler.rs` | ✅ |
+| **Plugin transpiler** | Transpile plugin source to compatible JS/TS for the sandbox (SWC). | — | `transpiler.rs`: SWC-based TS→JS transpilation | ✅ |
 | **TUI plugin host** | Render plugin-provided UI in the terminal. Plugin panels, status widgets. | opencode (TUI extensions) | `tui_api.rs`, `tui_system.rs`: TUI integration for plugins | ✅ |
 | **Plugin server** | Serve plugin capabilities to remote clients over HTTP/WS. | — | `server.rs`: plugin server endpoint | ✅ |
 | **Timer/scheduler** | Time-based plugin execution scheduling. | — | `timer.rs`: scheduled plugin tasks | ✅ |
 | **Plugin audit** | Audit trail for plugin operations and security decisions. | — | `audit.rs`: capability check logging | ✅ |
 | **Error handling** | Structured plugin error types with context. | — | `errors.rs`: `PluginError` with typed variants | ✅ |
-| **Bridge API** | Bridge between plugin runtime and jcode core. Tool registration, event hooks. | oh-my-claudecode (hooks) | `bridge.rs`: plugin ↔ jcode bridge | ✅ |
-| **Preflight checks** | Validate plugin before installation: manifest, permissions, dependencies. | — | `preflight.rs`: pre-install validation | ✅ |
+| **Bridge API** | Bridge between plugin runtime and jcode core. Tool registration, event hooks. | oh-my-claudecode (hooks) | `bridge.rs`: async PromiseBridge (stub) + `api.rs`: PluginApiBindings with jcode.on, registerTool, logger, kv, uuid, sleep, cwd | ✅ |
+| **Preflight checks** | Validate plugin before installation: manifest, permissions, dependencies. | — | `preflight.rs`: pre-install validation, blocks exec() patterns | ✅ |
 | **Serde helpers** | Serialization helpers for plugin data interchange. | — | `serde.rs`: plugin-specific serialization | ✅ |
+
+### v2 — Harden & Custom Plugin Authoring (in flight via ultracode workflow)
+
+| Name | Description | Source Repo(s) | jcode Impl | Status |
+|------|-------------|----------------|------------|--------|
+| **ToolTier enum** | `ToolTier::Read | Write | Exec`. Fail-closed default (Exec). Declared per-tool or auto-fallback to manifest default. Used by ApprovalGate for mode interaction. | oh-my-pi (ToolTier in agent/src/types.ts:477) | `jcode-plugin-core/manifest.rs`: `ToolTier`. `jcode-tool-types`: re-export + `declared_tier()` on Tool trait | 🔜 |
+| **CapabilityChainV2 (5-layer)** | Plugin deny → Global deny → Plugin allow → Global allow → Mode fallback (Strict/Permissive/Prompt/Disabled). Structured `AccessDecisionV2` with layer + reason. | pi-agent-rust (5-layer policy in extensions.rs:2146), oh-my-pi (policy merge) | `jcode-plugin-core/security.rs`: `CapabilityChainV2`, `PolicyMode`, `AccessDecisionV2` | 🔜 |
+| **ApprovalGate (single chokepoint)** | Wraps every tool call: user override (allow/deny/prompt) → capability chain → permission mode interaction (Plan→prompt all, AcceptEdits→prompt Exec only, BypassPermissions→allow all, DontAsk→allow Read only). Per-tool `ToolTier` drives the prompt decision. | oh-my-pi (ExtensionToolWrapper in extensibility/extensions/wrapper.ts:113) | `jcode-plugin-runtime/gate.rs`: `ApprovalGate`, `GateDecision`, `ApprovalPrompt`. Wired into `RcuDispatcher::dispatch` | 🔜 |
+| **PluginManager** | Load/unload/list/enable/disable for plugins. Supports 3 source types: `Local { path }`, `Git { url, rev }`, `WorkspaceCrate { crate_name }`. State persisted to `installed.json`. Rollback on failure. NO npm, NO marketplace, NO registry. | oh-my-pi (PluginManager in extensibility/plugins/manager.ts:113) | `jcode-plugin-core/manager.rs`: `PluginManager`, `PluginSource`, `InstalledPlugin`, `PluginState` | 🔜 |
+| **Workspace crate plugin path** | Plugin is a Rust crate in the jcode workspace. Compiled into the binary, registered via `inventory::submit!` at link time. Toggle via `[plugins.workspace]` config. Plugin author writes Rust, not TS. | oh-my-pi (pi-natives NAPI addon pattern), pi-agent-rust (native descriptor files) | `crates/jcode-ext-hello/`: example workspace crate. `server.rs`: inventory scan at startup | 🔜 |
+| **js API inject (eval_with_pi)** | QuickJS context creates `jcode` global + `__jcode_api` before plugin eval. Plugin code uses `jcode.on(...)`, `jcode.logger.info(...)`, `jcode.registerTool(...)`. Fix: previously no API was injected → ReferenceError. | oh-my-pi (pi object in sdk.ts), opencode (__opencode_api) | `sandbox.rs`: `eval_with_pi()`. `api.rs`: global `jcode` + `__jcode_api` objects. Tested: `test_hello_plugin_e2e` (26/26 passed) | 🔜 |
+| **Hot-reload** | Compare SHA-256 fingerprint (seahash + mtime + size). If unchanged → no-op. If changed → re-transpile, re-prefight, re-eval, atomic swap in RCU dispatcher. | opencode (PluginMeta.fingerprint in plugin/meta.ts) | `loader.rs`: `reload(plugin_id)`, `PluginFingerprint`, `fingerprints` cache | 🔜 |
+| **Per-extension kill switch** | Environment variable `JCODE_PLUGIN_KILL_<UPPERCASE_NAME>=1`. If set at startup, plugin is skipped. In addition to existing global `JCODE_PLUGIN_KILL_ALL`. | pi-agent-rust (`forced_compat_extension_kill_switch`) | `server.rs`: `is_killed(plugin_name)` check | 🔜 |
+| **Example plugin (TS)** | `examples/plugins/hello-plugin/index.ts` — real file, exercises `jcode.on`, `jcode.registerTool`, `jcode.logger.info`, `jcode.kv.set`, `jcode.uuid`. Used by e2e test. | oh-my-pi (examples/extensions/hello.ts) | `examples/plugins/hello-plugin/`: `index.ts` + `package.json` | 🔜 |
+| **Example plugin (Rust)** | `crates/jcode-ext-hello/` — workspace crate plugin compiled into binary, registers via `inventory::submit!`. | pi-agent-rust (native descriptors) | `crates/jcode-ext-hello/Cargo.toml` + `src/lib.rs` | 🔜 |
+| **CLI plugin subcommands** | `jcode plugin load <path>` / `clone <url>` / `list` / `unload` / `enable` / `disable` / `reload` / `info`. No npm, no marketplace, no registry. | opencode (`packages/opencode/src/cli/cmd/plug.ts:70`) | `src/*.rs`: clap subcommand for plugin management | 🔜 |
+| **Plugin author guide** | `docs/plugins.md` — quick start, jcode API reference, lifecycle events, capability model, ToolTier model, Rust workspace crate path, testing, security checklist. Modeled on oh-my-pi's docs/extensions.md. | oh-my-pi (docs/extensions.md) | `docs/plugins.md` (≥200 lines) | 🔜 |
+| **STRIDE threat model** | `docs/plugin-threat-model.md` — Spoofing/Tampering/Repudiation/Info-disclosure/DoS/Elevation. Each with attack scenario, mitigation, test reference. Modeled on pi-agent-rust's extension-runtime-threat-model.md. | pi-agent-rust (docs/extension-runtime-threat-model.md) | `docs/plugin-threat-model.md` (≥150 lines) | 🔜 |
+| **Distribution policy** | 3 paths only: local path, git clone, workspace crate. Explicitly NO npm, NO marketplace, NO registry. All plugin source originates from local files or explicit user-requested git clone. | (user constraint 2026-06-18) | Enforced by `PluginSource` enum (no Npm variant), CLI help text, docs | 🔜 |
 
 ## XI. Desktop App
 
