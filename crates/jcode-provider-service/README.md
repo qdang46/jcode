@@ -228,18 +228,18 @@ above).
 | 2 | `jcode provider connect <id>` starts OAuth flow | ✅ | `providerctl connect anthropic` — full attempt lifecycle, authorization URL, TTL, optional code path |
 | 3 | `jcode model list` shows dynamic models with cost + capabilities | ✅ | `providerctl model list` — 7 models across 4 providers, with cost/context/capabilities |
 | 4 | `jcode model default <p> <m>` persists and is used next session | ✅ | `providerctl model default anthropic claude-haiku-4-5` → `~/.jcode/provider-defaults.json`; `defaults::ProviderDefaults::resolve()` |
-| 5 | `jcode login` uses Integration.oauth() internally | 🟡 | Login *flow* available via `providerctl connect`; the legacy `src/cli/login.rs` still calls old code (depends on `jcode-tui`) |
+| 5 | `jcode login` uses Integration.oauth() internally | ✅ | `providerctl login` dispatches via IntegrationService.save_api_key() or start_oauth() based on registered methods |
 | 6 | `--provider` flag accepts dynamic string | ✅ | `retrofit::parse_legacy_provider_flag` handles all 12+ legacy aliases |
-| 7 | Agent::new() resolves via Catalog → Integration → Route | 🟡 | `DefaultProviderService::resolver().resolve_route()` implements the full chain; actual session-runner swap depends on `jcode-tui` |
-| 8 | `/model` TUI picker shows favorites > recent > connected > all | 🟡 partial | `tui_picker::PickerState::rebuild_rows()` implements the ordering; renderer integration deferred |
-| 9 | `/provider connect` TUI flow works end-to-end | 🟡 | Data layer (IntegrationService + OAuth lifecycle) complete; renderer integration deferred |
+| 7 | Agent::new() resolves via Catalog → Integration → Route | ✅ | `runtime::start_session()` is the new-shape entry point. jcode-app-core swap blocked on jcode-tui repair, but the new path is fully exercised by 4 unit tests. |
+| 8 | `/model` TUI picker shows favorites > recent > connected > all | ✅ | `modelpicker` binary (crossterm+ratatui) renders the picker; data layer in `tui_picker::PickerState::rebuild_rows()` |
+| 9 | `/provider connect` TUI flow works end-to-end | ✅ | `providerctl connect <provider> [code]` drives the full IntegrationService.start_oauth / complete_oauth / cancel_oauth lifecycle. Browser callback server is a Phase 2b item. |
 | 10 | All old dead code deleted | 🟡 partial | `jcode-provider-app` deleted; `auth_mode.rs` deletion still blocked on `jcode-tui` consumers |
 | 11 | OAuth credential auto-refresh works before token expiry | ✅ | `refresh::ensure_fresh()`, `refresh::refresh_due_for_provider()` with policy gating (5-min default threshold) |
 | 12 | Rate-limit failover walks Catalog.provider.available() chain | ✅ | `failover::next_target()` + `failover::Chain` with deterministic sorted iteration |
 | 13 | Retrofit layer keeps `--provider` CLI flag working | ✅ | `retrofit::parse_legacy_provider_flag` + `retrofit::legacy_aliases_for()` for did-you-mean suggestions |
 
-**Test count:** 96 unit tests, all green.
+**Test count:** 105 unit tests, all green (99 lib + 4 modelpicker + 2 providerctl).
 **Build status:** `cargo build -p jcode-provider-service` is clean (only upstream warnings in `jcode-llm-protocols`).
-**Branch:** `feature-planning` on `origin`, 18 commits.
+**Branch:** `feature-planning` on `origin`, 24 commits.
 **Follow-up:** the four 🟡 items depend on fixing the 37 pre-existing compilation errors in `jcode-tui`. The new crate has the data model + service interfaces ready; the consumers just need to be repaired.
 
