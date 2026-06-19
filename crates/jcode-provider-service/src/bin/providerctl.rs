@@ -20,7 +20,6 @@
 //! `jcode-keyring-store` and the in-memory catalog. Phase 4b will plug
 //! in a static catalog of all seven real providers.
 
-use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use jcode_keyring_store::DefaultKeyringStore;
