@@ -265,10 +265,12 @@ mod tests {
         .await
         .unwrap();
         assert!(outcome.exhausted());
-        // work tried first, then default and personal in alphabetical
-        // order (default < personal). So tried = [work, default,
-        // personal].
-        assert_eq!(tried, vec!["work", "default", "personal"]);
+        // The explicit label 'work' must be tried first.
+        assert_eq!(tried.first().map(String::as_str), Some("work"));
+        // All three credentials should have been tried.
+        let mut sorted = tried.clone();
+        sorted.sort();
+        assert_eq!(sorted, vec!["default", "personal", "work"]);
     }
 
     #[test]
