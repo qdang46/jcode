@@ -92,6 +92,18 @@ async fn main() -> Result<()> {
             let flag = args.get(2).context("usage: providerctl legacy <flag>")?;
             cmd_legacy(flag)
         }
+        "metadata" => {
+            let subcmd = args.get(2).map(String::as_str).unwrap_or("list");
+            match subcmd {
+                "list" => cmd_metadata_list().await,
+                "register" => cmd_metadata_register(&svc).await,
+                other => {
+                    eprintln!("unknown metadata subcommand: {other}");
+                    eprintln!("usage: providerctl metadata {{list|register}}");
+                    std::process::exit(2);
+                }
+            }
+        }
         "connect" => {
             let provider = args.get(2).context("usage: providerctl connect <provider>")?;
             let code = args.get(3).cloned();
@@ -482,6 +494,39 @@ fn cmd_legacy(flag: &str) -> Result<()> {
             std::process::exit(1);
         }
     }
+}
+
+async fn cmd_metadata_list() -> Result<()> {
+    #[cfg(feature = "metadata")]
+    {
+        for r in jcode_provider_service::metadata_profiles::all_metadata_records() {
+            println!("{:<28} {}", r.id, r.label);
+        }
+    }
+    #[cfg(not(feature = "metadata"))]
+    {
+        eprintln!("metadata feature not enabled; rebuild with --features metadata");
+        std::process::exit(1);
+    }
+    Ok(())
+}
+
+async fn cmd_metadata_register(svc: &DefaultProviderService) -> Result<()> {
+    #[cfg(feature = "metadata")]
+    {
+        let registry = jcode_provider_service::metadata_profiles::metadata_registry();
+        let n = registry
+            .register(svc.catalog(), svc.integration())
+            .await
+            .map_err(|e| anyhow::anyhow!(e.to_string()))?;
+        println!("registered {n} providers (4 builtins + 36 metadata profiles)");
+    }
+    #[cfg(not(feature = "metadata"))]
+    {
+        eprintln!("metadata feature not enabled; rebuild with --features metadata");
+        std::process::exit(1);
+    }
+    Ok(())
 }
 
 fn describe_method(m: &AuthMethod) -> String {
