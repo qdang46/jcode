@@ -19,6 +19,7 @@ path = "src/bin/providerctl.rs"
 [features]
 default = []
 metadata = ["dep:jcode-provider-metadata"]
+inventory = ["dep:inventory"]
 
 [dependencies]
 anyhow = "1"
@@ -28,6 +29,7 @@ clap = { version = "4", features = ["derive"], optional = true }
 jcode-llm-core = { path = "../jcode-llm-core" }
 jcode-llm-protocols = { path = "../jcode-llm-protocols" }
 jcode-provider-metadata = { path = "../jcode-provider-metadata", optional = true }
+inventory = { version = "0.3", optional = true }
 jcode-keyring-store = { path = "../jcode-keyring-store" }
 serde = { version = "1", features = ["derive", "rc"] }
 serde_json = "1"

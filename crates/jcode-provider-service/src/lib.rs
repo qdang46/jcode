@@ -35,6 +35,8 @@ pub mod defaults;
 pub mod error_classify;
 pub mod failover;
 pub mod integration;
+#[cfg(feature = "inventory")]
+pub mod inventory;
 pub mod migrate;
 pub mod refresh;
 pub mod retry_after;
