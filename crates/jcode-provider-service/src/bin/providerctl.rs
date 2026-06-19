@@ -88,6 +88,30 @@ async fn main() -> Result<()> {
                     std::process::exit(2);
                 }
             }
+        "prefs" => {
+            match args.get(2).map(String::as_str).unwrap_or("show") {
+                "show" => cmd_prefs_show().await,
+                "favorite" => {
+                    let provider = args.get(3)
+                        .context("usage: providerctl prefs favorite <provider> <model>")?;
+                    let model = args.get(4)
+                        .context("usage: providerctl prefs favorite <provider> <model>")?;
+                    cmd_prefs_favorite(provider, model).await
+                }
+                "unfavorite" => {
+                    let provider = args.get(3)
+                        .context("usage: providerctl prefs unfavorite <provider> <model>")?;
+                    let model = args.get(4)
+                        .context("usage: providerctl prefs unfavorite <provider> <model>")?;
+                    cmd_prefs_unfavorite(provider, model).await
+                }
+                other => {
+                    eprintln!("unknown prefs subcommand: {other}");
+                    eprintln!("usage: providerctl prefs {{show|favorite|unfavorite}}");
+                    std::process::exit(2);
+                }
+            }
+        }
         "secrets" => {
             // Phase 1 integration: `jcode secrets set provider.<id>.api_key`
             // and `jcode secrets list`.
@@ -304,6 +328,44 @@ async fn cmd_login_unified(
         }
         (Some(k), _) => cmd_login(svc, provider, k).await,
     }
+}
+
+async fn cmd_prefs_show() -> Result<()> {
+    let path = jcode_provider_service::model_prefs::default_path()
+        .context("HOME not set")?;
+    let prefs = jcode_provider_service::model_prefs::ModelPrefs::load(&path)
+        .map_err(|e| anyhow::anyhow!(e.to_string()))?;
+    println!("favorites:");
+    for f in &prefs.favorites {
+        println!("  {}.{}", f.provider, f.model);
+    }
+    println!("recents:");
+    for r in &prefs.recents {
+        println!("  {}.{}", r.provider, r.model);
+    }
+    Ok(())
+}
+
+async fn cmd_prefs_favorite(provider: &str, model: &str) -> Result<()> {
+    let path = jcode_provider_service::model_prefs::default_path()
+        .context("HOME not set")?;
+    let mut prefs = jcode_provider_service::model_prefs::ModelPrefs::load(&path)
+        .map_err(|e| anyhow::anyhow!(e.to_string()))?;
+    prefs.add_favorite(ProviderId::from(provider), model.into());
+    prefs.save(&path).map_err(|e| anyhow::anyhow!(e.to_string()))?;
+    println!("favorited {provider}.{model}");
+    Ok(())
+}
+
+async fn cmd_prefs_unfavorite(provider: &str, model: &str) -> Result<()> {
+    let path = jcode_provider_service::model_prefs::default_path()
+        .context("HOME not set")?;
+    let mut prefs = jcode_provider_service::model_prefs::ModelPrefs::load(&path)
+        .map_err(|e| anyhow::anyhow!(e.to_string()))?;
+    prefs.remove_favorite(&ProviderId::from(provider), &model.into());
+    prefs.save(&path).map_err(|e| anyhow::anyhow!(e.to_string()))?;
+    println!("unfavorited {provider}.{model}");
+    Ok(())
 }
 
 async fn cmd_logout(

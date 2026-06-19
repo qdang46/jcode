@@ -27,6 +27,7 @@ pub mod boot;
 pub mod callback_server;
 #[cfg(feature = "metadata")]
 pub mod metadata_profiles;
+pub mod model_prefs;
 pub mod catalog;
 pub mod credential;
 pub mod credential_rotation;
