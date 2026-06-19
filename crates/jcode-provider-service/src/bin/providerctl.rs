@@ -57,7 +57,7 @@ async fn main() -> Result<()> {
             let key = args.get(3);
             cmd_login_unified(&svc, provider, key.map(|x| x.as_str())).await
         }
-        "logout" => {
+        "logout" | "disconnect" => {
             let provider = args.get(2).context("usage: providerctl logout <provider>")?;
             cmd_logout(&svc, provider).await
         }
