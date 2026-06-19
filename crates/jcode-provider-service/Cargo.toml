@@ -16,6 +16,10 @@ path = "src/bin/modelpicker.rs"
 name = "providerctl"
 path = "src/bin/providerctl.rs"
 
+[features]
+default = []
+metadata = ["dep:jcode-provider-metadata"]
+
 [dependencies]
 anyhow = "1"
 async-trait = "0.1"
@@ -23,13 +27,14 @@ chrono = { version = "0.4", features = ["serde"] }
 clap = { version = "4", features = ["derive"], optional = true }
 jcode-llm-core = { path = "../jcode-llm-core" }
 jcode-llm-protocols = { path = "../jcode-llm-protocols" }
+jcode-provider-metadata = { path = "../jcode-provider-metadata", optional = true }
 jcode-keyring-store = { path = "../jcode-keyring-store" }
 serde = { version = "1", features = ["derive", "rc"] }
 serde_json = "1"
 thiserror = "1"
-tokio = { version = "1", features = ["rt", "sync", "macros"] }
-tracing = "0.1"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+tokio = { version = "1", features = ["rt", "sync", "macros"] }
+tracing = "0.1"
 crossterm = "0.28"
 ratatui = "0.28"

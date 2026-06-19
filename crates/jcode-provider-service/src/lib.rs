@@ -24,6 +24,8 @@
 pub mod attempt;
 pub mod boot;
 pub mod callback_server;
+#[cfg(feature = "metadata")]
+pub mod metadata_profiles;
 pub mod catalog;
 pub mod credential;
 pub mod defaults;
