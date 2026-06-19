@@ -84,6 +84,10 @@ async fn main() -> Result<()> {
                     std::process::exit(2);
                 }
             }
+        "legacy" => {
+            let flag = args.get(2).context("usage: providerctl legacy <flag>")?;
+            cmd_legacy(flag)
+        }
         "connect" => {
             let provider = args.get(2).context("usage: providerctl connect <provider>")?;
             let code = args.get(3).cloned();
@@ -434,6 +438,23 @@ async fn cmd_connect(
         );
     }
     Ok(())
+}
+
+fn cmd_legacy(flag: &str) -> Result<()> {
+    use jcode_provider_service::retrofit::parse_legacy_provider_flag;
+    match parse_legacy_provider_flag(flag) {
+        Ok(sel) => {
+            println!("input:      {}", flag);
+            println!("provider:   {}", sel.provider);
+            println!("auth:       {}", sel.auth.map(|a| a.as_str()).unwrap_or("(none)"));
+            println!("dual-auth:  {}", sel.is_dual_auth);
+            Ok(())
+        }
+        Err(e) => {
+            eprintln!("parse error: {}", e);
+            std::process::exit(1);
+        }
+    }
 }
 
 fn describe_method(m: &AuthMethod) -> String {
