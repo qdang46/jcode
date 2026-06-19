@@ -29,6 +29,7 @@ pub mod callback_server;
 pub mod metadata_profiles;
 pub mod catalog;
 pub mod credential;
+pub mod credential_rotation;
 pub mod defaults;
 pub mod error_classify;
 pub mod failover;
