@@ -500,4 +500,29 @@ mod tests {
         );
         assert_eq!(gate.mode(), PermissionMode::Plan);
     }
+
+    // -----------------------------------------------------------------
+    // 14. DontAsk mode + Exec needs approval
+    // -----------------------------------------------------------------
+    #[test]
+    fn test_dont_ask_mode_prompts_exec() {
+        let gate = ApprovalGate::new(
+            CapabilityChainV2 {
+                mode: PolicyMode::Prompt,
+                ..Default::default()
+            },
+            PermissionMode::DontAsk,
+            HashMap::new(),
+        );
+        // DontAsk + Exec should need approval (Exec is never auto-approved in DontAsk)
+        match gate.check("exec_tool", ToolTier::Exec, &serde_json::json!({})) {
+            GateDecision::NeedsApproval { .. } => {} // expected
+            other => panic!("DontAsk + Exec should need approval, got: {other:?}"),
+        }
+        // DontAsk + Read should auto-approve
+        match gate.check("read_tool", ToolTier::Read, &serde_json::json!({})) {
+            GateDecision::Allow => {} // expected
+            other => panic!("DontAsk + Read should auto-approve, got: {other:?}"),
+        }
+    }
 }

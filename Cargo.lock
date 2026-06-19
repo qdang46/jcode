@@ -7132,6 +7132,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "jcode-provider-app"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "jcode-llm-core",
+ "jcode-provider-metadata",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "jcode-provider-bedrock"
 version = "0.1.0"
 dependencies = [
@@ -7223,6 +7236,8 @@ dependencies = [
  "bytes",
  "futures",
  "jcode-core",
+ "jcode-llm-core",
+ "jcode-llm-protocols",
  "jcode-logging",
  "jcode-message-types",
  "jcode-provider-core",

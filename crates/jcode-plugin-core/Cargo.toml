@@ -10,6 +10,6 @@ serde_json = "1"
 semver = { version = "1.0", features = ["serde"] }
 thiserror = "2"
 regex = "1"
-tokio = { version = "1", features = ["sync", "fs", "macros", "rt-multi-thread"] }
+tokio = { version = "1", features = ["sync", "fs", "macros", "process", "rt-multi-thread"] }
 chrono = { version = "0.4", features = ["serde"] }
 uuid = { version = "1", features = ["v4"] }

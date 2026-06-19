@@ -13,7 +13,7 @@ pub struct PluginConfig {
     #[serde(default)]
     pub fail_closed: Option<bool>,
     #[serde(default)]
-    pub sources: Option<Vec<PluginSource>>,
+    pub sources: Option<Vec<PluginSourceConfig>>,
     #[serde(default)]
     pub settings: HashMap<String, HashMap<String, serde_json::Value>>,
     #[serde(default)]
@@ -51,7 +51,7 @@ impl PluginConfig {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
-pub enum PluginSource {
+pub enum PluginSourceConfig {
     #[serde(rename = "npm")]
     Npm {
         package: String,

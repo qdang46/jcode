@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
+use tokio::process::Command;
 use tokio::sync::RwLock;
 use serde::{Deserialize, Serialize};
 use crate::manifest::PluginManifest;
@@ -49,7 +50,46 @@ impl PluginManager {
     pub async fn load(&self, name: &str, source: PluginSource) -> Result<InstalledPlugin, PluginError> {
         let backup = self.state.read().await.last_known_good.clone();
         let install_path = self.install_root.join(name);
-        tokio::fs::create_dir_all(&install_path).await.map_err(|e| PluginError::Other(e.to_string()))?;
+
+        match &source {
+            PluginSource::Git { url, rev } => {
+                let sanitized = Self::sanitize_url(url)?;
+                tokio::fs::create_dir_all(&install_path).await.map_err(|e| PluginError::Other(e.to_string()))?;
+
+                let output = Command::new("git")
+                    .args(["clone", "--depth", "1", &sanitized])
+                    .arg(&install_path)
+                    .output()
+                    .await
+                    .map_err(|e| PluginError::Other(format!("failed to execute git clone: {e}")))?;
+
+                if !output.status.success() {
+                    let stderr = String::from_utf8_lossy(&output.stderr);
+                    return Err(PluginError::Other(format!(
+                        "git clone failed for {url}: {stderr}"
+                    )));
+                }
+
+                if let Some(rev) = rev {
+                    let co = Command::new("git")
+                        .args(["checkout", rev])
+                        .current_dir(&install_path)
+                        .output()
+                        .await
+                        .map_err(|e| PluginError::Other(format!("failed to execute git checkout: {e}")))?;
+
+                    if !co.status.success() {
+                        let stderr = String::from_utf8_lossy(&co.stderr);
+                        return Err(PluginError::Other(format!(
+                            "git checkout {rev} failed in {url}: {stderr}"
+                        )));
+                    }
+                }
+            }
+            _ => {
+                tokio::fs::create_dir_all(&install_path).await.map_err(|e| PluginError::Other(e.to_string()))?;
+            }
+        }
 
         let manifest = PluginManifest::default(); // minimal manifest for now
         let installed = InstalledPlugin {
@@ -104,6 +144,42 @@ impl PluginManager {
     async fn load_state(lock_path: &PathBuf) -> Option<PluginState> {
         let content = tokio::fs::read_to_string(lock_path).await.ok()?;
         serde_json::from_str(&content).ok()
+    }
+
+    /// Validate a git URL — must start with `https://` or `git@`.
+    /// Rejects URLs containing shell-injection characters (`;`, `|`, `` ` ``, `$`, or spaces).
+    fn sanitize_url(url: &str) -> Result<String, PluginError> {
+        if !url.starts_with("https://") && !url.starts_with("git@") {
+            return Err(PluginError::Other(format!(
+                "unsupported URL scheme in plugin git URL: must start with https:// or git@, got {url:?}"
+            )));
+        }
+
+        let forbidden = [';', '|', '`', '$', ' '];
+        if let Some(ch) = url.chars().find(|c| forbidden.contains(c)) {
+            return Err(PluginError::Other(format!(
+                "plugin git URL contains forbidden character {ch:?}, rejecting for shell safety: {url:?}"
+            )));
+        }
+
+        Ok(url.to_owned())
+    }
+
+    /// Derive a filesystem-safe install name from a git URL.
+    /// Extracts the repo name from the last path segment (stripping `.git` suffix).
+    fn install_name_from_url(url: &str) -> String {
+        let path = url
+            .strip_prefix("https://")
+            .or_else(|| url.strip_prefix("git@"))
+            .unwrap_or(url);
+
+        // For git@ URLs: "git@github.com:user/repo.git" → "user/repo.git"
+        // Normalise colons in the host:path part to slashes for extraction
+        let path = path.replace(':', "/");
+
+        let name = path.split('/').filter(|s| !s.is_empty()).last().unwrap_or("plugin");
+
+        name.strip_suffix(".git").unwrap_or(name).to_owned()
     }
 }
 

@@ -9,7 +9,7 @@ pub mod serde;
 pub mod types;
 
 pub use config::{
-    DiscoveryPaths, PluginConfig, is_valid_package_name, sanitize_name,
+    DiscoveryPaths, PluginConfig, PluginSourceConfig, is_valid_package_name, sanitize_name,
 };
 pub use errors::PluginError;
 pub use events::{

@@ -4,7 +4,7 @@ use crate::transpiler::Transpiler;
 use crate::types::ResolvedEntry;
 use jcode_plugin_core::PluginError;
 use jcode_plugin_core::config::{
-    DiscoveryPaths, PluginConfig, PluginSource, is_valid_package_name,
+    DiscoveryPaths, PluginConfig, PluginSourceConfig, is_valid_package_name,
 };
 use jcode_plugin_core::preflight::PreflightAnalyzer;
 use jcode_plugin_core::types::PluginId;
@@ -67,7 +67,7 @@ impl PluginLoader {
         Ok(loaded)
     }
 
-    async fn discover_sources(&self) -> Result<Vec<PluginSource>, PluginError> {
+    async fn discover_sources(&self) -> Result<Vec<PluginSourceConfig>, PluginError> {
         let mut sources = Vec::new();
         if let Some(ref cfg_sources) = self.config.sources {
             sources.extend(cfg_sources.clone());
@@ -85,7 +85,7 @@ impl PluginLoader {
     async fn scan_directory(
         &self,
         dir: &Path,
-        sources: &mut Vec<PluginSource>,
+        sources: &mut Vec<PluginSourceConfig>,
     ) -> Result<(), PluginError> {
         if !dir.exists() {
             tokio::fs::create_dir_all(dir).await?;
@@ -96,7 +96,7 @@ impl PluginLoader {
             let path = entry.path();
             let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
             if name.ends_with(".ts") || name.ends_with(".js") {
-                sources.push(PluginSource::File {
+                sources.push(PluginSourceConfig::File {
                     path: path.to_string_lossy().to_string(),
                 });
             }
@@ -107,7 +107,7 @@ impl PluginLoader {
     async fn scan_npm_cache(
         &self,
         dir: &Path,
-        sources: &mut Vec<PluginSource>,
+        sources: &mut Vec<PluginSourceConfig>,
     ) -> Result<(), PluginError> {
         let mut read_dir = tokio::fs::read_dir(dir).await?;
         while let Some(entry) = read_dir.next_entry().await? {
@@ -116,7 +116,7 @@ impl PluginLoader {
                 && let Some(name) = path.file_name().and_then(|n| n.to_str())
             {
                 let package_name = name.replace("__", "/");
-                sources.push(PluginSource::Npm {
+                sources.push(PluginSourceConfig::Npm {
                     package: package_name,
                     version: None,
                 });
@@ -125,14 +125,14 @@ impl PluginLoader {
         Ok(())
     }
 
-    pub(crate) async fn load_one(&self, source: &PluginSource) -> Result<PluginId, PluginError> {
+    pub(crate) async fn load_one(&self, source: &PluginSourceConfig) -> Result<PluginId, PluginError> {
         let (path, id) = match source {
-            PluginSource::Npm { package, version } => {
+            PluginSourceConfig::Npm { package, version } => {
                 let entry = self.resolve_npm_entry(package, version.as_deref()).await?;
                 (entry.path, PluginId::npm(package))
             }
-            PluginSource::File { path } => (std::path::PathBuf::from(path), PluginId::file(path)),
-            PluginSource::Directory { path } => {
+            PluginSourceConfig::File { path } => (std::path::PathBuf::from(path), PluginId::file(path)),
+            PluginSourceConfig::Directory { path } => {
                 let p = std::path::Path::new(path);
                 let idx = if p.join("index.ts").exists() {
                     p.join("index.ts")
@@ -238,6 +238,13 @@ impl PluginLoader {
         // Update fingerprint cache
         self.fingerprints.write().await.insert(plugin_id.clone(), new_fp);
         Ok(())
+    }
+
+    /// Remove the cached fingerprint for a plugin, so the next reload will
+    /// treat the plugin as changed even if the file content hasn't been
+    /// modified.
+    pub async fn remove_fingerprint(&self, plugin_id: &PluginId) {
+        self.fingerprints.write().await.remove(plugin_id);
     }
 
     /// Compute a fingerprint for a plugin file: seahash + mtime + size.
@@ -519,5 +526,46 @@ mod tests {
         // 3. Verify plugin is still in registry after reload
         let plugins_in_registry = registry.list().await;
         assert_eq!(plugins_in_registry.len(), 1);
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn test_remove_fingerprint_clears_cache() {
+        let workspace_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .and_then(|p| p.parent())
+            .expect("could not find workspace root from CARGO_MANIFEST_DIR");
+        let example_dir = workspace_root.join("examples/plugins/hello-plugin");
+        if !example_dir.exists() {
+            eprintln!("skipping test_remove_fingerprint_clears_cache — hello-plugin dir not found");
+            return;
+        }
+
+        let dispatcher = Arc::new(RcuDispatcher::new());
+        let registry = Arc::new(PluginRegistry::new(dispatcher.clone()));
+        let runtime = Arc::new(
+            RuntimeManager::new(RuntimeConfig::default())
+                .expect("RuntimeManager::new should succeed"),
+        );
+        let discovery = DiscoveryPaths {
+            plugin_dirs: vec![example_dir.clone()],
+            npm_cache: std::env::temp_dir().join("jcode-test-npm-cache-fpr"),
+            tool_dirs: vec![],
+        };
+        let config = jcode_plugin_core::config::PluginConfig::default();
+        let loader = PluginLoader::new(discovery, config, registry, runtime);
+
+        // Load seeds the fingerprint
+        let loaded_ids = loader.load_all().await.expect("load_all should succeed");
+        assert!(!loaded_ids.is_empty(), "expected at least one plugin loaded");
+        let plugin_id = &loaded_ids[0];
+
+        let has_entry = { loader.fingerprints.read().await.contains_key(plugin_id) };
+        assert!(has_entry, "fingerprint should exist after load");
+
+        // Remove it
+        loader.remove_fingerprint(plugin_id).await;
+
+        let has_entry = { loader.fingerprints.read().await.contains_key(plugin_id) };
+        assert!(!has_entry, "fingerprint should be removed");
     }
 }

@@ -139,14 +139,14 @@ impl PluginSystem {
     }
 
     pub async fn install(&self, source: &str) -> Result<(), jcode_plugin_core::PluginError> {
-        use jcode_plugin_core::config::PluginSource;
+        use jcode_plugin_core::config::PluginSourceConfig;
 
         let source = if source.starts_with('/') || source.starts_with('.') {
-            PluginSource::File {
+            PluginSourceConfig::File {
                 path: source.to_string(),
             }
         } else {
-            PluginSource::Npm {
+            PluginSourceConfig::Npm {
                 package: source.to_string(),
                 version: None,
             }

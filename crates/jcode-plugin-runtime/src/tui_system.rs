@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use jcode_plugin_core::config::{DiscoveryPaths, PluginSource};
+use jcode_plugin_core::config::{DiscoveryPaths, PluginSourceConfig};
 use jcode_plugin_core::manifest::{PluginCapabilities, PluginKind};
 use jcode_plugin_core::preflight::PreflightAnalyzer;
 use jcode_plugin_core::types::PluginId;
@@ -150,7 +150,7 @@ impl TuiPluginSystem {
     async fn discover_tui_sources(
         &self,
         discovery: &DiscoveryPaths,
-    ) -> Result<Vec<PluginSource>, PluginError> {
+    ) -> Result<Vec<PluginSourceConfig>, PluginError> {
         let mut sources = Vec::new();
 
         for dir in &discovery.plugin_dirs {
@@ -162,7 +162,7 @@ impl TuiPluginSystem {
                 let path = entry.path();
                 let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
                 if name.ends_with(".ts") || name.ends_with(".js") || name.ends_with(".tsx") {
-                    sources.push(PluginSource::File {
+                    sources.push(PluginSourceConfig::File {
                         path: path.to_string_lossy().to_string(),
                     });
                 }
@@ -191,7 +191,7 @@ impl TuiPluginSystem {
                             jcode_plugin_core::manifest::PluginManifest::from_package_json(&json)
                         && (manifest.kind == PluginKind::Tui || manifest.kind == PluginKind::Both)
                     {
-                        sources.push(PluginSource::Npm {
+                        sources.push(PluginSourceConfig::Npm {
                             package: package_name,
                             version: None,
                         });
@@ -208,9 +208,9 @@ impl TuiPluginSystem {
     // ------------------------------------------------------------------
 
     /// Load a single TUI plugin from a source.
-    async fn load_plugin(&mut self, source: &PluginSource) -> Result<PluginId, PluginError> {
+    async fn load_plugin(&mut self, source: &PluginSourceConfig) -> Result<PluginId, PluginError> {
         let (path, id, _manifest) = match source {
-            PluginSource::File { path } => {
+            PluginSourceConfig::File { path } => {
                 let p = PathBuf::from(path);
                 let id = PluginId::file(path);
                 (
@@ -219,7 +219,7 @@ impl TuiPluginSystem {
                     jcode_plugin_core::manifest::PluginManifest::default(),
                 )
             }
-            PluginSource::Npm {
+            PluginSourceConfig::Npm {
                 package,
                 version: _,
             } => {
@@ -247,7 +247,7 @@ impl TuiPluginSystem {
                     })?;
                 (cache.join(entry), id, manifest)
             }
-            PluginSource::Directory { path } => {
+            PluginSourceConfig::Directory { path } => {
                 let p = PathBuf::from(path);
                 let idx = if p.join("index.ts").exists() {
                     p.join("index.ts")

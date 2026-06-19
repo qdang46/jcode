@@ -6,8 +6,8 @@
  * persistence, and capability declarations.
  *
  * Plugins run in QuickJS sandboxes with no DOM, no Node.js built-ins,
- * and limited global objects. The runtime injects a `__jcode_pi` global
- * (aliased as `pi` below) that provides all plugin APIs.
+ * and limited global objects. The runtime injects a `jcode` global
+ * that provides all plugin APIs.
  *
  * Plugin lifecycle:
  *   1. Discovery  ─ jcode scans plugin directories / npm cache / config
@@ -65,7 +65,7 @@ const manifest: PluginManifest = {
 // ─── State Management ──────────────────────────────────────────────────────
 //
 // Module-level variables persist for the plugin's lifetime (from load
-// to unload). Use `pi.kv` for durable cross-session persistence.
+// to unload). Use `jcode.kv` for durable cross-session persistence.
 
 let turnCount = 0;
 let totalToolDuration = 0;
@@ -73,19 +73,19 @@ const toolCallHistory: Array<{ name: string; startedAt: number }> = [];
 
 // ─── Event Handlers ────────────────────────────────────────────────────────
 //
-// Handlers are registered via pi.on(eventName, callback).
+// Handlers are registered via jcode.on(eventName, callback).
 // The callback receives an event object with fields specific to the event type.
 // Return value (optional) can modify the event's outcome for events that
 // support it (e.g. PreToolUse can block or modify input).
 
 function setupHandlers(): void {
-  const logger = pi.logger;
+  const logger = jcode.logger;
 
   /**
    * TurnStart — fired when a conversation turn begins.
    * Event fields: { session_id, turn_number, messages }
    */
-  pi.on('TurnStart', (event: { session_id: string; turn_number: number; messages: unknown }) => {
+  jcode.on('TurnStart', (event: { session_id: string; turn_number: number; messages: unknown }) => {
     turnCount++;
     logger.info(`[example-plugin] Turn #${event.turn_number} started (session: ${event.session_id})`);
   });
@@ -94,7 +94,7 @@ function setupHandlers(): void {
    * TurnEnd — fired when a turn completes.
    * Event fields: { session_id, turn_number, duration_ms }
    */
-  pi.on('TurnEnd', (event: { session_id: string; turn_number: number; duration_ms: number }) => {
+  jcode.on('TurnEnd', (event: { session_id: string; turn_number: number; duration_ms: number }) => {
     logger.info(`[example-plugin] Turn #${event.turn_number} ended (${event.duration_ms}ms)`);
     logger.info(`[example-plugin] Total tools duration this session: ${totalToolDuration}ms`);
   });
@@ -103,7 +103,7 @@ function setupHandlers(): void {
    * MessageStart — fired when the model or user starts a new message.
    * Event fields: { session_id, role }  (role = "user" | "assistant" | "system")
    */
-  pi.on('MessageStart', (event: { session_id: string; role: string }) => {
+  jcode.on('MessageStart', (event: { session_id: string; role: string }) => {
     logger.debug(`[example-plugin] ${event.role} message starting`);
   });
 
@@ -111,7 +111,7 @@ function setupHandlers(): void {
    * MessageEnd — fired when a message is fully produced.
    * Event fields: { session_id, role, content }
    */
-  pi.on('MessageEnd', (event: { session_id: string; role: string; content: string }) => {
+  jcode.on('MessageEnd', (event: { session_id: string; role: string; content: string }) => {
     logger.debug(`[example-plugin] ${event.role} message ended (${event.content.length} chars)`);
   });
 
@@ -123,7 +123,7 @@ function setupHandlers(): void {
    * Return { action: 'block', output: 'reason' } to prevent execution.
    * Return { action: 'continue', output: { modified_input } } to modify args.
    */
-  pi.on('PreToolUse', (event: { tool_name: string; tool_input: Record<string, unknown>; session_id: string }) => {
+  jcode.on('PreToolUse', (event: { tool_name: string; tool_input: Record<string, unknown>; session_id: string }) => {
     logger.info(`[example-plugin] Tool about to run: ${event.tool_name}`);
     toolCallHistory.push({ name: event.tool_name, startedAt: Date.now() });
 
@@ -150,7 +150,7 @@ function setupHandlers(): void {
    *
    * Can optionally modify the tool output returned to the model.
    */
-  pi.on('PostToolUse', (event: {
+  jcode.on('PostToolUse', (event: {
     tool_name: string;
     tool_input: Record<string, unknown>;
     tool_output: unknown;
@@ -167,19 +167,19 @@ function setupHandlers(): void {
    * Event fields: { level, message, session_id? }
    * Can suppress or modify the notification.
    */
-  pi.on('Notification', (event: { level: string; message: string; session_id?: string }) => {
+  jcode.on('Notification', (event: { level: string; message: string; session_id?: string }) => {
     logger.debug(`[example-plugin] Notification [${event.level}]: ${event.message}`);
   });
 }
 
 // ─── Tool Registration ─────────────────────────────────────────────────────
 //
-// Custom tools are registered via pi.registerTool(toolDefinition).
+// Custom tools are registered via jcode.registerTool(toolDefinition).
 // The tool definition must include a name, description, parameter schema,
 // and a handler function. The handler runs inside the QuickJS sandbox.
 
 function registerCustomTools(): void {
-  pi.registerTool({
+  jcode.registerTool({
     name: 'example_hello',
     description: 'Greet a user by name. Useful for demonstrating plugin tool registration.',
     parameters: {
@@ -196,7 +196,7 @@ function registerCustomTools(): void {
     },
   });
 
-  pi.registerTool({
+  jcode.registerTool({
     name: 'example_counter',
     description: 'Return the current turn counter value maintained by the plugin.',
     parameters: { type: 'object', properties: {} },
@@ -205,7 +205,7 @@ function registerCustomTools(): void {
     },
   });
 
-  pi.registerTool({
+  jcode.registerTool({
     name: 'example_echo',
     description: 'Echo back whatever input is provided. Use to verify plugin tool routing.',
     parameters: {
@@ -223,33 +223,33 @@ function registerCustomTools(): void {
 
 // ─── Configuration & Persistence ──────────────────────────────────────────
 //
-// pi.getConfig(key) reads plugin config from the global jcode config.
-// pi.kv.get(key) / pi.kv.set(key, value) provides durable storage
+// jcode.getConfig(key) reads plugin config from the global jcode config.
+// jcode.kv.get(key) / jcode.kv.set(key, value) provides durable storage
 //   that persists across sessions (backed by the runtime).
 
 function loadConfig(): Record<string, unknown> {
-  const logLevel = pi.getConfig('example-plugin.logLevel') || 'info';
-  const maxHistory = pi.getConfig('example-plugin.maxHistory') || 100;
+  const logLevel = jcode.getConfig('example-plugin.logLevel') || 'info';
+  const maxHistory = jcode.getConfig('example-plugin.maxHistory') || 100;
 
   // Restore persistent state
-  const saved = pi.kv.get('example-plugin.toolHistory');
+  const saved = jcode.kv.get('example-plugin.toolHistory');
   const history = saved ? JSON.parse(saved) : [];
 
   return { logLevel, maxHistory, history };
 }
 
 function saveState(): void {
-  pi.kv.set('example-plugin.toolHistory', JSON.stringify(toolCallHistory.slice(-100)));
+  jcode.kv.set('example-plugin.toolHistory', JSON.stringify(toolCallHistory.slice(-100)));
 }
 
 // ─── Plugin Load ───────────────────────────────────────────────────────────
 //
 // The module scope runs at load time. This is where you wire up
 // everything: register tools, bind event handlers, read config.
-// pi.logger is available immediately.
+// jcode.logger is available immediately.
 
 const config = loadConfig();
-const logger = pi.logger;
+const logger = jcode.logger;
 
 logger.info(`[example-plugin] Loading v${manifest.version} (config: ${JSON.stringify(config)})`);
 
@@ -260,13 +260,13 @@ setupHandlers();
 registerCustomTools();
 
 // Log our identity.
-logger.info(`[example-plugin] Registered plugin: ${pi.name}@${pi.version}`);
+logger.info(`[example-plugin] Registered plugin: ${jcode.name}@${jcode.version}`);
 
 // ─── Graceful Shutdown (optional) ──────────────────────────────────────────
 //
-// pi.on('SessionEnd') or pi.on('Stop') can be used for cleanup.
+// jcode.on('SessionEnd') or jcode.on('Stop') can be used for cleanup.
 
-pi.on('SessionEnd', () => {
+jcode.on('SessionEnd', () => {
   saveState();
   logger.info('[example-plugin] Plugin shutting down, state persisted');
 });

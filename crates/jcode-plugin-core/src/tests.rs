@@ -390,15 +390,15 @@ mod tests {
 
     #[test]
     fn plugin_source_npm_serde() {
-        let src = crate::config::PluginSource::Npm {
+        let src = crate::config::PluginSourceConfig::Npm {
             package: "my-plugin".into(),
             version: Some("1.0.0".into()),
         };
         let json = serde_json::to_string(&src).unwrap();
         assert!(json.contains("\"npm\""));
-        let deserialized: crate::config::PluginSource = serde_json::from_str(&json).unwrap();
+        let deserialized: crate::config::PluginSourceConfig = serde_json::from_str(&json).unwrap();
         match deserialized {
-            crate::config::PluginSource::Npm { package, version } => {
+            crate::config::PluginSourceConfig::Npm { package, version } => {
                 assert_eq!(package, "my-plugin");
                 assert_eq!(version, Some("1.0.0".into()));
             }
@@ -408,26 +408,26 @@ mod tests {
 
     #[test]
     fn plugin_source_file_serde() {
-        let src = crate::config::PluginSource::File {
+        let src = crate::config::PluginSourceConfig::File {
             path: "/tmp/plugin.wasm".into(),
         };
         let json = serde_json::to_string(&src).unwrap();
-        let deserialized: crate::config::PluginSource = serde_json::from_str(&json).unwrap();
+        let deserialized: crate::config::PluginSourceConfig = serde_json::from_str(&json).unwrap();
         match deserialized {
-            crate::config::PluginSource::File { path } => assert_eq!(path, "/tmp/plugin.wasm"),
+            crate::config::PluginSourceConfig::File { path } => assert_eq!(path, "/tmp/plugin.wasm"),
             _ => panic!("expected File variant"),
         }
     }
 
     #[test]
     fn plugin_source_directory_serde() {
-        let src = crate::config::PluginSource::Directory {
+        let src = crate::config::PluginSourceConfig::Directory {
             path: "/plugins".into(),
         };
         let json = serde_json::to_string(&src).unwrap();
-        let deserialized: crate::config::PluginSource = serde_json::from_str(&json).unwrap();
+        let deserialized: crate::config::PluginSourceConfig = serde_json::from_str(&json).unwrap();
         match deserialized {
-            crate::config::PluginSource::Directory { path } => assert_eq!(path, "/plugins"),
+            crate::config::PluginSourceConfig::Directory { path } => assert_eq!(path, "/plugins"),
             _ => panic!("expected Directory variant"),
         }
     }
