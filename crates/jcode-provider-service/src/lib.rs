@@ -27,6 +27,7 @@ pub mod callback_server;
 pub mod catalog;
 pub mod credential;
 pub mod defaults;
+pub mod error_classify;
 pub mod failover;
 pub mod integration;
 pub mod migrate;
