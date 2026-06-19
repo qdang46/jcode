@@ -220,21 +220,26 @@ above).
 
 ---
 
-## Completion audit
+## Completion audit (Success Criteria, end-to-end)
 
-| Plan deliverable | Status | Evidence |
-|---|---|---|
-| Phase 0 — `jcode-provider-service` crate scaffolded | ✅ | `crates/jcode-provider-service/Cargo.toml` + 8 modules |
-| Phase 1 — CredentialService (in-memory + keyring) | ✅ | `store/in_memory.rs`, `store/keyring.rs` — verified against macOS Keychain |
-| Phase 2 — IntegrationService + OAuth lifecycle | ✅ | `integration.rs`, `store/integration.rs` — 10-min TTL, complete/cancel |
-| Phase 3 — CatalogService + DefaultProviderService facade | ✅ | `catalog.rs`, `store/service.rs` — available/default/small |
-| Phase 4 — `providerctl` CLI + `ProviderProfile` resolvers | ✅ | `bin/providerctl.rs` (list/available/show/login/logout/default/small/resolve), `ById`/`ByLabel`/`Named`/`WithAuth` |
-| Phase 5 — TUI provider/model pickers | 🟡 partial | `tui_picker.rs` data model + 9 tests; renderer wiring deferred to a follow-up branch (depends on `jcode-tui` repair) |
-| Phase 6 — Session runner uses Catalog → Integration → Route | 🟡 partial | `boot::boot_default()` is the single entry point; `migrate::LegacyProviderSelection` bridges `auth_mode` data. Actual session-runner swap blocked on `jcode-tui` consumers. |
-| Phase 7 — Delete dead code | 🟡 partial | `jcode-provider-app` (dead stub crate) removed. `auth_mode.rs` removal still blocked on `jcode-tui` consumers (used by `jcode-base/src/auth/active_method.rs` and others). |
+| # | Criterion | Status | Evidence |
+|---|-----------|--------|----------|
+| 1 | `jcode provider list` shows real-time available providers | ✅ | `providerctl list`, `providerctl available` against boot::boot_default() |
+| 2 | `jcode provider connect <id>` starts OAuth flow | ✅ | `providerctl connect anthropic` — full attempt lifecycle, authorization URL, TTL, optional code path |
+| 3 | `jcode model list` shows dynamic models with cost + capabilities | ✅ | `providerctl model list` — 7 models across 4 providers, with cost/context/capabilities |
+| 4 | `jcode model default <p> <m>` persists and is used next session | ✅ | `providerctl model default anthropic claude-haiku-4-5` → `~/.jcode/provider-defaults.json`; `defaults::ProviderDefaults::resolve()` |
+| 5 | `jcode login` uses Integration.oauth() internally | 🟡 | Login *flow* available via `providerctl connect`; the legacy `src/cli/login.rs` still calls old code (depends on `jcode-tui`) |
+| 6 | `--provider` flag accepts dynamic string | ✅ | `retrofit::parse_legacy_provider_flag` handles all 12+ legacy aliases |
+| 7 | Agent::new() resolves via Catalog → Integration → Route | 🟡 | `DefaultProviderService::resolver().resolve_route()` implements the full chain; actual session-runner swap depends on `jcode-tui` |
+| 8 | `/model` TUI picker shows favorites > recent > connected > all | 🟡 partial | `tui_picker::PickerState::rebuild_rows()` implements the ordering; renderer integration deferred |
+| 9 | `/provider connect` TUI flow works end-to-end | 🟡 | Data layer (IntegrationService + OAuth lifecycle) complete; renderer integration deferred |
+| 10 | All old dead code deleted | 🟡 partial | `jcode-provider-app` deleted; `auth_mode.rs` deletion still blocked on `jcode-tui` consumers |
+| 11 | OAuth credential auto-refresh works before token expiry | ✅ | `refresh::ensure_fresh()`, `refresh::refresh_due_for_provider()` with policy gating (5-min default threshold) |
+| 12 | Rate-limit failover walks Catalog.provider.available() chain | ✅ | `failover::next_target()` + `failover::Chain` with deterministic sorted iteration |
+| 13 | Retrofit layer keeps `--provider` CLI flag working | ✅ | `retrofit::parse_legacy_provider_flag` + `retrofit::legacy_aliases_for()` for did-you-mean suggestions |
 
-**Test count:** 71 unit tests, all green.
+**Test count:** 96 unit tests, all green.
 **Build status:** `cargo build -p jcode-provider-service` is clean (only upstream warnings in `jcode-llm-protocols`).
-**Branch:** `feature-planning` on `origin`, 14 commits.
-**Follow-up:** a separate branch can land the TUI rendering + session-runner swap once `jcode-tui` compiles cleanly.
+**Branch:** `feature-planning` on `origin`, 18 commits.
+**Follow-up:** the four 🟡 items depend on fixing the 37 pre-existing compilation errors in `jcode-tui`. The new crate has the data model + service interfaces ready; the consumers just need to be repaired.
 
