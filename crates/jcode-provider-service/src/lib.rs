@@ -40,6 +40,7 @@ pub mod retry_after;
 pub mod registry;
 pub mod retrofit;
 pub mod runtime;
+pub mod scrub;
 pub mod service;
 pub mod store;
 pub mod tui_picker;

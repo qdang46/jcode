@@ -181,6 +181,10 @@ impl<K: KeyringStore + 'static> IntegrationService for PersistentIntegration<K> 
         Ok(())
     }
 
+    async fn list_oauth_attempts(&self) -> Result<Vec<OAuthAttempt>, IntegrationError> {
+        Ok(self.attempts.read().await.values().cloned().collect())
+    }
+
     async fn save_api_key(
         &self,
         id: &ProviderId,

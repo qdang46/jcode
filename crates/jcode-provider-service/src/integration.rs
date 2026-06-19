@@ -192,6 +192,10 @@ pub trait IntegrationService: Send + Sync {
     /// Cancel an in-flight OAuth attempt.
     async fn cancel_oauth(&self, attempt_id: &str) -> Result<(), IntegrationError>;
 
+    /// List every in-flight OAuth attempt. Used by the scrubber
+    /// ([\]) to evict expired ones.
+    async fn list_oauth_attempts(&self) -> Result<Vec<OAuthAttempt>, IntegrationError>;
+
     /// Persist an API key for a provider. If a credential with the same
     /// `(provider, label)` already exists, it is replaced.
     async fn save_api_key(
@@ -299,6 +303,10 @@ impl IntegrationService for InMemoryIntegration {
     async fn cancel_oauth(&self, attempt_id: &str) -> Result<(), IntegrationError> {
         self.attempts.lock().await.remove(attempt_id);
         Ok(())
+    }
+
+    async fn list_oauth_attempts(&self) -> Result<Vec<OAuthAttempt>, IntegrationError> {
+        Ok(self.attempts.lock().await.values().cloned().collect())
     }
 
     async fn save_api_key(
