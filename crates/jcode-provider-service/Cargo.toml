@@ -1,0 +1,21 @@
+[package]
+name = "jcode-provider-service"
+version = "0.1.0"
+edition = "2024"
+description = "Catalog / Integration / Credential service traits and shared types for jcode provider resolution"
+
+[lib]
+name = "jcode_provider_service"
+path = "src/lib.rs"
+
+[dependencies]
+anyhow = "1"
+async-trait = "0.1"
+chrono = { version = "0.4", features = ["serde"] }
+jcode-llm-core = { path = "../jcode-llm-core" }
+jcode-keyring-store = { path = "../jcode-keyring-store" }
+serde = { version = "1", features = ["derive", "rc"] }
+serde_json = "1"
+thiserror = "1"
+tokio = { version = "1", features = ["sync"] }
+tracing = "0.1"

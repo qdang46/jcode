@@ -1,0 +1,57 @@
+//! jcode-provider-service
+//!
+//! Catalog → Integration → Credential service traits and shared types for
+//! jcode's provider resolution layer.
+//!
+//! This crate defines the *interfaces* that the rest of jcode (CLI, TUI,
+//! session runner) talks to. Concrete implementations live in their own
+//! crates:
+//!
+//! - [`credential`] — storage backends for credentials (in-memory, SQLite,
+//!   OS keychain, mock for tests).
+//! - [`integration`] — provider definitions, OAuth lifecycle, connection
+//!   detection.
+//! - [`catalog`] — provider/model registry, dynamic model lookups,
+//!   `available()` / `default()` / `small()` resolvers.
+//! - [`service`] — the high-level [`ProviderService`] facade that bundles the
+//!   three layers and the [`RouteResolver`] that turns a `provider + model`
+//!   request into a fully-prepared [`Route`].
+//!
+//! The old `Provider` trait in `jcode-provider-core` keeps working — this
+//! crate sits *alongside* it, and Phase 6 of the master plan is when we
+//! rewire consumers to flow through here.
+
+pub mod catalog;
+pub mod credential;
+pub mod integration;
+pub mod service;
+pub mod types;
+
+pub use catalog::{CatalogService, ModelInfo, ProviderInfo};
+pub use credential::{Credential, CredentialId, CredentialService, CredentialType};
+pub use integration::{AuthMethod, ConnectionStatus, IntegrationService, LoginProvider, OAuthAttempt};
+pub use service::{ProviderService, ResolvedRoute, RouteResolver};
+pub use types::{ModelId, ProviderId, ProviderProfile};
+
+/// Crate version, exposed for logging / diagnostics.
+pub fn version() -> &'static str {
+    env!("CARGO_PKG_VERSION")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn version_is_nonempty() {
+        assert!(!version().is_empty());
+    }
+
+    #[test]
+    fn provider_id_and_model_id_are_strings() {
+        let provider: ProviderId = "anthropic".into();
+        let model: ModelId = "claude-sonnet-4-6".into();
+        assert_eq!(provider.as_str(), "anthropic");
+        assert_eq!(model.as_str(), "claude-sonnet-4-6");
+    }
+}

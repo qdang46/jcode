@@ -7114,11 +7114,19 @@ dependencies = [
 name = "jcode-provider-anthropic"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
+ "async-trait",
+ "futures",
+ "jcode-llm-core",
+ "jcode-llm-protocols",
  "jcode-logging",
  "jcode-message-types",
  "jcode-provider-core",
+ "reqwest 0.12.28",
  "serde",
  "serde_json",
+ "tokio",
+ "tokio-stream",
 ]
 
 [[package]]
