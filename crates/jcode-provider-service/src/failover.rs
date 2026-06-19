@@ -51,7 +51,10 @@ pub async fn next_target(
     integration: &dyn IntegrationService,
     failing: (&ProviderId, &ModelId),
 ) -> Result<Option<FailoverTarget>, FailoverError> {
-    let available = catalog.available().await?;
+    // Iterate the available chain in a deterministic order so failover
+    // is reproducible. Sorted by provider id.
+    let mut available = catalog.available().await?;
+    available.sort_by(|a, b| a.id.as_str().cmp(b.id.as_str()));
     // Skip the failing provider.
     let mut after = false;
     let mut idx = 0usize;
@@ -263,6 +266,9 @@ mod tests {
 
     #[tokio::test]
     async fn next_target_walks_to_next_provider() {
+        // Failover is deterministic: providers are sorted by id before
+        // the chain walk. The chain after anthropic is gemini, then
+        // openai.
         let (cat, int, _creds) = populated().await;
         let target = next_target(
             &cat,
@@ -273,12 +279,14 @@ mod tests {
         .unwrap();
         assert!(target.is_some());
         let t = target.unwrap();
-        assert_eq!(t.provider.as_str(), "openai");
-        assert_eq!(t.model.as_str(), "gpt-5.1");
+        assert_eq!(t.provider.as_str(), "gemini");
+        assert_eq!(t.model.as_str(), "gemini-2.5-pro");
     }
 
     #[tokio::test]
     async fn next_target_walks_through_multiple() {
+        // Sorted chain after anthropic: gemini, then openai, then
+        // wrap-around returns anthropic (already visited) -> exhausted.
         let (cat, int, _creds) = populated().await;
         let mut chain = Chain::new(
             &cat,
@@ -286,18 +294,11 @@ mod tests {
             ("anthropic".into(), "claude-sonnet-4-6".into()),
         );
         let t1 = chain.step().await.unwrap().unwrap();
-        assert_eq!(t1.provider.as_str(), "openai");
+        assert_eq!(t1.provider.as_str(), "gemini");
         let t2 = chain.step().await.unwrap().unwrap();
-        // After openai (which Chain set as the "next"), the catalog
-        // returns... nothing (since Chain's `next` becomes openai, and
-        // after openai we should wrap to gemini then end).
-        // Actually Chain's logic: next_target returns the first available
-        // provider AFTER the failing one. After we set "next" to openai,
-        // next_target looks for "the first available provider after
-        // openai", which is gemini. So t2 should be gemini.
-        assert_eq!(t2.provider.as_str(), "gemini");
+        assert_eq!(t2.provider.as_str(), "openai");
         let t3 = chain.step().await.unwrap();
-        assert!(t3.is_none(), "chain should be exhausted after gemini");
+        assert!(t3.is_none(), "chain should be exhausted after openai");
     }
 
     #[tokio::test]
