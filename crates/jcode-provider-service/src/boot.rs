@@ -289,7 +289,17 @@ pub fn builtin_route(bp: &BuiltinProvider, model_id: &str) -> Option<PreparedRou
             jcode_llm_protocols::openai_chat::chat_route()
         }
         BuiltinProtocol::OpenAiResponses => {
-            jcode_llm_protocols::openai_responses::responses_route()
+            let mut r = jcode_llm_protocols::openai_responses::responses_route();
+            // The jcode-llm-protocols default points at api.openai.com;
+            // override the base URL for non-OpenAI providers that
+            // use this protocol (e.g. gemini).
+            if bp.id != "openai" {
+                r.endpoint.base_url = match bp.id {
+                    "gemini" => "https://generativelanguage.googleapis.com".to_string(),
+                    _ => r.endpoint.base_url,
+                };
+            }
+            r
         }
     };
     r.provider.id = model_id.to_string();
@@ -415,6 +425,32 @@ mod tests {
         let r = builtin_route(bp, "gpt-5.1").unwrap();
         assert_eq!(r.protocol, "openai-chat-2024-01-01");
         assert_eq!(r.endpoint.base_url, "https://api.openai.com");
+    }
+
+    #[test]
+    fn builtin_route_uses_openai_responses_for_gemini() {
+        // Gemini routes through the openai-responses API.
+        let bp = BUILTIN_PROVIDERS
+            .iter()
+            .find(|p| p.id == "gemini")
+            .unwrap();
+        let r = builtin_route(bp, "gemini-2.5-pro").unwrap();
+        assert_eq!(r.protocol, "openai-responses-2025-01-01");
+        assert_eq!(
+            r.endpoint.base_url,
+            "https://generativelanguage.googleapis.com"
+        );
+    }
+
+    #[test]
+    fn builtin_route_uses_openai_chat_for_openrouter() {
+        // OpenRouter uses the openai-chat protocol.
+        let bp = BUILTIN_PROVIDERS
+            .iter()
+            .find(|p| p.id == "openrouter")
+            .unwrap();
+        let r = builtin_route(bp, "openrouter/auto").unwrap();
+        assert_eq!(r.protocol, "openai-chat-2024-01-01");
     }
 
     #[test]
