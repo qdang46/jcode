@@ -7281,6 +7281,7 @@ dependencies = [
  "clap",
  "jcode-keyring-store",
  "jcode-llm-core",
+ "jcode-llm-protocols",
  "serde",
  "serde_json",
  "thiserror 1.0.69",

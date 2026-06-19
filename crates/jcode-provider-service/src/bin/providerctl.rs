@@ -25,11 +25,10 @@ use std::sync::Arc;
 use anyhow::{Context, Result};
 use jcode_keyring_store::DefaultKeyringStore;
 
-use jcode_provider_service::catalog::InMemoryCatalog;
-use jcode_provider_service::integration::{AuthMethod, LoginProvider};
+use jcode_provider_service::integration::AuthMethod;
 use jcode_provider_service::service::ProviderService;
 use jcode_provider_service::store::{
-    DefaultProviderService, KeyringCredentialStore, PersistentIntegration,
+    DefaultProviderService,
 };
 use jcode_provider_service::types::ProviderId;
 
@@ -107,92 +106,13 @@ fn usage() {
 
 async fn build_service(
 ) -> Result<DefaultProviderService> {
-    // Wire the real keychain by default; tests can swap to MockKeyringStore.
-    let keyring = Arc::new(DefaultKeyringStore::new());
-    let credentials: Arc<dyn jcode_provider_service::credential::CredentialService> =
-        Arc::new(KeyringCredentialStore::new(keyring));
-    let integration: Arc<dyn jcode_provider_service::integration::IntegrationService> =
-        Arc::new(PersistentIntegration::<DefaultKeyringStore>::new(credentials.clone()));
-    let catalog = Arc::new(InMemoryCatalog::new());
-
-    // Phase 4b: register the real providers. For now we register the
-    // seven providers the plan names, each with its canonical auth method
-    // and a placeholder model so the catalog isn't empty.
-    for p in builtin_providers() {
-        integration.register(p.clone()).await.ok();
-    }
-
-    Ok(DefaultProviderService::new(catalog, integration, credentials))
-}
-
-fn builtin_providers() -> Vec<LoginProvider> {
-    vec![
-        LoginProvider {
-            id: ProviderId::from("anthropic"),
-            label: "Anthropic".into(),
-            auth_methods: vec![
-                AuthMethod::OAuth {
-                    authorization_url: "https://claude.ai/oauth/authorize".into(),
-                },
-                AuthMethod::ApiKey {
-                    env_var: "ANTHROPIC_API_KEY".into(),
-                },
-            ],
-            env_keys: vec!["ANTHROPIC_API_KEY".into()],
-            oauth_preferred: true,
-        },
-        LoginProvider {
-            id: ProviderId::from("openai"),
-            label: "OpenAI".into(),
-            auth_methods: vec![
-                AuthMethod::OAuth {
-                    authorization_url: "https://auth.openai.com/authorize".into(),
-                },
-                AuthMethod::ApiKey {
-                    env_var: "OPENAI_API_KEY".into(),
-                },
-            ],
-            env_keys: vec!["OPENAI_API_KEY".into()],
-            oauth_preferred: true,
-        },
-        LoginProvider {
-            id: ProviderId::from("gemini"),
-            label: "Google Gemini".into(),
-            auth_methods: vec![AuthMethod::ApiKey {
-                env_var: "GEMINI_API_KEY".into(),
-            }],
-            env_keys: vec!["GEMINI_API_KEY".into(), "GOOGLE_API_KEY".into()],
-            oauth_preferred: false,
-        },
-        LoginProvider {
-            id: ProviderId::from("openrouter"),
-            label: "OpenRouter".into(),
-            auth_methods: vec![AuthMethod::ApiKey {
-                env_var: "OPENROUTER_API_KEY".into(),
-            }],
-            env_keys: vec!["OPENROUTER_API_KEY".into()],
-            oauth_preferred: false,
-        },
-        LoginProvider {
-            id: ProviderId::from("bedrock"),
-            label: "AWS Bedrock".into(),
-            auth_methods: vec![AuthMethod::CustomHeader {
-                name: "Authorization".into(),
-                env_var: "AWS_BEARER_TOKEN_BEDROCK".into(),
-            }],
-            env_keys: vec!["AWS_BEARER_TOKEN_BEDROCK".into()],
-            oauth_preferred: false,
-        },
-        LoginProvider {
-            id: ProviderId::from("copilot"),
-            label: "GitHub Copilot".into(),
-            auth_methods: vec![AuthMethod::OAuth {
-                authorization_url: "https://github.com/login/oauth/authorize".into(),
-            }],
-            env_keys: vec!["COPILOT_GITHUB_TOKEN".into()],
-            oauth_preferred: true,
-        },
-    ]
+    // Phase 6 boot: real keychain, real built-in provider registration
+    // (Anthropic, OpenAI, OpenRouter, Gemini with their canonical model
+    // sets). The boot helper is the single entry point the session
+    // runner will call in Phase 6.
+    jcode_provider_service::boot::boot_default::<DefaultKeyringStore>()
+        .await
+        .map_err(|e| anyhow::anyhow!(e.to_string()))
 }
 
 async fn cmd_list(
@@ -279,35 +199,37 @@ async fn cmd_logout(
 }
 
 async fn cmd_default(svc: &DefaultProviderService) -> Result<()> {
-    // The catalog is empty in Phase 4a; fall back to the integration
-    // layer's first available provider with a model from a future
-    // catalog registration.
-    let integration = svc.integration();
-    for p in integration.list().await? {
-        let status = integration.detect(&p.id).await?;
-        if status.is_connected() {
-            println!("{}/<model>", p.id);
-            return Ok(());
+    match svc.catalog().default().await {
+        Ok((p, m)) => {
+            println!("{}/{}", p, m);
+            Ok(())
+        }
+        Err(_) => {
+            // Fall back: list the first connected provider.
+            let integration = svc.integration();
+            for p in integration.list().await? {
+                if integration.detect(&p.id).await?.is_connected() {
+                    println!("{}/<no model — try resolve>", p.id);
+                    return Ok(());
+                }
+            }
+            anyhow::bail!("no providers are configured")
         }
     }
-    anyhow::bail!("no providers are configured");
 }
 
 async fn cmd_small(svc: &DefaultProviderService) -> Result<()> {
-    // Phase 4a: the catalog isn't populated yet, so we just print
-    // guidance. Phase 4b will register models and use Catalog::small().
-    let integration = svc.integration();
-    let mut connected = Vec::new();
-    for p in integration.list().await? {
-        if integration.detect(&p.id).await?.is_connected() {
-            connected.push(p.id.to_string());
+    match svc.catalog().small().await {
+        Ok((p, m)) => {
+            println!("{}/{}", p, m);
+            Ok(())
+        }
+        Err(e) => {
+            eprintln!("no small model available: {}", e);
+            eprintln!("(log into at least one provider so catalog has a connected entry)");
+            std::process::exit(1);
         }
     }
-    if connected.is_empty() {
-        anyhow::bail!("no providers are configured");
-    }
-    println!("(Phase 4a) connected providers: {}", connected.join(", "));
-    Ok(())
 }
 
 async fn cmd_resolve(
@@ -316,15 +238,19 @@ async fn cmd_resolve(
     model: Option<&str>,
 ) -> Result<()> {
     let id = ProviderId::from(provider);
-    let model_id = match model {
-        Some(m) => jcode_provider_service::types::ModelId::from(m),
-        None => {
-            // Use the integration to find any persisted model.
-            // Phase 4a: error out with a helpful message.
-            anyhow::bail!(
-                "Phase 4a requires --model; Phase 4b will default to the provider's first catalog model"
-            );
-        }
+    let model_id = if let Some(m) = model {
+        jcode_provider_service::types::ModelId::from(m)
+    } else {
+        // Default to the first model in the catalog for this provider.
+        let models = svc
+            .catalog()
+            .models(&id)
+            .await
+            .with_context(|| format!("unknown provider: {provider}"))?;
+        models
+            .first()
+            .map(|m| m.id.clone())
+            .with_context(|| format!("provider {provider} has no catalog models"))?
     };
     let r = svc
         .resolver()
@@ -348,31 +274,12 @@ fn describe_method(m: &AuthMethod) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use jcode_provider_service::boot::BUILTIN_PROVIDERS;
 
     #[test]
-    fn builtin_providers_lists_the_seven_named() {
-        let list = builtin_providers();
-        let names: Vec<&str> = list.iter().map(|p| p.id.as_str()).collect();
-        for expected in [
-            "anthropic",
-            "openai",
-            "gemini",
-            "openrouter",
-            "bedrock",
-            "copilot",
-        ] {
-            assert!(names.contains(&expected), "missing provider: {expected}");
-        }
-    }
-
-    #[test]
-    fn anthropic_prefers_oauth() {
-        let anthropic = builtin_providers()
-            .into_iter()
-            .find(|p| p.id.as_str() == "anthropic")
-            .unwrap();
-        assert!(anthropic.oauth_preferred);
-        assert!(anthropic.supports_oauth());
+    fn builtin_providers_includes_anthropic_and_openai() {
+        let ids: Vec<&str> = BUILTIN_PROVIDERS.iter().map(|p| p.id).collect();
+        assert!(ids.contains(&"anthropic"));
+        assert!(ids.contains(&"openai"));
     }
 }

@@ -18,6 +18,7 @@ async-trait = "0.1"
 chrono = { version = "0.4", features = ["serde"] }
 clap = { version = "4", features = ["derive"], optional = true }
 jcode-llm-core = { path = "../jcode-llm-core" }
+jcode-llm-protocols = { path = "../jcode-llm-protocols" }
 jcode-keyring-store = { path = "../jcode-keyring-store" }
 serde = { version = "1", features = ["derive", "rc"] }
 serde_json = "1"
