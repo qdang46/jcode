@@ -23,6 +23,7 @@
 
 pub mod attempt;
 pub mod boot;
+pub mod callback_server;
 pub mod catalog;
 pub mod credential;
 pub mod defaults;
