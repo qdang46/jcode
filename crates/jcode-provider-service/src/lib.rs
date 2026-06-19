@@ -25,6 +25,7 @@ pub mod boot;
 pub mod catalog;
 pub mod credential;
 pub mod integration;
+pub mod migrate;
 pub mod service;
 pub mod store;
 pub mod tui_picker;

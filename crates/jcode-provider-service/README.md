@@ -122,16 +122,17 @@ Credential Manager) in production and `MockKeyringStore` in tests.
 
 ## Phase status
 
-| Phase | Plan deliverable                            | Status   | Commit(s) |
-|-------|---------------------------------------------|----------|-----------|
-| 0     | `jcode-provider-service` crate scaffolded   | ✅ done  | `5bfb3f7d` |
-| 1     | `CredentialService` (in-memory + keyring)   | ✅ done  | `50722d13` |
-| 2     | `IntegrationService` + OAuth lifecycle      | ✅ done  | `36bc22fd` |
-| 3     | `CatalogService` + `DefaultProviderService` | ✅ done  | `8ecdf5f8` |
-| 4     | `providerctl` CLI binary (smoke test)       | ✅ done  | `5d368146` |
-| 5     | TUI provider/model pickers                  | ⏸ blocked | depends on `jcode-tui` |
-| 6     | Session runner rewires through facade       | ⏸ blocked | depends on `jcode-tui` |
-| 7     | Delete dead code (`auth_mode` etc.)         | ⏸ blocked | depends on Phase 6 |
+| Phase | Plan deliverable                            | Status     | Commit(s) |
+|-------|---------------------------------------------|------------|-----------|
+| 0     | `jcode-provider-service` crate scaffolded   | ✅ done    | `5bfb3f7d` |
+| 1     | `CredentialService` (in-memory + keyring)   | ✅ done    | `50722d13` |
+| 2     | `IntegrationService` + OAuth lifecycle      | ✅ done    | `36bc22fd` |
+| 3     | `CatalogService` + `DefaultProviderService` | ✅ done    | `8ecdf5f8` |
+| 4     | `providerctl` CLI + `ProviderProfile` resolvers | ✅ done | `5d368146`, `0d4fcc26` |
+| 5     | TUI provider/model pickers (data model only) | ✅ partial | `aa287b23` |
+| 6     | Boot helper wiring real `jcode-llm-protocols` routes | ✅ done | `82b44657` |
+| 6.5   | Migration helper (`auth_mode` → `Credential`) | ✅ done   | this commit |
+| 7     | Delete dead code                            | 🟡 partial | `21d200` removed `jcode-provider-app`; `auth_mode.rs` deletion still blocked on `jcode-tui` consumers |
 
 "Blocked" here means: the plan's deliverables require modifying
 `jcode-tui`, which has 37 pre-existing compilation errors unrelated to
