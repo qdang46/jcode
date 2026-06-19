@@ -88,6 +88,30 @@ async fn main() -> Result<()> {
                     std::process::exit(2);
                 }
             }
+        "secrets" => {
+            // Phase 1 integration: `jcode secrets set provider.<id>.api_key`
+            // and `jcode secrets list`.
+            match args.get(2).map(String::as_str).unwrap_or("list") {
+                "list" => cmd_secrets_list(&svc).await,
+                "set" => {
+                    let provider = args.get(3)
+                        .context("usage: providerctl secrets set provider.<id>.<label> <value>")?;
+                    let value = args.get(4)
+                        .context("usage: providerctl secrets set provider.<id>.<label> <value>")?;
+                    cmd_secrets_set(&svc, provider, value).await
+                }
+                "delete" => {
+                    let provider = args.get(3)
+                        .context("usage: providerctl secrets delete provider.<id>.<label>")?;
+                    cmd_secrets_delete(&svc, provider).await
+                }
+                other => {
+                    eprintln!("unknown secrets subcommand: {other}");
+                    eprintln!("usage: providerctl secrets {{list|set|delete}}");
+                    std::process::exit(2);
+                }
+            }
+        }
         "legacy" => {
             let flag = args.get(2).context("usage: providerctl legacy <flag>")?;
             cmd_legacy(flag)
@@ -502,6 +526,59 @@ async fn cmd_connect(
             "  providerctl connect {provider} <authorization-code>"
         );
     }
+    Ok(())
+}
+
+async fn cmd_secrets_list(svc: &DefaultProviderService) -> Result<()> {
+    for provider in svc.integration().list().await? {
+        let creds = svc.credentials().list(&provider.id).await?;
+        if creds.is_empty() {
+            continue;
+        }
+        for c in creds {
+            // Show the id, label, and a redacted version of the
+            // credential (just the type, never the value).
+            let type_str = match &c.credential {
+                jcode_provider_service::credential::CredentialType::ApiKey { .. } => "api-key",
+                jcode_provider_service::credential::CredentialType::OAuth { .. } => "oauth",
+                jcode_provider_service::credential::CredentialType::ExternalCommand { .. } => "command",
+            };
+            println!("{} {}.{}\t{}\t{}", c.id, c.provider, c.label, type_str, c.created_at);
+        }
+    }
+    Ok(())
+}
+
+async fn cmd_secrets_set(
+    svc: &DefaultProviderService,
+    key: &str,
+    value: &str,
+) -> Result<()> {
+    // Parse "provider.<id>.<label>" form. The plan's convention
+    // is "provider.<id>.api_key"; we also accept arbitrary
+    // labels.
+    let parts: Vec<&str> = key.splitn(3, '.').collect();
+    if parts.len() != 3 || parts[0] != "provider" {
+        anyhow::bail!("key must be of the form provider.<id>.<label>");
+    }
+    let id = ProviderId::from(parts[1]);
+    let label = parts[2];
+    svc.integration()
+        .save_api_key(&id, label, value)
+        .await
+        .with_context(|| format!("failed to save secret for {id}.{label}"))?;
+    println!("saved {key}");
+    Ok(())
+}
+
+async fn cmd_secrets_delete(svc: &DefaultProviderService, key: &str) -> Result<()> {
+    let parts: Vec<&str> = key.splitn(3, '.').collect();
+    if parts.len() != 3 || parts[0] != "provider" {
+        anyhow::bail!("key must be of the form provider.<id>.<label>");
+    }
+    let id = ProviderId::from(parts[1]);
+    let removed = svc.credentials().delete_all(&id).await?;
+    println!("removed {removed} credential(s) for {id}");
     Ok(())
 }
 
