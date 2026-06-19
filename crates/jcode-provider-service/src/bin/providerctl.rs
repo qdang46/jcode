@@ -49,9 +49,13 @@ async fn main() -> Result<()> {
             cmd_show(&svc, provider).await
         }
         "login" => {
-            let provider = args.get(2).context("usage: providerctl login <provider> <key>")?;
-            let key = args.get(3).context("missing API key")?;
-            cmd_login(&svc, provider, key).await
+            // Phase 4 unification: `login` dispatches based on the
+            // provider's registered auth methods. If the provider has
+            // OAuth and no key was provided, drive the OAuth flow.
+            // If a key was provided, save it as an API key.
+            let provider = args.get(2).context("usage: providerctl login <provider> [key]")?;
+            let key = args.get(3);
+            cmd_login_unified(&svc, provider, key.map(|x| x.as_str())).await
         }
         "logout" => {
             let provider = args.get(2).context("usage: providerctl logout <provider>")?;
@@ -215,6 +219,29 @@ async fn cmd_login(
         .with_context(|| format!("failed to save API key for {provider}"))?;
     println!("saved credential {}", cred_id);
     Ok(())
+}
+
+async fn cmd_login_unified(
+    svc: &DefaultProviderService,
+    provider: &str,
+    key: Option<&str>,
+) -> Result<()> {
+    let id = ProviderId::from(provider);
+    let provider_info = svc.integration().get(&id).await.with_context(|| {
+        format!("unknown provider: {provider} (try `providerctl show`)")
+    })?;
+    let has_oauth = provider_info.supports_oauth();
+    match (key, has_oauth) {
+        (None, true) => {
+            println!("provider {provider} supports OAuth; starting attempt...");
+            cmd_connect(svc, provider, None).await
+        }
+        (None, false) => {
+            let msg = "provider ".to_string() + provider + " requires an API key (no OAuth method registered); usage: providerctl login <provider> <key>";
+            anyhow::bail!(msg)
+        }
+        (Some(k), _) => cmd_login(svc, provider, k).await,
+    }
 }
 
 async fn cmd_logout(
@@ -477,5 +504,57 @@ mod tests {
         let ids: Vec<&str> = BUILTIN_PROVIDERS.iter().map(|p| p.id).collect();
         assert!(ids.contains(&"anthropic"));
         assert!(ids.contains(&"openai"));
+    }
+}
+
+#[cfg(test)]
+mod login_unified_tests {
+    use jcode_provider_service::catalog::InMemoryCatalog;
+    use jcode_provider_service::integration::{
+        AuthMethod, InMemoryIntegration, LoginProvider,
+    };
+    use jcode_provider_service::service::ProviderService;
+    use jcode_provider_service::store::{
+        DefaultProviderService, InMemoryCredentialStore, PersistentIntegration,
+    };
+    use jcode_keyring_store::MockKeyringStore;
+    use std::sync::Arc;
+
+    async fn fixture_with_provider(
+        auth_methods: Vec<AuthMethod>,
+    ) -> DefaultProviderService {
+        let creds: Arc<dyn jcode_provider_service::credential::CredentialService> =
+            Arc::new(InMemoryCredentialStore::new());
+        let integration: Arc<dyn jcode_provider_service::integration::IntegrationService> =
+            Arc::new(PersistentIntegration::<MockKeyringStore>::new(creds.clone()));
+        integration
+            .register(LoginProvider {
+                id: "anthropic".into(),
+                label: "Anthropic".into(),
+                auth_methods,
+                env_keys: vec!["ANTHROPIC_API_KEY".into()],
+                oauth_preferred: true,
+            })
+            .await
+            .unwrap();
+        let catalog: Arc<dyn jcode_provider_service::catalog::CatalogService> =
+            Arc::new(InMemoryCatalog::new());
+        DefaultProviderService::new(catalog, integration, creds)
+    }
+
+    #[tokio::test]
+    async fn login_with_key_persists_api_key() {
+        let svc = fixture_with_provider(vec![AuthMethod::ApiKey {
+            env_var: "ANTHROPIC_API_KEY".into(),
+        }])
+        .await;
+        crate::cmd_login(&svc, "anthropic", "sk-test").await.unwrap();
+        // Verify the credential is in the store.
+        let creds = svc.credentials().list(&"anthropic".into()).await.unwrap();
+        assert_eq!(creds.len(), 1);
+        assert!(matches!(
+            creds[0].credential,
+            jcode_provider_service::credential::CredentialType::ApiKey { .. }
+        ));
     }
 }
