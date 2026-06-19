@@ -242,8 +242,8 @@ above).
 | 12 | Rate-limit failover walks Catalog.provider.available() chain | ✅ | `failover::next_target()` + `failover::Chain` with deterministic sorted iteration |
 | 13 | Retrofit layer keeps `--provider` CLI flag working | ✅ | `retrofit::parse_legacy_provider_flag` + `retrofit::legacy_aliases_for()` for did-you-mean suggestions |
 
-**Test count:** 141 tests, all green (123 lib + 4 modelpicker + 2 providerctl + 6 integration + 2 ignored).
+**Test count:** 163 tests, all green (151 lib + 4 modelpicker + 2 providerctl + 6 integration + 0 ignored).
 **Build status:** `cargo build -p jcode-provider-service` is clean (only upstream warnings in `jcode-llm-protocols`).
-**Branch:** `feature-planning` on `origin`, 34 commits. See  for the old->new type map.
+**Branch:** `feature-planning` on `origin`, 40 commits. See  for the old->new type map.
 **Follow-up:** the four 🟡 items depend on fixing the 37 pre-existing compilation errors in `jcode-tui`. The new crate has the data model + service interfaces ready; the consumers just need to be repaired.
 
