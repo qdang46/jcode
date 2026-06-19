@@ -21,6 +21,7 @@
 //! crate sits *alongside* it, and Phase 6 of the master plan is when we
 //! rewire consumers to flow through here.
 
+pub mod aliases;
 pub mod attempt;
 pub mod boot;
 pub mod callback_server;

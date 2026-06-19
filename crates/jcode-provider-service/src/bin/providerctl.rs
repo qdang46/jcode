@@ -92,6 +92,13 @@ async fn main() -> Result<()> {
             let flag = args.get(2).context("usage: providerctl legacy <flag>")?;
             cmd_legacy(flag)
         }
+        "aliases" => {
+            // List all known aliases (specific + tier-based + subscription).
+            for a in jcode_provider_service::aliases::AliasTable::with_builtins().patterns() {
+                println!("{a}");
+            }
+            Ok(())
+        }
         "metadata" => {
             let subcmd = args.get(2).map(String::as_str).unwrap_or("list");
             match subcmd {
