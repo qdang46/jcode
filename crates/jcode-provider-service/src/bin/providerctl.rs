@@ -165,13 +165,32 @@ async fn build_service(
 }
 
 async fn cmd_list(
-    _svc: &DefaultProviderService,
+    svc: &DefaultProviderService,
 ) -> Result<()> {
-    // The Integration layer is where providers are registered in Phase 4a.
-    // Use the underlying integration handle.
-    let integration = _svc.integration();
+    // Per the plan: `jcode provider list` shows real-time
+    // available providers **with credentials** and **auth method
+    // hints**. We list every registered provider, mark whether
+    // the integration layer detects a connection, and show the
+    // available auth methods.
+    let integration = svc.integration();
     for p in integration.list().await? {
-        println!("{}\t{}", p.id, p.label);
+        let status = integration.detect(&p.id).await?;
+        let mark = if status.is_connected() { "[●]" } else { "[ ]" };
+        let first_method = p
+            .auth_methods
+            .first()
+            .map(|m| m.label())
+            .unwrap_or("(no methods)");
+        let methods_count = p.auth_methods.len();
+        let methods_label = if methods_count > 1 {
+            format!("{} (+{} more)", first_method, methods_count - 1)
+        } else {
+            first_method.to_string()
+        };
+        println!(
+            "{} {}\t{}\t{}\t{}",
+            mark, p.id, p.label, status.summary(), methods_label
+        );
     }
     Ok(())
 }
