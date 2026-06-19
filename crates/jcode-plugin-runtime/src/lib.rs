@@ -3,6 +3,7 @@ pub mod audit;
 pub mod bridge;
 pub mod dispatcher;
 pub mod errors;
+pub mod gate;
 pub mod loader;
 pub mod native;
 pub mod registry;

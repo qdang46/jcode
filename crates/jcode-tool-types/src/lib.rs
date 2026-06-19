@@ -57,6 +57,8 @@ impl ToolOutput {
     }
 }
 
+pub use jcode_plugin_core::ToolTier;
+
 /// Resolve tool name aliases to their canonical internal names.
 ///
 /// When using OAuth, the API presents tools with Claude Code names

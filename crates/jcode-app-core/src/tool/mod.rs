@@ -61,6 +61,7 @@ use jcode_hooks::{
     legacy_v1_to_v2_handlers,
 };
 use jcode_message_types::ToolDefinition;
+use jcode_plugin_core::ToolTier;
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
@@ -149,6 +150,139 @@ pub fn get_best_of_n_handle() -> Option<BestOfNOrchestratorHandle> {
 pub fn clear_best_of_n_handle() {
     if let Ok(mut guard) = BEST_OF_N_HANDLE.write() {
         *guard = None;
+    }
+}
+
+// ---------------------------------------------------------------------------
+// ApprovalGate dispatcher bridge
+// ---------------------------------------------------------------------------
+
+/// Global handle to the plugin system's [`RcuDispatcher`] so the tool execution
+/// path can consult the ApprovalGate before running a tool.
+///
+/// Set once during plugin system initialisation. The handle is
+/// `Option<Arc<...>>` so that tools still work when the plugin system is
+/// disabled or not yet initialised — the gate check simply passes through.
+static GATE_DISPATCHER: StdRwLock<Option<std::sync::Arc<jcode_plugin_runtime::RcuDispatcher>>> =
+    StdRwLock::new(None);
+
+/// Install the global gate dispatcher. Called once during plugin system
+/// initialisation. Replacing it at runtime is safe (the old handle is dropped
+/// once the write lock is released).
+pub fn set_gate_dispatcher(dispatcher: std::sync::Arc<jcode_plugin_runtime::RcuDispatcher>) {
+    if let Ok(mut guard) = GATE_DISPATCHER.write() {
+        *guard = Some(dispatcher);
+    }
+}
+
+/// Map a tool name to its [`ToolTier`] for the approval gate.
+///
+/// This is a built-in classification based on the tool's known behaviour.
+/// Plugin-registered tools default to `Exec` (the most restrictive tier).
+fn tool_name_to_tier(name: &str) -> ToolTier {
+    // Read-only introspection tools.
+    if matches!(
+        name,
+        "read"
+            | "ls"
+            | "grep"
+            | "ffs_glob"
+            | "ffs_grep"
+            | "ffs_outline"
+            | "ffs_symbol"
+            | "ffs_multi_grep"
+            | "ffs_find"
+            | "ffs_dispatch"
+            | "ffs_callers"
+            | "ffs_callees"
+            | "ffs_refs"
+            | "ffs_flow"
+            | "agentgrep"
+            | "websearch"
+            | "webfetch"
+            | "codesearch"
+            | "session_search"
+            | "notepad_read_priority"
+            | "notepad_read_working"
+            | "notepad_read_manual"
+            | "notepad_stats"
+            | "beads_list"
+            | "memory"
+            | "lsp"
+            | "conversation_search"
+            | "skill_manage"
+            | "team_status"
+            | "team_task_list"
+    ) {
+        return ToolTier::Read;
+    }
+    // Write tools that mutate workspace or session state.
+    if matches!(
+        name,
+        "write"
+            | "edit"
+            | "multiedit"
+            | "patch"
+            | "apply_patch"
+            | "hashline_edit"
+            | "ffs_hashline_edit"
+            | "propose_write"
+            | "propose_edit"
+            | "ffs_propose_hashline"
+            | "notepad_write_priority"
+            | "notepad_write_working"
+            | "notepad_write_manual"
+            | "beads_create"
+            | "beads_ready"
+            | "beads_claim"
+            | "beads_close"
+            | "beads_dep"
+            | "batch"
+            | "bg"
+            | "todo"
+            | "mcp"
+            | "team_create"
+            | "team_delete"
+            | "team_send_message"
+            | "team_task_create"
+            | "team_task_claim"
+            | "team_shutdown"
+    ) {
+        return ToolTier::Write;
+    }
+    // Everything else is Exec (most restrictive).
+    ToolTier::Exec
+}
+
+/// Run the plugin-system approval gate check before executing a tool.
+///
+/// Returns `Ok(())` if the gate allows or no gate is installed.
+/// Returns `Err` with a descriptive message if the gate denies the call.
+pub(crate) fn check_approval_gate(tool_name: &str, input: &Value) -> Result<()> {
+    let Ok(guard) = GATE_DISPATCHER.read() else {
+        return Ok(());
+    };
+    let Some(dispatcher) = guard.as_ref() else {
+        return Ok(());
+    };
+    let tier = tool_name_to_tier(tool_name);
+    match dispatcher.check_tool(tool_name, tier, input) {
+        None | Some(jcode_plugin_runtime::gate::GateDecision::Allow) => Ok(()),
+        Some(jcode_plugin_runtime::gate::GateDecision::Deny { reason, layer }) => {
+            Err(anyhow::anyhow!(
+                "Tool '{}' blocked by approval gate: {} ({})",
+                tool_name,
+                reason,
+                layer
+            ))
+        }
+        Some(jcode_plugin_runtime::gate::GateDecision::NeedsApproval { prompt }) => {
+            Err(anyhow::anyhow!(
+                "Tool '{}' requires approval: {}",
+                tool_name,
+                prompt.reason
+            ))
+        }
     }
 }
 
@@ -1023,6 +1157,17 @@ impl Registry {
                     return Err(anyhow::anyhow!("Tool '{}': {}", resolved_name, reason));
                 }
             }
+        }
+
+        // --- Approval gate check (plugin-system gate, not DCG) ---
+        if let Err(e) = check_approval_gate(resolved_name, &input) {
+            let error_msg = format!("{}", e);
+            crate::logging::warn(&error_msg);
+            let mut fields =
+                Self::tool_lifecycle_fields("denied", name, resolved_name, &input, &ctx);
+            fields.push(("error".to_string(), error_msg.clone()));
+            crate::logging::event_warn("TOOL_LIFECYCLE", fields);
+            return Err(anyhow::anyhow!(error_msg));
         }
 
         let started_at = std::time::Instant::now();

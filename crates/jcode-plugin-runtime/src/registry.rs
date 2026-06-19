@@ -96,6 +96,12 @@ impl PluginRegistry {
         Ok(())
     }
 
+    /// Commit any pending handler registrations into the snapshot.
+    /// Delegates to `RcuDispatcher::commit()`.
+    pub fn commit(&self) {
+        self.dispatcher.commit();
+    }
+
     pub async fn unregister(&self, id: &PluginId) {
         let mut plugins = self.plugins.write().await;
         plugins.remove(id);

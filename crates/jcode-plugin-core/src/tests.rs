@@ -390,15 +390,15 @@ mod tests {
 
     #[test]
     fn plugin_source_npm_serde() {
-        let src = PluginSource::Npm {
+        let src = crate::config::PluginSource::Npm {
             package: "my-plugin".into(),
             version: Some("1.0.0".into()),
         };
         let json = serde_json::to_string(&src).unwrap();
         assert!(json.contains("\"npm\""));
-        let deserialized: PluginSource = serde_json::from_str(&json).unwrap();
+        let deserialized: crate::config::PluginSource = serde_json::from_str(&json).unwrap();
         match deserialized {
-            PluginSource::Npm { package, version } => {
+            crate::config::PluginSource::Npm { package, version } => {
                 assert_eq!(package, "my-plugin");
                 assert_eq!(version, Some("1.0.0".into()));
             }
@@ -408,26 +408,26 @@ mod tests {
 
     #[test]
     fn plugin_source_file_serde() {
-        let src = PluginSource::File {
+        let src = crate::config::PluginSource::File {
             path: "/tmp/plugin.wasm".into(),
         };
         let json = serde_json::to_string(&src).unwrap();
-        let deserialized: PluginSource = serde_json::from_str(&json).unwrap();
+        let deserialized: crate::config::PluginSource = serde_json::from_str(&json).unwrap();
         match deserialized {
-            PluginSource::File { path } => assert_eq!(path, "/tmp/plugin.wasm"),
+            crate::config::PluginSource::File { path } => assert_eq!(path, "/tmp/plugin.wasm"),
             _ => panic!("expected File variant"),
         }
     }
 
     #[test]
     fn plugin_source_directory_serde() {
-        let src = PluginSource::Directory {
+        let src = crate::config::PluginSource::Directory {
             path: "/plugins".into(),
         };
         let json = serde_json::to_string(&src).unwrap();
-        let deserialized: PluginSource = serde_json::from_str(&json).unwrap();
+        let deserialized: crate::config::PluginSource = serde_json::from_str(&json).unwrap();
         match deserialized {
-            PluginSource::Directory { path } => assert_eq!(path, "/plugins"),
+            crate::config::PluginSource::Directory { path } => assert_eq!(path, "/plugins"),
             _ => panic!("expected Directory variant"),
         }
     }
@@ -1202,5 +1202,229 @@ mod tests {
         let plugin_err: PluginError = io_err.into();
         let display = plugin_err.to_string();
         assert!(display.contains("I/O error") || display.contains("permission denied"));
+    }
+
+    // -----------------------------------------------------------------------
+    // CapabilityChainV2 tests (5-layer chain)
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn capability_chain_v2_layer1_plugin_deny_wins_over_permissive() {
+        let mut chain = CapabilityChainV2 {
+            plugin_deny: CapabilitySet::default(),
+            global_deny: CapabilitySet::default(),
+            plugin_allow: CapabilitySet::default(),
+            global_allow: CapabilitySet::default(),
+            mode: PolicyMode::Permissive,
+            global_default: None,
+        };
+        chain.plugin_deny.tools.push("danger".into());
+        let result = chain.check("danger", &CapabilityAction::Execute);
+        match result {
+            AccessDecisionV2::Deny { reason: _, layer } => assert_eq!(layer, 1),
+            other => panic!("expected Deny layer 1, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn capability_chain_v2_layer2_global_deny_wins_over_permissive() {
+        let mut chain = CapabilityChainV2 {
+            plugin_deny: CapabilitySet::default(),
+            global_deny: CapabilitySet::default(),
+            plugin_allow: CapabilitySet::default(),
+            global_allow: CapabilitySet::default(),
+            mode: PolicyMode::Permissive,
+            global_default: None,
+        };
+        chain.global_deny.tools.push("blocked".into());
+        let result = chain.check("blocked", &CapabilityAction::Read);
+        match result {
+            AccessDecisionV2::Deny { reason: _, layer } => assert_eq!(layer, 2),
+            other => panic!("expected Deny layer 2, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn capability_chain_v2_layer3_plugin_allow_wins_over_strict() {
+        let mut chain = CapabilityChainV2 {
+            plugin_deny: CapabilitySet::default(),
+            global_deny: CapabilitySet::default(),
+            plugin_allow: CapabilitySet::default(),
+            global_allow: CapabilitySet::default(),
+            mode: PolicyMode::Strict,
+            global_default: None,
+        };
+        chain.plugin_allow.tools.push("permitted".into());
+        let result = chain.check("permitted", &CapabilityAction::Read);
+        match result {
+            AccessDecisionV2::Allow { reason: _, layer } => assert_eq!(layer, 3),
+            other => panic!("expected Allow layer 3, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn capability_chain_v2_layer4_global_allow_wins_over_strict() {
+        let mut chain = CapabilityChainV2 {
+            plugin_deny: CapabilitySet::default(),
+            global_deny: CapabilitySet::default(),
+            plugin_allow: CapabilitySet::default(),
+            global_allow: CapabilitySet::default(),
+            mode: PolicyMode::Strict,
+            global_default: None,
+        };
+        chain.global_allow.tools.push("global_whitelist".into());
+        let result = chain.check("global_whitelist", &CapabilityAction::Read);
+        match result {
+            AccessDecisionV2::Allow { reason: _, layer } => assert_eq!(layer, 4),
+            other => panic!("expected Allow layer 4, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn capability_chain_v2_layer5_strict_denies_unknown() {
+        let chain = CapabilityChainV2 {
+            plugin_deny: CapabilitySet::default(),
+            global_deny: CapabilitySet::default(),
+            plugin_allow: CapabilitySet::default(),
+            global_allow: CapabilitySet::default(),
+            mode: PolicyMode::Strict,
+            global_default: None,
+        };
+        let result = chain.check("unknown", &CapabilityAction::Read);
+        match result {
+            AccessDecisionV2::Deny { reason: _, layer } => assert_eq!(layer, 5),
+            other => panic!("expected Deny layer 5, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn capability_chain_v2_layer5_permissive_allows_unknown() {
+        let chain = CapabilityChainV2 {
+            plugin_deny: CapabilitySet::default(),
+            global_deny: CapabilitySet::default(),
+            plugin_allow: CapabilitySet::default(),
+            global_allow: CapabilitySet::default(),
+            mode: PolicyMode::Permissive,
+            global_default: None,
+        };
+        let result = chain.check("unknown", &CapabilityAction::Read);
+        match result {
+            AccessDecisionV2::Allow { reason: _, layer } => assert_eq!(layer, 5),
+            other => panic!("expected Allow layer 5, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn capability_chain_v2_disabled_mode_denies_everything() {
+        let chain = CapabilityChainV2 {
+            plugin_deny: CapabilitySet::default(),
+            global_deny: CapabilitySet::default(),
+            plugin_allow: CapabilitySet::default(),
+            global_allow: CapabilitySet::default(),
+            mode: PolicyMode::Disabled,
+            global_default: None,
+        };
+        // Even an explicitly allowed resource gets denied
+        let result = chain.check("anything", &CapabilityAction::Read);
+        match result {
+            AccessDecisionV2::Deny { reason: _, layer } => assert_eq!(layer, 5),
+            other => panic!("expected Deny layer 5, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn capability_chain_v2_prompt_mode_requires_approval() {
+        let chain = CapabilityChainV2 {
+            plugin_deny: CapabilitySet::default(),
+            global_deny: CapabilitySet::default(),
+            plugin_allow: CapabilitySet::default(),
+            global_allow: CapabilitySet::default(),
+            mode: PolicyMode::Prompt,
+            global_default: None,
+        };
+        let result = chain.check("unknown", &CapabilityAction::Read);
+        match result {
+            AccessDecisionV2::NeedsApproval { reason: _, layer } => assert_eq!(layer, 5),
+            other => panic!("expected NeedsApproval layer 5, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn capability_chain_v2_global_default_allow_overrides_prompt() {
+        let chain = CapabilityChainV2 {
+            plugin_deny: CapabilitySet::default(),
+            global_deny: CapabilitySet::default(),
+            plugin_allow: CapabilitySet::default(),
+            global_allow: CapabilitySet::default(),
+            mode: PolicyMode::Prompt,
+            global_default: Some(AccessDefault::Allow),
+        };
+        let result = chain.check("unknown", &CapabilityAction::Read);
+        match result {
+            AccessDecisionV2::Allow { reason: _, layer } => assert_eq!(layer, 5),
+            other => panic!("expected Allow layer 5, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn capability_chain_v2_global_default_deny_overrides_permissive() {
+        let chain = CapabilityChainV2 {
+            plugin_deny: CapabilitySet::default(),
+            global_deny: CapabilitySet::default(),
+            plugin_allow: CapabilitySet::default(),
+            global_allow: CapabilitySet::default(),
+            mode: PolicyMode::Permissive,
+            global_default: Some(AccessDefault::Deny),
+        };
+        let result = chain.check("unknown", &CapabilityAction::Read);
+        match result {
+            AccessDecisionV2::Deny { reason: _, layer } => assert_eq!(layer, 5),
+            other => panic!("expected Deny layer 5, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn capability_chain_v2_layer1_takes_precedence_over_all_layers() {
+        let mut chain = CapabilityChainV2 {
+            plugin_deny: CapabilitySet::default(),
+            global_deny: CapabilitySet::default(),
+            plugin_allow: CapabilitySet::default(),
+            global_allow: CapabilitySet::default(),
+            mode: PolicyMode::Permissive,
+            global_default: Some(AccessDefault::Allow),
+        };
+        // Even a globally-allowed resource should be blocked by plugin_deny at layer 1
+        chain.plugin_deny.tools.push("toxic".into());
+        chain.global_allow.tools.push("toxic".into());
+        let result = chain.check("toxic", &CapabilityAction::Execute);
+        match result {
+            AccessDecisionV2::Deny { reason: _, layer } => assert_eq!(layer, 1),
+            other => panic!("expected Deny layer 1, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn capability_chain_v2_layer2_takes_precedence_over_allow_layers() {
+        let mut chain = CapabilityChainV2 {
+            plugin_deny: CapabilitySet::default(),
+            global_deny: CapabilitySet::default(),
+            plugin_allow: CapabilitySet::default(),
+            global_allow: CapabilitySet::default(),
+            mode: PolicyMode::Permissive,
+            global_default: Some(AccessDefault::Allow),
+        };
+        // global_deny at layer 2 should block even though plugin_allow at layer 3 would allow
+        chain.global_deny.tools.push("risky".into());
+        chain.plugin_allow.tools.push("risky".into());
+        let result = chain.check("risky", &CapabilityAction::Write);
+        match result {
+            AccessDecisionV2::Deny { reason: _, layer } => assert_eq!(layer, 2),
+            other => panic!("expected Deny layer 2, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn capability_chain_v2_policy_mode_default() {
+        assert_eq!(PolicyMode::default(), PolicyMode::Prompt);
     }
 }

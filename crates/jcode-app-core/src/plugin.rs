@@ -8,7 +8,7 @@ use std::sync::atomic::Ordering;
 
 static PLUGIN_SYSTEM: OnceLock<PluginSystem> = OnceLock::new();
 
-pub async fn init_plugins(config: &crate::config::PluginConfig) {
+pub async fn init_plugins(config: &jcode_plugin_core::config::PluginConfig) {
     if PLUGIN_SYSTEM.get().is_some() {
         return;
     }
@@ -16,6 +16,9 @@ pub async fn init_plugins(config: &crate::config::PluginConfig) {
     match PluginSystem::initialize(config).await {
         Ok(system) => {
             crate::logging::info("Plugin system initialized successfully");
+            // Wire the ApprovalGate dispatcher into the tool execution path
+            // so Registry::execute() can check the gate before running any tool.
+            crate::tool::set_gate_dispatcher(system.dispatcher.clone());
             let _ = PLUGIN_SYSTEM.set(system);
         }
         Err(e) => {

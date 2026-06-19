@@ -7,8 +7,8 @@ use std::time::Instant;
 
 use super::args::{
     AmbientCommand, Args, AuthCommand, CloudCommand, CloudSessionsCommand, Command, MemoryCommand,
-    ModelCommand, PermissionCommand, ProviderCommand, RestartCommand, SecretsCommand,
-    ServerCommand, SessionCommand, TranscriptModeArg,
+    ModelCommand, PermissionCommand, PluginSubcommand, ProviderCommand, RestartCommand,
+    SecretsCommand, ServerCommand, SessionCommand, TranscriptModeArg,
 };
 use crate::{
     agent, auth, build, provider, provider_catalog, server, session, setup_hints, startup_profile,
@@ -570,6 +570,9 @@ pub(crate) async fn run_main(mut args: Args) -> Result<()> {
             RestartCommand::Status => commands::run_restart_status_command()?,
             RestartCommand::Clear => commands::run_restart_clear_command()?,
         },
+        Some(Command::Plugin(subcmd)) => {
+            commands::run_plugin_command(subcmd).await?;
+        }
         None => run_default_command(args).await?,
     }
 

@@ -1,5 +1,116 @@
 use serde::{Deserialize, Serialize};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum PolicyMode {
+    /// Deny by default
+    Strict,
+    /// Allow by default
+    Permissive,
+    /// Prompt for ambiguous
+    Prompt,
+    /// Kill switch — deny everything
+    Disabled,
+}
+
+impl Default for PolicyMode {
+    fn default() -> Self {
+        Self::Prompt
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AccessDecisionV2 {
+    Allow { reason: String, layer: u8 },
+    Deny { reason: String, layer: u8 },
+    NeedsApproval { reason: String, layer: u8 },
+}
+
+/// 5-layer capability chain. Adapted from pi-agent-rust's ExtensionPolicy.
+/// Extends the existing 4-layer chain with a mode fallback layer.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct CapabilityChainV2 {
+    pub plugin_deny: CapabilitySet,
+    pub global_deny: CapabilitySet,
+    pub plugin_allow: CapabilitySet,
+    pub global_allow: CapabilitySet,
+    pub mode: PolicyMode,
+    pub global_default: Option<AccessDefault>,
+}
+
+impl CapabilityChainV2 {
+    /// Check if a resource access is allowed. Returns AccessDecisionV2.
+    /// Evaluation order (5 layers):
+    ///   1. plugin_deny    — plugin-specific deny list
+    ///   2. global_deny    — global deny policy
+    ///   3. plugin_allow   — plugin-specific allow list
+    ///   4. global_allow   — global allow list
+    ///   5. mode fallback  — PolicyMode / global_default
+    pub fn check(&self, resource: &str, action: &CapabilityAction) -> AccessDecisionV2 {
+        // Layer 1: plugin_deny
+        if self.plugin_deny.matches(resource, action) {
+            return AccessDecisionV2::Deny {
+                reason: "denied by plugin deny list".into(),
+                layer: 1,
+            };
+        }
+        // Layer 2: global_deny
+        if self.global_deny.matches(resource, action) {
+            return AccessDecisionV2::Deny {
+                reason: "denied by global policy".into(),
+                layer: 2,
+            };
+        }
+        // Layer 3: plugin_allow
+        if self.plugin_allow.matches(resource, action) {
+            return AccessDecisionV2::Allow {
+                reason: "allowed by plugin allow list".into(),
+                layer: 3,
+            };
+        }
+        // Layer 4: global_allow
+        if self.global_allow.matches(resource, action) {
+            return AccessDecisionV2::Allow {
+                reason: "allowed by global allow list".into(),
+                layer: 4,
+            };
+        }
+        // Layer 5: mode fallback
+        match (self.mode, self.global_default) {
+            (PolicyMode::Disabled, _) => AccessDecisionV2::Deny {
+                reason: "disabled (kill switch)".into(),
+                layer: 5,
+            },
+            (_, Some(deny)) if matches!(deny, AccessDefault::Deny) => AccessDecisionV2::Deny {
+                reason: "denied by default".into(),
+                layer: 5,
+            },
+            (_, Some(allow)) if matches!(allow, AccessDefault::Allow) => AccessDecisionV2::Allow {
+                reason: "allowed by default".into(),
+                layer: 5,
+            },
+            (_, Some(ask)) if matches!(ask, AccessDefault::Ask) => {
+                AccessDecisionV2::NeedsApproval {
+                    reason: "requires approval".into(),
+                    layer: 5,
+                }
+            }
+            (PolicyMode::Strict, _) => AccessDecisionV2::Deny {
+                reason: "strict mode".into(),
+                layer: 5,
+            },
+            (PolicyMode::Permissive, _) => AccessDecisionV2::Allow {
+                reason: "permissive mode".into(),
+                layer: 5,
+            },
+            (PolicyMode::Prompt, _) => AccessDecisionV2::NeedsApproval {
+                reason: "prompt mode".into(),
+                layer: 5,
+            },
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CapabilityChain {
     pub deny_list: CapabilitySet,
@@ -90,7 +201,7 @@ impl CapabilitySet {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum AccessDefault {
     #[serde(rename = "deny")]
     Deny,

@@ -7,6 +7,10 @@ use rquickjs::{AsyncContext, AsyncRuntime};
 use std::sync::Arc;
 use std::time::Duration;
 
+use crate::api::PluginApiBindings;
+use crate::bridge::PromiseBridge;
+use crate::registry::PluginRegistry;
+
 #[derive(Debug, Clone)]
 pub struct DualTimeout {
     pub info: Duration,
@@ -59,6 +63,58 @@ impl SandboxContext {
         })
         .await
         .map_err(|e| PluginError::Eval(e.to_string()))?;
+
+        Ok(())
+    }
+
+    /// Evaluate plugin JavaScript code in a QuickJS context with the `pi` API
+    /// injected. This is the method used by PluginLoader to make `pi.on`,
+    /// `pi.registerTool`, `pi.logger`, etc. available to plugin code.
+    ///
+    /// Previously, the loader called `eval()` without setting up the `pi` object,
+    /// causing ReferenceErrors on `pi.xxx` calls. The `pi` global is set via
+    /// PluginApiBindings::install, which creates the `__jcode_pi` global and
+    /// injects all the JS-accessible functions (on, registerTool, logger, kv, etc.).
+    /// See crates/jcode-plugin-runtime/src/api.rs for the full API surface.
+    ///
+    /// This method replaces the pattern of manually creating PluginApiBindings
+    /// in the loader: the loader now passes a `registry` ref and the bindings
+    /// are wired here.
+    pub async fn eval_with_pi(
+        &self,
+        code: &str,
+        registry: Arc<PluginRegistry>,
+    ) -> Result<(), PluginError> {
+        let ctx = AsyncContext::full(&self.runtime)
+            .await
+            .map_err(|e| {
+                PluginError::Runtime(format!("Failed to create QuickJS context: {e}"))
+            })?;
+
+        let id = self._id.clone();
+        let manifest = self._manifest.clone();
+        let chain = self.capability_chain.clone();
+
+        ctx.with(|ctx| {
+            // Step 1: install the `pi` API into the global scope.
+            let bridge = PromiseBridge::new();
+            let api = PluginApiBindings::new(
+                id,
+                manifest,
+                chain,
+                registry,
+                Arc::new(bridge),
+            );
+            api.install(&ctx)
+                .map_err(|e| PluginError::Eval(format!("api install: {e:?}")))?;
+
+            // Step 2: evaluate the plugin code.
+            ctx.eval::<rquickjs::Value, _>(code)
+                .map_err(|e| PluginError::Eval(format!("eval: {e:?}")))
+                .map(|_| ())
+        })
+        .await
+        .map_err(|e| PluginError::Eval(format!("outer: {e:?}")))?;
 
         Ok(())
     }

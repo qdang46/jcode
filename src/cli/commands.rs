@@ -1788,6 +1788,131 @@ pub fn run_memory_command(cmd: MemorySubcommand) -> Result<()> {
     Ok(())
 }
 
+pub async fn run_plugin_command(cmd: super::args::PluginSubcommand) -> Result<()> {
+    let install_root = crate::config::config()
+        .plugin
+        .as_ref()
+        .and_then(|p| p.data_dir.clone())
+        .unwrap_or_else(|| {
+            dirs::home_dir()
+                .map(|h| h.join(".jcode").join("plugins"))
+                .unwrap_or_else(|| PathBuf::from("/tmp/jcode-plugins"))
+        });
+    let mgr = jcode_plugin_core::PluginManager::new(install_root).await;
+    use jcode_plugin_core::PluginSource;
+
+    match cmd {
+        super::args::PluginSubcommand::Load { path } => {
+            let name = path
+                .file_stem()
+                .or_else(|| path.file_name())
+                .map(|s| s.to_string_lossy().to_string())
+                .unwrap_or_else(|| "plugin".to_string());
+            mgr.load(
+                &name,
+                PluginSource::Local {
+                    path: path.clone(),
+                },
+            )
+            .await?;
+            println!("Plugin loaded from {}", path.display());
+        }
+        super::args::PluginSubcommand::Clone { url, rev } => {
+            let name = url
+                .split('/')
+                .last()
+                .and_then(|s| s.strip_suffix(".git"))
+                .unwrap_or("cloned-plugin");
+            mgr.load(&name, PluginSource::Git { url, rev }).await?;
+            println!("Plugin cloned and loaded");
+        }
+        super::args::PluginSubcommand::List { kind } => {
+            let plugins = mgr.list().await;
+            let filtered: Vec<_> = match kind.as_deref() {
+                Some("workspace") => plugins
+                    .into_iter()
+                    .filter(|p| matches!(p.source, PluginSource::WorkspaceCrate { .. }))
+                    .collect(),
+                Some("local") => plugins
+                    .into_iter()
+                    .filter(|p| matches!(p.source, PluginSource::Local { .. }))
+                    .collect(),
+                Some("git") => plugins
+                    .into_iter()
+                    .filter(|p| matches!(p.source, PluginSource::Git { .. }))
+                    .collect(),
+                _ => plugins,
+            };
+            if filtered.is_empty() {
+                println!("No plugins found.");
+            } else {
+                for p in &filtered {
+                    println!(
+                        "  {} [{}]",
+                        p.package_name,
+                        if p.enabled { "enabled" } else { "disabled" }
+                    );
+                }
+            }
+        }
+        super::args::PluginSubcommand::Unload { name } => {
+            mgr.unload(&name).await?;
+            println!("Plugin '{name}' unloaded");
+        }
+        super::args::PluginSubcommand::Enable { name } => {
+            mgr.enable(&name).await?;
+            println!("Plugin '{name}' enabled");
+        }
+        super::args::PluginSubcommand::Disable { name } => {
+            mgr.disable(&name).await?;
+            println!("Plugin '{name}' disabled");
+        }
+        super::args::PluginSubcommand::Reload { name } => {
+            // Hot-reload: unload then re-load the plugin.
+            // The re-load uses the stored source from the plugin state.
+            let plugins = mgr.list().await;
+            let existing = plugins.iter().find(|p| p.package_name == name).cloned();
+            match existing {
+                Some(p) => {
+                    let source = p.source.clone();
+                    mgr.unload(&name).await?;
+                    mgr.load(&name, source).await?;
+                    println!("Plugin '{name}' reloaded");
+                }
+                None => {
+                    eprintln!("Plugin '{name}' not found. Use `jcode plugin load` first.");
+                }
+            }
+
+            // If the plugin system is active, also perform the actual hot-reload
+            // via PluginLoader::reload(), which handles fingerprint change detection,
+            // transpilation, preflight static analysis, and QuickJS re-evaluation.
+            if let Some(sys) = crate::plugin::plugin_system() {
+                let registered = sys.registry.list().await;
+                if let Some((plugin_id, _)) =
+                    registered.iter().find(|(id, _)| id.short_name().contains(&name))
+                {
+                    match sys.loader.reload(plugin_id).await {
+                        Ok(()) => println!("Plugin '{name}' hot-reloaded (code reloaded)"),
+                        Err(e) => {
+                            eprintln!("Failed to hot-reload '{}': {}", name, e);
+                        }
+                    }
+                }
+            }
+        }
+        super::args::PluginSubcommand::Info { name } => {
+            let plugins = mgr.list().await;
+            let p = plugins.iter().find(|p| p.package_name == name);
+            match p {
+                Some(p) => println!("{:#?}", p),
+                None => println!("Plugin '{name}' not found"),
+            }
+        }
+    }
+    Ok(())
+}
+
 pub fn run_pair_command(list: bool, revoke: Option<String>) -> Result<()> {
     let mut registry = gateway::DeviceRegistry::load();
 

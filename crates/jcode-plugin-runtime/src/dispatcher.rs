@@ -1,5 +1,7 @@
+use crate::gate::{ApprovalGate, GateDecision};
 use crate::types::HandlerSlot;
 use futures::future::join_all;
+use jcode_plugin_core::ToolTier;
 use jcode_plugin_core::PluginEvent;
 use jcode_plugin_core::events::{EventInput, EventOutput, HandlerResult};
 use jcode_plugin_core::types::PluginId;
@@ -39,6 +41,7 @@ struct RegistrySnapshot {
 pub struct RcuDispatcher {
     snapshot: RwLock<Arc<RegistrySnapshot>>,
     pending: Mutex<Vec<(PluginEvent, PluginId, HandlerSlot)>>,
+    approval_gate: RwLock<Option<ApprovalGate>>,
 }
 
 #[allow(clippy::new_without_default)]
@@ -50,6 +53,7 @@ impl RcuDispatcher {
                 handlers: Vec::new(),
             })),
             pending: Mutex::new(Vec::new()),
+            approval_gate: RwLock::new(None),
         }
     }
 
@@ -193,5 +197,35 @@ impl RcuDispatcher {
         } else {
             0
         }
+    }
+
+    /// Install or replace the [`ApprovalGate`] used to check tool calls.
+    pub fn set_approval_gate(&self, gate: ApprovalGate) {
+        if let Ok(mut lock) = self.approval_gate.write() {
+            *lock = Some(gate);
+        }
+    }
+
+    /// Remove the approval gate (disables gate checks).
+    pub fn clear_approval_gate(&self) {
+        if let Ok(mut lock) = self.approval_gate.write() {
+            *lock = None;
+        }
+    }
+
+    /// Check a tool call through the approval gate (if one is installed).
+    ///
+    /// Returns `None` if no gate is installed (allows the call), or the
+    /// [`GateDecision`] if a gate is present.
+    pub fn check_tool(
+        &self,
+        tool_name: &str,
+        tier: ToolTier,
+        args: &serde_json::Value,
+    ) -> Option<GateDecision> {
+        let Ok(lock) = self.approval_gate.read() else {
+            return None;
+        };
+        lock.as_ref().map(|gate| gate.check(tool_name, tier, args))
     }
 }

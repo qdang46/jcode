@@ -555,6 +555,13 @@ pub(crate) enum Command {
         #[command(subcommand)]
         action: RestartCommand,
     },
+
+    /// Plugin management (load, clone, list, unload, enable, disable, reload, info).
+    ///
+    /// Plugin distribution is local-path, git clone, or workspace crate only.
+    /// No npm, no registry, no marketplace.
+    #[command(subcommand)]
+    Plugin(PluginSubcommand),
 }
 
 #[derive(Subcommand, Debug)]
@@ -847,6 +854,53 @@ pub(crate) enum RestartCommand {
     Status,
     /// Remove the currently saved reboot snapshot
     Clear,
+}
+
+#[derive(Subcommand, Debug)]
+pub(crate) enum PluginSubcommand {
+    /// Load a plugin from a local path
+    Load {
+        /// Local path to the plugin directory or file
+        path: std::path::PathBuf,
+    },
+    /// Clone a plugin from a git URL
+    Clone {
+        /// Git URL of the plugin repository
+        url: String,
+        /// Optional git ref (branch, tag, commit) to clone
+        rev: Option<String>,
+    },
+    /// List all loaded plugins
+    List {
+        /// Filter by plugin source kind ("workspace", "local", "git")
+        #[arg(long)]
+        kind: Option<String>,
+    },
+    /// Unload a plugin
+    Unload {
+        /// Plugin package name
+        name: String,
+    },
+    /// Enable a disabled plugin
+    Enable {
+        /// Plugin package name
+        name: String,
+    },
+    /// Disable an enabled plugin
+    Disable {
+        /// Plugin package name
+        name: String,
+    },
+    /// Hot-reload a plugin
+    Reload {
+        /// Plugin package name
+        name: String,
+    },
+    /// Show plugin info
+    Info {
+        /// Plugin package name
+        name: String,
+    },
 }
 
 #[derive(Subcommand, Debug)]

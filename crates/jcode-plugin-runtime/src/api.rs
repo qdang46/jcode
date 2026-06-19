@@ -58,7 +58,10 @@ impl PluginApiBindings {
         )?;
         let handlers = Object::new(ctx.clone())?;
         pi.set("_handlers", handlers)?;
-        ctx.globals().set("__jcode_pi", pi)?;
+        // Plugin code references `jcode` (e.g. `jcode.on(...)`, `jcode.logger.info(...)`).
+        // This is the same naming convention as omp's `pi` object, but namespaced to jcode.
+        ctx.globals().set("jcode", pi.clone())?;
+        ctx.globals().set("__jcode_api", pi)?;
         self._bridge.install(ctx)?;
         Ok(())
     }

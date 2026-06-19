@@ -5,6 +5,7 @@ edition = "2024"
 description = "QuickJS plugin runtime: sandbox, transpiler, dispatcher, and bridge for the jcode plugin system"
 
 [dependencies]
+jcode-agent-runtime = { path = "../jcode-agent-runtime" }
 jcode-plugin-core = { path = "../jcode-plugin-core" }
 rquickjs = { version = "0.7", features = ["parallel", "futures", "classes"] }
 tokio = { version = "1", features = ["fs", "process", "sync", "time", "macros", "rt"] }

@@ -196,3 +196,14 @@ pub struct PluginEngines {
     #[serde(default)]
     pub jcode: Option<String>,
 }
+
+/// Tier of risk/privilege a tool carries. Adapted from oh-my-pi's ToolTier.
+/// Used by ApprovalGate to decide which prompts to show in which permission mode.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ToolTier {
+    Read,   // pure read of already-loaded data
+    Write,  // mutates workspace/session state
+    Exec,   // spawns subprocesses or network
+}
+impl Default for ToolTier { fn default() -> Self { Self::Exec } }

@@ -3,6 +3,7 @@ use async_trait::async_trait;
 use jcode_agent_runtime::InterruptSignal;
 use jcode_message_types::ToolDefinition;
 use jcode_tool_types::ToolOutput;
+use jcode_tool_types::ToolTier;
 use serde_json::Value;
 use std::path::{Path, PathBuf};
 
@@ -108,6 +109,14 @@ pub trait Tool: Send + Sync {
 
     /// Execute the tool with the given input.
     async fn execute(&self, input: Value, ctx: ToolContext) -> Result<ToolOutput>;
+
+    /// The tool's declared risk tier. `None` means the tool does not specify
+    /// a tier and the system should fall back to the manifest-level default.
+    fn declared_tier(&self) -> Option<ToolTier> { None }
+
+    /// Maximum wall-clock duration in seconds this tool is allowed to run.
+    /// `None` means the system default timeout applies.
+    fn max_duration_secs(&self) -> Option<u32> { None }
 
     /// Convert to API tool definition.
     fn to_definition(&self) -> ToolDefinition {

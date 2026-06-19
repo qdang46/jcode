@@ -6855,6 +6855,73 @@ dependencies = [
 ]
 
 [[package]]
+name = "jcode-llm-core"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-stream",
+ "async-trait",
+ "chrono",
+ "futures",
+ "schemars 0.8.22",
+ "serde",
+ "serde_json",
+ "thiserror 1.0.69",
+ "tokio",
+ "tokio-stream",
+ "tracing",
+]
+
+[[package]]
+name = "jcode-llm-dialects"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "jcode-llm-core",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
+name = "jcode-llm-protocols"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "jcode-llm-core",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
+name = "jcode-llm-providers"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "jcode-llm-core",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
+name = "jcode-llm-vcr"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "reqwest 0.12.28",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "jcode-logging"
 version = "0.1.0"
 dependencies = [
@@ -6972,11 +7039,14 @@ dependencies = [
 name = "jcode-plugin-core"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "regex",
  "semver",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
+ "tokio",
+ "uuid",
 ]
 
 [[package]]
@@ -6985,6 +7055,7 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "futures",
+ "jcode-agent-runtime",
  "jcode-plugin-core",
  "regex",
  "reqwest 0.12.28",
@@ -7345,6 +7416,7 @@ dependencies = [
 name = "jcode-tool-types"
 version = "0.1.0"
 dependencies = [
+ "jcode-plugin-core",
  "serde_json",
 ]
 

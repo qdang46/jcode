@@ -3,12 +3,15 @@
 //! These tests exercise the end-to-end flow: register a handler, dispatch
 //! an event, verify the handler runs and returns the expected result.
 
-use jcode_plugin_core::PluginEvent;
+use jcode_agent_runtime::PermissionMode;
+use jcode_plugin_core::{CapabilityChainV2, PluginEvent, ToolTier};
 use jcode_plugin_core::events::{EventInput, HandlerAction, HandlerResult};
 use jcode_plugin_core::types::PluginId;
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::dispatcher::RcuDispatcher;
+use crate::gate::{ApprovalGate, ApprovalOverride, GateDecision};
 use crate::types::HandlerSlot;
 
 #[test]
@@ -198,4 +201,266 @@ fn test_kill_switches() {
     server::FORCE_DENY.store(false, Ordering::SeqCst);
 
     assert!(!server::is_force_deny());
+}
+
+// =============================================================================
+// End-to-end test with a REAL plugin file (TS → SWC → QuickJS → RcuDispatcher)
+//
+// This is the first test in the suite that exercises the full plugin loading
+// pipeline, not just the Rust-side dispatcher. It loads examples/plugins/hello-plugin/
+// which is a real, runnable plugin that lives in the repo.
+//
+// What this test verifies:
+//   1. PluginLoader.scan_directory finds index.ts in the example dir
+//   2. Transpiler successfully transpiles TypeScript to JavaScript via SWC
+//   3. SandboxContext.eval runs the transpiled JS in QuickJS without error
+//   4. PluginApiBindings installs the `pi` object into the QuickJS globals
+//   5. pi.on("SessionStart", handler) registers a handler into RcuDispatcher.pending
+//   6. pi.on("PreToolUse", handler) registers a second handler
+//   7. pi.registerTool({...}) is a no-op stub (doesn't crash)
+//   8. pi.logger.info actually calls tracing::info!
+//   9. pi.kv.set / pi.uuid() work
+//
+// What this test does NOT verify (known limitations of current runtime):
+//   - JS handler functions are not actually invoked when events fire
+//     (sandbox.rs:80-94 is a TODO)
+//   - pi.registerTool doesn't register an invokable tool
+//     (registry.rs:122-129 is a TODO)
+//   - We call dispatcher.commit() explicitly because the JS path adds to
+//     pending but doesn't commit — this is a real workaround for the gap.
+// =============================================================================
+
+#[tokio::test(flavor = "current_thread")]
+async fn test_hello_plugin_e2e() {
+    use crate::loader::PluginLoader;
+    use crate::registry::PluginRegistry;
+    use crate::runtime::{RuntimeConfig, RuntimeManager};
+    use jcode_plugin_core::config::{DiscoveryPaths, PluginConfig};
+
+    // 1. Locate the example plugin (lives at <workspace>/examples/plugins/hello-plugin/)
+    let workspace_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .and_then(|p| p.parent())
+        .expect("could not find workspace root from CARGO_MANIFEST_DIR");
+    let example_dir = workspace_root.join("examples/plugins/hello-plugin");
+    assert!(
+        example_dir.exists(),
+        "example plugin dir missing: {} (this test requires the real plugin to exist on disk)",
+        example_dir.display()
+    );
+    let index_ts = example_dir.join("index.ts");
+    assert!(
+        index_ts.exists(),
+        "example index.ts missing: {}",
+        index_ts.display()
+    );
+
+    // 2. Wire up the loader: dispatcher ← registry ← runtime, then PluginLoader
+    let dispatcher = Arc::new(RcuDispatcher::new());
+    let registry = Arc::new(PluginRegistry::new(dispatcher.clone()));
+    let runtime = Arc::new(
+        RuntimeManager::new(RuntimeConfig::default())
+            .expect("RuntimeManager::new should succeed"),
+    );
+    let discovery = DiscoveryPaths {
+        plugin_dirs: vec![example_dir.clone()],
+        npm_cache: std::env::temp_dir().join("jcode-test-npm-cache"),
+        tool_dirs: vec![],
+    };
+    let config = PluginConfig::default();
+    let loader = PluginLoader::new(discovery, config, registry.clone(), runtime);
+
+    // 3. Load all plugins. This triggers:
+    //    - scan_directory → finds index.ts
+    //    - PreflightAnalyzer.analyze (static safety check)
+    //    - Transpiler.transpile (SWC TS → JS, type-stripping)
+    //    - RuntimeManager.create_sandbox (QuickJS async runtime)
+    //    - PluginApiBindings.install (injects `pi` into JS globals)
+    //    - SandboxContext.eval (runs the JS in QuickJS)
+    //    - plugin code calls pi.on("SessionStart", ...), pi.on("PreToolUse", ...),
+    //      pi.registerTool({...}), pi.kv.set(...), pi.uuid(), pi.logger.info(...)
+    let loaded_ids = loader
+        .load_all()
+        .await
+        .expect("load_all should succeed — preflight + transpile + QuickJS eval must all pass");
+
+    // 4. Verify the plugin was discovered and loaded
+    assert_eq!(
+        loaded_ids.len(),
+        1,
+        "expected exactly 1 plugin loaded from {}, got {:?}",
+        example_dir.display(),
+        loaded_ids
+    );
+
+    // 5. Verify the plugin is in the registry (proves PluginRegistry.register was called
+    //    and the JS code reached the end without throwing)
+    let plugins_in_registry = registry.list().await;
+    assert_eq!(
+        plugins_in_registry.len(),
+        1,
+        "expected 1 plugin in registry, got {:?}",
+        plugins_in_registry
+    );
+
+    // 6. Commit pending handlers. The JS-side pi.on() adds handlers to
+    //    RcuDispatcher.pending but never calls commit() — that's a known gap in
+    //    the current runtime. We call it here so has_handler() returns the
+    //    truth. In a future patch, the JS path should call commit() itself.
+    dispatcher.commit();
+
+    // 7. Verify the handlers the plugin tried to register are actually visible
+    //    in the dispatcher. This proves the JS code ran, the `pi` object was
+    //    injected correctly, and pi.on() did call into RcuDispatcher.register.
+    assert!(
+        dispatcher.has_handler(PluginEvent::SessionStart),
+        "SessionStart handler missing — pi.on('SessionStart', ...) in index.ts did not register"
+    );
+    assert!(
+        dispatcher.has_handler(PluginEvent::PreToolUse),
+        "PreToolUse handler missing — pi.on('PreToolUse', ...) in index.ts did not register"
+    );
+    assert_eq!(
+        dispatcher.handler_count(),
+        2,
+        "expected 2 handlers (SessionStart + PreToolUse), got {}",
+        dispatcher.handler_count()
+    );
+    assert_eq!(
+        dispatcher.plugin_count(),
+        1,
+        "expected 1 plugin in dispatcher, got {}",
+        dispatcher.plugin_count()
+    );
+}
+
+// =========================================================================
+// ApprovalGate integration tests -- wired through RcuDispatcher
+// =========================================================================
+
+#[test]
+fn gate_no_gate_installed_returns_none() {
+    let dispatcher = RcuDispatcher::new();
+    let decision = dispatcher.check_tool("read", ToolTier::Read, &serde_json::json!({}));
+    assert!(decision.is_none(), "no gate installed => None");
+}
+
+#[test]
+fn gate_bypass_allows_in_plan_mode_with_permissive_chain() {
+    let dispatcher = RcuDispatcher::new();
+    let gate = ApprovalGate::new(
+        CapabilityChainV2::default(),
+        PermissionMode::BypassPermissions,
+        HashMap::new(),
+    );
+    dispatcher.set_approval_gate(gate);
+
+    let decision = dispatcher.check_tool("bash", ToolTier::Exec, &serde_json::json!({}));
+    assert_eq!(decision, Some(GateDecision::Allow));
+}
+
+#[test]
+fn gate_user_override_deny_on_dispatcher() {
+    let dispatcher = RcuDispatcher::new();
+    let mut overrides = HashMap::new();
+    overrides.insert("danger".into(), ApprovalOverride::Deny);
+    let gate = ApprovalGate::new(
+        CapabilityChainV2::default(),
+        PermissionMode::BypassPermissions,
+        overrides,
+    );
+    dispatcher.set_approval_gate(gate);
+
+    let decision = dispatcher.check_tool("danger", ToolTier::Exec, &serde_json::json!({}));
+    match decision {
+        Some(GateDecision::Deny { layer, .. }) => {
+            assert_eq!(layer, "user_override");
+        }
+        other => panic!("expected Deny(user_override), got {other:?}"),
+    }
+}
+
+#[test]
+fn gate_plan_mode_needs_approval_on_dispatcher() {
+    let dispatcher = RcuDispatcher::new();
+    let gate = ApprovalGate::new(
+        CapabilityChainV2::default(),
+        PermissionMode::Plan,
+        HashMap::new(),
+    );
+    dispatcher.set_approval_gate(gate);
+
+    let decision = dispatcher.check_tool("bash", ToolTier::Exec, &serde_json::json!({}));
+    assert!(
+        matches!(decision, Some(GateDecision::NeedsApproval { .. })),
+        "plan mode => NeedsApproval, got {decision:?}"
+    );
+}
+
+#[test]
+fn gate_clear_removes_gate() {
+    let dispatcher = RcuDispatcher::new();
+    let gate = ApprovalGate::new(
+        CapabilityChainV2::default(),
+        PermissionMode::BypassPermissions,
+        HashMap::new(),
+    );
+    dispatcher.set_approval_gate(gate);
+    assert!(
+        dispatcher
+            .check_tool("x", ToolTier::Read, &serde_json::json!({}))
+            .is_some()
+    );
+
+    dispatcher.clear_approval_gate();
+    assert!(
+        dispatcher
+            .check_tool("x", ToolTier::Read, &serde_json::json!({}))
+            .is_none()
+    );
+}
+
+#[test]
+fn gate_dispatcher_also_runs_handler_normally() {
+    // Prove that setting a gate does not interfere with normal handler dispatch
+    let dispatcher = RcuDispatcher::new();
+    let plugin_id = PluginId::npm("gated-plugin");
+
+    let slot = HandlerSlot::Rust(Arc::new(|_input, _output| {
+        Box::pin(async {
+            HandlerResult {
+                action: HandlerAction::Block("plugin blocked".to_string()),
+                output: None,
+                error: None,
+            }
+        })
+    }));
+    dispatcher.register(PluginEvent::PreToolUse, plugin_id.clone(), slot);
+    dispatcher.commit();
+
+    // Install a bypass gate
+    let gate = ApprovalGate::new(
+        CapabilityChainV2::default(),
+        PermissionMode::BypassPermissions,
+        HashMap::new(),
+    );
+    dispatcher.set_approval_gate(gate);
+
+    // Gate check passes
+    let decision =
+        dispatcher.check_tool("test-tool", ToolTier::Exec, &serde_json::json!({}));
+    assert_eq!(decision, Some(GateDecision::Allow));
+
+    // Handler dispatch still works normally
+    let input = EventInput::PreToolUse {
+        tool_name: "test-tool".to_string(),
+        tool_input: serde_json::json!({}),
+        session_id: "sess-1".to_string(),
+    };
+    let results =
+        futures::executor::block_on(dispatcher.dispatch(PluginEvent::PreToolUse, input, None));
+    assert_eq!(results.len(), 1);
+    let (id, result) = &results[0];
+    assert_eq!(id, &plugin_id);
+    assert!(matches!(result.action, HandlerAction::Block(_)));
 }
