@@ -21,6 +21,7 @@
 //! crate sits *alongside* it, and Phase 6 of the master plan is when we
 //! rewire consumers to flow through here.
 
+pub mod attempt;
 pub mod boot;
 pub mod catalog;
 pub mod credential;
@@ -38,7 +39,8 @@ pub mod types;
 
 pub use catalog::{CatalogService, ModelInfo, ProviderInfo};
 pub use credential::{Credential, CredentialId, CredentialService, CredentialType};
-pub use integration::{AuthMethod, ConnectionStatus, IntegrationService, LoginProvider, OAuthAttempt};
+pub use attempt::{AttemptStatus, OAuthAttempt};
+pub use integration::{AuthMethod, ConnectionStatus, IntegrationService, LoginProvider};
 pub use service::{ProviderService, ResolvedRoute, RouteResolver};
 pub use types::{ModelId, ProviderId, ProviderProfile};
 

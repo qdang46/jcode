@@ -19,8 +19,8 @@ use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tokio::sync::Mutex;
-use uuid_like::new_uuid;
 
+use crate::attempt::OAuthAttempt;
 use crate::credential::CredentialId;
 use crate::types::ProviderId;
 
@@ -56,43 +56,6 @@ impl AuthMethod {
             Self::BearerEnv { .. } => "Bearer (env)",
             Self::CustomHeader { .. } => "Custom header",
         }
-    }
-}
-
-/// State of an in-flight OAuth login. Created when the user runs
-/// `jcode provider connect anthropic`; expires after 10 minutes.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct OAuthAttempt {
-    pub id: String,
-    pub provider: ProviderId,
-    pub method: AuthMethod,
-    pub created_at: DateTime<Utc>,
-    pub expires_at: DateTime<Utc>,
-    /// Local callback server port, if the provider's OAuth flow uses a
-    /// loopback redirect.
-    pub callback_port: Option<u16>,
-}
-
-impl OAuthAttempt {
-    /// Construct a new attempt that expires `ttl` from now.
-    pub fn new(provider: ProviderId, method: AuthMethod, ttl: Duration) -> Self {
-        let now = Utc::now();
-        Self {
-            id: new_uuid(),
-            provider,
-            method,
-            created_at: now,
-            expires_at: now + ttl,
-            callback_port: None,
-        }
-    }
-
-    pub fn is_expired(&self) -> bool {
-        Utc::now() >= self.expires_at
-    }
-
-    pub fn remaining(&self) -> Duration {
-        self.expires_at - Utc::now()
     }
 }
 
@@ -347,21 +310,6 @@ impl IntegrationService for InMemoryIntegration {
         Err(IntegrationError::Storage(
             "save_api_key requires CredentialService (Phase 1)".into(),
         ))
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
-
-mod uuid_like {
-    use std::time::{SystemTime, UNIX_EPOCH};
-    pub fn new_uuid() -> String {
-        let nanos = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
-        format!("oauth-{:032x}", nanos)
     }
 }
 

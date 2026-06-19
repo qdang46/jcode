@@ -16,9 +16,9 @@ use tokio::sync::RwLock;
 use crate::credential::{
     Credential, CredentialId, CredentialService, CredentialType,
 };
+use crate::attempt::OAuthAttempt;
 use crate::integration::{
     AuthMethod, ConnectionStatus, IntegrationError, IntegrationService, LoginProvider,
-    OAuthAttempt,
 };
 use crate::types::ProviderId;
 
