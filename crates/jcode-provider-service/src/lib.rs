@@ -24,6 +24,7 @@
 pub mod boot;
 pub mod catalog;
 pub mod credential;
+pub mod defaults;
 pub mod integration;
 pub mod migrate;
 pub mod service;

@@ -66,7 +66,30 @@ async fn main() -> Result<()> {
             let model = args.get(3).cloned();
             cmd_resolve(&svc, provider, model.as_deref()).await
         }
-        "help" | "-h" | "--help" => {
+        "model" => match args.get(2).map(String::as_str).unwrap_or("list") {
+                "list" => cmd_model_list(&svc).await,
+                "default" => {
+                    let provider = args.get(3).context("usage: providerctl model default <provider> <model>")?;
+                    let model = args.get(4).context("usage: providerctl model default <provider> <model>")?;
+                    cmd_model_default(&svc, provider, model).await
+                }
+                "show" => {
+                    let provider = args.get(3).context("usage: providerctl model show <provider> [model]")?;
+                    let model = args.get(4).cloned();
+                    cmd_model_show(&svc, provider, model.as_deref()).await
+                }
+                other => {
+                    eprintln!("unknown model subcommand: {other}");
+                    eprintln!("usage: providerctl model {{list|default|show}}");
+                    std::process::exit(2);
+                }
+            }
+        "connect" => {
+            let provider = args.get(2).context("usage: providerctl connect <provider>")?;
+            let code = args.get(3).cloned();
+            cmd_connect(&svc, provider, code.as_deref()).await
+        }
+        "help" => {
             usage();
             Ok(())
         }
@@ -81,25 +104,32 @@ async fn main() -> Result<()> {
 
 fn usage() {
     eprintln!(
-        "providerctl — jcode-provider-service test CLI\n\
-         \n\
-         USAGE:\n  \
-             providerctl <command> [args...]\n\
-         \n\
-         COMMANDS:\n  \
-             list                       List all registered providers\n  \
-             available                  List providers with credentials\n  \
-             show <provider>            Show one provider's details\n  \
-             login <provider> <key>     Save an API key for a provider\n  \
-             logout <provider>          Remove all credentials for a provider\n  \
-             default                    Show the default (provider, model)\n  \
-             small                      Show the cheapest small model\n  \
-             resolve <provider> [model] Print the resolved Route as JSON\n  \
-             help                       Print this help\n\
-         \n\
-         EXAMPLES:\n  \
-             providerctl login anthropic sk-ant-...\n  \
-             providerctl resolve anthropic claude-sonnet-4-6"
+        "providerctl — jcode-provider-service test CLI
+\n         
+\n         USAGE:
+  \n             providerctl <command> [args...]
+\n         
+\n         COMMANDS:
+  \n             list                          List all registered providers
+  \n             available                     List providers with credentials
+  \n             show <provider>               Show one provider details
+  \n             login <provider> <key>        Save an API key for a provider
+  \n             logout <provider>             Remove all credentials for a provider
+  \n             default                       Show the default (provider, model)
+  \n             small                         Show the cheapest small model
+  \n             resolve <provider> [model]    Print the resolved Route as JSON
+  \n             model list                    List all models from all providers
+  \n             model show <provider> [m]     Show one model details
+  \n             model default <p> <m>         Set the global default model (persists)
+  \n             connect <provider> [code]     Start OAuth flow; optional code completes it
+  \n             help                          Print this help
+\n         
+\n         EXAMPLES:
+  \n             providerctl login anthropic sk-ant-...
+  \n             providerctl resolve anthropic claude-sonnet-4-6
+  \n             providerctl model list
+  \n             providerctl model default anthropic claude-haiku-4-5
+  \n             providerctl connect anthropic"
     );
 }
 
@@ -257,6 +287,152 @@ async fn cmd_resolve(
         .await
         .with_context(|| format!("resolve failed for {provider}/{model_id}"))?;
     println!("{}", serde_json::to_string_pretty(&r.route)?);
+    Ok(())
+}
+
+
+async fn cmd_model_list(svc: &DefaultProviderService) -> Result<()> {
+    for p in svc.catalog().list_providers().await? {
+        for m in svc.catalog().models(&p.id).await? {
+            let cost_in = m
+                .cost_per_million_input
+                .map(|c| format!("${:.3}/M in", c))
+                .unwrap_or_else(|| "free".into());
+            let cost_out = m
+                .cost_per_million_output
+                .map(|c| format!("${:.3}/M out", c))
+                .unwrap_or_else(|| "free".into());
+            let tools = if m.supports_tools { "tools" } else { "-----" };
+            let vis = if m.supports_vision { "vis" } else { "---" };
+            let stream = if m.supports_streaming { "sse" } else { "---" };
+            println!(
+                "{}/{:<24} ctx={:>7} {} {} {} {} {}",
+                p.id,
+                m.id,
+                m.context_window,
+                cost_in,
+                cost_out,
+                tools,
+                vis,
+                stream
+            );
+        }
+    }
+    Ok(())
+}
+
+async fn cmd_model_default(
+    svc: &DefaultProviderService,
+    provider: &str,
+    model: &str,
+) -> Result<()> {
+    use jcode_provider_service::defaults::ProviderDefaults;
+    let id = ProviderId::from(provider);
+    let _ = svc
+        .catalog()
+        .find_model(&id, &model.into())
+        .await
+        .with_context(|| {
+            format!("unknown model: {provider}/{model} (try `providerctl model list`)")
+        })?;
+    let path = jcode_provider_service::defaults::default_path()
+        .context("HOME not set; cannot persist defaults")?;
+    let mut d = ProviderDefaults::load(&path).unwrap_or_default();
+    d.set_global(id.clone(), model.into());
+    d.save(&path)
+        .with_context(|| format!("failed to save defaults to {}", path.display()))?;
+    println!("default = {}/{} (saved to {})", id, model, path.display());
+    Ok(())
+}
+
+async fn cmd_model_show(
+    svc: &DefaultProviderService,
+    provider: &str,
+    model: Option<&str>,
+) -> Result<()> {
+    let id = ProviderId::from(provider);
+    let model_id = match model {
+        Some(m) => jcode_provider_service::types::ModelId::from(m),
+        None => {
+            // Default to the first model in the catalog.
+            let models = svc.catalog().models(&id).await?;
+            models
+                .first()
+                .map(|m| m.id.clone())
+                .with_context(|| format!("provider {provider} has no catalog models"))?
+        }
+    };
+    let m = svc
+        .catalog()
+        .find_model(&id, &model_id)
+        .await
+        .with_context(|| format!("unknown model: {provider}/{model_id}"))?;
+    println!("provider:  {}", m.provider);
+    println!("id:        {}", m.id);
+    println!("name:      {}", m.name);
+    println!("context:   {} tokens", m.context_window);
+    println!(
+        "cost in:   {}",
+        m.cost_per_million_input
+            .map(|c| format!("${:.4} / 1M", c))
+            .unwrap_or_else(|| "free".into())
+    );
+    println!(
+        "cost out:  {}",
+        m.cost_per_million_output
+            .map(|c| format!("${:.4} / 1M", c))
+            .unwrap_or_else(|| "free".into())
+    );
+    println!("tools:     {}", m.supports_tools);
+    println!("vision:    {}", m.supports_vision);
+    println!("streaming: {}", m.supports_streaming);
+    println!("tier:      {:?}", m.tier);
+    Ok(())
+}
+
+async fn cmd_connect(
+    svc: &DefaultProviderService,
+    provider: &str,
+    code: Option<&str>,
+) -> Result<()> {
+    let id = ProviderId::from(provider);
+    let attempt = svc
+        .integration()
+        .start_oauth(&id)
+        .await
+        .with_context(|| {
+            format!("{provider} does not support OAuth (try `providerctl login {provider} <key>` instead)")
+        })?;
+    let AuthMethod::OAuth { authorization_url } = &attempt.method else {
+        anyhow::bail!("internal: non-OAuth method in OAuth attempt")
+    };
+    println!("attempt id: {}", attempt.id);
+    println!("provider:   {}", id);
+    println!("open this URL in your browser:");
+    println!("  {}", authorization_url);
+    println!(
+        "expires at: {} (in {} seconds)",
+        attempt.expires_at,
+        attempt.remaining().num_seconds()
+    );
+    if let Some(c) = code {
+        // Phase 2b stub: accept a code on the command line. The real
+        // implementation will exchange the code for a token via HTTP.
+        // We persist a dummy OAuth credential so the wiring compiles
+        // end-to-end; consumers can later replace the upsert call with
+        // the real token-exchange response.
+        let _ = svc
+            .integration()
+            .complete_oauth(&attempt.id, format!("code:{c}"), None, None)
+            .await?;
+        println!("OAuth attempt {} completed (code: {})", attempt.id, c);
+    } else {
+        println!();
+        println!("After authorizing, run:");
+        println!(
+            "  providerctl connect {provider} <authorization-code>"
+        );
+    }
     Ok(())
 }
 
