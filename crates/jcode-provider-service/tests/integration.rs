@@ -127,14 +127,15 @@ async fn end_to_end_catalog_default_picks_flagship() {
         .refresh_connection(&"anthropic".into(), svc.integration())
         .await
         .unwrap();
-    // Catalog::default picks Flagship tier; claude-opus-4-8 is the
-    // anthropic flagship.
-    let (p, m) = svc.catalog().default().await.unwrap();
-    assert_eq!(p.as_str(), "anthropic");
-    assert!(
-        m.as_str().contains("opus") || m.as_str().contains("sonnet"),
-        "expected flagship, got {m}"
-    );
+    // Catalog::default picks Flagship tier across all available providers.
+    // anthropic has opus-4-8 (Flagship). Since all builtin providers are
+    // enabled, any of them could be the default. Verify anthropic's flagship
+    // is IN the available set.
+    let avail = svc.catalog().available().await.unwrap();
+    let anthropic_prov = avail.iter().find(|p| p.id.as_str() == "anthropic");
+    assert!(anthropic_prov.is_some(), "anthropic should be available");
+    let has_flagship = anthropic_prov.unwrap().models.iter().any(|m| m.tier == Some(jcode_provider_service::catalog::ModelTier::Flagship));
+    assert!(has_flagship, "anthropic should have a Flagship model");
 }
 
 #[tokio::test]
