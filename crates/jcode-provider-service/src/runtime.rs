@@ -118,11 +118,30 @@ async fn finish(
         .resolver()
         .resolve_route(&provider, &model)
         .await?;
+    // Record the selection in the persistent recents so the next
+    // session can surface it (per the plan: model picker surfaces
+    // recents after favorites).
+    record_recent(&provider, &model);
     Ok(Session {
         provider,
         model,
         route,
     })
+}
+
+/// Push the (provider, model) selection into ~/.jcode/model_prefs.json
+/// under 'recents'. LIFO + dedup + 10-entry cap, matching the
+/// tui_picker::PickerState::push_recent semantics.
+fn record_recent(provider: &ProviderId, model: &ModelId) {
+    use crate::model_prefs::ModelPrefs;
+    let Some(path) = crate::model_prefs::default_path() else {
+        return;
+    };
+    let mut prefs = ModelPrefs::load(&path).unwrap_or_default();
+    prefs.push_recent(provider.clone(), model.clone());
+    if let Err(e) = prefs.save(&path) {
+        tracing::warn!(error = %e, "failed to save model_prefs recents");
+    }
 }
 
 fn load_defaults() -> Option<ProviderDefaults> {
