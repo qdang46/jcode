@@ -34,6 +34,7 @@ pub mod credential_rotation;
 pub mod defaults;
 pub mod error_classify;
 pub mod failover;
+pub mod idle_stream;
 pub mod integration;
 #[cfg(feature = "inventory")]
 pub mod inventory;
