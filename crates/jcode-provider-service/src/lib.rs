@@ -32,6 +32,7 @@ pub mod catalog;
 pub mod credential;
 pub mod credential_rotation;
 pub mod defaults;
+pub mod expiry;
 pub mod error_classify;
 pub mod failover;
 pub mod hooks;
