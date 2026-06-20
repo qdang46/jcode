@@ -131,19 +131,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "agentgrep"
-version = "0.1.2"
-source = "git+https://github.com/1jehuang/agentgrep.git?tag=v0.1.2#63e420bb4e035490d28cbca3f58e26baf297048e"
-dependencies = [
- "clap",
- "globset",
- "ignore",
- "regex",
- "serde",
- "serde_json",
-]
-
-[[package]]
 name = "ahash"
 version = "0.8.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3433,7 +3420,6 @@ dependencies = [
 [[package]]
 name = "ffs-budget"
 version = "0.1.11"
-source = "git+https://github.com/quangdang46/fast_file_search?rev=42d7555#42d7555c5816ff8761eb2ebb6cf2a89755319c37"
 dependencies = [
  "once_cell",
  "regex",
@@ -3443,7 +3429,6 @@ dependencies = [
 [[package]]
 name = "ffs-engine"
 version = "0.1.11"
-source = "git+https://github.com/quangdang46/fast_file_search?rev=42d7555#42d7555c5816ff8761eb2ebb6cf2a89755319c37"
 dependencies = [
  "ahash",
  "dashmap",
@@ -3455,13 +3440,13 @@ dependencies = [
  "memchr",
  "parking_lot 0.12.5",
  "rayon",
+ "regex",
  "serde",
 ]
 
 [[package]]
 name = "ffs-grep"
 version = "0.1.11"
-source = "git+https://github.com/quangdang46/fast_file_search?rev=42d7555#42d7555c5816ff8761eb2ebb6cf2a89755319c37"
 dependencies = [
  "bstr",
  "memchr",
@@ -3470,12 +3455,10 @@ dependencies = [
 [[package]]
 name = "ffs-query-parser"
 version = "0.1.11"
-source = "git+https://github.com/quangdang46/fast_file_search?rev=42d7555#42d7555c5816ff8761eb2ebb6cf2a89755319c37"
 
 [[package]]
 name = "ffs-search"
 version = "0.1.11"
-source = "git+https://github.com/quangdang46/fast_file_search?rev=42d7555#42d7555c5816ff8761eb2ebb6cf2a89755319c37"
 dependencies = [
  "ahash",
  "aho-corasick",
@@ -3517,7 +3500,6 @@ dependencies = [
 [[package]]
 name = "ffs-symbol"
 version = "0.1.11"
-source = "git+https://github.com/quangdang46/fast_file_search?rev=42d7555#42d7555c5816ff8761eb2ebb6cf2a89755319c37"
 dependencies = [
  "aho-corasick",
  "dashmap",
@@ -6328,7 +6310,6 @@ checksum = "92ecc6618181def0457392ccd0ee51198e065e016d1d527a7ac1b6dc7c1f09d2"
 name = "jcode"
 version = "0.29.0"
 dependencies = [
- "agentgrep",
  "anyhow",
  "arboard",
  "async-stream",
@@ -6475,7 +6456,6 @@ dependencies = [
 name = "jcode-app-core"
 version = "0.1.0"
 dependencies = [
- "agentgrep",
  "anyhow",
  "arboard",
  "async-stream",
@@ -6601,7 +6581,6 @@ dependencies = [
 name = "jcode-base"
 version = "0.1.0"
 dependencies = [
- "agentgrep",
  "anyhow",
  "async-trait",
  "base64 0.22.1",
@@ -6611,6 +6590,8 @@ dependencies = [
  "cross_agent_session_resumer",
  "crossterm 0.29.0",
  "dirs 5.0.1",
+ "ffs-engine",
+ "ffs-search",
  "flate2",
  "futures",
  "glob",
@@ -13429,7 +13410,6 @@ dependencies = [
 [[package]]
 name = "tree-sitter-verse"
 version = "0.1.11"
-source = "git+https://github.com/quangdang46/fast_file_search?rev=42d7555#42d7555c5816ff8761eb2ebb6cf2a89755319c37"
 dependencies = [
  "cc",
  "tree-sitter",

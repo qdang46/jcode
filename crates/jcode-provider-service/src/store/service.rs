@@ -17,15 +17,17 @@ use jcode_llm_core::schema::ModelRef;
 use crate::catalog::CatalogService;
 use crate::credential::CredentialService;
 use crate::integration::IntegrationService;
+use crate::policy::PolicyService;
 use crate::service::{ProviderService, ResolveError, ResolvedRoute, RouteResolver};
 use crate::types::{ModelId, ProviderId, ProviderProfile};
 
-/// Default composite service. Wraps an existing catalog, integration, and
-/// credential service.
+/// Default composite service. Wraps catalog, integration, credential, and
+/// policy services.
 pub struct DefaultProviderService {
     catalog: Arc<dyn CatalogService>,
     integration: Arc<dyn IntegrationService>,
     credentials: Arc<dyn CredentialService>,
+    policy: Arc<dyn PolicyService>,
 }
 
 impl DefaultProviderService {
@@ -34,10 +36,26 @@ impl DefaultProviderService {
         integration: Arc<dyn IntegrationService>,
         credentials: Arc<dyn CredentialService>,
     ) -> Self {
+        Self::with_policy(catalog, integration, credentials, Arc::new(crate::policy::DenyListPolicy::from_env()))
+    }
+
+    /// Create a new provider service with an explicit policy.
+    ///
+    /// The policy is also injected into the catalog (via
+    /// [`CatalogService::set_policy`]) so that [`available`] and
+    /// [`remove_denied_providers`] are gated by it.
+    pub fn with_policy(
+        catalog: Arc<dyn CatalogService>,
+        integration: Arc<dyn IntegrationService>,
+        credentials: Arc<dyn CredentialService>,
+        policy: Arc<dyn PolicyService>,
+    ) -> Self {
+        catalog.set_policy(policy.clone());
         Self {
             catalog,
             integration,
             credentials,
+            policy,
         }
     }
 }
@@ -57,6 +75,10 @@ impl ProviderService for DefaultProviderService {
 
     fn resolver(&self) -> &dyn RouteResolver {
         self
+    }
+
+    fn policy(&self) -> &dyn PolicyService {
+        self.policy.as_ref()
     }
 }
 

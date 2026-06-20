@@ -105,9 +105,9 @@ members = [
 # lands on crates.io. The git rev will be bumped as new ffs features land.
 # Remove this block once ffs-search 0.2.0 is published.
 [workspace.dependencies]
-ffs-search = { git = "https://github.com/quangdang46/fast_file_search", rev = "42d7555" }
-ffs-engine = { git = "https://github.com/quangdang46/fast_file_search", rev = "42d7555" }
-ffs-symbol = { git = "https://github.com/quangdang46/fast_file_search", rev = "42d7555" }
+ffs-search = { git = "https://github.com/quangdang46/fast_file_search", branch = "main" }
+ffs-engine = { git = "https://github.com/quangdang46/fast_file_search", branch = "main" }
+ffs-symbol = { git = "https://github.com/quangdang46/fast_file_search", branch = "main" }
 strum = { version = "0.26", features = ["derive"] }
 regex = "1"
 beads_rust = { git = "https://github.com/quangdang46/beads_rust", rev = "ab4c27faf80bb51fca9882062a5c752632eeff2d" }
@@ -317,7 +317,6 @@ jcode-experiment-flags = { path = "crates/jcode-experiment-flags" }
 flate2 = "1"
 tar = "0.4"
 tempfile = "3"
-agentgrep = { git = "https://github.com/1jehuang/agentgrep.git", tag = "v0.1.2" }
 qrcode = { version = "0.14.1", default-features = false }
 aws-config = "1.8.16"
 aws-credential-types = "1.2.14"

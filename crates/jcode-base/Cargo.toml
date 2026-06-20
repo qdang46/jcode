@@ -125,7 +125,8 @@ jcode-best-of-n = { path = "../jcode-best-of-n" }
 # Gzip decoding (used by provider import/helpers)
 flate2 = "1"
 tempfile = "3"
-agentgrep = { git = "https://github.com/1jehuang/agentgrep.git", tag = "v0.1.2" }
+ffs-engine = { workspace = true }
+ffs-search = { workspace = true }
 casr = { git = "https://github.com/quangdang46/cross_agent_session_resumer", package = "cross_agent_session_resumer", rev = "bac44dd20a9ccab2ba49e5821d2d5c0b7603f978" }
 qrcode = { version = "0.14.1", default-features = false }
 

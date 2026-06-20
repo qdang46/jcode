@@ -142,6 +142,8 @@ pub enum CatalogError {
     NoModels(ProviderId),
     #[error("no available providers (none have credentials)")]
     NoAvailableProviders,
+    #[error("policy error: {0}")]
+    Policy(String),
 }
 
 /// The catalog service. The runtime asks the catalog for *lists* of
@@ -246,6 +248,31 @@ pub trait CatalogService: Send + Sync {
     /// `nano` / `flash` / `lite` / `mini` / `haiku`. If none match, returns
     /// the cheapest model with a non-zero cost.
     async fn small(&self) -> Result<(ProviderId, ModelId), CatalogError>;
+
+    // -- policy integration (opencode-style finalize) --
+
+    /// Remove every provider that the policy denies from the catalog.
+    ///
+    /// Mirrors opencode's `Catalog.finalize` which iterates the
+    /// provider list and calls `policy.evaluate("provider.use", id,
+    /// "allow")` to drop denied entries.  Call this after all
+    /// boot-time registrations are done and whenever the policy is
+    /// reloaded.
+    ///
+    /// The base implementation is a no-op; concrete implementations
+    /// that hold a [`PolicyService`](crate::policy::PolicyService)
+    /// reference should override it.
+    async fn remove_denied_providers(&self) -> Result<(), CatalogError> {
+        // No-op by default — implementations with a policy reference
+        // override this.
+        Ok(())
+    }
+
+    /// Attach a policy service.  The catalog will filter future
+    /// [`available`] calls and [`remove_denied_providers`] through it.
+    ///
+    /// The base implementation is a no-op.
+    fn set_policy(&self, _policy: Arc<dyn crate::policy::PolicyService>) {}
 }
 
 // ---------------------------------------------------------------------------
@@ -259,13 +286,23 @@ use tokio::sync::RwLock;
 /// Simple in-memory catalog. Used for tests and the Phase 0 boot path.
 pub struct InMemoryCatalog {
     inner: Arc<RwLock<HashMap<ProviderId, ProviderInfo>>>,
+    policy: std::sync::RwLock<Option<Arc<dyn crate::policy::PolicyService>>>,
 }
 
 impl InMemoryCatalog {
     pub fn new() -> Self {
         Self {
             inner: Arc::new(RwLock::new(HashMap::new())),
+            policy: std::sync::RwLock::new(None),
         }
+    }
+
+    /// Attach a policy service for filtering.  The trait method
+    /// [`CatalogService::set_policy`] is sync, so the policy lock uses
+    /// `std::sync::RwLock` rather than `tokio::sync::RwLock`.
+    pub fn with_policy(self, policy: Arc<dyn crate::policy::PolicyService>) -> Self {
+        *self.policy.write().unwrap() = Some(policy);
+        self
     }
 }
 
@@ -324,12 +361,20 @@ impl CatalogService for InMemoryCatalog {
         // opencode catalog.ts:96-101: available = NOT disabled AND (
         //   has inline apiKey OR has connection OR integration exists
         // )
+        // PLUS: policy deny list — providers that policy denies are
+        // filtered out so they can never appear in the available list.
         let map = self.inner.read().await;
+        let policy = self.policy.read().unwrap();
         Ok(map
             .values()
             .filter(|p| {
                 if !p.enabled {
                     return false;
+                }
+                if let Some(ref pol) = *policy {
+                    if !pol.is_allowed(&p.id) {
+                        return false; // policy denies this provider
+                    }
                 }
                 if p.api_key.is_some() {
                     return true; // inline key → available (opencode)
@@ -510,6 +555,44 @@ impl CatalogService for InMemoryCatalog {
                 Ok((p.id.clone(), m.id.clone()))
             }
         }
+    }
+
+    async fn remove_denied_providers(&self) -> Result<(), CatalogError> {
+        // opencode catalog.ts:189-197 finalize(): iterate the
+        // provider list and drop any that the policy denies.
+        // Clone the policy Arc out from under the std::sync::RwLock
+        // so we never hold a non-Send guard across an await point.
+        let policy: Option<Arc<dyn crate::policy::PolicyService>> = {
+            match self.policy.read() {
+                Ok(g) => g.clone(), // clones the Option<Arc<...>>
+                Err(e) => return Err(CatalogError::Policy(e.to_string())),
+            }
+        };
+        let policy = match policy {
+            None => return Ok(()),
+            Some(p) if !p.has_rules() => return Ok(()),
+            Some(p) => p,
+        };
+        let denied: Vec<ProviderId> = self
+            .inner
+            .read()
+            .await
+            .keys()
+            .filter(|id| !policy.is_allowed(id))
+            .cloned()
+            .collect();
+        if denied.is_empty() {
+            return Ok(());
+        }
+        let mut map = self.inner.write().await;
+        for id in &denied {
+            map.remove(id);
+        }
+        Ok(())
+    }
+
+    fn set_policy(&self, policy: Arc<dyn crate::policy::PolicyService>) {
+        *self.policy.write().unwrap() = Some(policy);
     }
 }
 

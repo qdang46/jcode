@@ -340,7 +340,8 @@ pub use crate::store::KeyringCredentialStore as _KeyringCredentialStore;
 
 /// One-shot boot helper: builds a `DefaultProviderService` with the
 /// real keyring backend, registers all built-in providers into the
-/// catalog and integration layers, and returns the service handle.
+/// catalog and integration layers, applies the policy deny list,
+/// and returns the service handle.
 ///
 /// This is what `main.rs` will eventually call in Phase 6. Today it's
 /// usable from `providerctl` and any other consumer.
@@ -354,10 +355,20 @@ pub async fn boot_default<K: KeyringStore + Default + 'static>()
     );
     let catalog: Arc<dyn CatalogService> = Arc::new(crate::catalog::InMemoryCatalog::new());
     register_builtins::<K>(catalog.as_ref(), integration.as_ref()).await?;
-    Ok(crate::store::DefaultProviderService::new(
+
+    // Apply the deny-list policy: denied providers are removed
+    // from the catalog (opencode-style finalize()) and filtered
+    // out of future available() calls.
+    let policy: Arc<dyn crate::policy::PolicyService> =
+        Arc::new(crate::policy::DenyListPolicy::from_env());
+    catalog.set_policy(policy.clone());
+    catalog.remove_denied_providers().await?;
+
+    Ok(crate::store::DefaultProviderService::with_policy(
         catalog,
         integration,
         credentials,
+        policy,
     ))
 }
 

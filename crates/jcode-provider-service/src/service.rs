@@ -89,6 +89,8 @@ pub trait ProviderService: Send + Sync {
     fn credentials(&self) -> &dyn CredentialService;
     /// The route resolver (typically backed by the catalog + integration).
     fn resolver(&self) -> &dyn RouteResolver;
+    /// The policy service (deny-list checking).
+    fn policy(&self) -> &dyn crate::policy::PolicyService;
 }
 
 #[cfg(test)]

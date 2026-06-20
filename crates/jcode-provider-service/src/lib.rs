@@ -41,6 +41,7 @@ pub mod inventory;
 pub mod metadata_profiles;
 pub mod migrate;
 pub mod model_prefs;
+pub mod policy;
 pub mod refresh;
 pub mod registry;
 pub mod retrofit;
@@ -56,6 +57,7 @@ pub use attempt::{AttemptStatus, OAuthAttempt};
 pub use catalog::{CatalogService, ModelInfo, ProviderInfo};
 pub use credential::{Credential, CredentialId, CredentialService, CredentialType};
 pub use integration::{AuthMethod, ConnectionStatus, IntegrationService, LoginProvider};
+pub use policy::{DenyListPolicy, PolicyService};
 pub use service::{ProviderService, ResolvedRoute, RouteResolver};
 pub use types::{ModelId, ProviderId, ProviderProfile};
 
