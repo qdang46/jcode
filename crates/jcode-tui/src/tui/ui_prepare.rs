@@ -382,7 +382,6 @@ fn push_user_prompt_lines(
 }
 
 fn empty_prepared_messages() -> PreparedMessages {
-            message_boundaries: Vec::new(),
     PreparedMessages {
             message_boundaries: Vec::new(),
         wrapped_lines: Vec::new(),
@@ -441,7 +440,6 @@ fn prepare_active_batch_progress(
     width: u16,
     prefix_blank: bool,
 ) -> PreparedMessages {
-            message_boundaries: Vec::new(),
     let Some(progress) = active_batch_progress(app) else {
         return empty_prepared_messages();
     };
@@ -1310,7 +1308,6 @@ fn prepare_streaming_cached(
     width: u16,
     prefix_blank: bool,
 ) -> PreparedMessages {
-            message_boundaries: Vec::new(),
     let streaming = app.streaming_text();
     if streaming.is_empty() {
         return PreparedMessages {
@@ -1365,7 +1362,6 @@ pub(super) fn prepare_body(
     width: u16,
     include_streaming: bool,
 ) -> PreparedMessages {
-            message_boundaries: Vec::new(),
     let mut lines: Vec<Line> = Vec::new();
     let mut raw_plain_lines: Vec<String> = Vec::new();
     let mut line_raw_overrides: Vec<Option<WrappedLineMap>> = Vec::new();
@@ -1797,7 +1793,6 @@ fn wrap_lines(
     user_prompt_texts: &[String],
     width: u16,
 ) -> PreparedMessages {
-            message_boundaries: Vec::new(),
     let full_width = width.saturating_sub(1) as usize;
     let user_width = width.saturating_sub(2) as usize;
     let mut wrapped_user_indices: Vec<usize> = Vec::new();
@@ -1887,7 +1882,6 @@ fn wrap_lines_with_map(
     edit_ranges: &[(usize, String, usize, usize, bool)],
     copy_ranges: &[RawCopyTarget],
 ) -> PreparedMessages {
-            message_boundaries: Vec::new(),
     let full_width = width.saturating_sub(1) as usize;
     let user_width = width.saturating_sub(2) as usize;
     let mut wrapped_user_indices: Vec<usize> = Vec::new();
