@@ -394,3 +394,76 @@ async fn end_to_end_classify_with_body_classifier() {
         ErrorCategory::Network
     );
 }
+
+#[tokio::test]
+async fn end_to_end_runtime_resolves_with_cli_override() {
+    // The runtime picks a session based on the precedence chain:
+    //   1. Explicit CLI override (provider + model)
+    //   2. Per-provider default in ~/.jcode/provider-defaults.json
+    //   3. Global default in the same file
+    //   4. Catalog::default() heuristic
+    // This test exercises path 1: an explicit ById + model.
+    use jcode_provider_service::runtime::start_session;
+    use jcode_provider_service::types::ProviderProfile;
+
+    let svc = booted_service().await;
+    svc.integration()
+        .save_api_key(&"anthropic".into(), "default", "sk-fake")
+        .await
+        .unwrap();
+    svc.catalog()
+        .refresh_connection(&"anthropic".into(), svc.integration())
+        .await
+        .unwrap();
+
+    let profile = ProviderProfile::ById {
+        id: "anthropic".into(),
+    };
+    let model = "claude-haiku-4-5".into();
+    let s = start_session(&svc, Some(&profile), Some(&model))
+        .await
+        .unwrap();
+    assert_eq!(s.describe(), "anthropic/claude-haiku-4-5");
+    // The Route should have the Anthropic Messages protocol.
+    assert_eq!(s.route.protocol, "anthropic-messages-2023-01-01");
+    assert_eq!(s.route.endpoint.base_url, "https://api.anthropic.com");
+}
+
+#[tokio::test]
+async fn end_to_end_runtime_falls_back_to_catalog_default() {
+    use jcode_provider_service::runtime::start_session;
+
+    let svc = booted_service().await;
+    svc.integration()
+        .save_api_key(&"anthropic".into(), "default", "sk-fake")
+        .await
+        .unwrap();
+    svc.catalog()
+        .refresh_connection(&"anthropic".into(), svc.integration())
+        .await
+        .unwrap();
+
+    // No CLI override, no persisted defaults -> the runtime
+    // delegates to catalog.default(). The catalog iterates the
+    // available providers and picks the first Flagship model it
+    // finds; if no Flagship is registered, it falls back to the
+    // first model of the first available provider. With the
+    // builtin registry, anthropic's first model is
+    // claude-haiku-4-5 (Nano), so the current default returns
+    // it. A future improvement could let the boot register its
+    // model order with Flagship first.
+    let s = start_session(&svc, None, None).await.unwrap();
+    assert_eq!(s.provider.as_str(), "anthropic");
+    // The model is some model on anthropic.
+    let catalog_provider = svc.catalog().provider(&"anthropic".into()).await.unwrap();
+    let model_ids: Vec<String> = catalog_provider
+        .models
+        .iter()
+        .map(|m| m.id.to_string())
+        .collect();
+    assert!(
+        model_ids.iter().any(|id| id == s.model.as_str()),
+        "expected runtime to pick one of anthropic's models: {model_ids:?}, got {}",
+        s.model
+    );
+}
