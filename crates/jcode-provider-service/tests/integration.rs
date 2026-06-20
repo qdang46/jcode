@@ -60,6 +60,7 @@ async fn booted_service() -> DefaultProviderService {
                 name: bp.label.to_string(),
                 enabled: true,
                 is_connected: false,
+                has_integration: true,
                 models: bp
                     .models
                     .iter()

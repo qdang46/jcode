@@ -117,6 +117,12 @@ pub struct ProviderInfo {
     /// Whether the provider has a usable credential. Recomputed every time
     /// the catalog is queried.
     pub is_connected: bool,
+    /// Whether the provider has an integration entry (i.e. is registered in
+    /// the Integration layer). Used by opencode's `available()` logic:
+    /// if integration exists but NOT connected → not available.
+    /// If no integration at all → available (can be set up later).
+    #[serde(default)]
+    pub has_integration: bool,
     /// List of models registered for this provider.
     pub models: Vec<ModelInfo>,
     /// Optional inline API key (opencode catalog.ts:96-101).
@@ -251,16 +257,31 @@ pub trait CatalogService: Send + Sync {
         model: &ModelId,
     ) -> Result<ModelInfo, CatalogError>;
 
+    /// Persist a user-set default model choice. The next call to
+    /// [`default`] returns this pair when its provider is available
+    /// and the model is enabled.
+    async fn set_default_model(
+        &self,
+        provider: &ProviderId,
+        model: &ModelId,
+    ) -> Result<(), CatalogError>;
+
     /// The user's default `(provider, model)`. Tries (in order):
-    /// 1. `config.toml [provider] default = "<p>/<m>"`.
+    /// 1. User-set default (via [`set_default_model`]).
     /// 2. The first flagship model of the first available provider.
     /// 3. The first model of the first available provider.
     async fn default(&self) -> Result<(ProviderId, ModelId), CatalogError>;
 
-    /// The cheapest "small" model available. Heuristic: model id contains
+    /// The cheapest "small" model available. When `provider_id` is `Some`,
+    /// scoped to that provider (opencode-style). When `None`, searches all
+    /// available providers (jcode default).
+    /// Heuristic: model id contains
     /// `nano` / `flash` / `lite` / `mini` / `haiku`. If none match, returns
     /// the cheapest model with a non-zero cost.
-    async fn small(&self) -> Result<(ProviderId, ModelId), CatalogError>;
+    async fn small(
+        &self,
+        provider_id: Option<&ProviderId>,
+    ) -> Result<(ProviderId, ModelId), CatalogError>;
 
     // -- policy integration (opencode-style finalize) --
 
@@ -311,6 +332,7 @@ pub struct InMemoryCatalog {
     inner: Arc<RwLock<HashMap<ProviderId, ProviderInfo>>>,
     policy: std::sync::RwLock<Option<Arc<dyn crate::policy::PolicyService>>>,
     on_updated: std::sync::RwLock<Option<Box<dyn Fn() + Send + Sync>>>,
+    default_model: std::sync::RwLock<Option<(ProviderId, ModelId)>>,
 }
 
 impl InMemoryCatalog {
@@ -319,6 +341,7 @@ impl InMemoryCatalog {
             inner: Arc::new(RwLock::new(HashMap::new())),
             policy: std::sync::RwLock::new(None),
             on_updated: std::sync::RwLock::new(None),
+            default_model: std::sync::RwLock::new(None),
         }
     }
 
@@ -419,7 +442,9 @@ impl CatalogService for InMemoryCatalog {
                 if p.is_connected {
                     return true; // stored credential → available
                 }
-                true // integration exists, can be set up → available
+                // opencode: if integration exists but NOT connected → not available.
+                // If no integration at all → available (can be set up later).
+                !p.has_integration
             })
             .cloned()
             .collect())
@@ -446,10 +471,32 @@ impl CatalogService for InMemoryCatalog {
             .ok_or_else(|| CatalogError::UnknownModel(model.clone()))
     }
 
+    async fn set_default_model(
+        &self,
+        provider: &ProviderId,
+        model: &ModelId,
+    ) -> Result<(), CatalogError> {
+        *self.default_model.write().unwrap() = Some((provider.clone(), model.clone()));
+        Ok(())
+    }
+
     async fn default(&self) -> Result<(ProviderId, ModelId), CatalogError> {
-        // opencode-style: try user-set default first, then a Flagship model
-        // (newest release wins among flagships via `time.released`),
-        // then fall back to the newest available model overall.
+        // opencode-style: try user-set default first (via set_default_model),
+        // then a Flagship model, then fall back to the newest available model.
+        let saved_default = { self.default_model.read().unwrap().clone() };
+        if let Some((ref p, ref m)) = saved_default {
+            // Verify the provider is still available and model exists+enabled.
+            if let Ok(provider) = self.provider(p).await {
+                if provider.enabled && provider.model(m).is_some() {
+                    // Check that provider is in available set.
+                    if let Ok(available) = self.available().await {
+                        if available.iter().any(|a| &a.id == p) {
+                            return Ok((p.clone(), m.clone()));
+                        }
+                    }
+                }
+            }
+        }
         let providers = self.available().await?;
         if providers.is_empty() {
             return Err(CatalogError::NoAvailableProviders);
@@ -490,11 +537,19 @@ impl CatalogService for InMemoryCatalog {
         Ok((p.id.clone(), m.id.clone()))
     }
 
-    async fn small(&self) -> Result<(ProviderId, ModelId), CatalogError> {
+    async fn small(&self, provider_id: Option<&ProviderId>) -> Result<(ProviderId, ModelId), CatalogError> {
         // opencode-style: build a candidate list with cost + age, then
         // pick the lowest (cost*0.8 + age*0.2) score among models whose
         // id contains a "small" token, falling back to all candidates.
         let providers = self.available().await?;
+        if providers.is_empty() {
+            return Err(CatalogError::NoAvailableProviders);
+        }
+        // If scoped to a specific provider, only use that one.
+        let providers: Vec<_> = match provider_id {
+            Some(pid) => providers.into_iter().filter(|p| &p.id == pid).collect(),
+            None => providers,
+        };
         if providers.is_empty() {
             return Err(CatalogError::NoAvailableProviders);
         }
@@ -660,6 +715,7 @@ mod tests {
             name: "Anthropic".into(),
             enabled: true,
             is_connected: true,
+            has_integration: false,
             models: vec![
                 ModelInfo {
                     id: "claude-opus-4-8".into(),
@@ -731,7 +787,7 @@ mod tests {
     async fn small_uses_id_heuristic() {
         let cat = InMemoryCatalog::new();
         cat.register_provider(anthropic()).await.unwrap();
-        let (p, m) = cat.small().await.unwrap();
+        let (p, m) = cat.small(None).await.unwrap();
         assert_eq!(p.as_str(), "anthropic");
         assert!(ModelTier::id_suggests_small(m.as_str()) || ModelTier::suggests_small(m.as_str(), None));
     }
@@ -743,7 +799,7 @@ mod tests {
         // Strip the haiku model so id_heuristic finds nothing.
         p.models.retain(|m| m.id.as_str() != "claude-haiku-4-5");
         cat.register_provider(p).await.unwrap();
-        let (_, m) = cat.small().await.unwrap();
+        let (_, m) = cat.small(None).await.unwrap();
         // Only Opus left, must be selected.
         assert_eq!(m.as_str(), "claude-opus-4-8");
     }
@@ -769,6 +825,7 @@ mod tests {
             name: "Anthropic".into(),
             enabled: true,
             is_connected: true,
+            has_integration: false,
             models: vec![
                 ModelInfo {
                     id: "claude-haiku-old".into(),
@@ -805,7 +862,7 @@ mod tests {
             ],
         };
         cat.register_provider(p).await.unwrap();
-        let (provider, model) = cat.small().await.unwrap();
+        let (provider, model) = cat.small(None).await.unwrap();
         assert_eq!(provider.as_str(), "anthropic");
         assert_eq!(model.as_str(), "claude-haiku-new");
     }
@@ -823,6 +880,7 @@ mod tests {
             name: "Anthropic".into(),
             enabled: true,
             is_connected: true,
+            has_integration: false,
             models: vec![
                 ModelInfo {
                     id: "claude-haiku-ancient".into(),
@@ -859,7 +917,7 @@ mod tests {
             ],
         };
         cat.register_provider(p).await.unwrap();
-        let (_, model) = cat.small().await.unwrap();
+        let (_, model) = cat.small(None).await.unwrap();
         assert_eq!(model.as_str(), "claude-haiku-fresh");
     }
 
@@ -876,6 +934,7 @@ mod tests {
             name: "OpenAI".into(),
             enabled: true,
             is_connected: true,
+            has_integration: false,
             models: vec![
                 ModelInfo {
                     id: "gpt-flagship".into(),
@@ -912,7 +971,7 @@ mod tests {
             ],
         };
         cat.register_provider(p).await.unwrap();
-        let (_, model) = cat.small().await.unwrap();
+        let (_, model) = cat.small(None).await.unwrap();
         assert_eq!(model.as_str(), "gpt-standard");
     }
 

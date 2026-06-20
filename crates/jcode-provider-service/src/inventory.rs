@@ -93,6 +93,7 @@ pub async fn register_all(
                     name: rec.label.clone(),
                     enabled: true,
                     is_connected: false,
+                    has_integration: true,
                     models: rec.models.clone(),
                 })
                 .await?;

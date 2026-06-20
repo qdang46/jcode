@@ -251,6 +251,7 @@ mod tests {
                 name: "Anthropic".into(),
                 enabled: true,
                 is_connected: true,
+                has_integration: false,
                 models: vec![
                     ModelInfo {
                         id: "claude-sonnet-4-6".into(),
@@ -297,6 +298,7 @@ mod tests {
                 name: "OpenAI".into(),
                 enabled: true,
                 is_connected: true,
+                has_integration: false,
                 models: vec![ModelInfo {
                     id: "gpt-5-mini".into(),
                     provider: "openai".into(),

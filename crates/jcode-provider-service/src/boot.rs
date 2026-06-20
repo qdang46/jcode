@@ -253,6 +253,7 @@ pub async fn register_catalog(
             name: bp.label.to_string(),
             enabled: true,
             is_connected: false, // recomputed at boot via detect()
+                    has_integration: true,
             models: bp
                 .models
                 .iter()

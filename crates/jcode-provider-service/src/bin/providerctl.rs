@@ -505,7 +505,7 @@ async fn cmd_default(svc: &DefaultProviderService) -> Result<()> {
 }
 
 async fn cmd_small(svc: &DefaultProviderService) -> Result<()> {
-    match svc.catalog().small().await {
+    match svc.catalog().small(None).await {
         Ok((p, m)) => {
             println!("{}/{}", p, m);
             Ok(())

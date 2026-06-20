@@ -178,6 +178,7 @@ mod tests {
                 name: "Anthropic".into(),
                 enabled: true,
                 is_connected: true,
+                has_integration: false,
                 models: vec![ModelInfo {
                     id: "claude-sonnet-4-6".into(),
                     provider: "anthropic".into(),
@@ -205,6 +206,7 @@ mod tests {
                 name: "OpenAI".into(),
                 enabled: true,
                 is_connected: true,
+                has_integration: false,
                 models: vec![ModelInfo {
                     id: "gpt-5.1".into(),
                     provider: "openai".into(),
@@ -232,6 +234,7 @@ mod tests {
                 name: "Gemini".into(),
                 enabled: true,
                 is_connected: true,
+                has_integration: false,
                 models: vec![ModelInfo {
                     id: "gemini-2.5-pro".into(),
                     provider: "gemini".into(),
