@@ -192,6 +192,7 @@ mod tests {
 
                     release_date: None,
                 }],
+            api_key: None,
             },
             ProviderInfo {
                 id: "openai".into(),
@@ -212,6 +213,7 @@ mod tests {
 
                     release_date: None,
                 }],
+            api_key: None,
             },
             ProviderInfo {
                 id: "gemini".into(),
@@ -232,6 +234,7 @@ mod tests {
 
                     release_date: None,
                 }],
+            api_key: None,
             },
         ] {
             cat.register_provider(p.clone()).await.unwrap();
@@ -307,6 +310,7 @@ mod tests {
             enabled: true,
             is_connected: true,
             models: vec![],
+            api_key: None,
         })
         .await
         .unwrap();

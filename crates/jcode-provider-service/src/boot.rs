@@ -257,6 +257,7 @@ pub async fn register_catalog(
                     release_date: m.release_date,
                 })
                 .collect(),
+            api_key: None,
         })
         .await
 }

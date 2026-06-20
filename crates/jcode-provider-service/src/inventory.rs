@@ -167,6 +167,7 @@ mod tests {
 
                 release_date: None,
             }],
+            api_key: None,
         };
         let entry = PluginEntry::new("test-plugin", rec);
         assert_eq!(entry.id(), "test-plugin");

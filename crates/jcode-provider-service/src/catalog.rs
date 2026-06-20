@@ -106,6 +106,9 @@ pub struct ProviderInfo {
     pub is_connected: bool,
     /// List of models registered for this provider.
     pub models: Vec<ModelInfo>,
+    /// Optional inline API key (opencode catalog.ts:96-101).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub api_key: Option<String>,
 }
 
 impl ProviderInfo {
@@ -487,6 +490,7 @@ mod tests {
 
     fn anthropic() -> ProviderInfo {
         ProviderInfo {
+            api_key: None,
             id: "anthropic".into(),
             name: "Anthropic".into(),
             enabled: true,
@@ -585,6 +589,7 @@ mod tests {
         // one (with an 18-month cap).
         let cat = InMemoryCatalog::new();
         let p = ProviderInfo {
+            api_key: None,
             id: "anthropic".into(),
             name: "Anthropic".into(),
             enabled: true,
@@ -629,6 +634,7 @@ mod tests {
         // Anything older than 18 months should be dropped from candidates.
         let cat = InMemoryCatalog::new();
         let p = ProviderInfo {
+            api_key: None,
             id: "anthropic".into(),
             name: "Anthropic".into(),
             enabled: true,
@@ -672,6 +678,7 @@ mod tests {
         // No "small" id tokens, but cost+age should still pick the cheapest.
         let cat = InMemoryCatalog::new();
         let p = ProviderInfo {
+            api_key: None,
             id: "openai".into(),
             name: "OpenAI".into(),
             enabled: true,

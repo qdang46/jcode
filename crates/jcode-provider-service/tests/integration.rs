@@ -78,6 +78,7 @@ async fn booted_service() -> DefaultProviderService {
                         release_date: None,
                     })
                     .collect(),
+                api_key: None,
             })
             .await
             .unwrap();
@@ -422,6 +423,7 @@ async fn end_to_end_runtime_resolves_with_cli_override() {
 
 #[tokio::test]
 async fn debug_dump_models() {
+    #[allow(unused_imports)]
     use jcode_provider_service::catalog::CatalogService;
     let svc = booted_service().await;
     svc.integration()

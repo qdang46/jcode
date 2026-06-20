@@ -221,6 +221,7 @@ mod tests {
 
                     release_date: None,
                 }],
+            api_key: None,
             })
             .await
             .unwrap();

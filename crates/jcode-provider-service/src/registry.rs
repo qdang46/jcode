@@ -79,6 +79,7 @@ pub trait ProviderRegistry: Send + Sync {
                     name: rec.label.clone(),
                     enabled: true,
                     is_connected: false,
+                    api_key: None,
                     models: rec.models.clone(),
                 })
                 .await?;
@@ -286,6 +287,7 @@ mod tests {
             name: "X".into(),
             enabled: true,
             is_connected: false,
+                    api_key: None,
             models: vec![],
         };
         let _ = ModelTier::Flagship;

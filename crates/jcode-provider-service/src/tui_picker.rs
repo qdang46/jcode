@@ -281,6 +281,7 @@ mod tests {
                         release_date: None,
                     },
                 ],
+            api_key: None,
             },
             ProviderInfo {
                 id: "openai".into(),
@@ -301,6 +302,7 @@ mod tests {
 
                     release_date: None,
                 }],
+            api_key: None,
             },
         ] {
             c.register_provider(p.clone()).await.unwrap();
