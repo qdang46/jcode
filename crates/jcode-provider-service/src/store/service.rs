@@ -168,6 +168,25 @@ impl DefaultProviderService {
             base_url: model.base_url.clone().or_else(|| Some(provider.base_url.clone())),
             path: model.path.clone().or_else(|| Some(provider.path.clone())),
             protocol: model.protocol.clone().or_else(|| Some(provider.protocol.clone())),
+            // Body merge: provider.body_defaults as base, model.body_overrides on top
+            // (mirrors opencode's projectModel() request merge).
+            body_overrides: {
+                let merged = match (&provider.body_defaults, &model.body_overrides) {
+                    (Some(base), Some(overrides)) => {
+                        let mut obj = base.clone();
+                        if let Some(ref mut map) = obj.as_object_mut() {
+                            if let Some(ov) = overrides.as_object() {
+                                for (k, v) in ov { map.insert(k.clone(), v.clone()); }
+                            }
+                        }
+                        Some(obj)
+                    }
+                    (Some(base), None) => Some(base.clone()),
+                    (None, Some(ov)) => Some(ov.clone()),
+                    (None, None) => None,
+                };
+                merged
+            },
             ..model.clone()
         }
     }

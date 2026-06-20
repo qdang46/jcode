@@ -59,6 +59,9 @@ pub struct ModelInfo {
     /// Optional per-model protocol override.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub protocol: Option<String>,
+    /// Optional per-model body overrides (opencode request merge).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub body_overrides: Option<serde_json::Value>,
 }
 
 impl ModelInfo {
@@ -139,6 +142,10 @@ pub struct ProviderInfo {
     /// Used by RouteResolver to select the correct protocol adapter.
     #[serde(default = "default_chat_protocol")]
     pub protocol: String,
+    /// Body-level defaults merged into Route by RouteResolver (opencode
+    /// request merge pattern).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub body_defaults: Option<serde_json::Value>,
 }
 
 fn default_anthropic_url() -> String { "https://api.anthropic.com".into() }

@@ -272,12 +272,14 @@ pub async fn register_catalog(
                     base_url: None,
                     path: None,
                     protocol: None,
+                    body_overrides: None,
                 })
                 .collect(),
             api_key: None,
             base_url: bp.base_url.to_string(),
             path: bp.path.to_string(),
             protocol: bp.protocol.as_str().to_string(),
+            body_defaults: None,
         })
         .await
 }
