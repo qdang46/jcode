@@ -8,6 +8,7 @@ use crate::message::ConnectionPhase;
 use crate::tui::app;
 use crate::tui::color_support::rgb;
 use crate::tui::layout_utils;
+use jcode_keywords::visual::{compute_highlights, KeywordHighlight};
 use ratatui::{prelude::*, widgets::Paragraph};
 
 fn shell_mode_color() -> Color {
@@ -220,6 +221,7 @@ pub(super) fn wrapped_input_line_count(
         prompt_char,
         caret_color,
         prompt_len,
+        &[],
     );
     lines.len().max(1)
 }
@@ -1594,6 +1596,9 @@ pub(super) fn draw_input(
         return;
     }
 
+    // Compute keyword highlights for the input text
+    let highlights = compute_highlights(input_text);
+
     let (all_lines, cursor_line, cursor_col) = wrap_input_text(
         input_text,
         cursor_pos,
@@ -1602,6 +1607,7 @@ pub(super) fn draw_input(
         prompt_char,
         caret_color,
         prompt_len,
+        &highlights,
     );
 
     let mut lines: Vec<Line> = Vec::new();
@@ -1916,6 +1922,90 @@ pub(crate) fn input_cursor_pos_from_screen(
     ))
 }
 
+/// Convert a char index in the input string to a byte offset.
+fn char_index_to_byte_offset(input: &str, char_idx: usize) -> usize {
+    input
+        .char_indices()
+        .nth(char_idx)
+        .map(|(byte_pos, _)| byte_pos)
+        .unwrap_or(input.len())
+}
+
+/// Build colored spans for a wrapped segment, applying keyword highlight colors.
+fn segment_to_colored_spans(
+    input: &str,
+    segment_text: &str,
+    segment_start_char: usize,
+    segment_end_char: usize,
+    highlights: &[KeywordHighlight],
+) -> Vec<Span<'static>> {
+    if highlights.is_empty() {
+        return vec![Span::raw(segment_text.to_string())];
+    }
+
+    // Get byte range of this segment in the original input
+    let seg_byte_start = char_index_to_byte_offset(input, segment_start_char);
+    let seg_byte_end = if segment_end_char == segment_start_char || segment_end_char >= input.chars().count() {
+        seg_byte_start + segment_text.len()
+    } else {
+        char_index_to_byte_offset(input, segment_end_char)
+    };
+
+    // Collect highlight ranges that overlap with this segment
+    let mut overlapping: Vec<(usize, usize, (u8, u8, u8))> = Vec::new();
+    for h in highlights {
+        if h.start < seg_byte_end && h.end > seg_byte_start {
+            let overlap_start = h.start.max(seg_byte_start);
+            let overlap_end = h.end.min(seg_byte_end);
+            if overlap_end > overlap_start {
+                overlapping.push((overlap_start, overlap_end, h.color));
+            }
+        }
+    }
+
+    if overlapping.is_empty() {
+        return vec![Span::raw(segment_text.to_string())];
+    }
+
+    // Sort by start position
+    overlapping.sort_by_key(|&(s, _, _)| s);
+
+    let mut spans: Vec<Span<'static>> = Vec::new();
+    let mut current_byte = seg_byte_start;
+
+    for &(hl_start, hl_end, (r, g, b)) in &overlapping {
+        // Text before this highlight
+        if current_byte < hl_start {
+            let end = hl_start.min(seg_byte_end);
+            if end > current_byte {
+                let before = &input[current_byte..end];
+                spans.push(Span::raw(before.to_string()));
+            }
+        }
+
+        // The highlighted text (clamped to segment bounds)
+        let hl_text_start = hl_start.max(seg_byte_start);
+        let hl_text_end = hl_end.min(seg_byte_end);
+        if hl_text_end > hl_text_start {
+            let hl_text = &input[hl_text_start..hl_text_end];
+            spans.push(Span::styled(
+                hl_text.to_string(),
+                Style::default().fg(Color::Rgb(r, g, b)),
+            ));
+        }
+
+        current_byte = hl_text_end;
+    }
+
+    // Remaining text after last highlight
+    if current_byte < seg_byte_end {
+        let remaining = &input[current_byte..seg_byte_end];
+        spans.push(Span::raw(remaining.to_string()));
+    }
+
+    spans
+}
+
 pub(crate) fn wrap_input_text<'a>(
     input: &str,
     cursor_pos: usize,
@@ -1924,6 +2014,7 @@ pub(crate) fn wrap_input_text<'a>(
     prompt_char: &'a str,
     caret_color: Color,
     prompt_len: usize,
+    highlights: &[KeywordHighlight],
 ) -> (Vec<Line<'a>>, usize, usize) {
     let cursor_char_pos = crate::tui::core::byte_offset_to_char_index(input, cursor_pos);
     let wrapped_segments = wrap_input_segments(input, line_width);
@@ -1944,16 +2035,30 @@ pub(crate) fn wrap_input_text<'a>(
 
         if idx == 0 {
             let num_color = rainbow_prompt_color(0);
-            lines.push(Line::from(vec![
+            let colored_spans = segment_to_colored_spans(
+                input,
+                &segment.text,
+                segment.start_char,
+                segment.end_char,
+                highlights,
+            );
+            let mut spans = vec![
                 Span::styled(num_str.to_string(), Style::default().fg(num_color)),
                 Span::styled(prompt_char.to_string(), Style::default().fg(caret_color)),
-                Span::raw(segment.text.clone()),
-            ]));
+            ];
+            spans.extend(colored_spans);
+            lines.push(Line::from(spans));
         } else {
-            lines.push(Line::from(vec![
-                Span::raw(" ".repeat(prompt_len)),
-                Span::raw(segment.text.clone()),
-            ]));
+            let colored_spans = segment_to_colored_spans(
+                input,
+                &segment.text,
+                segment.start_char,
+                segment.end_char,
+                highlights,
+            );
+            let mut spans = vec![Span::raw(" ".repeat(prompt_len))];
+            spans.extend(colored_spans);
+            lines.push(Line::from(spans));
         }
     }
 

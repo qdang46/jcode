@@ -76,7 +76,7 @@ impl App {
 
             // Show status notice for activated modes (so user sees something happen)
             if result.keyword_prompt.is_some() {
-                let mode_state = crate::jcode_keywords::state::load_state(
+                let mode_state = jcode_keywords::state::load_state(
                     self.session
                         .working_dir
                         .as_deref()
