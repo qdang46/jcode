@@ -995,8 +995,7 @@ pub(crate) fn open_tools_picker(app: &mut App, agent_id: &str) {
     app.cursor_pos = 0;
 }
 
-/// Check if agent definition files have changed since last check.
-pub(super) fn check_agent_snapshots(app: &mut App) {
+pub(crate) fn check_agent_snapshots(app: &mut App) {
     let agents_path = match dirs::home_dir() {
         Some(h) => h.join(".jcode").join("agents"),
         None => return,
