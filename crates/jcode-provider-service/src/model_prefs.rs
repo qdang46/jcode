@@ -56,19 +56,17 @@ impl ModelPrefs {
         if !path.exists() {
             return Ok(Self::default());
         }
-        let raw = std::fs::read_to_string(path)
-            .map_err(|e| PrefsError::Io(e.to_string()))?;
+        let raw = std::fs::read_to_string(path).map_err(|e| PrefsError::Io(e.to_string()))?;
         serde_json::from_str(&raw).map_err(|e| PrefsError::Invalid(e.to_string()))
     }
 
     /// Save to a JSON file. Creates the parent directory if needed.
     pub fn save(&self, path: &Path) -> Result<(), PrefsError> {
         if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent)
-                .map_err(|e| PrefsError::Io(e.to_string()))?;
+            std::fs::create_dir_all(parent).map_err(|e| PrefsError::Io(e.to_string()))?;
         }
-        let raw = serde_json::to_string_pretty(self)
-            .map_err(|e| PrefsError::Invalid(e.to_string()))?;
+        let raw =
+            serde_json::to_string_pretty(self).map_err(|e| PrefsError::Invalid(e.to_string()))?;
         std::fs::write(path, raw).map_err(|e| PrefsError::Io(e.to_string()))?;
         Ok(())
     }
@@ -111,7 +109,8 @@ impl ModelPrefs {
 
     /// Push a recent selection. De-duplicates and caps at 10.
     pub fn push_recent(&mut self, provider: ProviderId, model: ModelId) {
-        self.recents.retain(|e| e.provider != provider || e.model != model);
+        self.recents
+            .retain(|e| e.provider != provider || e.model != model);
         self.recents.insert(0, FavoriteEntry { provider, model });
         if self.recents.len() > 10 {
             self.recents.truncate(10);

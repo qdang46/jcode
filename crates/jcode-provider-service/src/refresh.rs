@@ -28,9 +28,7 @@ use async_trait::async_trait;
 use chrono::{DateTime, Duration, Utc};
 use thiserror::Error;
 
-use crate::credential::{
-    Credential, CredentialId, CredentialService, CredentialType,
-};
+use crate::credential::{Credential, CredentialId, CredentialService, CredentialType};
 use crate::types::ProviderId;
 
 #[derive(Debug, Error)]
@@ -71,7 +69,8 @@ impl RefreshPolicy {
     pub fn needs_refresh(&self, cred: &Credential) -> bool {
         match &cred.credential {
             CredentialType::OAuth {
-                expires_at: Some(exp), ..
+                expires_at: Some(exp),
+                ..
             } => {
                 let now = Utc::now();
                 let remaining = *exp - now;
@@ -224,9 +223,7 @@ mod tests {
         let c = Credential::new(
             "anthropic".into(),
             "default",
-            CredentialType::ApiKey {
-                key: "sk-x".into(),
-            },
+            CredentialType::ApiKey { key: "sk-x".into() },
         );
         assert!(!p.needs_refresh(&c));
     }
@@ -277,10 +274,7 @@ mod tests {
         struct MockTransport;
         #[async_trait]
         impl RefreshTransport for MockTransport {
-            async fn refresh(
-                &self,
-                req: RefreshRequest,
-            ) -> Result<RefreshResponse, RefreshError> {
+            async fn refresh(&self, req: RefreshRequest) -> Result<RefreshResponse, RefreshError> {
                 assert_eq!(req.provider.as_str(), "anthropic");
                 assert_eq!(req.refresh_token, "refresh-tok");
                 Ok(RefreshResponse {
@@ -291,14 +285,9 @@ mod tests {
             }
         }
 
-        let out = ensure_fresh(
-            c.clone(),
-            &MockTransport,
-            &store,
-            RefreshPolicy::default(),
-        )
-        .await
-        .unwrap();
+        let out = ensure_fresh(c.clone(), &MockTransport, &store, RefreshPolicy::default())
+            .await
+            .unwrap();
         match out.credential {
             CredentialType::OAuth {
                 access_token,
@@ -367,10 +356,7 @@ mod tests {
         struct MockTransport;
         #[async_trait]
         impl RefreshTransport for MockTransport {
-            async fn refresh(
-                &self,
-                _: RefreshRequest,
-            ) -> Result<RefreshResponse, RefreshError> {
+            async fn refresh(&self, _: RefreshRequest) -> Result<RefreshResponse, RefreshError> {
                 Ok(RefreshResponse {
                     access_token: "x".into(),
                     refresh_token: Some("y".into()),

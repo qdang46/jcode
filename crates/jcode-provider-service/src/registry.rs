@@ -179,6 +179,7 @@ impl ProviderRegistry for BuiltinRegistry {
                         supports_vision: m.supports_vision,
                         supports_streaming: m.supports_streaming,
                         tier: Some(m.tier),
+                        release_date: m.release_date,
                     })
                     .collect(),
             })
@@ -197,7 +198,10 @@ mod tests {
     async fn builtin_registry_returns_known_providers() {
         let r = builtin_registry();
         let providers = r.providers().await;
-        assert!(providers.len() >= 4, "expected at least 4 built-in providers");
+        assert!(
+            providers.len() >= 4,
+            "expected at least 4 built-in providers"
+        );
         let names: Vec<&str> = providers.iter().map(|p| p.id.as_str()).collect();
         for n in ["anthropic", "openai", "openrouter", "gemini"] {
             assert!(names.contains(&n), "missing {n}");
@@ -209,10 +213,7 @@ mod tests {
         let r = builtin_registry();
         let catalog = InMemoryCatalog::new();
         let integration = InMemoryIntegration::new();
-        let n = r
-            .register(&catalog, &integration)
-            .await
-            .unwrap();
+        let n = r.register(&catalog, &integration).await.unwrap();
         assert_eq!(n, 4);
         // Every provider ends up in the catalog.
         for p in r.providers().await {
@@ -223,7 +224,10 @@ mod tests {
             // The integration trait objects dispatch through Arc<dyn
             // IntegrationService>, so .get() is reachable.
             use crate::integration::IntegrationService as _;
-            let _ = integration.get(&p.id).await.unwrap_or_else(|e| panic!("missing integration for {}: {e}", p.id));
+            let _ = integration
+                .get(&p.id)
+                .await
+                .unwrap_or_else(|e| panic!("missing integration for {}: {e}", p.id));
         }
     }
 
@@ -250,7 +254,10 @@ mod tests {
             .with(builtin_registry())
             .with(Arc::new(DummyRegistry));
         let providers = composite.providers().await;
-        assert!(providers.len() >= 5, "composite should merge builtins + dummy");
+        assert!(
+            providers.len() >= 5,
+            "composite should merge builtins + dummy"
+        );
     }
 
     #[tokio::test]
@@ -258,11 +265,14 @@ mod tests {
         let rec = ProviderRecord {
             id: "anthropic".into(),
             label: "Anthropic".into(),
-            auth_methods: vec![AuthMethod::ApiKey {
-                env_var: "ANTHROPIC_API_KEY".into(),
-            }, AuthMethod::OAuth {
-                authorization_url: "https://example.com".into(),
-            }],
+            auth_methods: vec![
+                AuthMethod::ApiKey {
+                    env_var: "ANTHROPIC_API_KEY".into(),
+                },
+                AuthMethod::OAuth {
+                    authorization_url: "https://example.com".into(),
+                },
+            ],
             env_keys: vec!["ANTHROPIC_API_KEY".into()],
             oauth_preferred: true,
             models: vec![],

@@ -103,7 +103,10 @@ mod tests {
         let now = std::time::Instant::now();
         let first = next_deadline(&c, false, now).duration_since(now);
         let idle = next_deadline(&c, true, now).duration_since(now);
-        assert!(first > idle, "first-event timeout should be larger than idle");
+        assert!(
+            first > idle,
+            "first-event timeout should be larger than idle"
+        );
         assert!(first > Duration::from_secs(59));
         assert!(idle <= Duration::from_secs(1));
     }

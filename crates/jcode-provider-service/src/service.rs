@@ -59,11 +59,17 @@ pub enum ResolveError {
     #[error("unknown provider: {0}")]
     UnknownProvider(ProviderId),
     #[error("unknown model: {provider}/{model}")]
-    UnknownModel { provider: ProviderId, model: ModelId },
+    UnknownModel {
+        provider: ProviderId,
+        model: ModelId,
+    },
     #[error("provider {0} is not connected (no credentials)")]
     NotConnected(ProviderId),
     #[error("no route registered for {provider}/{model}")]
-    NoRoute { provider: ProviderId, model: ModelId },
+    NoRoute {
+        provider: ProviderId,
+        model: ModelId,
+    },
     #[error("catalog error: {0}")]
     Catalog(#[from] crate::catalog::CatalogError),
     #[error("integration error: {0}")]
@@ -96,11 +102,14 @@ mod tests {
         let r = ResolvedRoute {
             provider: "anthropic".into(),
             model: "claude-haiku-4-5".into(),
-            route: Route::new("anthropic", jcode_llm_core::schema::ModelRef {
-                provider_id: "anthropic".into(),
-                id: "claude-haiku-4-5".into(),
-                variant: None,
-            }),
+            route: Route::new(
+                "anthropic",
+                jcode_llm_core::schema::ModelRef {
+                    provider_id: "anthropic".into(),
+                    id: "claude-haiku-4-5".into(),
+                    variant: None,
+                },
+            ),
         };
         let s = serde_json::to_string(&r).unwrap();
         assert!(s.contains("anthropic"));
@@ -158,42 +167,42 @@ mod tests {
     }
 }
 
-    #[test]
-    fn resolve_error_displays_unknown_provider() {
-        let e = ResolveError::UnknownProvider(ProviderId::from("mystery"));
-        let s = format!("{e}");
-        assert!(s.contains("mystery"));
-        assert!(s.contains("unknown provider"));
-    }
+#[test]
+fn resolve_error_displays_unknown_provider() {
+    let e = ResolveError::UnknownProvider(ProviderId::from("mystery"));
+    let s = format!("{e}");
+    assert!(s.contains("mystery"));
+    assert!(s.contains("unknown provider"));
+}
 
-    #[test]
-    fn resolve_error_displays_unknown_model() {
-        let e = ResolveError::UnknownModel {
-            provider: ProviderId::from("anthropic"),
-            model: ModelId::from("claude-fake"),
-        };
-        let s = format!("{e}");
-        assert!(s.contains("anthropic"));
-        assert!(s.contains("claude-fake"));
-        assert!(s.contains("unknown model"));
-    }
+#[test]
+fn resolve_error_displays_unknown_model() {
+    let e = ResolveError::UnknownModel {
+        provider: ProviderId::from("anthropic"),
+        model: ModelId::from("claude-fake"),
+    };
+    let s = format!("{e}");
+    assert!(s.contains("anthropic"));
+    assert!(s.contains("claude-fake"));
+    assert!(s.contains("unknown model"));
+}
 
-    #[test]
-    fn resolve_error_displays_not_connected() {
-        let e = ResolveError::NotConnected(ProviderId::from("anthropic"));
-        let s = format!("{e}");
-        assert!(s.contains("anthropic"));
-        assert!(s.contains("not connected"));
-    }
+#[test]
+fn resolve_error_displays_not_connected() {
+    let e = ResolveError::NotConnected(ProviderId::from("anthropic"));
+    let s = format!("{e}");
+    assert!(s.contains("anthropic"));
+    assert!(s.contains("not connected"));
+}
 
-    #[test]
-    fn resolve_error_displays_no_route() {
-        let e = ResolveError::NoRoute {
-            provider: ProviderId::from("anthropic"),
-            model: ModelId::from("claude-fake"),
-        };
-        let s = format!("{e}");
-        assert!(s.contains("anthropic"));
-        assert!(s.contains("claude-fake"));
-        assert!(s.contains("no route"));
-    }
+#[test]
+fn resolve_error_displays_no_route() {
+    let e = ResolveError::NoRoute {
+        provider: ProviderId::from("anthropic"),
+        model: ModelId::from("claude-fake"),
+    };
+    let s = format!("{e}");
+    assert!(s.contains("anthropic"));
+    assert!(s.contains("claude-fake"));
+    assert!(s.contains("no route"));
+}

@@ -122,8 +122,8 @@ pub async fn run_callback_server(
     timeout: Duration,
     integration: Arc<dyn IntegrationService>,
 ) -> Result<CallbackResult, CallbackError> {
-    let listener = std::net::TcpListener::bind("127.0.0.1:0")
-        .map_err(|e| CallbackError::Io(e.to_string()))?;
+    let listener =
+        std::net::TcpListener::bind("127.0.0.1:0").map_err(|e| CallbackError::Io(e.to_string()))?;
     run_callback_server_with_listener(listener, request, timeout, integration).await
 }
 
@@ -147,13 +147,7 @@ pub async fn run_callback_server_with_listener(
         }
         match listener.accept() {
             Ok((stream, _)) => {
-                match handle_connection(
-                    stream,
-                    &request,
-                    integration.as_ref(),
-                )
-                .await
-                {
+                match handle_connection(stream, &request, integration.as_ref()).await {
                     Ok(result) => return Ok(result),
                     Err(CallbackError::BadRequest) => continue,
                     Err(e) => return Err(e),
@@ -271,10 +265,7 @@ fn parse_http_request(raw: &str) -> Option<ParsedRequest> {
             continue;
         }
         if let Some((k, v)) = pair.split_once('=') {
-            query.insert(
-                url_decode(k),
-                url_decode(v),
-            );
+            query.insert(url_decode(k), url_decode(v));
         } else {
             query.insert(url_decode(pair), String::new());
         }
@@ -307,7 +298,7 @@ mod tests {
     use super::*;
     use crate::attempt::OAuthAttempt;
     use crate::integration::{AuthMethod, LoginProvider};
-use crate::store::PersistentIntegration;
+    use crate::store::PersistentIntegration;
     use crate::store::in_memory::InMemoryCredentialStore;
     use jcode_keyring_store::MockKeyringStore;
     use std::sync::Arc;
@@ -385,9 +376,7 @@ use crate::store::PersistentIntegration;
         // Connect to the listener and send a fake callback.
         let mut client = std::net::TcpStream::connect(("127.0.0.1", port)).unwrap();
         client
-            .write_all(
-                b"GET /callback?code=test-code HTTP/1.1\r\nHost: x\r\n\r\n",
-            )
+            .write_all(b"GET /callback?code=test-code HTTP/1.1\r\nHost: x\r\n\r\n")
             .unwrap();
         let mut resp = String::new();
         client.read_to_string(&mut resp).unwrap();
@@ -399,7 +388,7 @@ use crate::store::PersistentIntegration;
 mod e2e_tests {
     use super::*;
     use crate::integration::{AuthMethod, LoginProvider};
-    use crate::store::{in_memory::InMemoryCredentialStore, PersistentIntegration};
+    use crate::store::{PersistentIntegration, in_memory::InMemoryCredentialStore};
     use jcode_keyring_store::MockKeyringStore;
     use std::io::Write;
     use std::sync::Arc;
@@ -431,10 +420,7 @@ mod e2e_tests {
         // fake callback to it. Verify the credential was stored.
         let (listener, port) = bind_loopback().unwrap();
         let integration = integration().await;
-        let attempt = integration
-            .start_oauth(&"anthropic".into())
-            .await
-            .unwrap();
+        let attempt = integration.start_oauth(&"anthropic".into()).await.unwrap();
 
         let request = CallbackRequest {
             attempt: attempt.clone(),
@@ -465,9 +451,7 @@ mod e2e_tests {
         // Send a fake callback.
         let mut client = std::net::TcpStream::connect(("127.0.0.1", port)).unwrap();
         client
-            .write_all(
-                b"GET /callback?code=test-code HTTP/1.1\r\nHost: x\r\n\r\n",
-            )
+            .write_all(b"GET /callback?code=test-code HTTP/1.1\r\nHost: x\r\n\r\n")
             .unwrap();
         // Don't need to read the response; the server writes one
         // before closing.
@@ -481,9 +465,7 @@ mod e2e_tests {
         assert!(!outcome.credential_id.as_str().is_empty());
 
         // Verify the credential was persisted.
-        let cred = integration
-            .get_oauth_attempt(&attempt.id)
-            .await;
+        let cred = integration.get_oauth_attempt(&attempt.id).await;
         // After complete_oauth, the attempt is removed.
         assert!(cred.is_err(), "attempt should be cleared after complete");
     }

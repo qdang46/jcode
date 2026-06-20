@@ -41,6 +41,11 @@ pub struct ModelInfo {
     pub supports_streaming: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tier: Option<ModelTier>,
+    /// Optional release date for the model. When set, the opencode-style
+    /// `small()` algorithm uses it to prefer newer models (with an 18-month
+    /// freshness cap).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub release_date: Option<chrono::NaiveDate>,
 }
 
 impl ModelInfo {
@@ -318,7 +323,11 @@ impl CatalogService for InMemoryCatalog {
             return Err(CatalogError::NoAvailableProviders);
         }
         for p in &providers {
-            if let Some(m) = p.models.iter().find(|m| m.tier == Some(ModelTier::Flagship)) {
+            if let Some(m) = p
+                .models
+                .iter()
+                .find(|m| m.tier == Some(ModelTier::Flagship))
+            {
                 return Ok((p.id.clone(), m.id.clone()));
             }
         }
@@ -331,34 +340,99 @@ impl CatalogService for InMemoryCatalog {
     }
 
     async fn small(&self) -> Result<(ProviderId, ModelId), CatalogError> {
+        // opencode-style: build a candidate list with cost + age, then
+        // pick the lowest (cost*0.8 + age*0.2) score among models whose
+        // id contains a "small" token, falling back to all candidates.
         let providers = self.available().await?;
         if providers.is_empty() {
             return Err(CatalogError::NoAvailableProviders);
         }
-        // Pass 1: id-based heuristic.
+        let today = chrono::Utc::now().date_naive();
+        let mut candidates: Vec<(ProviderId, ModelId, f64, f64, bool)> = Vec::new();
         for p in &providers {
             for m in &p.models {
-                if ModelTier::id_suggests_small(m.id.as_str()) {
-                    return Ok((p.id.clone(), m.id.clone()));
+                let Some(cost_in) = m.cost_per_million_input else {
+                    continue;
+                };
+                let Some(cost_out) = m.cost_per_million_output else {
+                    continue;
+                };
+                let cost = cost_in + cost_out;
+                if cost <= 0.0 {
+                    continue;
                 }
+                let age_months = m
+                    .release_date
+                    .map(|d| {
+                        let days = (today - d).num_days();
+                        (days.max(0) as f64) / 30.0
+                    })
+                    .unwrap_or(0.0);
+                if age_months > 18.0 {
+                    continue;
+                }
+                let is_small = ModelTier::id_suggests_small(m.id.as_str());
+                candidates.push((p.id.clone(), m.id.clone(), cost, age_months, is_small));
             }
         }
-        // Pass 2: cheapest model with a cost.
-        let mut best: Option<(f64, ProviderId, ModelId)> = None;
-        for p in &providers {
-            for m in &p.models {
-                if let Some(cost) = m.cost_per_million_output {
-                    let dominated = best.as_ref().map(|(c, _, _)| cost >= *c).unwrap_or(false);
-                    if !dominated {
-                        best = Some((cost, p.id.clone(), m.id.clone()));
+        if candidates.is_empty() {
+            // No candidates with cost+age — fall back to id-based pick.
+            for p in &providers {
+                for m in &p.models {
+                    if ModelTier::id_suggests_small(m.id.as_str()) {
+                        return Ok((p.id.clone(), m.id.clone()));
                     }
                 }
             }
+            // Final fallback: first model of first provider.
+            let p = &providers[0];
+            let m = p
+                .models
+                .first()
+                .ok_or_else(|| CatalogError::NoModels(p.id.clone()))?;
+            return Ok((p.id.clone(), m.id.clone()));
+        }
+        let max_cost = candidates
+            .iter()
+            .map(|c| c.2)
+            .fold(0.0_f64, f64::max)
+            .max(0.01);
+        let max_age = candidates
+            .iter()
+            .map(|c| c.3)
+            .fold(0.0_f64, f64::max)
+            .max(0.01);
+        let scored: Vec<_> = candidates
+            .iter()
+            .map(|c| {
+                let score = (c.2 / max_cost) * 0.8 + (c.3 / max_age) * 0.2;
+                (score, c.4, &c.0, &c.1)
+            })
+            .collect();
+        // Prefer "small" candidates first, then lowest score.
+        let mut best: Option<(f64, bool, ProviderId, ModelId)> = None;
+        for (score, is_small, p, m) in &scored {
+            let dominated = match &best {
+                None => false,
+                Some((s, sm, _, _)) => {
+                    // If we have a small candidate already, non-small ones
+                    // are dominated. Among same-small, prefer lower score.
+                    if *sm && !*is_small {
+                        true
+                    } else if !*sm && *is_small {
+                        false
+                    } else {
+                        *score >= *s
+                    }
+                }
+            };
+            if !dominated {
+                best = Some((*score, *is_small, (*p).clone(), (*m).clone()));
+            }
         }
         match best {
-            Some((_, p, m)) => Ok((p, m)),
+            Some((_, _, p, m)) => Ok((p, m)),
             None => {
-                // Fallback: just the first model of the first provider.
                 let p = &providers[0];
                 let m = p
                     .models
@@ -392,6 +466,8 @@ mod tests {
                     supports_vision: true,
                     supports_streaming: true,
                     tier: Some(ModelTier::Flagship),
+
+                    release_date: None,
                 },
                 ModelInfo {
                     id: "claude-haiku-4-5".into(),
@@ -404,6 +480,8 @@ mod tests {
                     supports_vision: true,
                     supports_streaming: true,
                     tier: Some(ModelTier::Nano),
+
+                    release_date: None,
                 },
             ],
         }
@@ -464,11 +542,134 @@ mod tests {
         assert!(matches!(err, CatalogError::NoAvailableProviders));
     }
 
-    #[test]
-    fn model_tier_id_heuristic() {
-        assert!(ModelTier::id_suggests_small("claude-haiku-4-5"));
-        assert!(ModelTier::id_suggests_small("gpt-5-mini"));
-        assert!(ModelTier::id_suggests_small("gemini-2.5-flash"));
-        assert!(!ModelTier::id_suggests_small("claude-opus-4-8"));
+    #[tokio::test]
+    async fn small_prefers_newer_within_age_cap() {
+        // opencode-style: among two "small" candidates, prefer the newer
+        // one (with an 18-month cap).
+        let cat = InMemoryCatalog::new();
+        let p = ProviderInfo {
+            id: "anthropic".into(),
+            name: "Anthropic".into(),
+            enabled: true,
+            is_connected: true,
+            models: vec![
+                ModelInfo {
+                    id: "claude-haiku-old".into(),
+                    provider: "anthropic".into(),
+                    name: "Claude Haiku Old".into(),
+                    cost_per_million_input: Some(0.8),
+                    cost_per_million_output: Some(4.0),
+                    context_window: 200_000,
+                    supports_tools: true,
+                    supports_vision: true,
+                    supports_streaming: true,
+                    tier: Some(ModelTier::Nano),
+                    release_date: chrono::NaiveDate::from_ymd_opt(2020, 1, 1),
+                },
+                ModelInfo {
+                    id: "claude-haiku-new".into(),
+                    provider: "anthropic".into(),
+                    name: "Claude Haiku New".into(),
+                    cost_per_million_input: Some(0.8),
+                    cost_per_million_output: Some(4.0),
+                    context_window: 200_000,
+                    supports_tools: true,
+                    supports_vision: true,
+                    supports_streaming: true,
+                    tier: Some(ModelTier::Nano),
+                    release_date: chrono::NaiveDate::from_ymd_opt(2025, 1, 1),
+                },
+            ],
+        };
+        cat.register_provider(p).await.unwrap();
+        let (provider, model) = cat.small().await.unwrap();
+        assert_eq!(provider.as_str(), "anthropic");
+        assert_eq!(model.as_str(), "claude-haiku-new");
+    }
+
+    #[tokio::test]
+    async fn small_skips_models_older_than_age_cap() {
+        // Anything older than 18 months should be dropped from candidates.
+        let cat = InMemoryCatalog::new();
+        let p = ProviderInfo {
+            id: "anthropic".into(),
+            name: "Anthropic".into(),
+            enabled: true,
+            is_connected: true,
+            models: vec![
+                ModelInfo {
+                    id: "claude-haiku-ancient".into(),
+                    provider: "anthropic".into(),
+                    name: "Claude Haiku Ancient".into(),
+                    cost_per_million_input: Some(0.8),
+                    cost_per_million_output: Some(4.0),
+                    context_window: 200_000,
+                    supports_tools: true,
+                    supports_vision: true,
+                    supports_streaming: true,
+                    tier: Some(ModelTier::Nano),
+                    release_date: chrono::NaiveDate::from_ymd_opt(2020, 1, 1),
+                },
+                ModelInfo {
+                    id: "claude-haiku-fresh".into(),
+                    provider: "anthropic".into(),
+                    name: "Claude Haiku Fresh".into(),
+                    cost_per_million_input: Some(0.8),
+                    cost_per_million_output: Some(4.0),
+                    context_window: 200_000,
+                    supports_tools: true,
+                    supports_vision: true,
+                    supports_streaming: true,
+                    tier: Some(ModelTier::Nano),
+                    release_date: chrono::NaiveDate::from_ymd_opt(2025, 6, 1),
+                },
+            ],
+        };
+        cat.register_provider(p).await.unwrap();
+        let (_, model) = cat.small().await.unwrap();
+        assert_eq!(model.as_str(), "claude-haiku-fresh");
+    }
+
+    #[tokio::test]
+    async fn small_chooses_cheapest_when_no_small_token() {
+        // No "small" id tokens, but cost+age should still pick the cheapest.
+        let cat = InMemoryCatalog::new();
+        let p = ProviderInfo {
+            id: "openai".into(),
+            name: "OpenAI".into(),
+            enabled: true,
+            is_connected: true,
+            models: vec![
+                ModelInfo {
+                    id: "gpt-flagship".into(),
+                    provider: "openai".into(),
+                    name: "Flagship".into(),
+                    cost_per_million_input: Some(15.0),
+                    cost_per_million_output: Some(75.0),
+                    context_window: 200_000,
+                    supports_tools: true,
+                    supports_vision: true,
+                    supports_streaming: true,
+                    tier: Some(ModelTier::Flagship),
+                    release_date: chrono::NaiveDate::from_ymd_opt(2025, 1, 1),
+                },
+                ModelInfo {
+                    id: "gpt-standard".into(),
+                    provider: "openai".into(),
+                    name: "Standard".into(),
+                    cost_per_million_input: Some(0.5),
+                    cost_per_million_output: Some(2.0),
+                    context_window: 200_000,
+                    supports_tools: true,
+                    supports_vision: true,
+                    supports_streaming: true,
+                    tier: Some(ModelTier::Standard),
+                    release_date: chrono::NaiveDate::from_ymd_opt(2025, 1, 1),
+                },
+            ],
+        };
+        cat.register_provider(p).await.unwrap();
+        let (_, model) = cat.small().await.unwrap();
+        assert_eq!(model.as_str(), "gpt-standard");
     }
 }

@@ -68,11 +68,7 @@ impl ProviderDefaults {
     /// 1. Per-provider override.
     /// 2. Global default (if its provider matches).
     /// 3. The provided fallback (from Catalog::default()).
-    pub fn resolve(
-        &self,
-        provider: &ProviderId,
-        fallback: Option<ModelId>,
-    ) -> Option<ModelId> {
+    pub fn resolve(&self, provider: &ProviderId, fallback: Option<ModelId>) -> Option<ModelId> {
         if let Some(m) = self.per_provider.get(provider) {
             return Some(m.clone());
         }
@@ -96,7 +92,11 @@ pub enum DefaultsError {
 /// Default path: `~/.jcode/provider-defaults.json`.
 pub fn default_path() -> Option<PathBuf> {
     let home = std::env::var_os("HOME")?;
-    Some(PathBuf::from(home).join(".jcode").join("provider-defaults.json"))
+    Some(
+        PathBuf::from(home)
+            .join(".jcode")
+            .join("provider-defaults.json"),
+    )
 }
 
 #[cfg(test)]

@@ -142,7 +142,12 @@ mod tests {
     fn is_actionable_distinguishes_fresh_from_soon() {
         assert!(!ExpiryStatus::Fresh.is_actionable());
         assert!(!ExpiryStatus::NoExpiry.is_actionable());
-        assert!(ExpiryStatus::Soon { remaining: Duration::seconds(1) }.is_actionable());
+        assert!(
+            ExpiryStatus::Soon {
+                remaining: Duration::seconds(1)
+            }
+            .is_actionable()
+        );
         assert!(ExpiryStatus::Expired.is_actionable());
     }
 }

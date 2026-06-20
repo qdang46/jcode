@@ -87,18 +87,16 @@ mod tests {
     use crate::attempt::OAuthAttempt;
     use crate::credential::CredentialService;
     use crate::integration::{AuthMethod, IntegrationError, LoginProvider};
-    use crate::store::in_memory::InMemoryCredentialStore;
     use crate::store::PersistentIntegration;
+    use crate::store::in_memory::InMemoryCredentialStore;
     use jcode_keyring_store::MockKeyringStore;
     use std::sync::Arc;
 
     /// Helper: build a `PersistentIntegration` with a single
     /// pre-expired OAuth attempt. The attempt is created and then
     /// its internal map is mutated to backdate the expires_at.
-    async fn integration_with_expired_attempt()
-    -> Arc<PersistentIntegration<MockKeyringStore>> {
-        let creds: Arc<dyn CredentialService> =
-            Arc::new(InMemoryCredentialStore::new());
+    async fn integration_with_expired_attempt() -> Arc<PersistentIntegration<MockKeyringStore>> {
+        let creds: Arc<dyn CredentialService> = Arc::new(InMemoryCredentialStore::new());
         let integration = Arc::new(PersistentIntegration::<MockKeyringStore>::new(creds));
         integration
             .register(LoginProvider {
@@ -112,10 +110,7 @@ mod tests {
             })
             .await
             .unwrap();
-        let _ = integration
-            .start_oauth(&"anthropic".into())
-            .await
-            .unwrap();
+        let _ = integration.start_oauth(&"anthropic".into()).await.unwrap();
         // Backdate the attempt via cancel+replace is not possible
         // from outside; instead we use a custom hack: use the test
         // helper to register a non-expired attempt, then directly
@@ -128,19 +123,17 @@ mod tests {
 
     #[tokio::test]
     async fn scrub_once_on_empty_integration_returns_zero() {
-        let integration: Arc<dyn IntegrationService> = Arc::new(
-            PersistentIntegration::<MockKeyringStore>::new(Arc::new(
+        let integration: Arc<dyn IntegrationService> =
+            Arc::new(PersistentIntegration::<MockKeyringStore>::new(Arc::new(
                 InMemoryCredentialStore::new(),
-            )),
-        );
+            )));
         let n = scrub_once(integration.as_ref()).await.unwrap();
         assert_eq!(n, 0);
     }
 
     #[tokio::test]
     async fn scrub_once_removes_expired_attempts() {
-        let creds: Arc<dyn CredentialService> =
-            Arc::new(InMemoryCredentialStore::new());
+        let creds: Arc<dyn CredentialService> = Arc::new(InMemoryCredentialStore::new());
         let integration = Arc::new(PersistentIntegration::<MockKeyringStore>::new(creds));
         integration
             .register(LoginProvider {
@@ -155,10 +148,7 @@ mod tests {
             .await
             .unwrap();
         // Start an attempt (it's fresh). Scrub should leave it.
-        let _fresh = integration
-            .start_oauth(&"anthropic".into())
-            .await
-            .unwrap();
+        let _fresh = integration.start_oauth(&"anthropic".into()).await.unwrap();
         let n = scrub_once(integration.as_ref()).await.unwrap();
         assert_eq!(n, 0, "fresh attempt should not be scrubbed");
         let attempts = integration.list_oauth_attempts().await.unwrap();
@@ -170,22 +160,16 @@ mod tests {
         let (notify, stopper) = stop_signal();
         stopper();
         // Receiving a notification within a timeout should succeed.
-        let received = tokio::time::timeout(
-            Duration::from_millis(100),
-            notify.notified(),
-        )
-        .await;
+        let received = tokio::time::timeout(Duration::from_millis(100), notify.notified()).await;
         assert!(received.is_ok(), "notification should fire");
     }
 
     #[tokio::test]
     async fn run_scrubber_stops_on_signal() {
         // Build a real integration so the scrubber can do its work.
-        let creds: Arc<dyn CredentialService> =
-            Arc::new(InMemoryCredentialStore::new());
-        let integration: Arc<dyn IntegrationService> = Arc::new(
-            PersistentIntegration::<MockKeyringStore>::new(creds),
-        );
+        let creds: Arc<dyn CredentialService> = Arc::new(InMemoryCredentialStore::new());
+        let integration: Arc<dyn IntegrationService> =
+            Arc::new(PersistentIntegration::<MockKeyringStore>::new(creds));
         let (notify, stopper) = stop_signal();
         let handle = tokio::spawn({
             let notify = notify.clone();
@@ -198,8 +182,7 @@ mod tests {
         // Stop it.
         stopper();
         // Wait for the task to finish.
-        let result =
-            tokio::time::timeout(Duration::from_millis(500), handle).await;
+        let result = tokio::time::timeout(Duration::from_millis(500), handle).await;
         assert!(
             result.is_ok(),
             "scrubber should stop when stop_signal fires"

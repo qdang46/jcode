@@ -120,11 +120,7 @@ pub struct Credential {
 impl Credential {
     /// Construct a new credential. `created_at` is set to now; `updated_at`
     /// is left unset.
-    pub fn new(
-        provider: ProviderId,
-        label: impl Into<String>,
-        credential: CredentialType,
-    ) -> Self {
+    pub fn new(provider: ProviderId, label: impl Into<String>, credential: CredentialType) -> Self {
         Self {
             id: CredentialId::new(uuid_like()).expect("non-empty uuid"),
             provider,
@@ -222,9 +218,7 @@ mod tests {
         let c = Credential::new(
             "anthropic".into(),
             "work",
-            CredentialType::ApiKey {
-                key: "sk-x".into(),
-            },
+            CredentialType::ApiKey { key: "sk-x".into() },
         );
         assert_eq!(c.provider.as_str(), "anthropic");
         assert_eq!(c.label, "work");

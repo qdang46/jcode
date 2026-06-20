@@ -99,7 +99,10 @@ pub enum ConnectionStatus {
     /// Carries the source (env var name) for diagnostics.
     InlineEnv { env_var: String },
     /// API key persisted in the credential store.
-    ApiKey { credential_id: CredentialId, label: String },
+    ApiKey {
+        credential_id: CredentialId,
+        label: String,
+    },
     /// OAuth login present, valid (or refreshable).
     OAuth {
         credential_id: CredentialId,
@@ -119,7 +122,9 @@ impl ConnectionStatus {
             Self::NotConfigured => "not configured".into(),
             Self::InlineEnv { env_var } => format!("env:{}", env_var),
             Self::ApiKey { label, .. } => format!("api key:{}", label),
-            Self::OAuth { label, expires_at, .. } => match expires_at {
+            Self::OAuth {
+                label, expires_at, ..
+            } => match expires_at {
                 Some(t) => format!("oauth:{} (expires {})", label, t),
                 None => format!("oauth:{}", label),
             },
@@ -167,16 +172,10 @@ pub trait IntegrationService: Send + Sync {
 
     /// Start an OAuth attempt for a provider. Returns the attempt record
     /// (with its TTL) so the caller can drive the browser flow.
-    async fn start_oauth(
-        &self,
-        id: &ProviderId,
-    ) -> Result<OAuthAttempt, IntegrationError>;
+    async fn start_oauth(&self, id: &ProviderId) -> Result<OAuthAttempt, IntegrationError>;
 
     /// Look up an in-flight OAuth attempt.
-    async fn get_oauth_attempt(
-        &self,
-        attempt_id: &str,
-    ) -> Result<OAuthAttempt, IntegrationError>;
+    async fn get_oauth_attempt(&self, attempt_id: &str) -> Result<OAuthAttempt, IntegrationError>;
 
     /// Finalize an OAuth attempt with the received credentials.
     /// Stores the credential via the [`crate::credential::CredentialService`]
@@ -259,10 +258,7 @@ impl IntegrationService for InMemoryIntegration {
         Ok(ConnectionStatus::NotConfigured)
     }
 
-    async fn start_oauth(
-        &self,
-        id: &ProviderId,
-    ) -> Result<OAuthAttempt, IntegrationError> {
+    async fn start_oauth(&self, id: &ProviderId) -> Result<OAuthAttempt, IntegrationError> {
         let provider = self.get(id).await?;
         let method = provider
             .oauth_method()
@@ -276,10 +272,7 @@ impl IntegrationService for InMemoryIntegration {
         Ok(attempt)
     }
 
-    async fn get_oauth_attempt(
-        &self,
-        attempt_id: &str,
-    ) -> Result<OAuthAttempt, IntegrationError> {
+    async fn get_oauth_attempt(&self, attempt_id: &str) -> Result<OAuthAttempt, IntegrationError> {
         let map = self.attempts.lock().await;
         map.get(attempt_id)
             .cloned()

@@ -16,7 +16,7 @@
 //!                                testing)
 
 use std::collections::HashSet;
-use std::io::{stdout, Stdout};
+use std::io::{Stdout, stdout};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -24,8 +24,9 @@ use anyhow::Result;
 use crossterm::event::{self, Event, KeyCode, KeyEventKind};
 use crossterm::execute;
 use crossterm::terminal::{
-    disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
+    EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode,
 };
+use jcode_keyring_store::{DefaultKeyringStore, MockKeyringStore};
 use jcode_provider_service::catalog::CatalogService;
 use jcode_provider_service::integration::IntegrationService;
 use jcode_provider_service::service::ProviderService;
@@ -33,13 +34,12 @@ use jcode_provider_service::store::DefaultProviderService;
 use jcode_provider_service::tui_picker::{Filter, PickerState, RowOrigin};
 use jcode_provider_service::types::ModelId;
 use jcode_provider_service::types::ProviderId;
-use jcode_keyring_store::{DefaultKeyringStore, MockKeyringStore};
+use ratatui::Terminal;
 use ratatui::backend::CrosstermBackend;
 use ratatui::layout::{Constraint, Direction, Layout};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, List, ListItem, Paragraph};
-use ratatui::Terminal;
 
 type Term = Terminal<CrosstermBackend<Stdout>>;
 
@@ -57,18 +57,15 @@ async fn build_service() -> Result<DefaultProviderService> {
     // picker can be exercised without touching the real OS keychain.
     let svc = if std::env::var("MOCK_KEYRING").is_ok() {
         let keyring = Arc::new(MockKeyringStore::new());
-        let credentials: Arc<dyn jcode_provider_service::credential::CredentialService> =
-            Arc::new(jcode_provider_service::store::KeyringCredentialStore::new(
-                keyring,
-            ));
-        let integration: Arc<dyn IntegrationService> = Arc::new(
-            jcode_provider_service::store::PersistentIntegration::<MockKeyringStore>::new(
-                credentials.clone(),
-            ),
+        let credentials: Arc<dyn jcode_provider_service::credential::CredentialService> = Arc::new(
+            jcode_provider_service::store::KeyringCredentialStore::new(keyring),
         );
-        let catalog: Arc<dyn CatalogService> = Arc::new(
-            jcode_provider_service::catalog::InMemoryCatalog::new(),
-        );
+        let integration: Arc<dyn IntegrationService> =
+            Arc::new(jcode_provider_service::store::PersistentIntegration::<
+                MockKeyringStore,
+            >::new(credentials.clone()));
+        let catalog: Arc<dyn CatalogService> =
+            Arc::new(jcode_provider_service::catalog::InMemoryCatalog::new());
         jcode_provider_service::boot::register_builtins::<MockKeyringStore>(
             catalog.as_ref(),
             integration.as_ref(),
@@ -77,18 +74,15 @@ async fn build_service() -> Result<DefaultProviderService> {
         DefaultProviderService::new(catalog, integration, credentials)
     } else {
         let keyring = Arc::new(DefaultKeyringStore::new());
-        let credentials: Arc<dyn jcode_provider_service::credential::CredentialService> =
-            Arc::new(jcode_provider_service::store::KeyringCredentialStore::new(
-                keyring,
-            ));
-        let integration: Arc<dyn IntegrationService> = Arc::new(
-            jcode_provider_service::store::PersistentIntegration::<DefaultKeyringStore>::new(
-                credentials.clone(),
-            ),
+        let credentials: Arc<dyn jcode_provider_service::credential::CredentialService> = Arc::new(
+            jcode_provider_service::store::KeyringCredentialStore::new(keyring),
         );
-        let catalog: Arc<dyn CatalogService> = Arc::new(
-            jcode_provider_service::catalog::InMemoryCatalog::new(),
-        );
+        let integration: Arc<dyn IntegrationService> =
+            Arc::new(jcode_provider_service::store::PersistentIntegration::<
+                DefaultKeyringStore,
+            >::new(credentials.clone()));
+        let catalog: Arc<dyn CatalogService> =
+            Arc::new(jcode_provider_service::catalog::InMemoryCatalog::new());
         jcode_provider_service::boot::register_builtins::<DefaultKeyringStore>(
             catalog.as_ref(),
             integration.as_ref(),
@@ -135,7 +129,15 @@ async fn run<B: ratatui::backend::Backend>(
         Vec<(ProviderId, ModelId)>,
     ) = if let Some(path) = jcode_provider_service::model_prefs::default_path() {
         jcode_provider_service::model_prefs::ModelPrefs::load(&path)
-            .map(|p| (p.favorites_set(), p.recents.iter().map(|e| (e.provider.clone(), e.model.clone())).collect::<Vec<_>>()))
+            .map(|p| {
+                (
+                    p.favorites_set(),
+                    p.recents
+                        .iter()
+                        .map(|e| (e.provider.clone(), e.model.clone()))
+                        .collect::<Vec<_>>(),
+                )
+            })
             .unwrap_or_default()
     } else {
         (std::collections::HashSet::new(), Vec::new())
@@ -203,8 +205,8 @@ async fn run<B: ratatui::backend::Backend>(
                     ListItem::new(Line::from(Span::styled(line, style)))
                 })
                 .collect();
-            let list = List::new(items)
-                .block(Block::default().borders(Borders::ALL).title(" Models "));
+            let list =
+                List::new(items).block(Block::default().borders(Borders::ALL).title(" Models "));
             f.render_widget(list, chunks[1]);
 
             let footer = if filter_mode {
@@ -212,8 +214,7 @@ async fn run<B: ratatui::backend::Backend>(
                     .block(Block::default().borders(Borders::ALL).title(" Filter "))
             } else {
                 let hint = "↑/↓ move  / filter  enter select  f favorite  q quit";
-                Paragraph::new(hint)
-                    .block(Block::default().borders(Borders::ALL).title(" Keys "))
+                Paragraph::new(hint).block(Block::default().borders(Borders::ALL).title(" Keys "))
             };
             f.render_widget(footer, chunks[2]);
         })?;
@@ -253,20 +254,16 @@ async fn run<B: ratatui::backend::Backend>(
                             // Rebuild with the new favorites set.
                             let favorites = state.favorites.clone();
                             state
-                                .rebuild_rows(
-                                    svc.catalog(),
-                                    &connected,
-                                    &favorites,
-                                )
+                                .rebuild_rows(svc.catalog(), &connected, &favorites)
                                 .await?;
                             // Persist favorites to ~/.jcode/model_prefs.json
                             // (per the plan: 'f' toggles favorite,
                             // persisted to model_prefs.json).
-                            if let Some(path) =
-                                jcode_provider_service::model_prefs::default_path()
+                            if let Some(path) = jcode_provider_service::model_prefs::default_path()
                             {
-                                let mut prefs = jcode_provider_service::model_prefs::ModelPrefs::load(&path)
-                                    .unwrap_or_default();
+                                let mut prefs =
+                                    jcode_provider_service::model_prefs::ModelPrefs::load(&path)
+                                        .unwrap_or_default();
                                 // Sync in-memory favorites to disk.
                                 prefs.favorites = state
                                     .favorites
@@ -306,12 +303,12 @@ async fn run<B: ratatui::backend::Backend>(
 
 #[cfg(test)]
 mod tests {
-    use jcode_provider_service::boot::{register_builtins, BUILTIN_PROVIDERS};
+    use jcode_keyring_store::MockKeyringStore;
+    use jcode_provider_service::boot::{BUILTIN_PROVIDERS, register_builtins};
     use jcode_provider_service::catalog::{InMemoryCatalog, ModelTier};
     use jcode_provider_service::integration::InMemoryIntegration;
     use jcode_provider_service::tui_picker::{Filter, PickerState, RowOrigin};
-use jcode_provider_service::types::ModelId;
-    use jcode_keyring_store::MockKeyringStore;
+    use jcode_provider_service::types::ModelId;
     use std::collections::HashSet;
 
     #[tokio::test]

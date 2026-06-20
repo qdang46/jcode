@@ -88,8 +88,7 @@ impl Hooks {
             // The hook closure is sync; if a consumer needs async
             // they can spawn internally. We catch panics to keep
             // the boot path robust.
-            let result =
-                std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| hook(ctx)));
+            let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| hook(ctx)));
             if let Err(e) = result {
                 tracing::warn!(hook_index = i, error = ?e, "hook panicked");
             }
@@ -115,13 +114,10 @@ mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering};
 
     fn svc() -> (Arc<dyn CatalogService>, Arc<dyn IntegrationService>) {
-        let creds: Arc<dyn CredentialService> =
-            Arc::new(InMemoryCredentialStore::new());
-        let integration: Arc<dyn IntegrationService> = Arc::new(
-            PersistentIntegration::<MockKeyringStore>::new(creds),
-        );
-        let catalog: Arc<dyn CatalogService> =
-            Arc::new(InMemoryCatalog::new());
+        let creds: Arc<dyn CredentialService> = Arc::new(InMemoryCredentialStore::new());
+        let integration: Arc<dyn IntegrationService> =
+            Arc::new(PersistentIntegration::<MockKeyringStore>::new(creds));
+        let catalog: Arc<dyn CatalogService> = Arc::new(InMemoryCatalog::new());
         (catalog, integration)
     }
 
@@ -175,8 +171,7 @@ mod tests {
             // Use the runtime to register a custom provider; this
             // is a sync call but the hook closure is sync so it's
             // fine.
-            let runtime =
-                tokio::runtime::Handle::try_current().ok();
+            let runtime = tokio::runtime::Handle::try_current().ok();
             if let Some(h) = runtime {
                 h.block_on(async {
                     let _ = ctx

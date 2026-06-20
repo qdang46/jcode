@@ -25,26 +25,26 @@ pub mod aliases;
 pub mod attempt;
 pub mod boot;
 pub mod callback_server;
-#[cfg(feature = "metadata")]
-pub mod metadata_profiles;
-pub mod model_prefs;
 pub mod catalog;
 pub mod credential;
 pub mod credential_rotation;
 pub mod defaults;
-pub mod expiry;
 pub mod error_classify;
+pub mod expiry;
 pub mod failover;
 pub mod hooks;
 pub mod idle_stream;
 pub mod integration;
 #[cfg(feature = "inventory")]
 pub mod inventory;
+#[cfg(feature = "metadata")]
+pub mod metadata_profiles;
 pub mod migrate;
+pub mod model_prefs;
 pub mod refresh;
-pub mod retry_after;
 pub mod registry;
 pub mod retrofit;
+pub mod retry_after;
 pub mod runtime;
 pub mod scrub;
 pub mod service;
@@ -52,9 +52,9 @@ pub mod store;
 pub mod tui_picker;
 pub mod types;
 
+pub use attempt::{AttemptStatus, OAuthAttempt};
 pub use catalog::{CatalogService, ModelInfo, ProviderInfo};
 pub use credential::{Credential, CredentialId, CredentialService, CredentialType};
-pub use attempt::{AttemptStatus, OAuthAttempt};
 pub use integration::{AuthMethod, ConnectionStatus, IntegrationService, LoginProvider};
 pub use service::{ProviderService, ResolvedRoute, RouteResolver};
 pub use types::{ModelId, ProviderId, ProviderProfile};

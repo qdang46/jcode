@@ -23,7 +23,7 @@
 
 use std::sync::Arc;
 
-use jcode_provider_metadata::{openai_compatible_profiles, OpenAiCompatibleProfile};
+use jcode_provider_metadata::{OpenAiCompatibleProfile, openai_compatible_profiles};
 
 use crate::catalog::ModelInfo;
 use crate::integration::{AuthMethod, LoginProvider};
@@ -53,10 +53,7 @@ pub fn profile_to_login_provider(p: &OpenAiCompatibleProfile) -> LoginProvider {
 /// model the profile declares. Most profiles declare exactly one
 /// default; multi-model profiles (e.g. openrouter) get multiple.
 pub fn profile_to_model(p: &OpenAiCompatibleProfile) -> Vec<ModelInfo> {
-    let default_model = ModelId::from(
-        p.default_model
-            .unwrap_or_else(|| p.id),
-    );
+    let default_model = ModelId::from(p.default_model.unwrap_or_else(|| p.id));
     vec![ModelInfo {
         id: default_model,
         provider: profile_id(p),
@@ -68,6 +65,8 @@ pub fn profile_to_model(p: &OpenAiCompatibleProfile) -> Vec<ModelInfo> {
         supports_vision: false,
         supports_streaming: true,
         tier: None,
+
+        release_date: None,
     }]
 }
 
@@ -153,7 +152,11 @@ mod tests {
         let rec = profile_to_record(p);
         assert_eq!(rec.id.as_str(), "deepseek");
         assert_eq!(rec.env_keys, vec!["DEEPSEEK_API_KEY".to_string()]);
-        assert!(rec.models.iter().any(|m| m.id.as_str() == "deepseek-v4-flash"));
+        assert!(
+            rec.models
+                .iter()
+                .any(|m| m.id.as_str() == "deepseek-v4-flash")
+        );
     }
 
     #[test]
@@ -173,17 +176,11 @@ mod tests {
         let registry = metadata_registry();
         let catalog = InMemoryCatalog::new();
         let integration = InMemoryIntegration::new();
-        let n = registry
-            .register(&catalog, &integration)
-            .await
-            .unwrap();
+        let n = registry.register(&catalog, &integration).await.unwrap();
         // 4 builtins + 36 metadata profiles = 40 providers.
         assert_eq!(n, 40);
         // The deepseek profile should be in the catalog.
-        catalog
-            .provider(&"deepseek".into())
-            .await
-            .unwrap();
+        catalog.provider(&"deepseek".into()).await.unwrap();
         // And in the integration.
         integration.get(&"deepseek".into()).await.unwrap();
     }
@@ -218,15 +215,10 @@ mod tests {
             .map(|p| p.id)
             .collect();
         let metadata_records = all_metadata_records();
-        let metadata_ids: Vec<&str> = metadata_records
-            .iter()
-            .map(|r| r.id.as_str())
-            .collect();
+        let metadata_ids: Vec<&str> = metadata_records.iter().map(|r| r.id.as_str()).collect();
         let builtin_set: std::collections::HashSet<&str> = builtin_ids.iter().copied().collect();
         let metadata_set: std::collections::HashSet<&str> = metadata_ids.iter().copied().collect();
-        let overlap: Vec<&&str> = builtin_set
-            .intersection(&metadata_set)
-            .collect();
+        let overlap: Vec<&&str> = builtin_set.intersection(&metadata_set).collect();
         // The overlap is what makes the resolution non-trivial;
         // verify the documented case.
         assert!(
@@ -240,9 +232,18 @@ mod tests {
         // The id is the metadata's `id` field, which is a stable
         // string literal. Verify the relationship holds for a
         // hand-picked sample.
-        assert_eq!(profile_id(&jcode_provider_metadata::KIMI_PROFILE).as_str(), "kimi");
-        assert_eq!(profile_id(&jcode_provider_metadata::OLLAMA_PROFILE).as_str(), "ollama");
-        assert_eq!(profile_id(&jcode_provider_metadata::XAI_PROFILE).as_str(), "xai");
+        assert_eq!(
+            profile_id(&jcode_provider_metadata::KIMI_PROFILE).as_str(),
+            "kimi"
+        );
+        assert_eq!(
+            profile_id(&jcode_provider_metadata::OLLAMA_PROFILE).as_str(),
+            "ollama"
+        );
+        assert_eq!(
+            profile_id(&jcode_provider_metadata::XAI_PROFILE).as_str(),
+            "xai"
+        );
     }
 
     // Smoke test: ensure the MockKeyringStore type is importable so

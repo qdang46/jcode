@@ -274,6 +274,8 @@ mod tests {
                     supports_vision: true,
                     supports_streaming: true,
                     tier: Some(CatalogTier::Flagship),
+
+                    release_date: None,
                 },
                 ModelInfo {
                     id: "claude-sonnet-4-6".into(),
@@ -286,6 +288,8 @@ mod tests {
                     supports_vision: true,
                     supports_streaming: true,
                     tier: Some(CatalogTier::Standard),
+
+                    release_date: None,
                 },
                 ModelInfo {
                     id: "claude-haiku-4-5".into(),
@@ -298,6 +302,8 @@ mod tests {
                     supports_vision: true,
                     supports_streaming: true,
                     tier: Some(CatalogTier::Nano),
+
+                    release_date: None,
                 },
             ],
         })
@@ -375,10 +381,7 @@ mod tests {
     async fn user_alias_overrides_builtin() {
         let cat = catalog().await;
         let mut user = UserAliases::new();
-        user.set(
-            "opus",
-            ("openai".into(), "gpt-5.1".into()),
-        );
+        user.set("opus", ("openai".into(), "gpt-5.1".into()));
         let table = AliasTable::with_builtins().with(AliasRule {
             pattern: "opus".into(),
             specific: Some(("openai".into(), "gpt-5.1".into())),
@@ -418,7 +421,9 @@ mod tests {
     fn patterns_lists_all_builtins() {
         let t = AliasTable::with_builtins();
         let patterns = t.patterns();
-        for expected in ["haiku", "opus", "sonnet", "nano", "mini", "best", "max", "pro", "free"] {
+        for expected in [
+            "haiku", "opus", "sonnet", "nano", "mini", "best", "max", "pro", "free",
+        ] {
             assert!(patterns.contains(&expected), "missing {expected}");
         }
     }

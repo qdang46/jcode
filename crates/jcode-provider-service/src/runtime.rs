@@ -76,19 +76,14 @@ pub async fn start_session(
 
     // 1. Explicit CLI override.
     if let (Some(profile), Some(model)) = (cli_profile, cli_model) {
-        let (provider, resolved_model) = svc
-            .resolver()
-            .resolve_profile(profile, Some(model))
-            .await?;
+        let (provider, resolved_model) =
+            svc.resolver().resolve_profile(profile, Some(model)).await?;
         return finish(svc, provider, resolved_model).await;
     }
 
     // 2-3. Persisted defaults.
     if let Some(profile) = cli_profile {
-        let (provider, base_model) = svc
-            .resolver()
-            .resolve_profile(profile, None)
-            .await?;
+        let (provider, base_model) = svc.resolver().resolve_profile(profile, None).await?;
         let resolved = defaults
             .as_ref()
             .and_then(|d| d.resolve(&provider, Some(base_model.clone())))
@@ -114,10 +109,7 @@ async fn finish(
     provider: ProviderId,
     model: ModelId,
 ) -> Result<Session, SessionError> {
-    let ResolvedRoute { route, .. } = svc
-        .resolver()
-        .resolve_route(&provider, &model)
-        .await?;
+    let ResolvedRoute { route, .. } = svc.resolver().resolve_route(&provider, &model).await?;
     // Record the selection in the persistent recents so the next
     // session can surface it (per the plan: model picker surfaces
     // recents after favorites).
@@ -167,26 +159,19 @@ pub async fn quick_session(
     use jcode_keyring_store::DefaultKeyringStore;
 
     let keyring = Arc::new(DefaultKeyringStore::new());
-    let credentials: Arc<dyn crate::credential::CredentialService> = Arc::new(
-        crate::store::KeyringCredentialStore::new(keyring),
-    );
+    let credentials: Arc<dyn crate::credential::CredentialService> =
+        Arc::new(crate::store::KeyringCredentialStore::new(keyring));
     let integration: Arc<dyn crate::integration::IntegrationService> = Arc::new(
-        crate::store::PersistentIntegration::<DefaultKeyringStore>::new(
-            credentials.clone(),
-        ),
+        crate::store::PersistentIntegration::<DefaultKeyringStore>::new(credentials.clone()),
     );
     let catalog: Arc<dyn crate::catalog::CatalogService> =
         Arc::new(crate::catalog::InMemoryCatalog::new());
-    crate::boot::register_builtins::<DefaultKeyringStore>(
-        catalog.as_ref(),
-        integration.as_ref(),
-    )
-    .await
-    .map_err(|e| SessionError::Defaults(e.to_string()))?;
+    crate::boot::register_builtins::<DefaultKeyringStore>(catalog.as_ref(), integration.as_ref())
+        .await
+        .map_err(|e| SessionError::Defaults(e.to_string()))?;
     let svc = DefaultProviderService::new(catalog, integration, credentials);
 
-    let profile = cli_provider
-        .map(|p| ProviderProfile::ById { id: p.into() });
+    let profile = cli_provider.map(|p| ProviderProfile::ById { id: p.into() });
     let model = cli_model.map(|m| ModelId::from(m));
     start_session(&svc, profile.as_ref(), model.as_ref()).await
 }
@@ -194,13 +179,13 @@ pub async fn quick_session(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::catalog::CatalogService;
-    use crate::store::PersistentIntegration;
     use super::*;
+    use crate::catalog::CatalogService;
     use crate::catalog::{InMemoryCatalog, ModelInfo, ModelTier, ProviderInfo};
     use crate::defaults::ProviderDefaults;
     use crate::integration::{AuthMethod, InMemoryIntegration, LoginProvider};
     use crate::store::KeyringCredentialStore;
+    use crate::store::PersistentIntegration;
     use jcode_keyring_store::MockKeyringStore;
 
     async fn fixture() -> DefaultProviderService {
@@ -222,6 +207,8 @@ mod tests {
                     supports_vision: true,
                     supports_streaming: true,
                     tier: Some(ModelTier::Nano),
+
+                    release_date: None,
                 }],
             })
             .await
@@ -229,8 +216,9 @@ mod tests {
         let keyring = Arc::new(MockKeyringStore::new());
         let creds: Arc<dyn crate::credential::CredentialService> =
             Arc::new(KeyringCredentialStore::new(keyring));
-        let integration: Arc<dyn crate::integration::IntegrationService> =
-            Arc::new(PersistentIntegration::<MockKeyringStore>::new(creds.clone()));
+        let integration: Arc<dyn crate::integration::IntegrationService> = Arc::new(
+            PersistentIntegration::<MockKeyringStore>::new(creds.clone()),
+        );
         integration
             .register(LoginProvider {
                 id: "anthropic".into(),

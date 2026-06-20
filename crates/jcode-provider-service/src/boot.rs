@@ -18,18 +18,12 @@
 
 use std::sync::Arc;
 
-
-
-use crate::catalog::{
-    CatalogService, ModelInfo, ModelTier, ProviderInfo,
-};
-use crate::integration::{
-    AuthMethod, IntegrationService, LoginProvider,
-};
+use crate::catalog::{CatalogService, ModelInfo, ModelTier, ProviderInfo};
+use crate::integration::{AuthMethod, IntegrationService, LoginProvider};
 use crate::store::KeyringCredentialStore;
 use crate::types::ProviderId;
-use jcode_llm_core::route::PreparedRoute;
 use jcode_keyring_store::KeyringStore;
+use jcode_llm_core::route::PreparedRoute;
 
 /// The protocol identifier for a provider.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -77,6 +71,9 @@ pub struct BuiltinModel {
     pub supports_vision: bool,
     pub supports_streaming: bool,
     pub tier: ModelTier,
+    /// Optional release date. Used by the opencode-style `small()` heuristic
+    /// to prefer newer models (18-month cap).
+    pub release_date: Option<chrono::NaiveDate>,
 }
 
 /// The seven providers the master plan names, with their canonical
@@ -99,6 +96,7 @@ pub const BUILTIN_PROVIDERS: &[BuiltinProvider] = &[
                 supports_vision: true,
                 supports_streaming: true,
                 tier: ModelTier::Flagship,
+                release_date: None,
             },
             BuiltinModel {
                 id: "claude-sonnet-4-6",
@@ -110,6 +108,7 @@ pub const BUILTIN_PROVIDERS: &[BuiltinProvider] = &[
                 supports_vision: true,
                 supports_streaming: true,
                 tier: ModelTier::Standard,
+                release_date: None,
             },
             BuiltinModel {
                 id: "claude-haiku-4-5",
@@ -121,6 +120,7 @@ pub const BUILTIN_PROVIDERS: &[BuiltinProvider] = &[
                 supports_vision: true,
                 supports_streaming: true,
                 tier: ModelTier::Nano,
+                release_date: None,
             },
         ],
     },
@@ -141,6 +141,7 @@ pub const BUILTIN_PROVIDERS: &[BuiltinProvider] = &[
                 supports_vision: true,
                 supports_streaming: true,
                 tier: ModelTier::Flagship,
+                release_date: None,
             },
             BuiltinModel {
                 id: "gpt-5-mini",
@@ -152,6 +153,7 @@ pub const BUILTIN_PROVIDERS: &[BuiltinProvider] = &[
                 supports_vision: true,
                 supports_streaming: true,
                 tier: ModelTier::Mini,
+                release_date: None,
             },
         ],
     },
@@ -171,6 +173,7 @@ pub const BUILTIN_PROVIDERS: &[BuiltinProvider] = &[
             supports_vision: false,
             supports_streaming: true,
             tier: ModelTier::Flagship,
+            release_date: None,
         }],
     },
     BuiltinProvider {
@@ -189,6 +192,7 @@ pub const BUILTIN_PROVIDERS: &[BuiltinProvider] = &[
             supports_vision: true,
             supports_streaming: true,
             tier: ModelTier::Flagship,
+            release_date: None,
         }],
     },
 ];
@@ -250,6 +254,7 @@ pub async fn register_catalog(
                     supports_vision: m.supports_vision,
                     supports_streaming: m.supports_streaming,
                     tier: Some(m.tier),
+                    release_date: m.release_date,
                 })
                 .collect(),
         })
@@ -282,12 +287,8 @@ pub fn builtin_route(bp: &BuiltinProvider, model_id: &str) -> Option<PreparedRou
     // string and other metadata stay in lockstep with the actual
     // protocol implementation.
     let mut r = match bp.protocol {
-        BuiltinProtocol::AnthropicMessages => {
-            jcode_llm_protocols::anthropic_messages::route()
-        }
-        BuiltinProtocol::OpenAiChat => {
-            jcode_llm_protocols::openai_chat::chat_route()
-        }
+        BuiltinProtocol::AnthropicMessages => jcode_llm_protocols::anthropic_messages::route(),
+        BuiltinProtocol::OpenAiChat => jcode_llm_protocols::openai_chat::chat_route(),
         BuiltinProtocol::OpenAiResponses => {
             let mut r = jcode_llm_protocols::openai_responses::responses_route();
             // The jcode-llm-protocols default points at api.openai.com;
@@ -309,7 +310,6 @@ pub fn builtin_route(bp: &BuiltinProvider, model_id: &str) -> Option<PreparedRou
     Some(r)
 }
 
-
 #[derive(Debug, thiserror::Error)]
 pub enum BootError {
     #[error("catalog error: {0}")]
@@ -327,14 +327,11 @@ pub use crate::store::KeyringCredentialStore as _KeyringCredentialStore;
 ///
 /// This is what `main.rs` will eventually call in Phase 6. Today it's
 /// usable from `providerctl` and any other consumer.
-pub async fn boot_default<K: KeyringStore + Default + 'static>() -> Result<
-    crate::store::DefaultProviderService,
-    BootError,
-> {
+pub async fn boot_default<K: KeyringStore + Default + 'static>()
+-> Result<crate::store::DefaultProviderService, BootError> {
     let keyring = Arc::new(K::default());
-    let credentials: Arc<dyn crate::credential::CredentialService> = Arc::new(
-        KeyringCredentialStore::<K>::new(keyring),
-    );
+    let credentials: Arc<dyn crate::credential::CredentialService> =
+        Arc::new(KeyringCredentialStore::<K>::new(keyring));
     let integration: Arc<dyn IntegrationService> = Arc::new(
         crate::store::PersistentIntegration::<K>::new(credentials.clone()),
     );
@@ -358,12 +355,9 @@ mod tests {
     async fn register_builtins_populates_catalog_and_integration() {
         let catalog = InMemoryCatalog::new();
         let integration = InMemoryIntegration::new();
-        register_builtins::<MockKeyringStore>(
-            &catalog,
-            &integration,
-        )
-        .await
-        .unwrap();
+        register_builtins::<MockKeyringStore>(&catalog, &integration)
+            .await
+            .unwrap();
 
         for bp in BUILTIN_PROVIDERS {
             let p = catalog
@@ -383,9 +377,8 @@ mod tests {
             .await
             .unwrap();
         // Mark anthropic connected so default() returns something.
-        let creds: Arc<dyn crate::credential::CredentialService> = Arc::new(
-            crate::store::InMemoryCredentialStore::new(),
-        );
+        let creds: Arc<dyn crate::credential::CredentialService> =
+            Arc::new(crate::store::InMemoryCredentialStore::new());
         creds
             .upsert(crate::credential::Credential::new(
                 "anthropic".into(),
@@ -418,10 +411,7 @@ mod tests {
 
     #[test]
     fn builtin_route_uses_openai_chat_protocol() {
-        let bp = BUILTIN_PROVIDERS
-            .iter()
-            .find(|p| p.id == "openai")
-            .unwrap();
+        let bp = BUILTIN_PROVIDERS.iter().find(|p| p.id == "openai").unwrap();
         let r = builtin_route(bp, "gpt-5.1").unwrap();
         assert_eq!(r.protocol, "openai-chat-2024-01-01");
         assert_eq!(r.endpoint.base_url, "https://api.openai.com");
@@ -430,10 +420,7 @@ mod tests {
     #[test]
     fn builtin_route_uses_openai_responses_for_gemini() {
         // Gemini routes through the openai-responses API.
-        let bp = BUILTIN_PROVIDERS
-            .iter()
-            .find(|p| p.id == "gemini")
-            .unwrap();
+        let bp = BUILTIN_PROVIDERS.iter().find(|p| p.id == "gemini").unwrap();
         let r = builtin_route(bp, "gemini-2.5-pro").unwrap();
         assert_eq!(r.protocol, "openai-responses-2025-01-01");
         assert_eq!(

@@ -20,15 +20,12 @@
 //! `jcode-keyring-store` and the in-memory catalog. Phase 4b will plug
 //! in a static catalog of all seven real providers.
 
-
 use anyhow::{Context, Result};
 use jcode_keyring_store::DefaultKeyringStore;
 
 use jcode_provider_service::integration::AuthMethod;
 use jcode_provider_service::service::ProviderService;
-use jcode_provider_service::store::{
-    DefaultProviderService,
-};
+use jcode_provider_service::store::DefaultProviderService;
 use jcode_provider_service::types::ProviderId;
 
 #[tokio::main(flavor = "current_thread")]
@@ -53,12 +50,16 @@ async fn main() -> Result<()> {
             // provider's registered auth methods. If the provider has
             // OAuth and no key was provided, drive the OAuth flow.
             // If a key was provided, save it as an API key.
-            let provider = args.get(2).context("usage: providerctl login <provider> [key]")?;
+            let provider = args
+                .get(2)
+                .context("usage: providerctl login <provider> [key]")?;
             let key = args.get(3);
             cmd_login_unified(&svc, provider, key.map(|x| x.as_str())).await
         }
         "logout" | "disconnect" => {
-            let provider = args.get(2).context("usage: providerctl logout <provider>")?;
+            let provider = args
+                .get(2)
+                .context("usage: providerctl logout <provider>")?;
             cmd_logout(&svc, provider).await
         }
         "default" => cmd_default(&svc).await,
@@ -71,55 +72,65 @@ async fn main() -> Result<()> {
             cmd_resolve(&svc, provider, model.as_deref()).await
         }
         "model" => match args.get(2).map(String::as_str).unwrap_or("list") {
-                "list" => cmd_model_list(&svc).await,
-                "default" => {
-                    let provider = args.get(3).context("usage: providerctl model default <provider> <model>")?;
-                    let model = args.get(4).context("usage: providerctl model default <provider> <model>")?;
-                    cmd_model_default(&svc, provider, model).await
-                }
-                "show" => {
-                    let provider = args.get(3).context("usage: providerctl model show <provider> [model]")?;
-                    let model = args.get(4).cloned();
-                    cmd_model_show(&svc, provider, model.as_deref()).await
-                }
-                other => {
-                    eprintln!("unknown model subcommand: {other}");
-                    eprintln!("usage: providerctl model {{list|default|show}}");
-                    std::process::exit(2);
-                }
+            "list" => cmd_model_list(&svc).await,
+            "default" => {
+                let provider = args
+                    .get(3)
+                    .context("usage: providerctl model default <provider> <model>")?;
+                let model = args
+                    .get(4)
+                    .context("usage: providerctl model default <provider> <model>")?;
+                cmd_model_default(&svc, provider, model).await
             }
-        "prefs" => {
-            match args.get(2).map(String::as_str).unwrap_or("show") {
-                "show" => cmd_prefs_show().await,
-                "default" => {
-                    let provider = args.get(3)
-                        .context("usage: providerctl prefs default <provider> <model>")?;
-                    let model = args.get(4)
-                        .context("usage: providerctl prefs default <provider> <model>")?;
-                    cmd_prefs_default(provider, model).await
-                }
-                "clear-default" => cmd_prefs_clear_default().await,
-                "favorite" => {
-                    let provider = args.get(3)
-                        .context("usage: providerctl prefs favorite <provider> <model>")?;
-                    let model = args.get(4)
-                        .context("usage: providerctl prefs favorite <provider> <model>")?;
-                    cmd_prefs_favorite(provider, model).await
-                }
-                "unfavorite" => {
-                    let provider = args.get(3)
-                        .context("usage: providerctl prefs unfavorite <provider> <model>")?;
-                    let model = args.get(4)
-                        .context("usage: providerctl prefs unfavorite <provider> <model>")?;
-                    cmd_prefs_unfavorite(provider, model).await
-                }
-                other => {
-                    eprintln!("unknown prefs subcommand: {other}");
-                    eprintln!("usage: providerctl prefs {{show|favorite|unfavorite}}");
-                    std::process::exit(2);
-                }
+            "show" => {
+                let provider = args
+                    .get(3)
+                    .context("usage: providerctl model show <provider> [model]")?;
+                let model = args.get(4).cloned();
+                cmd_model_show(&svc, provider, model.as_deref()).await
             }
-        }
+            other => {
+                eprintln!("unknown model subcommand: {other}");
+                eprintln!("usage: providerctl model {{list|default|show}}");
+                std::process::exit(2);
+            }
+        },
+        "prefs" => match args.get(2).map(String::as_str).unwrap_or("show") {
+            "show" => cmd_prefs_show().await,
+            "default" => {
+                let provider = args
+                    .get(3)
+                    .context("usage: providerctl prefs default <provider> <model>")?;
+                let model = args
+                    .get(4)
+                    .context("usage: providerctl prefs default <provider> <model>")?;
+                cmd_prefs_default(provider, model).await
+            }
+            "clear-default" => cmd_prefs_clear_default().await,
+            "favorite" => {
+                let provider = args
+                    .get(3)
+                    .context("usage: providerctl prefs favorite <provider> <model>")?;
+                let model = args
+                    .get(4)
+                    .context("usage: providerctl prefs favorite <provider> <model>")?;
+                cmd_prefs_favorite(provider, model).await
+            }
+            "unfavorite" => {
+                let provider = args
+                    .get(3)
+                    .context("usage: providerctl prefs unfavorite <provider> <model>")?;
+                let model = args
+                    .get(4)
+                    .context("usage: providerctl prefs unfavorite <provider> <model>")?;
+                cmd_prefs_unfavorite(provider, model).await
+            }
+            other => {
+                eprintln!("unknown prefs subcommand: {other}");
+                eprintln!("usage: providerctl prefs {{show|favorite|unfavorite}}");
+                std::process::exit(2);
+            }
+        },
         "session" => {
             // End-to-end runtime: build a real keychain service,
             // save an API key (if --key given), and resolve a
@@ -143,14 +154,17 @@ async fn main() -> Result<()> {
             match args.get(2).map(String::as_str).unwrap_or("list") {
                 "list" => cmd_secrets_list(&svc).await,
                 "set" => {
-                    let provider = args.get(3)
+                    let provider = args
+                        .get(3)
                         .context("usage: providerctl secrets set provider.<id>.<label> <value>")?;
-                    let value = args.get(4)
+                    let value = args
+                        .get(4)
                         .context("usage: providerctl secrets set provider.<id>.<label> <value>")?;
                     cmd_secrets_set(&svc, provider, value).await
                 }
                 "delete" => {
-                    let provider = args.get(3)
+                    let provider = args
+                        .get(3)
                         .context("usage: providerctl secrets delete provider.<id>.<label>")?;
                     cmd_secrets_delete(&svc, provider).await
                 }
@@ -185,7 +199,9 @@ async fn main() -> Result<()> {
             }
         }
         "connect" => {
-            let provider = args.get(2).context("usage: providerctl connect <provider>")?;
+            let provider = args
+                .get(2)
+                .context("usage: providerctl connect <provider>")?;
             let code = args.get(3).cloned();
             cmd_connect(&svc, provider, code.as_deref()).await
         }
@@ -245,8 +261,7 @@ fn usage() {
     );
 }
 
-async fn build_service(
-) -> Result<DefaultProviderService> {
+async fn build_service() -> Result<DefaultProviderService> {
     // Phase 6 boot: real keychain, real built-in provider registration
     // (Anthropic, OpenAI, OpenRouter, Gemini with their canonical model
     // sets). The boot helper is the single entry point the session
@@ -256,9 +271,7 @@ async fn build_service(
         .map_err(|e| anyhow::anyhow!(e.to_string()))
 }
 
-async fn cmd_list(
-    svc: &DefaultProviderService,
-) -> Result<()> {
+async fn cmd_list(svc: &DefaultProviderService) -> Result<()> {
     // Per the plan: `jcode provider list` shows real-time
     // available providers **with credentials** and **auth method
     // hints**. We list every registered provider, mark whether
@@ -267,7 +280,11 @@ async fn cmd_list(
     let integration = svc.integration();
     for p in integration.list().await? {
         let status = integration.detect(&p.id).await?;
-        let mark = if status.is_connected() { "[●]" } else { "[ ]" };
+        let mark = if status.is_connected() {
+            "[●]"
+        } else {
+            "[ ]"
+        };
         let first_method = p
             .auth_methods
             .first()
@@ -281,15 +298,17 @@ async fn cmd_list(
         };
         println!(
             "{} {}\t{}\t{}\t{}",
-            mark, p.id, p.label, status.summary(), methods_label
+            mark,
+            p.id,
+            p.label,
+            status.summary(),
+            methods_label
         );
     }
     Ok(())
 }
 
-async fn cmd_available(
-    _svc: &DefaultProviderService,
-) -> Result<()> {
+async fn cmd_available(_svc: &DefaultProviderService) -> Result<()> {
     let integration = _svc.integration();
     let mut found = 0;
     for p in integration.list().await? {
@@ -305,10 +324,7 @@ async fn cmd_available(
     Ok(())
 }
 
-async fn cmd_show(
-    svc: &DefaultProviderService,
-    provider: &str,
-) -> Result<()> {
+async fn cmd_show(svc: &DefaultProviderService, provider: &str) -> Result<()> {
     let integration = svc.integration();
     let p = integration
         .get(&ProviderId::from(provider))
@@ -326,11 +342,7 @@ async fn cmd_show(
     Ok(())
 }
 
-async fn cmd_login(
-    svc: &DefaultProviderService,
-    provider: &str,
-    key: &str,
-) -> Result<()> {
+async fn cmd_login(svc: &DefaultProviderService, provider: &str, key: &str) -> Result<()> {
     let id = ProviderId::from(provider);
     let integration = svc.integration();
     let _ = integration.get(&id).await.with_context(|| {
@@ -350,9 +362,11 @@ async fn cmd_login_unified(
     key: Option<&str>,
 ) -> Result<()> {
     let id = ProviderId::from(provider);
-    let provider_info = svc.integration().get(&id).await.with_context(|| {
-        format!("unknown provider: {provider} (try `providerctl show`)")
-    })?;
+    let provider_info = svc
+        .integration()
+        .get(&id)
+        .await
+        .with_context(|| format!("unknown provider: {provider} (try `providerctl show`)"))?;
     let has_oauth = provider_info.supports_oauth();
     match (key, has_oauth) {
         (None, true) => {
@@ -360,7 +374,9 @@ async fn cmd_login_unified(
             cmd_connect(svc, provider, None).await
         }
         (None, false) => {
-            let msg = "provider ".to_string() + provider + " requires an API key (no OAuth method registered); usage: providerctl login <provider> <key>";
+            let msg = "provider ".to_string()
+                + provider
+                + " requires an API key (no OAuth method registered); usage: providerctl login <provider> <key>";
             anyhow::bail!(msg)
         }
         (Some(k), _) => cmd_login(svc, provider, k).await,
@@ -368,8 +384,7 @@ async fn cmd_login_unified(
 }
 
 async fn cmd_prefs_show() -> Result<()> {
-    let path = jcode_provider_service::model_prefs::default_path()
-        .context("HOME not set")?;
+    let path = jcode_provider_service::model_prefs::default_path().context("HOME not set")?;
     let prefs = jcode_provider_service::model_prefs::ModelPrefs::load(&path)
         .map_err(|e| anyhow::anyhow!(e.to_string()))?;
     if let Some(d) = prefs.default_model() {
@@ -389,20 +404,18 @@ async fn cmd_prefs_show() -> Result<()> {
 }
 
 async fn cmd_prefs_favorite(provider: &str, model: &str) -> Result<()> {
-    let path = jcode_provider_service::model_prefs::default_path()
-        .context("HOME not set")?;
+    let path = jcode_provider_service::model_prefs::default_path().context("HOME not set")?;
     let mut prefs = jcode_provider_service::model_prefs::ModelPrefs::load(&path)
         .map_err(|e| anyhow::anyhow!(e.to_string()))?;
     prefs.add_favorite(ProviderId::from(provider), model.into());
-    prefs.save(&path).map_err(|e| anyhow::anyhow!(e.to_string()))?;
+    prefs
+        .save(&path)
+        .map_err(|e| anyhow::anyhow!(e.to_string()))?;
     println!("favorited {provider}.{model}");
     Ok(())
 }
 
-async fn cmd_session_start(
-    provider: Option<&str>,
-    model: Option<&str>,
-) -> Result<()> {
+async fn cmd_session_start(provider: Option<&str>, model: Option<&str>) -> Result<()> {
     use jcode_provider_service::runtime;
     use jcode_provider_service::types::{ModelId, ProviderProfile};
     let profile = provider.map(|p| ProviderProfile::ById { id: p.into() });
@@ -425,42 +438,42 @@ async fn cmd_session_start(
 }
 
 async fn cmd_prefs_default(provider: &str, model: &str) -> Result<()> {
-    let path = jcode_provider_service::model_prefs::default_path()
-        .context("HOME not set")?;
+    let path = jcode_provider_service::model_prefs::default_path().context("HOME not set")?;
     let mut prefs = jcode_provider_service::model_prefs::ModelPrefs::load(&path)
         .map_err(|e| anyhow::anyhow!(e.to_string()))?;
     prefs.set_default(ProviderId::from(provider), model.into());
-    prefs.save(&path).map_err(|e| anyhow::anyhow!(e.to_string()))?;
+    prefs
+        .save(&path)
+        .map_err(|e| anyhow::anyhow!(e.to_string()))?;
     println!("default = {}.{}", provider, model);
     Ok(())
 }
 
 async fn cmd_prefs_clear_default() -> Result<()> {
-    let path = jcode_provider_service::model_prefs::default_path()
-        .context("HOME not set")?;
+    let path = jcode_provider_service::model_prefs::default_path().context("HOME not set")?;
     let mut prefs = jcode_provider_service::model_prefs::ModelPrefs::load(&path)
         .map_err(|e| anyhow::anyhow!(e.to_string()))?;
     prefs.clear_default();
-    prefs.save(&path).map_err(|e| anyhow::anyhow!(e.to_string()))?;
+    prefs
+        .save(&path)
+        .map_err(|e| anyhow::anyhow!(e.to_string()))?;
     println!("default cleared");
     Ok(())
 }
 
 async fn cmd_prefs_unfavorite(provider: &str, model: &str) -> Result<()> {
-    let path = jcode_provider_service::model_prefs::default_path()
-        .context("HOME not set")?;
+    let path = jcode_provider_service::model_prefs::default_path().context("HOME not set")?;
     let mut prefs = jcode_provider_service::model_prefs::ModelPrefs::load(&path)
         .map_err(|e| anyhow::anyhow!(e.to_string()))?;
     prefs.remove_favorite(&ProviderId::from(provider), &model.into());
-    prefs.save(&path).map_err(|e| anyhow::anyhow!(e.to_string()))?;
+    prefs
+        .save(&path)
+        .map_err(|e| anyhow::anyhow!(e.to_string()))?;
     println!("unfavorited {provider}.{model}");
     Ok(())
 }
 
-async fn cmd_logout(
-    svc: &DefaultProviderService,
-    provider: &str,
-) -> Result<()> {
+async fn cmd_logout(svc: &DefaultProviderService, provider: &str) -> Result<()> {
     let id = ProviderId::from(provider);
     let removed = svc
         .credentials()
@@ -534,7 +547,6 @@ async fn cmd_resolve(
     Ok(())
 }
 
-
 async fn cmd_model_list(svc: &DefaultProviderService) -> Result<()> {
     for p in svc.catalog().list_providers().await? {
         for m in svc.catalog().models(&p.id).await? {
@@ -551,14 +563,7 @@ async fn cmd_model_list(svc: &DefaultProviderService) -> Result<()> {
             let stream = if m.supports_streaming { "sse" } else { "---" };
             println!(
                 "{}/{:<24} ctx={:>7} {} {} {} {} {}",
-                p.id,
-                m.id,
-                m.context_window,
-                cost_in,
-                cost_out,
-                tools,
-                vis,
-                stream
+                p.id, m.id, m.context_window, cost_in, cost_out, tools, vis, stream
             );
         }
     }
@@ -640,13 +645,11 @@ async fn cmd_connect(
     code: Option<&str>,
 ) -> Result<()> {
     let id = ProviderId::from(provider);
-    let attempt = svc
-        .integration()
-        .start_oauth(&id)
-        .await
-        .with_context(|| {
-            format!("{provider} does not support OAuth (try `providerctl login {provider} <key>` instead)")
-        })?;
+    let attempt = svc.integration().start_oauth(&id).await.with_context(|| {
+        format!(
+            "{provider} does not support OAuth (try `providerctl login {provider} <key>` instead)"
+        )
+    })?;
     let AuthMethod::OAuth { authorization_url } = &attempt.method else {
         anyhow::bail!("internal: non-OAuth method in OAuth attempt")
     };
@@ -673,9 +676,7 @@ async fn cmd_connect(
     } else {
         println!();
         println!("After authorizing, run:");
-        println!(
-            "  providerctl connect {provider} <authorization-code>"
-        );
+        println!("  providerctl connect {provider} <authorization-code>");
     }
     Ok(())
 }
@@ -692,19 +693,20 @@ async fn cmd_secrets_list(svc: &DefaultProviderService) -> Result<()> {
             let type_str = match &c.credential {
                 jcode_provider_service::credential::CredentialType::ApiKey { .. } => "api-key",
                 jcode_provider_service::credential::CredentialType::OAuth { .. } => "oauth",
-                jcode_provider_service::credential::CredentialType::ExternalCommand { .. } => "command",
+                jcode_provider_service::credential::CredentialType::ExternalCommand { .. } => {
+                    "command"
+                }
             };
-            println!("{} {}.{}\t{}\t{}", c.id, c.provider, c.label, type_str, c.created_at);
+            println!(
+                "{} {}.{}\t{}\t{}",
+                c.id, c.provider, c.label, type_str, c.created_at
+            );
         }
     }
     Ok(())
 }
 
-async fn cmd_secrets_set(
-    svc: &DefaultProviderService,
-    key: &str,
-    value: &str,
-) -> Result<()> {
+async fn cmd_secrets_set(svc: &DefaultProviderService, key: &str, value: &str) -> Result<()> {
     // Parse "provider.<id>.<label>" form. The plan's convention
     // is "provider.<id>.api_key"; we also accept arbitrary
     // labels.
@@ -739,7 +741,10 @@ fn cmd_legacy(flag: &str) -> Result<()> {
         Ok(sel) => {
             println!("input:      {}", flag);
             println!("provider:   {}", sel.provider);
-            println!("auth:       {}", sel.auth.map(|a| a.as_str()).unwrap_or("(none)"));
+            println!(
+                "auth:       {}",
+                sel.auth.map(|a| a.as_str()).unwrap_or("(none)")
+            );
             println!("dual-auth:  {}", sel.is_dual_auth);
             Ok(())
         }
@@ -808,24 +813,22 @@ mod tests {
 
 #[cfg(test)]
 mod login_unified_tests {
+    use jcode_keyring_store::MockKeyringStore;
     use jcode_provider_service::catalog::InMemoryCatalog;
-    use jcode_provider_service::integration::{
-        AuthMethod, InMemoryIntegration, LoginProvider,
-    };
+    use jcode_provider_service::integration::{AuthMethod, InMemoryIntegration, LoginProvider};
     use jcode_provider_service::service::ProviderService;
     use jcode_provider_service::store::{
         DefaultProviderService, InMemoryCredentialStore, PersistentIntegration,
     };
-    use jcode_keyring_store::MockKeyringStore;
     use std::sync::Arc;
 
-    async fn fixture_with_provider(
-        auth_methods: Vec<AuthMethod>,
-    ) -> DefaultProviderService {
+    async fn fixture_with_provider(auth_methods: Vec<AuthMethod>) -> DefaultProviderService {
         let creds: Arc<dyn jcode_provider_service::credential::CredentialService> =
             Arc::new(InMemoryCredentialStore::new());
         let integration: Arc<dyn jcode_provider_service::integration::IntegrationService> =
-            Arc::new(PersistentIntegration::<MockKeyringStore>::new(creds.clone()));
+            Arc::new(PersistentIntegration::<MockKeyringStore>::new(
+                creds.clone(),
+            ));
         integration
             .register(LoginProvider {
                 id: "anthropic".into(),
@@ -847,7 +850,9 @@ mod login_unified_tests {
             env_var: "ANTHROPIC_API_KEY".into(),
         }])
         .await;
-        crate::cmd_login(&svc, "anthropic", "sk-test").await.unwrap();
+        crate::cmd_login(&svc, "anthropic", "sk-test")
+            .await
+            .unwrap();
         // Verify the credential is in the store.
         let creds = svc.credentials().list(&"anthropic".into()).await.unwrap();
         assert_eq!(creds.len(), 1);

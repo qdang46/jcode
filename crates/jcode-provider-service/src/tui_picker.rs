@@ -155,7 +155,11 @@ impl PickerState {
                 if favorites.contains(&key) {
                     continue;
                 }
-                if self.recent.iter().any(|(p, m)| p == &provider.id && m == &model.id) {
+                if self
+                    .recent
+                    .iter()
+                    .any(|(p, m)| p == &provider.id && m == &model.id)
+                {
                     continue;
                 }
                 let origin = if connected.contains(&provider.id) {
@@ -174,7 +178,10 @@ impl PickerState {
         }
 
         // Apply filter, then re-clamp cursor.
-        let visible: Vec<PickerRow> = rows.into_iter().filter(|r| self.filter.matches(r)).collect();
+        let visible: Vec<PickerRow> = rows
+            .into_iter()
+            .filter(|r| self.filter.matches(r))
+            .collect();
         self.rows = visible;
         self.clamp_cursor();
         Ok(())
@@ -256,6 +263,8 @@ mod tests {
                         supports_vision: true,
                         supports_streaming: true,
                         tier: Some(ModelTier::Standard),
+
+                        release_date: None,
                     },
                     ModelInfo {
                         id: "claude-haiku-4-5".into(),
@@ -268,6 +277,8 @@ mod tests {
                         supports_vision: true,
                         supports_streaming: true,
                         tier: Some(ModelTier::Nano),
+
+                        release_date: None,
                     },
                 ],
             },
@@ -287,6 +298,8 @@ mod tests {
                     supports_vision: true,
                     supports_streaming: true,
                     tier: Some(ModelTier::Mini),
+
+                    release_date: None,
                 }],
             },
         ] {
@@ -302,7 +315,10 @@ mod tests {
         let mut connected = HashSet::new();
         connected.insert(ProviderId::from("anthropic"));
         connected.insert(ProviderId::from("openai"));
-        state.rebuild_rows(&cat, &connected, &HashSet::new()).await.unwrap();
+        state
+            .rebuild_rows(&cat, &connected, &HashSet::new())
+            .await
+            .unwrap();
         assert_eq!(state.visible().len(), 3);
         // Connected rows first.
         assert!(state.visible()[0].connected);
@@ -330,7 +346,10 @@ mod tests {
         connected.insert(ProviderId::from("anthropic"));
         connected.insert(ProviderId::from("openai"));
         state.push_recent(ProviderId::from("openai"), ModelId::from("gpt-5-mini"));
-        state.rebuild_rows(&cat, &connected, &HashSet::new()).await.unwrap();
+        state
+            .rebuild_rows(&cat, &connected, &HashSet::new())
+            .await
+            .unwrap();
         let recent_pos = state
             .visible()
             .iter()
@@ -340,10 +359,21 @@ mod tests {
             .visible()
             .iter()
             .enumerate()
-            .filter_map(|(i, r)| if r.origin == RowOrigin::Connected { Some(i) } else { None })
+            .filter_map(|(i, r)| {
+                if r.origin == RowOrigin::Connected {
+                    Some(i)
+                } else {
+                    None
+                }
+            })
             .collect();
         assert!(
-            recent_pos < connected_positions.iter().min().copied().unwrap_or(usize::MAX),
+            recent_pos
+                < connected_positions
+                    .iter()
+                    .min()
+                    .copied()
+                    .unwrap_or(usize::MAX),
             "recent should appear before connected"
         );
     }
@@ -356,13 +386,20 @@ mod tests {
         let mut connected = HashSet::new();
         connected.insert(ProviderId::from("anthropic"));
         for _ in 0..15 {
-            state.push_recent(ProviderId::from("anthropic"), ModelId::from("claude-haiku-4-5"));
+            state.push_recent(
+                ProviderId::from("anthropic"),
+                ModelId::from("claude-haiku-4-5"),
+            );
         }
         assert_eq!(state.recent.len(), 1, "deduped");
         for i in 0..15 {
             state.push_recent(ProviderId::from("a"), ModelId::from(format!("m{i}")));
         }
-        assert!(state.recent.len() <= 10, "capped at 10: got {}", state.recent.len());
+        assert!(
+            state.recent.len() <= 10,
+            "capped at 10: got {}",
+            state.recent.len()
+        );
     }
 
     #[tokio::test]
@@ -372,7 +409,10 @@ mod tests {
         let mut connected = HashSet::new();
         connected.insert(ProviderId::from("anthropic"));
         connected.insert(ProviderId::from("openai"));
-        state.rebuild_rows(&cat, &connected, &HashSet::new()).await.unwrap();
+        state
+            .rebuild_rows(&cat, &connected, &HashSet::new())
+            .await
+            .unwrap();
         state.set_filter(Filter::new("haiku"));
         assert_eq!(state.visible().len(), 1);
         assert_eq!(state.visible()[0].model.as_str(), "claude-haiku-4-5");
@@ -384,7 +424,10 @@ mod tests {
         let mut state = PickerState::new();
         let mut connected = HashSet::new();
         connected.insert(ProviderId::from("anthropic"));
-        state.rebuild_rows(&cat, &connected, &HashSet::new()).await.unwrap();
+        state
+            .rebuild_rows(&cat, &connected, &HashSet::new())
+            .await
+            .unwrap();
         let len = state.visible().len();
         state.cursor = len - 1;
         state.move_down(1);
@@ -411,7 +454,10 @@ mod tests {
         let mut state = PickerState::new();
         let mut connected = HashSet::new();
         connected.insert(ProviderId::from("anthropic"));
-        state.rebuild_rows(&cat, &connected, &HashSet::new()).await.unwrap();
+        state
+            .rebuild_rows(&cat, &connected, &HashSet::new())
+            .await
+            .unwrap();
         assert!(state.favorites.is_empty());
         state.toggle_selected_favorite();
         assert_eq!(state.favorites.len(), 1);

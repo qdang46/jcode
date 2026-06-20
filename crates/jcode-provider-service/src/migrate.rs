@@ -46,20 +46,12 @@ pub fn detect_legacy_auth(
 ) -> Option<(ProviderId, LegacyAuthMode, String)> {
     if let Ok(key) = std::env::var(anthropic_key_env) {
         if !key.is_empty() {
-            return Some((
-                ProviderId::from("anthropic"),
-                LegacyAuthMode::ApiKey,
-                key,
-            ));
+            return Some((ProviderId::from("anthropic"), LegacyAuthMode::ApiKey, key));
         }
     }
     if let Ok(key) = std::env::var(openai_key_env) {
         if !key.is_empty() {
-            return Some((
-                ProviderId::from("openai"),
-                LegacyAuthMode::ApiKey,
-                key,
-            ));
+            return Some((ProviderId::from("openai"), LegacyAuthMode::ApiKey, key));
         }
     }
     None
@@ -68,14 +60,13 @@ pub fn detect_legacy_auth(
 /// Build a new-style [`Credential`] from a legacy env-var API key.
 /// The credential is tagged with label `"default"` so the
 /// [`crate::integration::IntegrationService`] finds it via `detect()`.
-pub fn credential_from_api_key(
-    provider: ProviderId,
-    key: String,
-) -> Credential {
+pub fn credential_from_api_key(provider: ProviderId, key: String) -> Credential {
     Credential {
-        id: crate::credential::CredentialId::new(
-            format!("legacy-{}", Utc::now().timestamp_nanos_opt().unwrap_or(0))
-        ).expect("non-empty legacy id"),
+        id: crate::credential::CredentialId::new(format!(
+            "legacy-{}",
+            Utc::now().timestamp_nanos_opt().unwrap_or(0)
+        ))
+        .expect("non-empty legacy id"),
         provider,
         label: "default".into(),
         credential: CredentialType::ApiKey { key },
@@ -137,15 +128,16 @@ impl LegacyProviderSelection {
             Some(ProviderId::from("openai"))
         } else if env_keys.contains_key("OPENROUTER_API_KEY") {
             Some(ProviderId::from("openrouter"))
-        } else if env_keys.contains_key("GEMINI_API_KEY")
-            || env_keys.contains_key("GOOGLE_API_KEY")
+        } else if env_keys.contains_key("GEMINI_API_KEY") || env_keys.contains_key("GOOGLE_API_KEY")
         {
             Some(ProviderId::from("gemini"))
         } else {
             None
         };
 
-        let model = provider.as_ref().and_then(|p| default_model_for(p.as_str()));
+        let model = provider
+            .as_ref()
+            .and_then(|p| default_model_for(p.as_str()));
 
         Self {
             provider,
@@ -222,10 +214,7 @@ mod tests {
             default_model_for("anthropic").unwrap().as_str(),
             "claude-sonnet-4-6"
         );
-        assert_eq!(
-            default_model_for("openai").unwrap().as_str(),
-            "gpt-5.1"
-        );
+        assert_eq!(default_model_for("openai").unwrap().as_str(), "gpt-5.1");
         assert_eq!(
             default_model_for("gemini").unwrap().as_str(),
             "gemini-2.5-pro"

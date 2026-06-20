@@ -13,10 +13,8 @@ use chrono::{DateTime, Utc};
 use jcode_keyring_store::KeyringStore;
 use tokio::sync::RwLock;
 
-use crate::credential::{
-    Credential, CredentialId, CredentialService, CredentialType,
-};
 use crate::attempt::OAuthAttempt;
+use crate::credential::{Credential, CredentialId, CredentialService, CredentialType};
 use crate::integration::{
     AuthMethod, ConnectionStatus, IntegrationError, IntegrationService, LoginProvider,
 };
@@ -111,10 +109,7 @@ impl<K: KeyringStore + 'static> IntegrationService for PersistentIntegration<K> 
         Ok(ConnectionStatus::NotConfigured)
     }
 
-    async fn start_oauth(
-        &self,
-        id: &ProviderId,
-    ) -> Result<OAuthAttempt, IntegrationError> {
+    async fn start_oauth(&self, id: &ProviderId) -> Result<OAuthAttempt, IntegrationError> {
         let provider = self.get(id).await?;
         let method = provider
             .oauth_method()
@@ -129,16 +124,16 @@ impl<K: KeyringStore + 'static> IntegrationService for PersistentIntegration<K> 
         // the OAuth callback handler in a separate process.
         if let Some(store) = keyring_store_attempts::<K>() {
             let raw = serde_json::to_string(&attempt).unwrap_or_default();
-            let _ = store.save(ATTEMPT_INDEX_SERVICE,
-                &format!("{}{}", ATTEMPT_PREFIX, attempt.id), &raw);
+            let _ = store.save(
+                ATTEMPT_INDEX_SERVICE,
+                &format!("{}{}", ATTEMPT_PREFIX, attempt.id),
+                &raw,
+            );
         }
         Ok(attempt)
     }
 
-    async fn get_oauth_attempt(
-        &self,
-        attempt_id: &str,
-    ) -> Result<OAuthAttempt, IntegrationError> {
+    async fn get_oauth_attempt(&self, attempt_id: &str) -> Result<OAuthAttempt, IntegrationError> {
         let map = self.attempts.read().await;
         map.get(attempt_id)
             .cloned()
@@ -342,8 +337,7 @@ mod tests {
     #[tokio::test]
     async fn works_with_in_memory_credential_store() {
         let creds: Arc<dyn CredentialService> = Arc::new(InMemoryCredentialStore::new());
-        let svc: PersistentIntegration<MockKeyringStore> =
-            PersistentIntegration::new(creds);
+        let svc: PersistentIntegration<MockKeyringStore> = PersistentIntegration::new(creds);
         svc.register(anthropic()).await.unwrap();
         let _id = svc
             .save_api_key(&"anthropic".into(), "default", "sk-x")

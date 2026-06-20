@@ -206,10 +206,7 @@ mod tests {
 
     #[test]
     fn empty_flag_errors() {
-        assert_eq!(
-            parse_legacy_provider_flag(""),
-            Err(LegacyParseError::Empty)
-        );
+        assert_eq!(parse_legacy_provider_flag(""), Err(LegacyParseError::Empty));
     }
 
     #[test]
@@ -224,7 +221,12 @@ mod tests {
 
     #[test]
     fn claude_api_aliases_map_to_anthropic_api_key() {
-        for alias in ["claude-api", "claude-api-key", "anthropic-api", "anthropic-api-key"] {
+        for alias in [
+            "claude-api",
+            "claude-api-key",
+            "anthropic-api",
+            "anthropic-api-key",
+        ] {
             let got = parse_legacy_provider_flag(alias).unwrap();
             assert_eq!(got.provider.as_str(), "anthropic");
             assert_eq!(got.auth, Some(LegacyAuthMode::ApiKey));

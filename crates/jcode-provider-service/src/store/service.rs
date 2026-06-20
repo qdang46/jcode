@@ -116,7 +116,9 @@ impl DefaultProviderService {
     fn resolve_profile_id<'a>(
         &'a self,
         profile: &'a ProviderProfile,
-    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<ProviderId, ResolveError>> + Send + 'a>> {
+    ) -> std::pin::Pin<
+        Box<dyn std::future::Future<Output = Result<ProviderId, ResolveError>> + Send + 'a>,
+    > {
         Box::pin(async move {
             match profile {
                 ProviderProfile::ById { id } => Ok(id.clone()),
@@ -254,6 +256,8 @@ mod tests {
                     supports_vision: true,
                     supports_streaming: true,
                     tier: Some(ModelTier::Nano),
+
+                    release_date: None,
                 }],
             })
             .await
@@ -261,8 +265,9 @@ mod tests {
 
         let keyring = Arc::new(MockKeyringStore::new());
         let creds: Arc<dyn CredentialService> = Arc::new(KeyringCredentialStore::new(keyring));
-        let integration: Arc<dyn IntegrationService> =
-            Arc::new(PersistentIntegration::<MockKeyringStore>::new(creds.clone()));
+        let integration: Arc<dyn IntegrationService> = Arc::new(PersistentIntegration::<
+            MockKeyringStore,
+        >::new(creds.clone()));
         integration
             .register(LoginProvider {
                 id: "anthropic".into(),

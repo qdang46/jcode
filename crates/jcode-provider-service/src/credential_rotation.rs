@@ -27,10 +27,7 @@ pub enum RotationError {
     #[error("provider has no credentials to rotate through")]
     NoCredentials,
     #[error("all {attempts} credentials failed: {last}")]
-    AllFailed {
-        attempts: usize,
-        last: String,
-    },
+    AllFailed { attempts: usize, last: String },
     #[error("storage error: {0}")]
     Store(String),
 }
@@ -134,7 +131,11 @@ impl AttemptOutcome {
 /// alphabetically — the caller passes them in their preferred
 /// order).
 pub fn default_rotation_labels() -> Vec<String> {
-    vec!["default".to_string(), "work".to_string(), "personal".to_string()]
+    vec![
+        "default".to_string(),
+        "work".to_string(),
+        "personal".to_string(),
+    ]
 }
 
 #[cfg(test)]
@@ -222,14 +223,9 @@ mod tests {
     #[tokio::test]
     async fn empty_labels_is_error() {
         let s = store_with_3_keys().await;
-        let err = run_rotation(
-            s.clone(),
-            &"anthropic".into(),
-            &[],
-            |_, _| async { Ok(()) },
-        )
-        .await
-        .unwrap_err();
+        let err = run_rotation(s.clone(), &"anthropic".into(), &[], |_, _| async { Ok(()) })
+            .await
+            .unwrap_err();
         assert!(matches!(err, RotationError::NoCredentials));
     }
 

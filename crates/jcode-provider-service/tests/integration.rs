@@ -18,14 +18,10 @@ use std::sync::Arc;
 use jcode_keyring_store::MockKeyringStore;
 
 use jcode_provider_service::catalog::{CatalogService, InMemoryCatalog};
-use jcode_provider_service::error_classify::{
-    classify_status, ErrorCategory, ProviderError,
-};
-use jcode_provider_service::failover::{next_target, Chain};
+use jcode_provider_service::error_classify::{ErrorCategory, ProviderError, classify_status};
+use jcode_provider_service::failover::{Chain, next_target};
 use jcode_provider_service::integration::{AuthMethod, IntegrationService, LoginProvider};
-use jcode_provider_service::refresh::{
-    ensure_fresh, NoopTransport, RefreshPolicy,
-};
+use jcode_provider_service::refresh::{NoopTransport, RefreshPolicy, ensure_fresh};
 use jcode_provider_service::service::ProviderService;
 use jcode_provider_service::store::{
     DefaultProviderService, KeyringCredentialStore, PersistentIntegration,
@@ -36,8 +32,9 @@ async fn booted_service() -> DefaultProviderService {
     let keyring = Arc::new(MockKeyringStore::new());
     let credentials: Arc<dyn jcode_provider_service::credential::CredentialService> =
         Arc::new(KeyringCredentialStore::new(keyring));
-    let integration: Arc<dyn IntegrationService> =
-        Arc::new(PersistentIntegration::<MockKeyringStore>::new(credentials.clone()));
+    let integration: Arc<dyn IntegrationService> = Arc::new(PersistentIntegration::<
+        MockKeyringStore,
+    >::new(credentials.clone()));
     let catalog: Arc<dyn CatalogService> = Arc::new(InMemoryCatalog::new());
 
     for bp in jcode_provider_service::boot::BUILTIN_PROVIDERS {
@@ -77,6 +74,8 @@ async fn booted_service() -> DefaultProviderService {
                         supports_vision: m.supports_vision,
                         supports_streaming: m.supports_streaming,
                         tier: Some(m.tier),
+
+                        release_date: None,
                     })
                     .collect(),
             })
@@ -99,11 +98,7 @@ async fn end_to_end_login_detect_resolve() {
         .await
         .unwrap();
 
-    let status = svc
-        .integration()
-        .detect(&"anthropic".into())
-        .await
-        .unwrap();
+    let status = svc.integration().detect(&"anthropic".into()).await.unwrap();
     assert!(status.is_connected(), "expected connected, got {status:?}");
 
     let resolved = svc
@@ -114,7 +109,10 @@ async fn end_to_end_login_detect_resolve() {
     assert_eq!(resolved.provider.as_str(), "anthropic");
     assert_eq!(resolved.model.as_str(), "claude-haiku-4-5");
     assert_eq!(resolved.route.protocol, "anthropic-messages-2023-01-01");
-    assert_eq!(resolved.route.endpoint.base_url, "https://api.anthropic.com");
+    assert_eq!(
+        resolved.route.endpoint.base_url,
+        "https://api.anthropic.com"
+    );
 }
 
 #[tokio::test]
@@ -251,9 +249,7 @@ impl jcode_provider_service::credential::CredentialService for DummyStore {
         jcode_provider_service::credential::CredentialId,
         jcode_provider_service::credential::CredentialError,
     > {
-        Err(jcode_provider_service::credential::CredentialError::Invalid(
-            "dummy store".into(),
-        ))
+        Err(jcode_provider_service::credential::CredentialError::Invalid("dummy store".into()))
     }
     async fn list(
         &self,
@@ -271,9 +267,7 @@ impl jcode_provider_service::credential::CredentialService for DummyStore {
         jcode_provider_service::credential::Credential,
         jcode_provider_service::credential::CredentialError,
     > {
-        Err(jcode_provider_service::credential::CredentialError::Invalid(
-            "dummy store".into(),
-        ))
+        Err(jcode_provider_service::credential::CredentialError::Invalid("dummy store".into()))
     }
     async fn delete(
         &self,
@@ -341,7 +335,7 @@ async fn end_to_end_recents_persist_across_sessions() {
 #[tokio::test]
 async fn end_to_end_classify_with_body_classifier() {
     use jcode_provider_service::error_classify::{
-        classify_body, classify_status, classify_with_body, ErrorCategory, ProviderError,
+        ErrorCategory, ProviderError, classify_body, classify_status, classify_with_body,
     };
 
     // Status-only classification.
@@ -373,10 +367,7 @@ async fn end_to_end_classify_with_body_classifier() {
     );
     // Status 503 + body "ok" -> ServerError (status wins when body
     // is unknown).
-    assert_eq!(
-        classify_with_body(503, "ok"),
-        ErrorCategory::ServerError
-    );
+    assert_eq!(classify_with_body(503, "ok"), ErrorCategory::ServerError);
 
     // End-to-end: the classify() helper takes a ProviderError and
     // dispatches to the right category.
@@ -427,6 +418,22 @@ async fn end_to_end_runtime_resolves_with_cli_override() {
     // The Route should have the Anthropic Messages protocol.
     assert_eq!(s.route.protocol, "anthropic-messages-2023-01-01");
     assert_eq!(s.route.endpoint.base_url, "https://api.anthropic.com");
+}
+
+#[tokio::test]
+async fn debug_dump_models() {
+    use jcode_provider_service::catalog::CatalogService;
+    let svc = booted_service().await;
+    svc.integration()
+        .save_api_key(&"anthropic".into(), "default", "sk-fake")
+        .await
+        .unwrap();
+    svc.catalog()
+        .refresh_connection(&"anthropic".into(), svc.integration())
+        .await
+        .unwrap();
+    let p = svc.catalog().provider(&"anthropic".into()).await.unwrap();
+    panic!("MODELS: {:#?}", p);
 }
 
 #[tokio::test]

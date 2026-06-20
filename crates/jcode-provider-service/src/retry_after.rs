@@ -74,9 +74,9 @@ pub fn parse_retry_after(value: &str) -> Result<RetryAfter, RetryAfterError> {
     //  - RFC 850:    "Sunday, 06-Nov-94 08:49:37 GMT"
     //  - asctime:    "Sun Nov  6 08:49:37 1994"
     let formats = [
-        "%Y-%m-%dT%H:%M:%SZ",              // ISO 8601 (most common in modern APIs)
-        "%Y-%m-%dT%H:%M:%S%.fZ",           // ISO 8601 with fractional seconds
-        "%Y-%m-%d %H:%M:%S GMT",           // asctime-like
+        "%Y-%m-%dT%H:%M:%SZ",    // ISO 8601 (most common in modern APIs)
+        "%Y-%m-%dT%H:%M:%S%.fZ", // ISO 8601 with fractional seconds
+        "%Y-%m-%d %H:%M:%S GMT", // asctime-like
     ];
     // For the IMF-fixdate / RFC 850 / asctime variants, parse
     // them manually because chrono's %a/%A are locale-dependent
@@ -105,7 +105,6 @@ pub fn parse_retry_after(value: &str) -> Result<RetryAfter, RetryAfterError> {
     }
     Err(RetryAfterError::NotADate(trimmed.into()))
 }
-
 
 /// Minimal IMF-fixdate parser: "Sun, 06 Nov 2099 08:49:37 GMT".
 /// Returns None if the input doesn't match the IMF-fixdate
@@ -137,9 +136,18 @@ fn parse_imf_fixdate(value: &str) -> Option<DateTime<Utc>> {
 
 fn month_from_name(s: &str) -> Option<u32> {
     Some(match s.to_ascii_lowercase().as_str() {
-        "jan" => 1, "feb" => 2, "mar" => 3, "apr" => 4,
-        "may" => 5, "jun" => 6, "jul" => 7, "aug" => 8,
-        "sep" => 9, "oct" => 10, "nov" => 11, "dec" => 12,
+        "jan" => 1,
+        "feb" => 2,
+        "mar" => 3,
+        "apr" => 4,
+        "may" => 5,
+        "jun" => 6,
+        "jul" => 7,
+        "aug" => 8,
+        "sep" => 9,
+        "oct" => 10,
+        "nov" => 11,
+        "dec" => 12,
         _ => return None,
     })
 }
@@ -149,7 +157,11 @@ fn parse_hms(s: &str) -> Option<(u32, u32, u32)> {
     if parts.len() != 3 {
         return None;
     }
-    Some((parts[0].parse().ok()?, parts[1].parse().ok()?, parts[2].parse().ok()?))
+    Some((
+        parts[0].parse().ok()?,
+        parts[1].parse().ok()?,
+        parts[2].parse().ok()?,
+    ))
 }
 
 #[cfg(test)]

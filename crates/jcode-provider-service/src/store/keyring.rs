@@ -15,9 +15,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use jcode_keyring_store::KeyringStore;
 
-use crate::credential::{
-    Credential, CredentialError, CredentialId, CredentialService,
-};
+use crate::credential::{Credential, CredentialError, CredentialId, CredentialService};
 use crate::types::ProviderId;
 
 const SERVICE: &str = "jcode-provider-service";
@@ -58,15 +56,14 @@ impl<K: KeyringStore + 'static> KeyringCredentialStore<K> {
             .map_err(|e| CredentialError::Storage(e.to_string()))?;
         match raw {
             None => Ok(Vec::new()),
-            Some(s) => serde_json::from_str(&s).map_err(|e| {
-                CredentialError::Storage(format!("corrupt credential index: {}", e))
-            }),
+            Some(s) => serde_json::from_str(&s)
+                .map_err(|e| CredentialError::Storage(format!("corrupt credential index: {}", e))),
         }
     }
 
     fn write_index(&self, ids: &[CredentialId]) -> Result<(), CredentialError> {
-        let raw = serde_json::to_string(ids)
-            .map_err(|e| CredentialError::Storage(e.to_string()))?;
+        let raw =
+            serde_json::to_string(ids).map_err(|e| CredentialError::Storage(e.to_string()))?;
         self.keyring
             .save(SERVICE, "__index__", &raw)
             .map_err(|e| CredentialError::Storage(e.to_string()))
@@ -86,8 +83,8 @@ impl<K: KeyringStore + 'static> CredentialService for KeyringCredentialStore<K> 
             }
         }
 
-        let raw = serde_json::to_string(&cred)
-            .map_err(|e| CredentialError::Storage(e.to_string()))?;
+        let raw =
+            serde_json::to_string(&cred).map_err(|e| CredentialError::Storage(e.to_string()))?;
         self.keyring
             .save(SERVICE, &account(&cred.id), &raw)
             .map_err(|e| CredentialError::Storage(e.to_string()))?;
@@ -121,9 +118,8 @@ impl<K: KeyringStore + 'static> CredentialService for KeyringCredentialStore<K> 
             .load(SERVICE, &account(id))
             .map_err(|e| CredentialError::Storage(e.to_string()))?
             .ok_or_else(|| CredentialError::NotFound(id.clone()))?;
-        serde_json::from_str(&raw).map_err(|e| {
-            CredentialError::Invalid(format!("malformed credential {}: {}", id, e))
-        })
+        serde_json::from_str(&raw)
+            .map_err(|e| CredentialError::Invalid(format!("malformed credential {}: {}", id, e)))
     }
 
     async fn delete(&self, id: &CredentialId) -> Result<(), CredentialError> {
@@ -169,9 +165,7 @@ mod tests {
         Credential::new(
             provider.into(),
             label,
-            CredentialType::ApiKey {
-                key: key.into(),
-            },
+            CredentialType::ApiKey { key: key.into() },
         )
     }
 

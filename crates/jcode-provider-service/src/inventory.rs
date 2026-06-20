@@ -44,7 +44,10 @@ pub struct PluginEntry {
 impl PluginEntry {
     /// Construct a new entry from a static id and a record.
     pub fn new(id: &'static str, record: ProviderRecord) -> Self {
-        Self { id: id.to_string(), record }
+        Self {
+            id: id.to_string(),
+            record,
+        }
     }
 
     /// The plugin's stable id (used for diagnostics).
@@ -161,6 +164,8 @@ mod tests {
                 supports_vision: false,
                 supports_streaming: true,
                 tier: Some(ModelTier::Standard),
+
+                release_date: None,
             }],
         };
         let entry = PluginEntry::new("test-plugin", rec);
@@ -168,5 +173,3 @@ mod tests {
         assert_eq!(entry.record().id.as_str(), "test");
     }
 }
-
-

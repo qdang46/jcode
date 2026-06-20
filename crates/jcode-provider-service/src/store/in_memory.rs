@@ -8,9 +8,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use tokio::sync::RwLock;
 
-use crate::credential::{
-    Credential, CredentialError, CredentialId, CredentialService,
-};
+use crate::credential::{Credential, CredentialError, CredentialId, CredentialService};
 use crate::types::ProviderId;
 
 /// Test/in-memory credential store. Thread-safe via [`tokio::sync::RwLock`].
@@ -82,16 +80,17 @@ mod tests {
         Credential::new(
             provider.into(),
             label,
-            CredentialType::ApiKey {
-                key: key.into(),
-            },
+            CredentialType::ApiKey { key: key.into() },
         )
     }
 
     #[tokio::test]
     async fn upsert_then_get() {
         let store = InMemoryCredentialStore::new();
-        let id = store.upsert(cred("anthropic", "work", "sk-x")).await.unwrap();
+        let id = store
+            .upsert(cred("anthropic", "work", "sk-x"))
+            .await
+            .unwrap();
         let got = store.get(&id).await.unwrap();
         assert_eq!(got.label, "work");
     }
@@ -99,8 +98,14 @@ mod tests {
     #[tokio::test]
     async fn upsert_replaces_same_label() {
         let store = InMemoryCredentialStore::new();
-        let id1 = store.upsert(cred("anthropic", "work", "sk-1")).await.unwrap();
-        let _id2 = store.upsert(cred("anthropic", "work", "sk-2")).await.unwrap();
+        let id1 = store
+            .upsert(cred("anthropic", "work", "sk-1"))
+            .await
+            .unwrap();
+        let _id2 = store
+            .upsert(cred("anthropic", "work", "sk-2"))
+            .await
+            .unwrap();
         let all = store.list(&"anthropic".into()).await.unwrap();
         assert_eq!(all.len(), 1, "same label should be replaced");
         // id1 is now gone; the surviving credential is the latest one.

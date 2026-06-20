@@ -21,7 +21,6 @@
 //!   4. caller retries with the new target
 //! ```
 
-
 use crate::catalog::CatalogService;
 use crate::integration::IntegrationService;
 use crate::types::{ModelId, ProviderId};
@@ -160,14 +159,12 @@ pub enum FailoverError {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
     use super::*;
-    use crate::catalog::{
-        InMemoryCatalog, ModelInfo, ModelTier, ProviderInfo,
-    };
+    use crate::catalog::{InMemoryCatalog, ModelInfo, ModelTier, ProviderInfo};
     use crate::credential::{Credential, CredentialService, CredentialType};
     use crate::integration::{AuthMethod, InMemoryIntegration, LoginProvider};
     use crate::store::in_memory::InMemoryCredentialStore;
+    use std::sync::Arc;
 
     async fn populated() -> (
         InMemoryCatalog,
@@ -181,20 +178,20 @@ mod tests {
                 name: "Anthropic".into(),
                 enabled: true,
                 is_connected: true,
-                models: vec![
-                    ModelInfo {
-                        id: "claude-sonnet-4-6".into(),
-                        provider: "anthropic".into(),
-                        name: "Claude Sonnet 4.6".into(),
-                        cost_per_million_input: Some(3.0),
-                        cost_per_million_output: Some(15.0),
-                        context_window: 200_000,
-                        supports_tools: true,
-                        supports_vision: true,
-                        supports_streaming: true,
-                        tier: Some(ModelTier::Flagship),
-                    },
-                ],
+                models: vec![ModelInfo {
+                    id: "claude-sonnet-4-6".into(),
+                    provider: "anthropic".into(),
+                    name: "Claude Sonnet 4.6".into(),
+                    cost_per_million_input: Some(3.0),
+                    cost_per_million_output: Some(15.0),
+                    context_window: 200_000,
+                    supports_tools: true,
+                    supports_vision: true,
+                    supports_streaming: true,
+                    tier: Some(ModelTier::Flagship),
+
+                    release_date: None,
+                }],
             },
             ProviderInfo {
                 id: "openai".into(),
@@ -212,6 +209,8 @@ mod tests {
                     supports_vision: true,
                     supports_streaming: true,
                     tier: Some(ModelTier::Flagship),
+
+                    release_date: None,
                 }],
             },
             ProviderInfo {
@@ -230,6 +229,8 @@ mod tests {
                     supports_vision: true,
                     supports_streaming: true,
                     tier: Some(ModelTier::Flagship),
+
+                    release_date: None,
                 }],
             },
         ] {
@@ -288,11 +289,7 @@ mod tests {
         // Sorted chain after anthropic: gemini, then openai, then
         // wrap-around returns anthropic (already visited) -> exhausted.
         let (cat, int, _creds) = populated().await;
-        let mut chain = Chain::new(
-            &cat,
-            &int,
-            ("anthropic".into(), "claude-sonnet-4-6".into()),
-        );
+        let mut chain = Chain::new(&cat, &int, ("anthropic".into(), "claude-sonnet-4-6".into()));
         let t1 = chain.step().await.unwrap().unwrap();
         assert_eq!(t1.provider.as_str(), "gemini");
         let t2 = chain.step().await.unwrap().unwrap();
