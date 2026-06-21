@@ -147,20 +147,4 @@ pub(crate) enum AccountCommand {
     SetOpenAiCompatApiKeyName(Option<String>),
     SetOpenAiCompatEnvFile(Option<String>),
     SetOpenAiCompatDefaultModel(Option<String>),
-    /// `/auth status` — show current auth state (alias for bare `/auth`)
-    Status,
-    /// `/auth refresh [provider]` — re-fetch OAuth tokens + provider model lists
-    Refresh {
-        provider_id: Option<String>,
-    },
-    /// `/auth credentials [provider]` — show credential source + expiry table
-    Credentials {
-        provider_id: Option<String>,
-    },
-    /// `/auth help` — show help markdown
-    Help,
-    /// `/auth switch <provider>` — set default provider
-    SwitchProvider {
-        provider_id: String,
-    },
 }
