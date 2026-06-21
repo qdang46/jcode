@@ -1,6 +1,21 @@
 use super::*;
 
 pub(crate) fn handle_auth_command(app: &mut App, trimmed: &str) -> bool {
+    // /provider (singular) is an alias for /auth, matching the opencode CLI
+    // pattern where `opencode auth` is an alias for `opencode providers`.
+    if let Some(rest) = trimmed.strip_prefix("/provider ") {
+        return handle_auth_command(app, &format!("/auth {}", rest));
+    }
+    if trimmed == "/provider" {
+        return handle_auth_command(app, "/auth");
+    }
+    if trimmed == "/providers" {
+        return handle_auth_command(app, "/auth list");
+    }
+    if let Some(rest) = trimmed.strip_prefix("/providers ") {
+        return handle_auth_command(app, &format!("/auth {}", rest));
+    }
+
     if trimmed == "/auth" {
         app.show_auth_status();
         return true;
@@ -1203,6 +1218,8 @@ const AUTH_HELP_MARKDOWN: &str = r#"# /auth — manage provider credentials
 ## Aliases
 - `/login [provider]` ≡ `/auth login [provider]`
 - `/logout [provider]` ≡ `/auth logout [provider]`
+- `/provider [subcommand]` ≡ `/auth [subcommand]` (alias, matches opencode CLI)
+- `/providers` ≡ `/auth list` (alias, matches opencode CLI)
 - `/account <subcommand>` — same router, for backwards compatibility
 
 ## Examples
