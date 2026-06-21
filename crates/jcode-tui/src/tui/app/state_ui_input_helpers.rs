@@ -1491,7 +1491,7 @@ impl App {
 
         let auth = crate::auth::AuthStatus::check_fast();
         if !auth.has_any_available() {
-            return vec![("Log in to get started".to_string(), "/login".to_string())];
+            return vec![("Connect to a provider".to_string(), "/connect".to_string())];
         }
 
         if (!self.display_messages.is_empty() || self.is_processing) && !preview_mode {
@@ -1685,8 +1685,7 @@ impl App {
                 | "/effort"
                 | "/fast"
                 | "/transport"
-                | "/login"
-                | "/auth"
+                | "/connect"
                 | "/account"
                 | "/account claude"
                 | "/account switch"
