@@ -39,11 +39,6 @@ pub(crate) fn handle_auth_command(app: &mut App, trimmed: &str) -> bool {
         return true;
     }
 
-    if trimmed == "/auth login" {
-        app.show_interactive_login();
-        return true;
-    }
-
     if let Some(provider) = trimmed
         .strip_prefix("/login ")
         .or_else(|| trimmed.strip_prefix("/auth "))
