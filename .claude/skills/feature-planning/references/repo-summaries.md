@@ -1,6 +1,6 @@
 # Reference Repo Summaries
 
-Static summaries of all 7 repos for quick lookup without cloning.
+Static summaries of all 9 repos for quick lookup without cloning.
 
 ---
 
@@ -156,6 +156,54 @@ Static summaries of all 7 repos for quick lookup without cloning.
 - `src/pi_wasm.rs` — WASM runtime
 - `benches/` — full benchmark suite
 - `Cargo.toml` — deps: `asupersync`, `rich_rust`, edition 2024
+
+---
+
+## 8. oh-my-claudecode
+**URL:** https://github.com/Yeachan-Heo/oh-my-claudecode  
+**Stack:** TypeScript, Bun, Claude Code plugin  
+**What it is:** Multi-agent orchestration for Claude Code with zero learning curve. Team-first staged pipeline, 19 specialized agents, smart model routing, tmux CLI workers, and OpenClaw integration.
+
+**Key Patterns:**
+- **Team staged pipeline**: `team-plan → team-prd → team-exec → team-verify → team-fix (loop)`
+- **19 specialized agents** with tier variants for architecture, research, design, testing, data science
+- **tmux CLI workers**: `omc team N:codex/gemini/grok/claude` — on-demand spawn, die when done
+- **Tri-model advisors**: `/ask codex` + `/ask gemini` → Claude synthesizes
+- **Custom skills**: `.omc/skills/` project-scoped, `~/.omc/skills/` user-scoped, auto-inject on match
+- **Magic keywords**: `ralph`, `ulw`, `ralplan` — Team stays explicit via `/team`
+- **HUD statusline**: Real-time orchestration metrics
+- **OpenClaw gateway**: Forward session events for automated workflows
+
+**Key Files:**
+- `src/agents/` — 19 specialized agent definitions
+- `commands/` — slash command implementations
+- `skills/` — bundled workflow skills
+- `docs/REFERENCE.md` — complete feature documentation
+- `plugins/` — Claude Code plugin marketplace layout
+
+---
+
+## 9. oh-my-codex (OMX)
+**URL:** https://github.com/Yeachan-Heo/oh-my-codex  
+**Stack:** TypeScript, Node.js 20+, OpenAI Codex CLI  
+**What it is:** Workflow layer for OpenAI Codex CLI. Better task routing, durable multi-goal execution with `$ultragoal`, staged team runtime, and `.omx/` state management.
+
+**Key Patterns:**
+- **Canonical workflow**: `$deep-interview` → `$ralplan` → `$ultragoal`
+- **Durable multi-goal handoffs**: `.omx/ultragoal` ledger checkpoints
+- **Madmax mode**: `--madmax --xhigh` for full autonomy with reasoning effort
+- **Worktree isolation**: `--worktree=feat/task` for concurrent safe sessions
+- **Team runtime**: `omx team N:executor` with tmux/worktree coordination
+- **Prometheus-strict**: Interview-driven plan hardening for high-risk work
+- **Doctor/health**: `omx doctor` verifies install, `omx exec` proves auth
+- **Sparkshell**: Shell-native inspection and bounded verification
+
+**Key Files:**
+- `skills/` — workflow skills ($deep-interview, $ralplan, $ultragoal, $team, $ralph)
+- `plugins/oh-my-codex/` — official Codex plugin layout with hooks
+- `.omx/` — plans, logs, memory, runtime state
+- `docs/getting-started.html` — onboarding guide
+- `docs/codex-native-hooks.md` — hook lifecycle mapping
 
 ---
 

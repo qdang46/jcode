@@ -1602,9 +1602,10 @@ pub(super) fn draw_input(
         return;
     }
 
-    // FIXME: compute_highlights causes OOM due to sanitized-vs-raw byte offset mismatch
-    // (commit 6950261d). Disabled until detect_keywords returns original-string positions.
-    let highlights: &[KeywordHighlight] = &[];
+    // Compute keyword highlights for the input text. compute_highlights
+    // (in jcode-keywords) maps its results back to original-input byte
+    // positions, so the slice below uses the user's literal text.
+    let highlights: &[KeywordHighlight] = &jcode_keywords::visual::compute_highlights(input_text);
 
     let (all_lines, cursor_line, cursor_col) = wrap_input_text(
         input_text,
