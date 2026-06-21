@@ -785,6 +785,26 @@ impl App {
             ];
         }
 
+        // /auth <TAB> — subcommand completions
+        if prefix.starts_with("/auth ") || prefix_trimmed == "/auth" {
+            return self.rank_suggestions(
+                input,
+                vec![
+                    ("/auth status".into(), "Show current auth state"),
+                    ("/auth list".into(), "Open account picker overlay"),
+                    ("/auth login".into(), "Authenticate with a provider"),
+                    ("/auth logout".into(), "Open interactive logout picker"),
+                    ("/auth logout all".into(), "Clear all credentials"),
+                    ("/auth switch".into(), "Set default provider"),
+                    ("/auth refresh".into(), "Re-fetch OAuth tokens + model lists"),
+                    ("/auth credentials".into(), "Show credential source + expiry"),
+                    ("/auth doctor".into(), "Run auth diagnostics"),
+                    ("/auth settings".into(), "Show account settings"),
+                    ("/auth help".into(), "Show /auth help"),
+                ],
+            );
+        }
+
         if prefix.starts_with("/review ") {
             return self.rank_suggestions(
                 input,

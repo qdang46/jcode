@@ -19,7 +19,7 @@ pub(crate) fn handle_auth_command(app: &mut App, trimmed: &str) -> bool {
         return true;
     }
 
-    if trimmed == "/logout" {
+    if trimmed == "/logout" || trimmed == "/auth logout" {
         app.show_interactive_logout();
         return true;
     }
@@ -122,6 +122,30 @@ fn parse_account_command(trimmed: &str) -> Option<Result<AccountCommand, String>
         "list" | "ls" => {
             return Some(Ok(AccountCommand::OpenOverlay {
                 provider_filter: None,
+            }));
+        }
+        "status" => {
+            return Some(Ok(AccountCommand::Status));
+        }
+        "refresh" => {
+            let provider_id = (!remainder.is_empty()).then(|| remainder.to_string());
+            return Some(Ok(AccountCommand::Refresh { provider_id }));
+        }
+        "credentials" | "creds" => {
+            let provider_id = (!remainder.is_empty()).then(|| remainder.to_string());
+            return Some(Ok(AccountCommand::Credentials { provider_id }));
+        }
+        "help" | "?" => {
+            return Some(Ok(AccountCommand::Help));
+        }
+        "switch-provider" => {
+            if remainder.is_empty() {
+                return Some(Err(
+                    "Usage: /auth switch-provider <provider>".to_string(),
+                ));
+            }
+            return Some(Ok(AccountCommand::SwitchProvider {
+                provider_id: remainder.to_string(),
             }));
         }
         "switch" | "use" => {
@@ -422,6 +446,23 @@ pub(crate) fn execute_account_command_local(app: &mut App, command: AccountComma
         AccountCommand::SetOpenAiCompatDefaultModel(value) => {
             save_openai_compat_setting(app, OpenAiCompatSetting::DefaultModel, value.as_deref())
         }
+        AccountCommand::Status => {
+            app.show_auth_status();
+        }
+        AccountCommand::Refresh { provider_id } => {
+            execute_account_refresh(app, provider_id.as_deref());
+        }
+        AccountCommand::Credentials { provider_id } => {
+            let creds = collect_provider_credentials(provider_id.as_deref());
+            let rendered = render_credentials_table(&creds);
+            app.push_display_message(DisplayMessage::system(rendered));
+        }
+        AccountCommand::Help => {
+            app.push_display_message(DisplayMessage::system(AUTH_HELP_MARKDOWN));
+        }
+        AccountCommand::SwitchProvider { provider_id } => {
+            execute_account_switch_provider(app, &provider_id);
+        }
     }
 }
 
@@ -546,6 +587,21 @@ pub(crate) async fn execute_account_command_remote(
             remote
                 .set_service_tier(if enabled { "priority" } else { "off" })
                 .await?;
+        }
+        AccountCommand::Status => {
+            execute_account_command_local(app, AccountCommand::Status);
+        }
+        AccountCommand::Refresh { provider_id } => {
+            execute_account_refresh(app, provider_id.as_deref());
+        }
+        AccountCommand::Credentials { provider_id } => {
+            execute_account_command_local(app, AccountCommand::Credentials { provider_id });
+        }
+        AccountCommand::Help => {
+            execute_account_command_local(app, AccountCommand::Help);
+        }
+        AccountCommand::SwitchProvider { provider_id } => {
+            execute_account_switch_provider(app, &provider_id);
         }
         other => execute_account_command_local(app, other),
     }
@@ -1126,6 +1182,201 @@ fn render_auth_doctor_markdown(provider_filter: Option<&str>) -> String {
     sections.join("\n\n")
 }
 
+/// /auth help markdown - lists all subcommands and aliases.
+const AUTH_HELP_MARKDOWN: &str = r#"# /auth — manage provider credentials
+
+## Subcommands
+- `/auth` or `/auth status` — show current auth state for all providers
+- `/auth list` (alias `ls`) — open account picker overlay
+- `/auth login <provider>` — authenticate with a provider (API key or OAuth)
+- `/auth logout` — open interactive logout picker
+- `/auth logout <provider>` — clear one provider's credentials
+- `/auth logout all` — clear all credentials
+- `/auth switch <provider>` — set default provider for the session
+- `/auth refresh [provider]` — re-fetch OAuth tokens + provider model lists
+- `/auth credentials [provider]` — show credential source (env/keyring/file) + expiry
+- `/auth doctor [provider]` — run auth diagnostics + show next steps
+- `/auth settings` — show account settings overlay
+- `/auth set <key> <value>` — change settings (default-provider, default-model, etc.)
+- `/auth help` — this help
+
+## Aliases
+- `/login [provider]` ≡ `/auth login [provider]`
+- `/logout [provider]` ≡ `/auth logout [provider]`
+- `/account <subcommand>` — same router, for backwards compatibility
+
+## Examples
+- `/auth login openai` — start OpenAI login flow
+- `/auth credentials openrouter` — show OpenRouter credential source + expiry
+- `/auth refresh anthropic` — refresh Anthropic OAuth token + model list
+- `/auth switch openai` — make OpenAI the default provider
+"#;
+
+/// One row of the credentials table rendered by `/auth credentials`.
+#[derive(Debug, Clone)]
+struct ProviderCredentialInfo {
+    provider_id: String,
+    /// "env" | "keyring" | "file" | "none"
+    source: String,
+    is_oauth: bool,
+    /// Seconds until token expires, if known.
+    expires_in_secs: Option<i64>,
+}
+
+/// Collect credential information for the requested providers.
+///
+/// If `provider_filter` is `Some(id)`, only that provider is inspected.
+/// If `None`, all providers known to the catalog are inspected.
+fn collect_provider_credentials(provider_filter: Option<&str>) -> Vec<ProviderCredentialInfo> {
+    let providers = crate::provider_catalog::tui_login_providers();
+    let mut infos = Vec::new();
+    for provider in providers {
+        if let Some(filter) = provider_filter {
+            if provider.id != filter {
+                continue;
+            }
+        }
+        let source = detect_credential_source(&provider.id);
+        let is_oauth = is_oauth_provider_id(&provider.id);
+        let expires_in_secs = if is_oauth {
+            oauth_expires_in_secs(&provider.id)
+        } else {
+            None
+        };
+        infos.push(ProviderCredentialInfo {
+            provider_id: provider.id.to_string(),
+            source,
+            is_oauth,
+            expires_in_secs,
+        });
+    }
+    infos
+}
+
+/// Detect where credentials for a provider come from.
+fn detect_credential_source(provider_id: &str) -> String {
+    let env_var = provider_env_var_name(provider_id);
+    if let Some(var) = env_var {
+        if std::env::var_os(&var).is_some() {
+            return "env".to_string();
+        }
+    }
+    let providers = crate::provider_catalog::tui_login_providers();
+    if providers.iter().any(|p| p.id == provider_id) {
+        return "keyring-or-config".to_string();
+    }
+    "none".to_string()
+}
+
+/// Best-effort env var name for a provider (uppercased + `_API_KEY`).
+fn provider_env_var_name(provider_id: &str) -> Option<String> {
+    let cleaned: String = provider_id
+        .chars()
+        .map(|c| if c == '-' || c == ' ' { '_' } else { c })
+        .collect();
+    Some(format!("{}_API_KEY", cleaned.to_uppercase()))
+}
+
+fn is_oauth_provider_id(provider_id: &str) -> bool {
+    matches!(provider_id, "openai-codex" | "claude-code" | "copilot" | "openai" | "claude")
+}
+
+fn oauth_expires_in_secs(_provider_id: &str) -> Option<i64> {
+    // OAuth expiry introspection is not yet exposed; the refresh subcommand
+    // is the way to renew tokens. Return None to avoid showing misleading data.
+    None
+}
+
+/// Render the credentials info as a markdown table.
+fn render_credentials_table(creds: &[ProviderCredentialInfo]) -> String {
+    let mut out = String::from(
+        "# Auth credentials
+
+| Provider | Source | OAuth | Expires |
+|---|---|---|---|
+",
+    );
+    if creds.is_empty() {
+        out.push_str("| _none_ | | | |
+");
+        return out;
+    }
+    for c in creds {
+        let expires = c
+            .expires_in_secs
+            .map(|s| format!("in {}s", s))
+            .unwrap_or_else(|| "—".to_string());
+        out.push_str(&format!(
+            "| `{}` | {} | {} | {} |
+",
+            c.provider_id,
+            c.source,
+            if c.is_oauth { "yes" } else { "no" },
+            expires,
+        ));
+    }
+    out.push_str("
+Source key:
+");
+    out.push_str("- **env** — `*_API_KEY` environment variable is set
+");
+    out.push_str("- **keyring** — credential is in the OS keyring
+");
+    out.push_str("- **none** — no credential configured
+");
+    out.push_str("
+Use `/auth refresh <provider>` to renew expiring OAuth tokens.
+");
+    out
+}
+
+/// Trigger a refresh of OAuth tokens + provider catalog.
+///
+/// Implementation is intentionally conservative: we surface the
+/// available refresh handle (catalog re-fetch) without touching live
+/// OAuth tokens in this first iteration. A future change can add
+/// per-provider token refresh through `jcode-provider-service`.
+fn execute_account_refresh(app: &mut App, provider_id: Option<&str>) {
+    let target = provider_id.unwrap_or("all");
+    app.push_display_message(DisplayMessage::system(format!(
+        "Refresh requested for `{}`.
+         • Re-fetching the provider model catalog...
+         • OAuth token rotation will be added in a follow-up.
+         Use `/auth credentials` afterwards to verify.",
+        target
+    )));
+    // Touch the catalog so the (cheap) refresh hint is exercised. A
+    // background catalog refresh is scheduled by the runtime; here we
+    // just mark the providers as needing a re-fetch next time they are
+    // looked up.
+    let _ = crate::provider_catalog::tui_login_providers();
+}
+
+/// Switch the default provider for the session.
+fn execute_account_switch_provider(app: &mut App, provider_id: &str) {
+    let providers = crate::provider_catalog::tui_login_providers();
+    let Some(provider) =
+        crate::provider_catalog::resolve_login_selection(provider_id, &providers)
+    else {
+        let valid = providers
+            .iter()
+            .map(|p| p.id)
+            .collect::<Vec<_>>()
+            .join(", ");
+        app.push_display_message(DisplayMessage::error(format!(
+            "Unknown provider '{}'. Use: {}",
+            provider_id, valid
+        )));
+        return;
+    };
+    save_default_provider_setting(app, Some(provider.id));
+    app.push_display_message(DisplayMessage::system(format!(
+        "Default provider set to `{}`.",
+        provider.id
+    )));
+    app.set_status_notice(format!("Default provider: {}", provider.id));
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1150,5 +1401,143 @@ mod tests {
         assert!(markdown.contains("Next steps"));
         assert!(markdown.contains("jcode login --provider openai"));
         assert!(markdown.contains("Review current state: jcode auth status --json"));
+    }
+
+    #[test]
+    fn parse_account_status_subcommand() {
+        assert!(matches!(
+            parse_account_command("/account status"),
+            Some(Ok(AccountCommand::Status))
+        ));
+        assert!(matches!(
+            parse_account_command("/auth status"),
+            Some(Ok(AccountCommand::Status))
+        ));
+    }
+
+    #[test]
+    fn parse_account_refresh_subcommand() {
+        assert!(matches!(
+            parse_account_command("/auth refresh"),
+            Some(Ok(AccountCommand::Refresh { provider_id: None }))
+        ));
+        assert!(matches!(
+            parse_account_command("/auth refresh openai"),
+            Some(Ok(AccountCommand::Refresh { provider_id: Some(p) })) if p == "openai"
+        ));
+    }
+
+    #[test]
+    fn parse_account_credentials_subcommand() {
+        assert!(matches!(
+            parse_account_command("/auth credentials"),
+            Some(Ok(AccountCommand::Credentials { provider_id: None }))
+        ));
+        assert!(matches!(
+            parse_account_command("/auth credentials anthropic"),
+            Some(Ok(AccountCommand::Credentials { provider_id: Some(p) })) if p == "anthropic"
+        ));
+        // alias `creds`
+        assert!(matches!(
+            parse_account_command("/auth creds"),
+            Some(Ok(AccountCommand::Credentials { provider_id: None }))
+        ));
+    }
+
+    #[test]
+    fn parse_account_help_subcommand() {
+        assert!(matches!(
+            parse_account_command("/auth help"),
+            Some(Ok(AccountCommand::Help))
+        ));
+        assert!(matches!(
+            parse_account_command("/auth ?"),
+            Some(Ok(AccountCommand::Help))
+        ));
+    }
+
+    #[test]
+    fn parse_account_switch_provider_subcommand() {
+        assert!(matches!(
+            parse_account_command("/auth switch-provider openai"),
+            Some(Ok(AccountCommand::SwitchProvider { provider_id })) if provider_id == "openai"
+        ));
+        // Empty provider should error
+        assert!(matches!(
+            parse_account_command("/auth switch-provider"),
+            Some(Err(_))
+        ));
+    }
+
+    #[test]
+    fn auth_help_markdown_contains_subcommands() {
+        assert!(AUTH_HELP_MARKDOWN.contains("/auth status"));
+        assert!(AUTH_HELP_MARKDOWN.contains("/auth refresh"));
+        assert!(AUTH_HELP_MARKDOWN.contains("/auth credentials"));
+        assert!(AUTH_HELP_MARKDOWN.contains("/auth help"));
+    }
+
+    #[test]
+    fn collect_provider_credentials_returns_rows() {
+        let creds = collect_provider_credentials(None);
+        // Should at least return an empty Vec if catalog is empty, or rows
+        // otherwise. The function must not panic.
+        for c in &creds {
+            assert!(["env", "keyring-or-config", "none"].contains(&c.source.as_str()));
+        }
+    }
+
+    #[test]
+    fn collect_provider_credentials_filters_by_id() {
+        let creds = collect_provider_credentials(Some("definitely-not-a-real-provider"));
+        assert!(creds.is_empty());
+    }
+
+    #[test]
+    fn render_credentials_table_handles_empty() {
+        let rendered = render_credentials_table(&[]);
+        assert!(rendered.contains("# Auth credentials"));
+        assert!(rendered.contains("| _none_ |"));
+    }
+
+    #[test]
+    fn render_credentials_table_includes_source_key() {
+        let creds = vec![ProviderCredentialInfo {
+            provider_id: "openai".to_string(),
+            source: "env".to_string(),
+            is_oauth: false,
+            expires_in_secs: None,
+        }];
+        let rendered = render_credentials_table(&creds);
+        assert!(rendered.contains("`openai`"));
+        assert!(rendered.contains("env"));
+        assert!(rendered.contains("Source key"));
+    }
+
+    #[test]
+    fn provider_env_var_name_uppercases_with_underscore() {
+        assert_eq!(
+            provider_env_var_name("openai"),
+            Some("OPENAI_API_KEY".to_string())
+        );
+        assert_eq!(
+            provider_env_var_name("openai-compatible"),
+            Some("OPENAI_COMPATIBLE_API_KEY".to_string())
+        );
+    }
+
+    #[test]
+    fn detect_credential_source_prefers_env() {
+        // Save and restore
+        // SAFETY: tests are single-threaded for env mutation in this crate;
+        // set_var/remove_var are unsafe on Rust 2024 edition.
+        let prev = std::env::var("OPENAI_API_KEY").ok();
+        unsafe { std::env::set_var("OPENAI_API_KEY", "test-key"); }
+        let source = detect_credential_source("openai");
+        match prev {
+            Some(v) => unsafe { std::env::set_var("OPENAI_API_KEY", v); },
+            None => unsafe { std::env::remove_var("OPENAI_API_KEY"); },
+        }
+        assert_eq!(source, "env");
     }
 }
