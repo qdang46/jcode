@@ -832,7 +832,7 @@ pub(super) fn prepare_body_incremental(
     prev_msg_count: usize,
 ) -> Arc<PreparedMessages> {
     let messages = app.display_messages();
-    let new_messages = &messages[prev_msg_count..];
+    let new_messages = messages.get(prev_msg_count..).unwrap_or(&[]);
     if new_messages.is_empty() {
         return prev;
     }
