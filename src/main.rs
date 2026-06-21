@@ -48,12 +48,16 @@ fn configure_system_allocator() {}
 
 fn main() -> Result<()> {
     // Log panics before abort so we can diagnose OOM / SIGKILL causes.
-    // Keep this hook MINIMAL — no allocation, no filesystem, no eprintln
-    // that could itself panic (recursive panic → stack overflow).
     let orig_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {
-        // Minimal panic hook: just forward to default handler.
-        // Avoid eprintln or filesystem IO that could itself panic.
+        // Write panic info to stderr even inside catch_unwind.
+        eprintln!("\n\x1b[31m*** jcode PANIC ***\x1b[0m {}", info);
+        // Also dump to file for post-mortem debugging.
+        if let Ok(jcode_dir) = jcode::storage::jcode_dir() {
+            let panic_log = jcode_dir.join("panic.log");
+            let msg = format!("{}: {}\n", chrono::Utc::now().to_rfc3339(), info);
+            let _ = std::fs::write(&panic_log, msg);
+        }
         orig_hook(info);
     }));
 
