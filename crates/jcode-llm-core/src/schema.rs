@@ -248,14 +248,9 @@ pub enum LlmError {
 #[serde(tag = "event", rename_all = "snake_case")]
 pub enum LlmEvent {
     /// Request object created but not yet dispatched.
-    RequestCreated {
-        id: String,
-        model: ModelRef,
-    },
+    RequestCreated { id: String, model: ModelRef },
     /// Request dispatched to the provider.
-    RequestStarted {
-        id: String,
-    },
+    RequestStarted { id: String },
     /// Request completed (all output received).
     RequestFinished {
         id: String,
@@ -263,18 +258,11 @@ pub enum LlmEvent {
         finish_reason: Option<FinishReason>,
     },
     /// First response data received from the provider.
-    ResponseStarted {
-        id: String,
-    },
+    ResponseStarted { id: String },
     /// Response fully received from the provider.
-    ResponseFinished {
-        id: String,
-    },
+    ResponseFinished { id: String },
     /// Text content delta received.
-    TextGenerated {
-        id: String,
-        delta: String,
-    },
+    TextGenerated { id: String, delta: String },
     /// A new tool call was initiated by the model.
     ToolCallCreated {
         id: String,
@@ -288,33 +276,17 @@ pub enum LlmEvent {
         delta: String,
     },
     /// Tool call input fully received.
-    ToolCallCompleted {
-        id: String,
-        tool_call_id: String,
-    },
+    ToolCallCompleted { id: String, tool_call_id: String },
     /// Model reasoning (thinking) started.
-    ReasoningStarted {
-        id: String,
-    },
+    ReasoningStarted { id: String },
     /// Reasoning content delta received.
-    ReasoningDelta {
-        id: String,
-        delta: String,
-    },
+    ReasoningDelta { id: String, delta: String },
     /// Model reasoning finished.
-    ReasoningFinished {
-        id: String,
-    },
+    ReasoningFinished { id: String },
     /// Token usage information updated.
-    UsageUpdated {
-        id: String,
-        usage: Usage,
-    },
+    UsageUpdated { id: String, usage: Usage },
     /// An error occurred during the request.
-    Error {
-        id: String,
-        error: LlmError,
-    },
+    Error { id: String, error: LlmError },
     /// Request was cancelled before completion.
     Cancelled {
         id: String,
@@ -388,10 +360,7 @@ mod tests {
         let deserialized: Usage = serde_json::from_str(&json).unwrap();
         assert_eq!(deserialized.total_tokens, 165);
         assert!(deserialized.breakdown.is_some());
-        assert_eq!(
-            deserialized.breakdown.unwrap().reasoning_tokens,
-            Some(20)
-        );
+        assert_eq!(deserialized.breakdown.unwrap().reasoning_tokens, Some(20));
     }
 
     #[test]
@@ -503,9 +472,7 @@ mod tests {
 
     #[test]
     fn test_content_part_variants() {
-        let text = ContentPart::Text {
-            text: "hi".into(),
-        };
+        let text = ContentPart::Text { text: "hi".into() };
         let media = ContentPart::Media {
             media_type: "image/png".into(),
             data: "base64data".into(),
@@ -536,10 +503,7 @@ mod tests {
             serde_json::to_string(&ToolChoice::Auto).unwrap(),
             r#""auto""#
         );
-        assert_eq!(
-            serde_json::to_string(&ToolChoice::Any).unwrap(),
-            r#""any""#
-        );
+        assert_eq!(serde_json::to_string(&ToolChoice::Any).unwrap(), r#""any""#);
         assert_eq!(
             serde_json::to_string(&ToolChoice::None).unwrap(),
             r#""none""#
@@ -575,10 +539,7 @@ mod tests {
             context: HttpContext {
                 status_code: 429,
                 url: "https://api.anthropic.com/v1/messages".into(),
-                headers: Some(HashMap::from([(
-                    "x-request-id".into(),
-                    "req_123".into(),
-                )])),
+                headers: Some(HashMap::from([("x-request-id".into(), "req_123".into())])),
                 body: Some("{\"error\": {\"type\": \"rate_limit\"}}".into()),
             },
         };

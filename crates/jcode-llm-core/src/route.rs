@@ -208,7 +208,10 @@ mod tests {
         assert_eq!(route.id, "fast");
         assert_eq!(route.protocol, "openai-chat-2024");
         assert_eq!(route.auth.get("api_key").unwrap(), "sk-xxx");
-        assert_eq!(route.defaults.get("temperature").unwrap(), &serde_json::json!(0.7));
+        assert_eq!(
+            route.defaults.get("temperature").unwrap(),
+            &serde_json::json!(0.7)
+        );
         assert_eq!(
             route.body_overlay.unwrap(),
             serde_json::json!({"model": "gpt-4o"})

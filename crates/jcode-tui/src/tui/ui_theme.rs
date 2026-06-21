@@ -22,6 +22,7 @@ pub(super) fn activity_indicator(elapsed: f32, fps: f32) -> &'static str {
     )
 }
 
+#[allow(dead_code)]
 pub(super) fn animated_tool_color(elapsed: f32) -> Color {
     jcode_tui_style::theme::animated_tool_color(
         elapsed,

@@ -1,0 +1,44 @@
+[package]
+name = "jcode-provider-service"
+version = "0.1.0"
+edition = "2024"
+description = "Catalog / Integration / Credential service traits and shared types for jcode provider resolution"
+
+[lib]
+name = "jcode_provider_service"
+path = "src/lib.rs"
+
+[[bin]]
+name = "modelpicker"
+path = "src/bin/modelpicker.rs"
+
+[[bin]]
+name = "providerctl"
+path = "src/bin/providerctl.rs"
+
+[features]
+default = []
+metadata = ["dep:jcode-provider-metadata"]
+inventory = ["dep:inventory"]
+
+[dependencies]
+anyhow = "1"
+async-trait = "0.1"
+chrono = { version = "0.4", features = ["serde"] }
+clap = { version = "4", features = ["derive"], optional = true }
+jcode-llm-core = { path = "../jcode-llm-core" }
+jcode-llm-protocols = { path = "../jcode-llm-protocols" }
+jcode-message-types = { path = "../jcode-message-types" }
+jcode-provider-core = { path = "../jcode-provider-core" }
+jcode-provider-metadata = { path = "../jcode-provider-metadata", optional = true }
+inventory = { version = "0.3", optional = true }
+jcode-keyring-store = { path = "../jcode-keyring-store" }
+serde = { version = "1", features = ["derive", "rc"] }
+serde_json = "1"
+thiserror = "1"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+tokio = { version = "1", features = ["rt", "sync", "macros"] }
+tracing = "0.1"
+crossterm = "0.28"
+ratatui = "0.28"

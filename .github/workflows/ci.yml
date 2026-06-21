@@ -38,8 +38,9 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.DEPLOY_KEY }}
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@master
         with:
+          toolchain: nightly-2026-06-04
           components: clippy, rustfmt
 
       - uses: Swatinem/rust-cache@v2
@@ -379,8 +380,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@master
         with:
+          toolchain: nightly-2026-06-04
           components: rustfmt
 
       - name: Check formatting
@@ -439,7 +441,7 @@ jobs:
         run: cargo install --git https://github.com/rust-cross/cargo-xwin cargo-xwin
 
       - name: Check Windows x64 target
-        run: cargo xwin check --locked --target x86_64-pc-windows-msvc
+        run: cargo xwin check --locked --target x86_64-pc-windows-msvc --no-default-features -F pdf,embeddings,dcp,rtco,mmdr-size-api,mempalace-backend
 
       # cargo-xwin currently feeds clang-style ring builds MSVC /imsvc flags for
       # aarch64-pc-windows-msvc on Linux. Keep this advisory until upstream

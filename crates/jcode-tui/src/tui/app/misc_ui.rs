@@ -517,6 +517,7 @@ impl App {
         Ok(())
     }
 
+    #[allow(dead_code)]
     pub(super) fn handle_model_status_key(&mut self, code: KeyCode) -> Result<()> {
         let scroll = self.model_status_scroll.unwrap_or(0);
         match code {

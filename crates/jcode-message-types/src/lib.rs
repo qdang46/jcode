@@ -543,7 +543,7 @@ impl ToolCall {
         };
         let parts: Vec<String> = obj
             .iter()
-            .filter(|(k, v)| !v.is_null())
+            .filter(|(_k, v)| !v.is_null())
             .map(|(k, v)| {
                 let val_str = match v {
                     serde_json::Value::String(s) if s.len() < 40 => s.clone(),

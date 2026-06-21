@@ -348,7 +348,8 @@ pub(super) fn draw_help_overlay(frame: &mut Frame, area: Rect, scroll: usize, ap
         "/permissions",
         "Show DCG permission mode and recent decisions",
     ));
-    lines.push(help_entry("/quit", "Exit jcode"));
+    lines.push(help_entry("/exit", "Exit jcode (opencode TUI slash)"));
+    lines.push(help_entry("/quit", "Alias for /exit"));
 
     let skills = app.available_skills();
     if !skills.is_empty() {
@@ -747,6 +748,7 @@ pub(super) fn draw_permission_dialog_overlay(
 }
 
 /// Generic permission dialog (fallback). Shows tool name + reason.
+#[allow(clippy::too_many_arguments)]
 fn build_generic_permission_lines(
     app: &dyn crate::tui::TuiState,
     dialog_w: u16,
@@ -775,8 +777,8 @@ fn build_generic_permission_lines(
         reason.to_string()
     };
     lines.push(Line::from(vec![
-        Span::styled(format!("  {}  ", tool), (*bold).clone()),
-        Span::styled(format!("({})", r_text), (*dim).clone()),
+        Span::styled(format!("  {}  ", tool), *bold),
+        Span::styled(format!("({})", r_text), *dim),
     ]));
     lines.push(Line::from(""));
     append_option_row(&mut lines, sel, dim, hlbg);
@@ -784,6 +786,7 @@ fn build_generic_permission_lines(
 }
 
 /// Bash permission dialog — shows the actual command being run.
+#[allow(clippy::too_many_arguments)]
 fn build_bash_permission_lines(
     app: &dyn crate::tui::TuiState,
     dialog_w: u16,
@@ -838,7 +841,7 @@ fn build_bash_permission_lines(
         };
         lines.push(Line::from(Span::styled(
             format!("  ({})", reason_text),
-            (*dim).clone(),
+            *dim,
         )));
     }
 
@@ -848,6 +851,7 @@ fn build_bash_permission_lines(
 }
 
 /// Edit permission dialog — shows file path + inline diff.
+#[allow(clippy::too_many_arguments)]
 fn build_edit_permission_lines(
     app: &dyn crate::tui::TuiState,
     dialog_w: u16,
@@ -923,6 +927,7 @@ fn build_edit_permission_lines(
 }
 
 /// Write permission dialog — shows file path + content preview.
+#[allow(clippy::too_many_arguments)]
 fn build_write_permission_lines(
     app: &dyn crate::tui::TuiState,
     dialog_w: u16,
@@ -996,7 +1001,7 @@ fn append_option_row(lines: &mut Vec<Line<'static>>, sel: usize, dim: &Style, hl
     let mut opt_line = Vec::new();
     for (i, label) in opts.iter().enumerate() {
         if i == sel {
-            opt_line.push(Span::styled(format!(" ❯{} ", label), (*hlbg).clone()));
+            opt_line.push(Span::styled(format!(" ❯{} ", label), *hlbg));
         } else {
             opt_line.push(Span::styled(
                 format!("  ◯{} ", label),
@@ -1007,7 +1012,7 @@ fn append_option_row(lines: &mut Vec<Line<'static>>, sel: usize, dim: &Style, hl
     lines.push(Line::from(opt_line));
     lines.push(Line::from(Span::styled(
         "  \u{2190}\u{2192} navigate  \u{23ce} Enter  Esc reject",
-        (*dim).clone(),
+        *dim,
     )));
 }
 

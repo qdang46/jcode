@@ -238,6 +238,7 @@ fn report_to_json_value(report: &DoctorReport) -> serde_json::Value {
     })
 }
 
+#[expect(dead_code)]
 fn report_to_json(report: &DoctorReport) -> String {
     serde_json::to_string_pretty(&report_to_json_value(report)).unwrap_or_else(|_| "{}".to_string())
 }

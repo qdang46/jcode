@@ -185,48 +185,48 @@ impl ExecutionPolicyEngine {
         // These are parsed BEFORE user-defined rules so user rules take priority (last wins).
         let mut rule_index = 0u32;
         for entry in &config.deny {
-            if let Some((tool, pattern)) = parse_permission_rule(entry) {
-                if let Ok(regex) = Regex::new(&pattern) {
-                    rule_index += 1;
-                    rules.push(CompiledRule {
-                        id: format!("builtin-deny-{}", rule_index),
-                        description: format!("Denied by permission rule: {}", entry),
-                        regex,
-                        action: PolicyRuleAction::Deny,
-                        tool: Some(tool),
-                        alternatives: vec![],
-                    });
-                }
+            if let Some((tool, pattern)) = parse_permission_rule(entry)
+                && let Ok(regex) = Regex::new(&pattern)
+            {
+                rule_index += 1;
+                rules.push(CompiledRule {
+                    id: format!("builtin-deny-{}", rule_index),
+                    description: format!("Denied by permission rule: {}", entry),
+                    regex,
+                    action: PolicyRuleAction::Deny,
+                    tool: Some(tool),
+                    alternatives: vec![],
+                });
             }
         }
         for entry in &config.ask {
-            if let Some((tool, pattern)) = parse_permission_rule(entry) {
-                if let Ok(regex) = Regex::new(&pattern) {
-                    rule_index += 1;
-                    rules.push(CompiledRule {
-                        id: format!("builtin-ask-{}", rule_index),
-                        description: format!("Ask by permission rule: {}", entry),
-                        regex,
-                        action: PolicyRuleAction::Prompt,
-                        tool: Some(tool),
-                        alternatives: vec![],
-                    });
-                }
+            if let Some((tool, pattern)) = parse_permission_rule(entry)
+                && let Ok(regex) = Regex::new(&pattern)
+            {
+                rule_index += 1;
+                rules.push(CompiledRule {
+                    id: format!("builtin-ask-{}", rule_index),
+                    description: format!("Ask by permission rule: {}", entry),
+                    regex,
+                    action: PolicyRuleAction::Prompt,
+                    tool: Some(tool),
+                    alternatives: vec![],
+                });
             }
         }
         for entry in &config.allow {
-            if let Some((tool, pattern)) = parse_permission_rule(entry) {
-                if let Ok(regex) = Regex::new(&pattern) {
-                    rule_index += 1;
-                    rules.push(CompiledRule {
-                        id: format!("builtin-allow-{}", rule_index),
-                        description: format!("Allowed by permission rule: {}", entry),
-                        regex,
-                        action: PolicyRuleAction::Allow,
-                        tool: Some(tool),
-                        alternatives: vec![],
-                    });
-                }
+            if let Some((tool, pattern)) = parse_permission_rule(entry)
+                && let Ok(regex) = Regex::new(&pattern)
+            {
+                rule_index += 1;
+                rules.push(CompiledRule {
+                    id: format!("builtin-allow-{}", rule_index),
+                    description: format!("Allowed by permission rule: {}", entry),
+                    regex,
+                    action: PolicyRuleAction::Allow,
+                    tool: Some(tool),
+                    alternatives: vec![],
+                });
             }
         }
 

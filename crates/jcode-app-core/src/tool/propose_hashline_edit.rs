@@ -159,7 +159,7 @@ impl Tool for ProposeHashlineEditTool {
         lines[line_idx] = lines[line_idx].replacen(&params.old_string, &params.new_string, 1);
         let new_content = lines.join("\n");
         let start_line = params.anchor.line;
-        let end_line = start_line + params.new_string.lines().count().saturating_sub(1).max(0);
+        let end_line = start_line + params.new_string.lines().count().saturating_sub(1);
 
         // Generate diff preview
         let diff = generate_diff(&params.old_string, &params.new_string, start_line);

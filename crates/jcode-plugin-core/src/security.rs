@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum PolicyMode {
     /// Deny by default
@@ -8,15 +8,10 @@ pub enum PolicyMode {
     /// Allow by default
     Permissive,
     /// Prompt for ambiguous
+    #[default]
     Prompt,
     /// Kill switch — deny everything
     Disabled,
-}
-
-impl Default for PolicyMode {
-    fn default() -> Self {
-        Self::Prompt
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -81,20 +76,18 @@ impl CapabilityChainV2 {
                 reason: "disabled (kill switch)".into(),
                 layer: 5,
             },
-            (_, Some(deny)) if matches!(deny, AccessDefault::Deny) => AccessDecisionV2::Deny {
+            (_, Some(AccessDefault::Deny)) => AccessDecisionV2::Deny {
                 reason: "denied by default".into(),
                 layer: 5,
             },
-            (_, Some(allow)) if matches!(allow, AccessDefault::Allow) => AccessDecisionV2::Allow {
+            (_, Some(AccessDefault::Allow)) => AccessDecisionV2::Allow {
                 reason: "allowed by default".into(),
                 layer: 5,
             },
-            (_, Some(ask)) if matches!(ask, AccessDefault::Ask) => {
-                AccessDecisionV2::NeedsApproval {
-                    reason: "requires approval".into(),
-                    layer: 5,
-                }
-            }
+            (_, Some(AccessDefault::Ask)) => AccessDecisionV2::NeedsApproval {
+                reason: "requires approval".into(),
+                layer: 5,
+            },
             (PolicyMode::Strict, _) => AccessDecisionV2::Deny {
                 reason: "strict mode".into(),
                 layer: 5,

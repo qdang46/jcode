@@ -1,11 +1,11 @@
+use crate::errors::PluginError;
+use crate::manifest::PluginManifest;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::process::Command;
 use tokio::sync::RwLock;
-use serde::{Deserialize, Serialize};
-use crate::manifest::PluginManifest;
-use crate::errors::PluginError;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum PluginSource {
@@ -44,17 +44,27 @@ impl PluginManager {
     pub async fn new(install_root: PathBuf) -> Self {
         let lock_path = install_root.join("installed.json");
         let state = Self::load_state(&lock_path).await.unwrap_or_default();
-        Self { state: Arc::new(RwLock::new(state)), install_root, lock_path }
+        Self {
+            state: Arc::new(RwLock::new(state)),
+            install_root,
+            lock_path,
+        }
     }
 
-    pub async fn load(&self, name: &str, source: PluginSource) -> Result<InstalledPlugin, PluginError> {
+    pub async fn load(
+        &self,
+        name: &str,
+        source: PluginSource,
+    ) -> Result<InstalledPlugin, PluginError> {
         let backup = self.state.read().await.last_known_good.clone();
         let install_path = self.install_root.join(name);
 
         match &source {
             PluginSource::Git { url, rev } => {
                 let sanitized = Self::sanitize_url(url)?;
-                tokio::fs::create_dir_all(&install_path).await.map_err(|e| PluginError::Other(e.to_string()))?;
+                tokio::fs::create_dir_all(&install_path)
+                    .await
+                    .map_err(|e| PluginError::Other(e.to_string()))?;
 
                 let output = Command::new("git")
                     .args(["clone", "--depth", "1", &sanitized])
@@ -76,7 +86,9 @@ impl PluginManager {
                         .current_dir(&install_path)
                         .output()
                         .await
-                        .map_err(|e| PluginError::Other(format!("failed to execute git checkout: {e}")))?;
+                        .map_err(|e| {
+                            PluginError::Other(format!("failed to execute git checkout: {e}"))
+                        })?;
 
                     if !co.status.success() {
                         let stderr = String::from_utf8_lossy(&co.stderr);
@@ -87,7 +99,9 @@ impl PluginManager {
                 }
             }
             _ => {
-                tokio::fs::create_dir_all(&install_path).await.map_err(|e| PluginError::Other(e.to_string()))?;
+                tokio::fs::create_dir_all(&install_path)
+                    .await
+                    .map_err(|e| PluginError::Other(e.to_string()))?;
             }
         }
 
@@ -122,13 +136,17 @@ impl PluginManager {
 
     pub async fn enable(&self, name: &str) -> Result<(), PluginError> {
         let mut state = self.state.write().await;
-        if let Some(p) = state.installed.get_mut(name) { p.enabled = true; }
+        if let Some(p) = state.installed.get_mut(name) {
+            p.enabled = true;
+        }
         self.save_state(&state).await
     }
 
     pub async fn disable(&self, name: &str) -> Result<(), PluginError> {
         let mut state = self.state.write().await;
-        if let Some(p) = state.installed.get_mut(name) { p.enabled = false; }
+        if let Some(p) = state.installed.get_mut(name) {
+            p.enabled = false;
+        }
         self.save_state(&state).await
     }
 
@@ -167,6 +185,7 @@ impl PluginManager {
 
     /// Derive a filesystem-safe install name from a git URL.
     /// Extracts the repo name from the last path segment (stripping `.git` suffix).
+    #[expect(dead_code)]
     fn install_name_from_url(url: &str) -> String {
         let path = url
             .strip_prefix("https://")
@@ -177,7 +196,7 @@ impl PluginManager {
         // Normalise colons in the host:path part to slashes for extraction
         let path = path.replace(':', "/");
 
-        let name = path.split('/').filter(|s| !s.is_empty()).last().unwrap_or("plugin");
+        let name = path.split('/').rfind(|s| !s.is_empty()).unwrap_or("plugin");
 
         name.strip_suffix(".git").unwrap_or(name).to_owned()
     }
@@ -191,7 +210,15 @@ mod tests {
     async fn test_load_and_list_plugin() {
         let tmp = std::env::temp_dir().join(format!("jcode-manager-test-{}", uuid::Uuid::new_v4()));
         let mgr = PluginManager::new(tmp.clone()).await;
-        let p = mgr.load("test", PluginSource::Local { path: tmp.join("src") }).await.unwrap();
+        let p = mgr
+            .load(
+                "test",
+                PluginSource::Local {
+                    path: tmp.join("src"),
+                },
+            )
+            .await
+            .unwrap();
         assert_eq!(p.package_name, "test");
         let list = mgr.list().await;
         assert_eq!(list.len(), 1);
@@ -202,7 +229,14 @@ mod tests {
     async fn test_enable_disable_roundtrip() {
         let tmp = std::env::temp_dir().join(format!("jcode-manager-test-{}", uuid::Uuid::new_v4()));
         let mgr = PluginManager::new(tmp.clone()).await;
-        mgr.load("test", PluginSource::Local { path: tmp.join("src") }).await.unwrap();
+        mgr.load(
+            "test",
+            PluginSource::Local {
+                path: tmp.join("src"),
+            },
+        )
+        .await
+        .unwrap();
         mgr.disable("test").await.unwrap();
         let list = mgr.list().await;
         assert!(!list.iter().any(|p| p.package_name == "test" && p.enabled));
@@ -218,7 +252,14 @@ mod tests {
         let mgr = PluginManager::new(tmp.clone()).await;
         // unload non-existent — should not error
         mgr.unload("nonexistent").await.unwrap();
-        mgr.load("test", PluginSource::Local { path: tmp.join("src") }).await.unwrap();
+        mgr.load(
+            "test",
+            PluginSource::Local {
+                path: tmp.join("src"),
+            },
+        )
+        .await
+        .unwrap();
         mgr.unload("test").await.unwrap();
         let list = mgr.list().await;
         assert!(list.is_empty());

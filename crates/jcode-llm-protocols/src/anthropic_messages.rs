@@ -43,13 +43,9 @@ pub struct AnthropicMessage {
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum AnthropicContent {
     #[serde(rename = "text")]
-    Text {
-        text: String,
-    },
+    Text { text: String },
     #[serde(rename = "image")]
-    Image {
-        source: AnthropicImageSource,
-    },
+    Image { source: AnthropicImageSource },
     #[serde(rename = "tool_use")]
     ToolUse {
         id: String,
@@ -64,9 +60,7 @@ pub enum AnthropicContent {
         is_error: Option<bool>,
     },
     #[serde(rename = "thinking")]
-    Thinking {
-        thinking: String,
-    },
+    Thinking { thinking: String },
 }
 
 /// Image source block (only base64 currently).
@@ -92,9 +86,7 @@ pub struct AnthropicTool {
 pub enum AnthropicToolChoice {
     Auto,
     Any,
-    Tool {
-        name: String,
-    },
+    Tool { name: String },
 }
 
 // ---------------------------------------------------------------------------
@@ -122,9 +114,7 @@ pub enum AnthropicEvent {
         delta: AnthropicContentDelta,
     },
     /// A content block finished with an optional stop reason.
-    ContentBlockStop {
-        index: u64,
-    },
+    ContentBlockStop { index: u64 },
     /// Top-level message delta (stop_reason, stop_sequence, usage).
     MessageDelta {
         delta: AnthropicMessageDeltaInfo,
@@ -179,15 +169,9 @@ pub enum AnthropicContentBlockStart {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum AnthropicContentDelta {
-    TextDelta {
-        text: String,
-    },
-    InputJsonDelta {
-        partial_json: String,
-    },
-    ThinkingDelta {
-        thinking: String,
-    },
+    TextDelta { text: String },
+    InputJsonDelta { partial_json: String },
+    ThinkingDelta { thinking: String },
 }
 
 /// Delta info in `message_delta`.
@@ -270,9 +254,7 @@ fn map_anthropic_tool_choice(tc: &ToolChoice) -> Option<AnthropicToolChoice> {
         ToolChoice::Auto => Some(AnthropicToolChoice::Auto),
         ToolChoice::Any => Some(AnthropicToolChoice::Any),
         ToolChoice::None => None,
-        ToolChoice::Specific { name } => Some(AnthropicToolChoice::Tool {
-            name: name.clone(),
-        }),
+        ToolChoice::Specific { name } => Some(AnthropicToolChoice::Tool { name: name.clone() }),
     }
 }
 
@@ -282,9 +264,7 @@ fn map_anthropic_tool_choice(tc: &ToolChoice) -> Option<AnthropicToolChoice> {
 
 fn content_part_to_anthropic(part: &ContentPart) -> AnthropicContent {
     match part {
-        ContentPart::Text { text } => AnthropicContent::Text {
-            text: text.clone(),
-        },
+        ContentPart::Text { text } => AnthropicContent::Text { text: text.clone() },
         ContentPart::Media { media_type, data } => AnthropicContent::Image {
             source: AnthropicImageSource {
                 source_type: "base64".to_string(),
@@ -395,11 +375,7 @@ impl Protocol for AnthropicMessagesProtocol {
         Ok((body, state))
     }
 
-    async fn step(
-        &self,
-        state: &mut Self::State,
-        chunk: Option<&[u8]>,
-    ) -> StepOutput<Self::Event> {
+    async fn step(&self, state: &mut Self::State, chunk: Option<&[u8]>) -> StepOutput<Self::Event> {
         // If already done, report it.
         if state.done {
             return StepOutput::Done {
@@ -478,15 +454,12 @@ impl Protocol for AnthropicMessagesProtocol {
                         }
                         events.push(evt);
                     }
-                    AnthropicEvent::ContentBlockDelta {
-                        index: _,
-                        delta,
-                    } => {
+                    AnthropicEvent::ContentBlockDelta { index: _, delta } => {
                         // Accumulate tool call input JSON across deltas.
-                        if let AnthropicContentDelta::InputJsonDelta { partial_json } = delta {
-                            if let Some((ref _id, ref mut json_acc)) = state.pending_tool_json {
-                                json_acc.push_str(partial_json);
-                            }
+                        if let AnthropicContentDelta::InputJsonDelta { partial_json } = delta
+                            && let Some((ref _id, ref mut json_acc)) = state.pending_tool_json
+                        {
+                            json_acc.push_str(partial_json);
                         }
                         events.push(evt);
                     }
@@ -500,13 +473,12 @@ impl Protocol for AnthropicMessagesProtocol {
                         state.pending_thinking = false;
                         events.push(evt);
                     }
-                    AnthropicEvent::MessageDelta {
-                        delta: _,
-                        usage,
-                    } => {
+                    AnthropicEvent::MessageDelta { delta: _, usage } => {
                         // Merge delta usage into accumulated usage.
-                        state.accumulated_usage.output_tokens =
-                            state.accumulated_usage.output_tokens.max(usage.output_tokens);
+                        state.accumulated_usage.output_tokens = state
+                            .accumulated_usage
+                            .output_tokens
+                            .max(usage.output_tokens);
                         state.accumulated_usage.cache_read_input_tokens =
                             usage.cache_read_input_tokens.unwrap_or(0);
                         state.accumulated_usage.cache_creation_input_tokens =
@@ -595,14 +567,12 @@ mod tests {
         let protocol = AnthropicMessagesProtocol;
         let req = LlmRequest {
             model: ModelRef::parse("anthropic/claude-sonnet-4-20250514").unwrap(),
-            messages: vec![
-                Message {
-                    role: "user".into(),
-                    content: vec![ContentPart::Text {
-                        text: "Hello".into(),
-                    }],
-                },
-            ],
+            messages: vec![Message {
+                role: "user".into(),
+                content: vec![ContentPart::Text {
+                    text: "Hello".into(),
+                }],
+            }],
             system: Some("Be helpful.".into()),
             tools: None,
             tool_choice: None,
@@ -687,9 +657,7 @@ mod tests {
         assert!(map_anthropic_tool_choice(&ToolChoice::Auto).is_some());
         assert!(map_anthropic_tool_choice(&ToolChoice::Any).is_some());
         assert!(map_anthropic_tool_choice(&ToolChoice::None).is_none());
-        let specific = map_anthropic_tool_choice(&ToolChoice::Specific {
-            name: "foo".into(),
-        });
+        let specific = map_anthropic_tool_choice(&ToolChoice::Specific { name: "foo".into() });
         assert!(matches!(specific, Some(AnthropicToolChoice::Tool { .. })));
     }
 
@@ -814,9 +782,7 @@ mod tests {
 
     #[test]
     fn test_content_part_conversion() {
-        let text = ContentPart::Text {
-            text: "hi".into(),
-        };
+        let text = ContentPart::Text { text: "hi".into() };
         let anthropic = content_part_to_anthropic(&text);
         assert!(matches!(anthropic, AnthropicContent::Text { .. }));
 

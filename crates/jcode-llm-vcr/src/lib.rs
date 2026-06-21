@@ -76,9 +76,8 @@ impl VcrRecorder {
     pub fn load(path: impl Into<PathBuf>, mode: VcrMode) -> Result<Self> {
         let path: PathBuf = path.into();
         let cassette = if path.exists() {
-            let file =
-                std::fs::File::open(&path)
-                    .with_context(|| format!("open cassette at {}", path.display()))?;
+            let file = std::fs::File::open(&path)
+                .with_context(|| format!("open cassette at {}", path.display()))?;
             let reader = std::io::BufReader::new(file);
             serde_json::from_reader(reader)
                 .with_context(|| format!("parse cassette at {}", path.display()))?
@@ -226,7 +225,11 @@ impl VcrRecorder {
 
         let body = resp.bytes().await?.to_vec();
 
-        Ok(RecordedResponse { status, headers, body })
+        Ok(RecordedResponse {
+            status,
+            headers,
+            body,
+        })
     }
 }
 
@@ -288,10 +291,7 @@ mod tests {
 
         let resp = recorder.record_or_replay(&req).await.unwrap();
         assert_eq!(resp.status, 200);
-        assert_eq!(
-            String::from_utf8_lossy(&resp.body),
-            r#"{"ok":true}"#
-        );
+        assert_eq!(String::from_utf8_lossy(&resp.body), r#"{"ok":true}"#);
         assert_eq!(
             resp.headers.get("content-type").map(|s| s.as_str()),
             Some("application/json")

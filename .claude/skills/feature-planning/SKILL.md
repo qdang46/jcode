@@ -6,7 +6,7 @@ description: >
   in the context of AI coding agents, CLI tools, terminal agents, or LLM-powered developer tools.
   Triggers on: "I want to add X feature", "how do I implement X", "can we improve X", "I want to
   build X into my agent", "feature request for X", "how does X work in these tools", or any phrasing
-  that implies implementing/improving a capability. This skill clones 7 reference repos, spawns
+  that implies implementing/improving a capability. This skill clones 9 reference repos, spawns
   sub-agents for deep per-repo research, runs an ultra-QA interview with the user, then produces a
   comprehensive implementation plan with code, pseudocode, test cases, benchmarks, and direct repo
   links — so the user can go from idea to working implementation with total confidence.

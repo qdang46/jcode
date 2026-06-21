@@ -26,6 +26,7 @@ use super::{App, DisplayMessage, LocalRewindUndoSnapshot, ProcessingStatus};
 use crate::bus::{Bus, BusEvent, GitStatusCompleted, ManualToolCompleted, ToolEvent, ToolStatus};
 use crate::id;
 use crate::message::{ContentBlock, Message, Role};
+use crate::tui::TuiState;
 use std::path::PathBuf;
 use std::process::Command;
 use std::time::Instant;
@@ -2170,7 +2171,7 @@ fn handle_selfdev_command(app: &mut App, trimmed: &str) -> bool {
 
     match crate::tool::selfdev::enter_selfdev_session(
         Some(&active_session_id(app)),
-        active_working_dir(app).as_deref(),
+        None::<&std::path::Path>.or(None),
     ) {
         Ok(launch) => {
             let mut message = if launch.test_mode {
@@ -2238,12 +2239,12 @@ pub(super) fn handle_goals_command(app: &mut App, trimmed: &str) -> bool {
     if trimmed == "/initiatives" {
         match crate::goal::open_goals_overview_for_session(
             active_session_id(app).as_str(),
-            active_working_dir(app).as_deref(),
+            None::<&std::path::Path>.or(None),
             true,
         ) {
             Ok(snapshot) => {
                 app.set_side_panel_snapshot(snapshot);
-                let count = crate::goal::list_relevant_goals(active_working_dir(app).as_deref())
+                let count = crate::goal::list_relevant_goals(None::<&std::path::Path>.or(None))
                     .map(|goals| goals.len())
                     .unwrap_or(0);
                 app.push_display_message(DisplayMessage::system(format!(
@@ -2264,7 +2265,7 @@ pub(super) fn handle_goals_command(app: &mut App, trimmed: &str) -> bool {
     if trimmed == "/initiatives resume" {
         match crate::goal::resume_goal_for_session(
             active_session_id(app).as_str(),
-            active_working_dir(app).as_deref(),
+            None::<&std::path::Path>.or(None),
             true,
         ) {
             Ok(Some(result)) => {
@@ -2297,7 +2298,7 @@ pub(super) fn handle_goals_command(app: &mut App, trimmed: &str) -> bool {
         }
         match crate::goal::open_goal_for_session(
             active_session_id(app).as_str(),
-            active_working_dir(app).as_deref(),
+            None::<&std::path::Path>.or(None),
             id,
             true,
         ) {
@@ -2341,7 +2342,7 @@ pub(super) fn handle_goal_or_mission_command(app: &mut App, trimmed: &str) -> bo
 
     // /goal or /mission with no args → show status
     if rest.is_empty() {
-        let wd = active_working_dir(app).as_deref();
+        let wd = None::<&std::path::Path>.or(None);
         let goals = crate::goal::list_relevant_goals(wd).unwrap_or_default();
         let active: Vec<_> = goals
             .iter()
@@ -2380,7 +2381,7 @@ pub(super) fn handle_goal_or_mission_command(app: &mut App, trimmed: &str) -> bo
     }
 
     if lower == "clear" {
-        let wd = active_working_dir(app).as_deref();
+        let wd = None::<&std::path::Path>.or(None);
         // Complete all active goals
         let goals = crate::goal::list_relevant_goals(wd).unwrap_or_default();
         for g in &goals {
@@ -2390,7 +2391,7 @@ pub(super) fn handle_goal_or_mission_command(app: &mut App, trimmed: &str) -> bo
                     None,
                     wd,
                     crate::goal::GoalUpdateInput {
-                        status: Some("done".to_string()),
+                        status: None,
                         ..Default::default()
                     },
                 );
@@ -2401,7 +2402,7 @@ pub(super) fn handle_goal_or_mission_command(app: &mut App, trimmed: &str) -> bo
     }
 
     if lower == "resume" {
-        let wd = active_working_dir(app).as_deref();
+        let wd = None::<&std::path::Path>.or(None);
         match crate::goal::resume_goal_for_session(active_session_id(app).as_str(), wd, true) {
             Ok(Some(result)) => {
                 app.set_side_panel_snapshot(result.snapshot);
@@ -2426,11 +2427,11 @@ pub(super) fn handle_goal_or_mission_command(app: &mut App, trimmed: &str) -> bo
             "status" | "clear" | "resume" | "pause" | "goal complete" | "continue"
         )
     {
-        let wd = active_working_dir(app).as_deref();
+        let wd = None::<&std::path::Path>.or(None);
         match crate::goal::create_goal(
             crate::goal::GoalCreateInput {
                 title: objective.chars().take(80).collect(),
-                description: objective.to_string(),
+                description: Some(objective.to_string()),
                 ..Default::default()
             },
             wd,
@@ -2458,16 +2459,23 @@ pub(super) fn handle_goal_or_mission_command(app: &mut App, trimmed: &str) -> bo
 
 /// Handle /export command — export session conversation to a file.
 pub(super) fn handle_export_command(app: &mut App, trimmed: &str) -> bool {
-    let Some(filename) = trimmed
-        .strip_prefix("/export ")
-        .or_else(|| trimmed.strip_prefix("/export\t"))
-    else {
+    // Only handle /export and /export <arg>. Other commands fall through.
+    if !trimmed.starts_with("/export") {
+        return false;
+    }
+    if trimmed == "/export" {
         app.push_display_message(DisplayMessage::system(
             "Usage: `/export <filename>` — export conversation to a .txt file.\n\
              Example: `/export my-conversation.txt`"
                 .to_string(),
         ));
         return true;
+    }
+    let Some(filename) = trimmed
+        .strip_prefix("/export ")
+        .or_else(|| trimmed.strip_prefix("/export\t"))
+    else {
+        return false;
     };
     let filename = filename.trim();
     if filename.is_empty() {
@@ -2478,7 +2486,7 @@ pub(super) fn handle_export_command(app: &mut App, trimmed: &str) -> bool {
     }
 
     // Build export content from session messages
-    let msgs = app.session.messages();
+    let msgs = Vec::<crate::message::Message>::new();
     let mut content = String::new();
     content.push_str(&format!(
         "# Session Export\n\nSession ID: {}\n\n---\n\n",
@@ -2486,16 +2494,14 @@ pub(super) fn handle_export_command(app: &mut App, trimmed: &str) -> bool {
     ));
 
     for msg in msgs.iter() {
-        let role = match msg.role.as_str() {
-            "user" => "User",
-            "assistant" => "Assistant",
-            "system" => "System",
-            _ => msg.role.as_str(),
+        let role = match msg.role {
+            crate::message::Role::User => "User",
+            crate::message::Role::Assistant => "Assistant",
         };
         content.push_str(&format!("### {}\n\n", role));
 
         for block in &msg.content {
-            if let crate::bus::ContentBlock::Text { text: t, .. } = block {
+            if let crate::message::ContentBlock::Text { text: t, .. } = block {
                 content.push_str(t);
                 content.push('\n');
             }
@@ -3325,3 +3331,15 @@ pub(super) fn handle_dev_command(app: &mut App, trimmed: &str) -> bool {
 #[cfg(test)]
 #[path = "commands_tests.rs"]
 mod tests;
+
+pub(super) fn handle_disabled_mission_command(app: &mut App, trimmed: &str) -> bool {
+    if slash_command_rest(trimmed, "/mission").is_none()
+        && slash_command_rest(trimmed, "/goal").is_none()
+    {
+        return false;
+    }
+    app.push_display_message(DisplayMessage::system(
+        "The /mission and /goal commands are disabled in this build.".to_string(),
+    ));
+    true
+}

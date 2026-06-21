@@ -378,7 +378,7 @@ impl jcode_memory_types::MemoryProvider for MempalaceAdapter {
                 })
                 .collect();
             // Sort by updated_at descending for "recent"
-            entries.sort_by(|a, b| b.0.updated_at.cmp(&a.0.updated_at));
+            entries.sort_by_key(|b| std::cmp::Reverse(b.0.updated_at));
             entries.truncate(limit);
             return Ok(entries);
         }
@@ -445,27 +445,24 @@ impl jcode_memory_types::MemoryProvider for MempalaceAdapter {
         let hits = MpProvider::search(&self.palace, query, &search_scope).await?;
         let entries = hits
             .into_iter()
-            .map(|h| {
-                let entry = jcode_memory_types::MemoryEntry {
-                    embedding_model: None,
-                    id: format!("mp-{}", uuid::Uuid::new_v4()),
-                    category: jcode_memory_types::MemoryCategory::Fact,
-                    content: h.text,
-                    tags: vec![],
-                    search_text: String::new(),
-                    created_at: chrono::Utc::now(),
-                    updated_at: chrono::Utc::now(),
-                    access_count: 0,
-                    source: None,
-                    trust: jcode_memory_types::TrustLevel::Medium,
-                    strength: 1,
-                    active: true,
-                    superseded_by: None,
-                    reinforcements: vec![],
-                    embedding: None,
-                    confidence: 1.0,
-                };
-                entry
+            .map(|h| jcode_memory_types::MemoryEntry {
+                embedding_model: None,
+                id: format!("mp-{}", uuid::Uuid::new_v4()),
+                category: jcode_memory_types::MemoryCategory::Fact,
+                content: h.text,
+                tags: vec![],
+                search_text: String::new(),
+                created_at: chrono::Utc::now(),
+                updated_at: chrono::Utc::now(),
+                access_count: 0,
+                source: None,
+                trust: jcode_memory_types::TrustLevel::Medium,
+                strength: 1,
+                active: true,
+                superseded_by: None,
+                reinforcements: vec![],
+                embedding: None,
+                confidence: 1.0,
             })
             .collect();
         Ok(entries)

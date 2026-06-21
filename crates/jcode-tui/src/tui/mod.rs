@@ -17,7 +17,6 @@ mod core;
 pub use jcode_terminal_image::display as image;
 use jcode_terminal_image::metadata as image_metadata;
 pub mod info_widget;
-pub(crate) mod session_facts;
 mod info_widget_layout;
 mod info_widget_overview;
 pub mod info_widget_stability;
@@ -27,6 +26,7 @@ pub mod login_picker;
 pub mod markdown;
 mod memory_profile;
 pub mod mermaid;
+pub(crate) mod session_facts;
 pub mod permissions {
     pub use jcode_tui_permissions::*;
 }
@@ -577,11 +577,21 @@ pub trait TuiState {
     }
 
     // ---- Inline Swarm ----
-    fn inline_swarm_gallery_active(&self) -> bool { false }
-    fn inline_swarm_members(&self) -> Vec<crate::protocol::SwarmMemberStatus> { Vec::new() }
-    fn chat_overscroll_remaining(&self) -> Option<f32> { None }
-    fn image_expand_level(&self, _id: u64) -> crate::tui::ui::inline_image_ui::ImageExpandLevel { crate::tui::ui::inline_image_ui::ImageExpandLevel::Fit }
-    fn expanded_images_version(&self) -> u64 { 0 }
+    fn inline_swarm_gallery_active(&self) -> bool {
+        false
+    }
+    fn inline_swarm_members(&self) -> Vec<crate::protocol::SwarmMemberStatus> {
+        Vec::new()
+    }
+    fn chat_overscroll_remaining(&self) -> Option<f32> {
+        None
+    }
+    fn image_expand_level(&self, _id: u64) -> crate::tui::ui::inline_image_ui::ImageExpandLevel {
+        crate::tui::ui::inline_image_ui::ImageExpandLevel::Fit
+    }
+    fn expanded_images_version(&self) -> u64 {
+        0
+    }
 }
 
 #[cfg(feature = "dev-bins")]

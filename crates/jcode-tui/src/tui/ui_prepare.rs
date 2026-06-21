@@ -382,9 +382,8 @@ fn push_user_prompt_lines(
 }
 
 fn empty_prepared_messages() -> PreparedMessages {
-            message_boundaries: Vec::new(),
     PreparedMessages {
-            message_boundaries: Vec::new(),
+        message_boundaries: Vec::new(),
         wrapped_lines: Vec::new(),
         wrapped_plain_lines: Arc::new(Vec::new()),
         wrapped_copy_offsets: Arc::new(Vec::new()),
@@ -441,7 +440,6 @@ fn prepare_active_batch_progress(
     width: u16,
     prefix_blank: bool,
 ) -> PreparedMessages {
-            message_boundaries: Vec::new(),
     let Some(progress) = active_batch_progress(app) else {
         return empty_prepared_messages();
     };
@@ -529,7 +527,7 @@ pub(super) fn prepare_messages(
     }
 
     let key = FullPrepCacheKey {
-            expanded_images_version: 0,
+        expanded_images_version: 0,
         width,
         height,
         diff_mode: app.diff_mode(),
@@ -607,6 +605,7 @@ fn prepare_messages_inner(app: &dyn TuiState, width: u16, height: u16) -> Prepar
                 height,
                 prefix_blank,
                 app.inline_images_visible(),
+                &crate::tui::ui::inline_image_ui::AppExpandLevels(app),
             ))
         }
     } else {
@@ -769,7 +768,7 @@ fn prepare_body_cached(app: &dyn TuiState, width: u16) -> Arc<PreparedMessages> 
     super::note_body_request();
 
     let key = BodyCacheKey {
-            expanded_images_version: 0,
+        expanded_images_version: 0,
         width,
         diff_mode: app.diff_mode(),
         messages_version: app.display_messages_version(),
@@ -801,7 +800,7 @@ fn prepare_body_cached(app: &dyn TuiState, width: u16) -> Arc<PreparedMessages> 
     super::note_body_cache_lookup(cache_lookup_start.elapsed());
     super::note_body_cache_miss();
 
-    let incremental_base = cache.take_best_incremental_base(&key, msg_count);
+    let incremental_base = cache.take_best_incremental_base(&key);
 
     drop(cache);
 
@@ -833,7 +832,7 @@ pub(super) fn prepare_body_incremental(
     prev_msg_count: usize,
 ) -> Arc<PreparedMessages> {
     let messages = app.display_messages();
-    let new_messages = &messages[prev_msg_count..];
+    let new_messages = messages.get(prev_msg_count..).unwrap_or(&[]);
     if new_messages.is_empty() {
         return prev;
     }
@@ -934,6 +933,7 @@ pub(super) fn prepare_body_incremental(
                             items,
                             width,
                             inline_images_visible,
+                            &crate::tui::ui::inline_image_ui::AppExpandLevels(app),
                         ) {
                             new_lines.push(line);
                             new_line_raw_overrides.push(None);
@@ -1039,6 +1039,7 @@ pub(super) fn prepare_body_incremental(
                             items,
                             width,
                             inline_images_visible,
+                            &crate::tui::ui::inline_image_ui::AppExpandLevels(app),
                         ) {
                             new_lines.push(line);
                             new_line_raw_overrides.push(None);
@@ -1310,7 +1311,6 @@ fn prepare_streaming_cached(
     width: u16,
     prefix_blank: bool,
 ) -> PreparedMessages {
-            message_boundaries: Vec::new(),
     let streaming = app.streaming_text();
     if streaming.is_empty() {
         return PreparedMessages {
@@ -1365,7 +1365,6 @@ pub(super) fn prepare_body(
     width: u16,
     include_streaming: bool,
 ) -> PreparedMessages {
-            message_boundaries: Vec::new(),
     let mut lines: Vec<Line> = Vec::new();
     let mut raw_plain_lines: Vec<String> = Vec::new();
     let mut line_raw_overrides: Vec<Option<WrappedLineMap>> = Vec::new();
@@ -1423,6 +1422,7 @@ pub(super) fn prepare_body(
                             items,
                             width,
                             inline_images_visible,
+                            &crate::tui::ui::inline_image_ui::AppExpandLevels(app),
                         ) {
                             lines.push(line);
                             line_raw_overrides.push(None);
@@ -1558,6 +1558,7 @@ pub(super) fn prepare_body(
                             items,
                             width,
                             inline_images_visible,
+                            &crate::tui::ui::inline_image_ui::AppExpandLevels(app),
                         ) {
                             lines.push(line);
                             line_raw_overrides.push(None);
@@ -1797,7 +1798,6 @@ fn wrap_lines(
     user_prompt_texts: &[String],
     width: u16,
 ) -> PreparedMessages {
-            message_boundaries: Vec::new(),
     let full_width = width.saturating_sub(1) as usize;
     let user_width = width.saturating_sub(2) as usize;
     let mut wrapped_user_indices: Vec<usize> = Vec::new();
@@ -1856,7 +1856,7 @@ fn wrap_lines(
     let wrapped_plain_lines = Arc::new(wrapped_lines.iter().map(ui::line_plain_text).collect());
 
     PreparedMessages {
-            message_boundaries: Vec::new(),
+        message_boundaries: Vec::new(),
         wrapped_lines,
         wrapped_plain_lines,
         wrapped_copy_offsets: Arc::new(wrapped_copy_offsets),
@@ -1887,7 +1887,6 @@ fn wrap_lines_with_map(
     edit_ranges: &[(usize, String, usize, usize, bool)],
     copy_ranges: &[RawCopyTarget],
 ) -> PreparedMessages {
-            message_boundaries: Vec::new(),
     let full_width = width.saturating_sub(1) as usize;
     let user_width = width.saturating_sub(2) as usize;
     let mut wrapped_user_indices: Vec<usize> = Vec::new();
@@ -1997,7 +1996,7 @@ fn wrap_lines_with_map(
     let wrapped_plain_lines = Arc::new(wrapped_lines.iter().map(ui::line_plain_text).collect());
 
     PreparedMessages {
-            message_boundaries: Vec::new(),
+        message_boundaries: Vec::new(),
         wrapped_lines,
         wrapped_plain_lines,
         wrapped_copy_offsets: Arc::new(wrapped_copy_offsets),

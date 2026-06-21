@@ -24,8 +24,6 @@
 
 use anyhow::Result;
 
-use crate::memory_types::MemoryEntry;
-
 /// A source of embedding vectors for memory retrieval.
 ///
 /// Implementations must keep `model_id()` stable for a given vector space: it is

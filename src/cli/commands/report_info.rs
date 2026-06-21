@@ -3,6 +3,7 @@ use serde::Serialize;
 use std::time::Duration;
 
 use crate::cli::provider_init::{self, ProviderChoice};
+use crate::cli::provider_service::ProviderCliService;
 
 const AUTH_DOCTOR_VALIDATION_TIMEOUT_SECS: u64 = 120;
 
@@ -86,6 +87,9 @@ pub(super) struct ProviderListEntry {
     pub(super) recommended: bool,
     pub(super) aliases: Vec<String>,
     pub(super) detail: Option<String>,
+    /// "legacy" (from ProviderChoice enum) or "catalog" (from ProviderCliService)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(super) source: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -378,7 +382,12 @@ fn auth_doctor_validation_detail(
 }
 
 pub(super) fn run_provider_list_command(emit_json: bool, emit_toon: bool) -> Result<()> {
-    let providers = list_cli_providers();
+    let mut providers = list_cli_providers();
+    if let Ok(svc) = ProviderCliService::new()
+        && let Ok(catalog_providers) = svc.list_providers()
+    {
+        providers.extend(list_catalog_providers(&catalog_providers));
+    }
 
     if emit_json || emit_toon {
         let report = ProviderListReport { providers };
@@ -389,7 +398,33 @@ pub(super) fn run_provider_list_command(emit_json: bool, emit_toon: bool) -> Res
         };
         crate::cli::output::emit_json_or_toon(&report, fmt)?;
     } else {
-        for provider in providers {
+        if !providers.is_empty() {
+            println!("== Legacy providers ==");
+        }
+        for provider in providers
+            .iter()
+            .filter(|p| p.source.as_deref() == Some("legacy"))
+        {
+            if let Some(detail) = provider.detail.as_deref() {
+                println!("{}\t{}\t{}", provider.id, provider.display_name, detail);
+            } else {
+                println!("{}\t{}", provider.id, provider.display_name);
+            }
+        }
+        let catalog_entries: Vec<_> = providers
+            .iter()
+            .filter(|p| p.source.as_deref() == Some("catalog"))
+            .collect();
+        if !catalog_entries.is_empty() {
+            if providers
+                .iter()
+                .any(|p| p.source.as_deref() == Some("legacy"))
+            {
+                println!();
+            }
+            println!("== Catalog providers ==");
+        }
+        for provider in catalog_entries {
             if let Some(detail) = provider.detail.as_deref() {
                 println!("{}\t{}\t{}", provider.id, provider.display_name, detail);
             } else {
@@ -634,6 +669,7 @@ pub(super) fn list_cli_providers() -> Vec<ProviderListEntry> {
                         .map(|alias| (*alias).to_string())
                         .collect(),
                     detail: Some(provider.menu_detail.to_string()),
+                    source: Some("legacy".to_string()),
                 }
             } else {
                 ProviderListEntry {
@@ -643,8 +679,30 @@ pub(super) fn list_cli_providers() -> Vec<ProviderListEntry> {
                     recommended: false,
                     aliases: Vec::new(),
                     detail: Some("Use the best configured provider automatically".to_string()),
+                    source: Some("legacy".to_string()),
                 }
             }
+        })
+        .collect()
+}
+
+fn list_catalog_providers(
+    catalog: &[jcode_provider_service::catalog::ProviderInfo],
+) -> Vec<ProviderListEntry> {
+    catalog
+        .iter()
+        .map(|p| ProviderListEntry {
+            id: p.id.as_str().to_string(),
+            display_name: p.name.clone(),
+            auth_kind: None,
+            recommended: false,
+            aliases: Vec::new(),
+            detail: if !p.models.is_empty() {
+                Some(format!("{} model(s)", p.models.len()))
+            } else {
+                None
+            },
+            source: Some("catalog".to_string()),
         })
         .collect()
 }

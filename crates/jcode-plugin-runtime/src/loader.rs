@@ -125,13 +125,18 @@ impl PluginLoader {
         Ok(())
     }
 
-    pub(crate) async fn load_one(&self, source: &PluginSourceConfig) -> Result<PluginId, PluginError> {
+    pub(crate) async fn load_one(
+        &self,
+        source: &PluginSourceConfig,
+    ) -> Result<PluginId, PluginError> {
         let (path, id) = match source {
             PluginSourceConfig::Npm { package, version } => {
                 let entry = self.resolve_npm_entry(package, version.as_deref()).await?;
                 (entry.path, PluginId::npm(package))
             }
-            PluginSourceConfig::File { path } => (std::path::PathBuf::from(path), PluginId::file(path)),
+            PluginSourceConfig::File { path } => {
+                (std::path::PathBuf::from(path), PluginId::file(path))
+            }
             PluginSourceConfig::Directory { path } => {
                 let p = std::path::Path::new(path);
                 let idx = if p.join("index.ts").exists() {
@@ -171,7 +176,9 @@ impl PluginLoader {
             id.clone(),
             jcode_plugin_core::manifest::PluginManifest::default(),
         )?;
-        context.eval_with_pi(&js_code, self.registry.clone()).await?;
+        context
+            .eval_with_pi(&js_code, self.registry.clone())
+            .await?;
         self.registry.commit();
         self.registry.register(id.clone(), ()).await?;
 
@@ -225,7 +232,9 @@ impl PluginLoader {
             plugin_id.clone(),
             jcode_plugin_core::manifest::PluginManifest::default(),
         )?;
-        context.eval_with_pi(&js_code, self.registry.clone()).await?;
+        context
+            .eval_with_pi(&js_code, self.registry.clone())
+            .await?;
 
         // Eval succeeded. Now atomically replace the old plugin state:
         //   1. Unregister old (removes old handlers from dispatcher snapshot)
@@ -236,7 +245,10 @@ impl PluginLoader {
         self.registry.register(plugin_id.clone(), ()).await?;
 
         // Update fingerprint cache
-        self.fingerprints.write().await.insert(plugin_id.clone(), new_fp);
+        self.fingerprints
+            .write()
+            .await
+            .insert(plugin_id.clone(), new_fp);
         Ok(())
     }
 
@@ -382,7 +394,10 @@ mod tests {
     async fn test_fingerprint_nonexistent_file_errors() {
         let path = PathBuf::from("/tmp/jcode-fp-nonexistent-xyzzy.js");
         let result = PluginLoader::fingerprint(&path).await;
-        assert!(result.is_err(), "fingerprint on nonexistent file should error");
+        assert!(
+            result.is_err(),
+            "fingerprint on nonexistent file should error"
+        );
     }
 
     // -----------------------------------------------------------------------
@@ -411,7 +426,10 @@ mod tests {
 
         let id_full = PluginId::file(&path.to_string_lossy());
         let resolved = loader.path_for_plugin(&id_full).unwrap();
-        assert!(resolved.exists(), "path_for_plugin should find existing file");
+        assert!(
+            resolved.exists(),
+            "path_for_plugin should find existing file"
+        );
 
         // Also test via short_name (bare path)
         let id_short = PluginId::from(path.to_string_lossy().to_string());
@@ -507,10 +525,7 @@ mod tests {
         let loader = PluginLoader::new(discovery, config, registry.clone(), runtime);
 
         // 1. Load all plugins
-        let loaded_ids = loader
-            .load_all()
-            .await
-            .expect("load_all should succeed");
+        let loaded_ids = loader.load_all().await.expect("load_all should succeed");
 
         assert_eq!(loaded_ids.len(), 1, "expected exactly 1 plugin loaded");
         let plugin_id = &loaded_ids[0];
@@ -556,7 +571,10 @@ mod tests {
 
         // Load seeds the fingerprint
         let loaded_ids = loader.load_all().await.expect("load_all should succeed");
-        assert!(!loaded_ids.is_empty(), "expected at least one plugin loaded");
+        assert!(
+            !loaded_ids.is_empty(),
+            "expected at least one plugin loaded"
+        );
         let plugin_id = &loaded_ids[0];
 
         let has_entry = { loader.fingerprints.read().await.contains_key(plugin_id) };

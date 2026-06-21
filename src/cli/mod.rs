@@ -10,6 +10,7 @@ pub mod output;
 pub mod proctitle;
 pub mod provider_doctor;
 pub mod provider_init;
+pub mod provider_service;
 pub mod secrets_cmd;
 pub mod selfdev;
 pub mod startup;

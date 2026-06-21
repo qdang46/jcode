@@ -50,13 +50,11 @@ pub(super) async fn handle_set_permission_mode(
     mode: String,
     client_event_tx: &mpsc::UnboundedSender<ServerEvent>,
 ) {
-    let result: Result<(), String> = (|| {
-        if crate::dcg_bridge::set_mode_from_str(&mode) {
-            Ok(())
-        } else {
-            Err(format!("Unknown permission mode: {}", mode))
-        }
-    })();
+    let result: Result<(), String> = if crate::dcg_bridge::set_mode_from_str(&mode) {
+        Ok(())
+    } else {
+        Err(format!("Unknown permission mode: {}", mode))
+    };
 
     match result {
         Ok(()) => {

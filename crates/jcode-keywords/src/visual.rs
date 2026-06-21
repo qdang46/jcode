@@ -17,23 +17,40 @@ pub struct KeywordHighlight {
     pub priority: u8,
 }
 
-/// Compute highlight spans for detected keywords in input text.
+/// Compute highlight spans for detected keywords in the original input.
+///
+/// `detect_keywords` returns positions in the *sanitized* string (after
+/// ANSI-stripping and whitespace-collapsing), which does not match the
+/// original input that the TUI renders. Remap each detection by
+/// searching for `det.matched_text` in the original input starting at
+/// the position implied by the previous detection (or 0 for the first
+/// one). This is O(n*m) but n is the number of highlights (small) and
+/// the substring search is fast.
 pub fn compute_highlights(input: &str) -> Vec<KeywordHighlight> {
     let detections = detect_keywords(input);
-    detections
-        .into_iter()
-        .enumerate()
-        .map(|(i, det)| {
-            let color = rainbow_color(i, det.entry.priority);
-            KeywordHighlight {
-                start: det.position.0,
-                end: det.position.1,
-                color,
-                label: det.matched_text,
-                priority: det.entry.priority,
-            }
-        })
-        .collect()
+    let mut results: Vec<KeywordHighlight> = Vec::with_capacity(detections.len());
+    let mut cursor = 0usize;
+    for (i, det) in detections.into_iter().enumerate() {
+        // Find `det.matched_text` in `input[cursor..]` (case-insensitive).
+        let needle = &det.matched_text;
+        let haystack = &input[cursor..];
+        let rel_pos = haystack
+            .to_lowercase()
+            .find(&needle.to_lowercase())
+            .unwrap_or(0);
+        let start = cursor + rel_pos;
+        let end = start + needle.len();
+        let color = rainbow_color(i, det.entry.priority);
+        results.push(KeywordHighlight {
+            start,
+            end,
+            color,
+            label: det.matched_text.clone(),
+            priority: det.entry.priority,
+        });
+        cursor = end;
+    }
+    results
 }
 
 /// Generate a rainbow RGB color based on index and priority.

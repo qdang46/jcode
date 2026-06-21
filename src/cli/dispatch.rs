@@ -1,5 +1,7 @@
 #![cfg_attr(test, allow(clippy::await_holding_lock))]
 
+use std::sync::Arc;
+
 use anyhow::Result;
 use std::io::IsTerminal;
 use std::process::{Command as ProcessCommand, Stdio};
@@ -7,8 +9,8 @@ use std::time::Instant;
 
 use super::args::{
     AmbientCommand, Args, AuthCommand, CloudCommand, CloudSessionsCommand, Command, MemoryCommand,
-    ModelCommand, PermissionCommand, PluginSubcommand, ProviderCommand, RestartCommand,
-    SecretsCommand, ServerCommand, SessionCommand, TranscriptModeArg,
+    ModelCommand, PermissionCommand, ProviderCommand, RestartCommand, SecretsCommand,
+    ServerCommand, SessionCommand, TranscriptModeArg,
 };
 use crate::{
     agent, auth, build, provider, provider_catalog, server, session, setup_hints, startup_profile,
@@ -20,6 +22,10 @@ use super::{
 use provider_init::ProviderChoice;
 
 pub(crate) async fn run_main(mut args: Args) -> Result<()> {
+    // Resolve --provider string → ProviderChoice for backward-compat code paths.
+    let provider_choice: ProviderChoice =
+        ProviderChoice::provider_choice_from_str(&args.provider).unwrap_or(ProviderChoice::Auto);
+
     resolve_resume_arg(&mut args)?;
 
     if let Some(profile_name) = args
@@ -31,7 +37,7 @@ pub(crate) async fn run_main(mut args: Args) -> Result<()> {
         provider_catalog::apply_named_provider_profile_env(profile_name)?;
         crate::env::set_var("JCODE_PROVIDER_PROFILE_NAME", profile_name);
         crate::env::set_var("JCODE_PROVIDER_PROFILE_ACTIVE", "1");
-        args.provider = ProviderChoice::OpenaiCompatible;
+        let _ = provider_choice; // keep alive; named profiles override the provider flag
     }
 
     if let Some(tool_profile) = args.tool_profile.as_deref() {
@@ -97,8 +103,13 @@ pub(crate) async fn run_main(mut args: Args) -> Result<()> {
                 server::configure_temporary_server(owner_pid, temp_idle_timeout_secs);
             }
             let provider_start = Instant::now();
-            let provider =
-                provider_init::init_provider(&args.provider, args.model.as_deref()).await?;
+            let provider = if let Some(catalog_provider) =
+                try_catalog_provider(&args.provider, args.model.as_deref()).await?
+            {
+                catalog_provider
+            } else {
+                provider_init::init_provider(&provider_choice, args.model.as_deref()).await?
+            };
             let provider_ms = provider_start.elapsed().as_millis();
             let server_new_start = Instant::now();
             let server = server::Server::new(provider);
@@ -113,7 +124,7 @@ pub(crate) async fn run_main(mut args: Args) -> Result<()> {
         }
         Some(Command::Acp) => {
             acp::run_acp_command(
-                args.provider,
+                provider_choice,
                 args.model.clone(),
                 args.provider_profile.clone(),
                 args.tool_profile.is_some(),
@@ -138,7 +149,7 @@ pub(crate) async fn run_main(mut args: Args) -> Result<()> {
             toon,
         }) => {
             commands::run_single_message_command(
-                &args.provider,
+                &provider_choice,
                 args.model.as_deref(),
                 args.resume.as_deref(),
                 &message,
@@ -163,8 +174,11 @@ pub(crate) async fn run_main(mut args: Args) -> Result<()> {
             api_key,
             api_key_env,
         }) => {
+            let login_provider_str = login_provider.as_deref().unwrap_or("auto");
+            let login_choice = ProviderChoice::provider_choice_from_str(login_provider_str)
+                .unwrap_or(ProviderChoice::Auto);
             login::run_login(
-                &login_provider.unwrap_or(args.provider),
+                &login_choice,
                 account.as_deref(),
                 login::LoginOptions {
                     no_browser,
@@ -191,11 +205,23 @@ pub(crate) async fn run_main(mut args: Args) -> Result<()> {
             .await?;
         }
         Some(Command::Repl) => {
-            let (provider, registry) =
-                provider_init::init_provider_and_registry(&args.provider, args.model.as_deref())
-                    .await?;
-            let mut agent = agent::Agent::new(provider, registry);
-            agent.repl().await?;
+            // Try catalog-backed RouteProvider first when the provider string
+            // is not a recognized ProviderChoice alias.
+            if let Some(catalog_provider) =
+                try_catalog_provider(&args.provider, args.model.as_deref()).await?
+            {
+                let registry = crate::tool::Registry::new(catalog_provider.clone()).await;
+                let mut agent = agent::Agent::new(catalog_provider, registry);
+                agent.repl().await?;
+            } else {
+                let (provider, registry) = provider_init::init_provider_and_registry(
+                    &provider_choice,
+                    args.model.as_deref(),
+                )
+                .await?;
+                let mut agent = agent::Agent::new(provider, registry);
+                agent.repl().await?;
+            }
         }
         Some(Command::Update) => {
             hot_exec::run_update()?;
@@ -226,17 +252,20 @@ pub(crate) async fn run_main(mut args: Args) -> Result<()> {
                 json,
                 toon,
             } => {
-                let provider_arg = auth_doctor_provider_arg(provider.as_deref(), &args.provider);
+                let provider_arg = auth_doctor_provider_arg(provider.as_deref(), &provider_choice);
                 commands::run_auth_doctor_command(provider_arg, validate, json, toon).await?
             }
         },
         Some(Command::Provider(subcmd)) => match subcmd {
+            ProviderCommand::Catalog { all, json, toon } => {
+                commands::run_provider_catalog_command(all, json, toon)?;
+            }
             ProviderCommand::List { json, toon } => {
                 commands::run_provider_list_command(json, toon)?;
             }
             ProviderCommand::Current { json, toon } => {
                 commands::run_provider_current_command(
-                    &args.provider,
+                    &provider_choice,
                     args.model.as_deref(),
                     json,
                     toon,
@@ -426,13 +455,16 @@ pub(crate) async fn run_main(mut args: Args) -> Result<()> {
             .await?;
         }
         Some(Command::Model(subcmd)) => match subcmd {
+            ModelCommand::Catalog { json, toon } => {
+                commands::run_model_catalog_command(json, toon)?;
+            }
             ModelCommand::List {
                 json,
                 toon,
                 verbose,
             } => {
                 commands::run_model_command(
-                    &args.provider,
+                    &provider_choice,
                     args.model.as_deref(),
                     json,
                     toon,
@@ -513,7 +545,7 @@ pub(crate) async fn run_main(mut args: Args) -> Result<()> {
                 )?;
             } else if context_audit {
                 commands::run_auth_test_context_audit_command(
-                    &args.provider,
+                    &provider_choice,
                     all_configured,
                     json,
                     toon,
@@ -522,7 +554,7 @@ pub(crate) async fn run_main(mut args: Args) -> Result<()> {
                 .await?;
             } else {
                 commands::run_auth_test_command(
-                    &args.provider,
+                    &provider_choice,
                     args.model.as_deref(),
                     login,
                     all_configured,
@@ -857,12 +889,98 @@ fn map_transcript_mode(mode: TranscriptModeArg) -> crate::protocol::TranscriptMo
     }
 }
 
+/// Try to resolve a provider via the catalog-backed RouteProvider path.
+///
+/// Activates when `provider_str` is `"auto"` or is not a recognized
+/// [`ProviderChoice`] alias. In either case the built-in catalog is booted
+/// and [`runtime::start_session`] is called to resolve the provider + model
+/// into a concrete [`Route`]. The resulting [`RouteProvider`] implements the
+/// legacy [`Provider`] trait so it can be fed directly to `Server::new()` or
+/// `Agent::new()`.
+///
+/// Returns `Ok(Some(…))` on success, `Ok(None)` to fall through to the
+/// legacy `init_provider` / `init_provider_and_registry` path.
+async fn try_catalog_provider(
+    _provider_str: &str,
+    _model: Option<&str>,
+) -> Result<Option<Arc<dyn provider::Provider>>> {
+    // DISABLED: RouteProvider::complete() is a stub that returns "not yet implemented".
+    // Using it would silently drop user input on Enter. Fall through to legacy
+    // init_provider until RouteProvider actually implements LLM dispatch.
+    return Ok(None);
+
+    #[allow(unreachable_code, unused_variables)]
+    let is_auto = false;
+    use jcode_keyring_store::MockKeyringStore;
+    use jcode_provider_service::ProviderProfile;
+    use jcode_provider_service::boot;
+    use jcode_provider_service::catalog::InMemoryCatalog;
+    use jcode_provider_service::integration::InMemoryIntegration;
+    use jcode_provider_service::route_provider::RouteProvider;
+    use jcode_provider_service::runtime;
+    use jcode_provider_service::runtime::SessionError;
+    use jcode_provider_service::service::ResolvedRoute;
+    use jcode_provider_service::store::{DefaultProviderService, InMemoryCredentialStore};
+    use jcode_provider_service::types::ModelId;
+
+    let catalog = Arc::new(InMemoryCatalog::new());
+    let integration = Arc::new(InMemoryIntegration::new());
+    if let Err(e) =
+        boot::register_builtins::<MockKeyringStore>(catalog.as_ref(), integration.as_ref()).await
+    {
+        crate::logging::warn(&format!(
+            "Catalog boot failed, falling back to legacy init: {e}"
+        ));
+        return Ok(None);
+    }
+
+    let credential = Arc::new(InMemoryCredentialStore::new());
+    let svc = DefaultProviderService::new(catalog, integration, credential);
+
+    let profile = if is_auto {
+        None
+    } else {
+        Some(ProviderProfile::ById {
+            id: _provider_str.into(),
+        })
+    };
+    let model_id = _model.map(ModelId::from);
+
+    match runtime::start_session(&svc, profile.as_ref(), model_id.as_ref()).await {
+        Ok(session) => {
+            crate::logging::info(&format!(
+                "Resolved provider via catalog: {}",
+                session.describe()
+            ));
+            let resolved = ResolvedRoute {
+                provider: session.provider,
+                model: session.model,
+                route: session.route,
+            };
+            let provider: Arc<dyn provider::Provider> = Arc::new(RouteProvider::new(resolved));
+            Ok(Some(provider))
+        }
+        Err(SessionError::NoDefault) => {
+            // No provider is connected — fall through to legacy init which
+            // may prompt for login.
+            Ok(None)
+        }
+        Err(e) => {
+            crate::logging::warn(&format!(
+                "Catalog session resolution failed, falling back to legacy init: {e}"
+            ));
+            Ok(None)
+        }
+    }
+}
+
 async fn run_default_command(args: Args) -> Result<()> {
+    let provider_choice: ProviderChoice =
+        ProviderChoice::provider_choice_from_str(&args.provider).unwrap_or(ProviderChoice::Auto);
     startup_profile::mark("run_main_none_branch");
 
-    let explicit_provider_or_model = args.provider != ProviderChoice::Auto
-        || args.model.is_some()
-        || args.provider_profile.is_some();
+    let explicit_provider_or_model =
+        args.provider != "auto" || args.model.is_some() || args.provider_profile.is_some();
     let explicit_tool_options = args.tool_profile.is_some()
         || args.tools.is_some()
         || args.disabled_tools.is_some()
@@ -934,7 +1052,7 @@ async fn run_default_command(args: Args) -> Result<()> {
         );
         output::stderr_info(format!(
             "Current server settings control `/model`. Restart server to apply: --provider {}{}",
-            args.provider.as_arg_value(),
+            args.provider,
             args.model
                 .as_ref()
                 .map(|m| format!(" --model {}", m))
@@ -959,9 +1077,9 @@ async fn run_default_command(args: Args) -> Result<()> {
             output::stderr_info("Removed a stale jcode socket from a previous server.");
         }
 
-        maybe_prompt_server_bootstrap_login(&args.provider).await?;
+        maybe_prompt_server_bootstrap_login(&provider_choice).await?;
         spawn_server(
-            &args.provider,
+            &provider_choice,
             args.model.as_deref(),
             args.provider_profile.as_deref(),
         )

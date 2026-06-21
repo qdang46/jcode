@@ -1161,6 +1161,7 @@ impl App {
         (models, selected)
     }
 
+    #[allow(dead_code)]
     pub(crate) fn handle_account_picker_command(
         &mut self,
         command: crate::tui::account_picker::AccountPickerCommand,

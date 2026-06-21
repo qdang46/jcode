@@ -2,6 +2,7 @@ use super::App;
 use crossterm::event::{KeyCode, KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
+#[allow(dead_code)]
 impl App {
     const COPY_VIEWPORT_CONTEXT_LINES: usize = 4;
 
@@ -96,6 +97,7 @@ impl App {
         Some(point)
     }
 
+    #[allow(dead_code)]
     fn preferred_copy_pane(&self) -> crate::tui::CopySelectionPane {
         self.current_copy_selection_pane()
             .or_else(|| {

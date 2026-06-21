@@ -143,7 +143,8 @@ const REGISTERED_COMMANDS: &[RegisteredCommand] = &[
     RegisteredCommand::public("/split", "Split session into a new window"),
     RegisteredCommand::public("/transfer", "Compact context into a fresh handoff session"),
     RegisteredCommand::public("/workspace", "Niri-style session workspace"),
-    RegisteredCommand::public("/quit", "Exit jcode"),
+    RegisteredCommand::public("/exit", "Exit jcode (opencode TUI slash)"),
+    RegisteredCommand::public("/quit", "Alias for /exit"),
     RegisteredCommand::public(
         "/experiment",
         "List/show/enable/disable experimental feature flags",
@@ -152,9 +153,7 @@ const REGISTERED_COMMANDS: &[RegisteredCommand] = &[
         "/permissions",
         "Show DCG permission mode and recent decisions",
     ),
-    RegisteredCommand::public("/auth", "Show authentication status"),
-    RegisteredCommand::public("/login", "Login to a provider"),
-    RegisteredCommand::public("/logout", "Log out of a provider"),
+    RegisteredCommand::public("/connect", "Connect to a provider (opencode TUI slash)"),
     RegisteredCommand::public("/account", "Open the combined account picker"),
     RegisteredCommand::public("/accounts", "Alias for /account"),
     RegisteredCommand::public("/cache", "Show cache stats or set cache TTL"),
@@ -970,11 +969,16 @@ impl App {
             return self.rank_suggestions(input, suggestions);
         }
 
-        if prefix.starts_with("/login ") || prefix.starts_with("/auth ") {
+        if prefix.starts_with("/login ")
+            || prefix.starts_with("/auth ")
+            || prefix.starts_with("/connect ")
+        {
             let base = if prefix.starts_with("/auth ") {
                 "/auth"
-            } else {
+            } else if prefix.starts_with("/login ") {
                 "/login"
+            } else {
+                "/connect"
             };
             let mut suggestions: Vec<(String, &'static str)> = Vec::new();
             if base == "/auth" {
@@ -1488,7 +1492,7 @@ impl App {
 
         let auth = crate::auth::AuthStatus::check_fast();
         if !auth.has_any_available() {
-            return vec![("Log in to get started".to_string(), "/login".to_string())];
+            return vec![("Connect to a provider".to_string(), "/connect".to_string())];
         }
 
         if (!self.display_messages.is_empty() || self.is_processing) && !preview_mode {
@@ -1682,8 +1686,7 @@ impl App {
                 | "/effort"
                 | "/fast"
                 | "/transport"
-                | "/login"
-                | "/auth"
+                | "/connect"
                 | "/account"
                 | "/account claude"
                 | "/account switch"

@@ -1,7 +1,5 @@
 use clap::{Parser, Subcommand, ValueEnum};
 
-use super::provider_init::ProviderChoice;
-
 #[derive(Copy, Clone, Debug, Eq, PartialEq, ValueEnum)]
 pub(crate) enum TranscriptModeArg {
     Insert,
@@ -31,9 +29,10 @@ pub(crate) enum ProviderAuthArg {
 #[command(version = jcode_build_meta::VERSION)]
 #[command(about = "J-Code: A coding agent using Claude Max or ChatGPT Pro subscriptions")]
 pub(crate) struct Args {
-    /// Provider to use (jcode, claude, openai, openai-api, openrouter, azure, opencode, opencode-go, zai, 302ai, baseten, cortecs, comtegra, deepseek, fpt, firmware, huggingface, moonshotai, nebius, scaleway, stackit, groq, mistral, perplexity, togetherai, deepinfra, xai, nvidia-nim, lmstudio, ollama, chutes, cerebras, alibaba-coding-plan, openai-compatible, cursor, copilot, gemini, antigravity, google, or auto-detect)
+    /// Provider to use (e.g. anthropic, openai, gemini, openrouter, or auto-detect).
+    /// Accepts legacy short names and IDs from the catalog.
     #[arg(short, long, default_value = "auto", global = true)]
-    pub(crate) provider: ProviderChoice,
+    pub(crate) provider: String,
 
     /// Working directory
     #[arg(short = 'C', long, global = true)]
@@ -179,8 +178,8 @@ pub(crate) enum Command {
         // sharing the id makes clap drop the flag inside `login` (so
         // `jcode login --provider x` errors) and propagate the global default
         // into this positional.
-        #[arg(value_enum, id = "login_provider", value_name = "PROVIDER")]
-        provider: Option<ProviderChoice>,
+        #[arg(id = "login_provider", value_name = "PROVIDER")]
+        provider: Option<String>,
 
         /// Account label for multi-account support (stored labels are auto-numbered)
         #[arg(long, short = 'a')]
@@ -919,6 +918,12 @@ pub(crate) enum ModelCommand {
         #[arg(long)]
         verbose: bool,
     },
+    Catalog {
+        #[arg(long, conflicts_with = "toon")]
+        json: bool,
+        #[arg(long, conflicts_with = "json")]
+        toon: bool,
+    },
 }
 
 #[derive(Subcommand, Debug)]
@@ -1135,6 +1140,14 @@ pub(crate) enum ProviderCommand {
         #[arg(long, conflicts_with = "toon")]
         json: bool,
         /// Emit output in TOON format (token-efficient JSON alternative)
+        #[arg(long, conflicts_with = "json")]
+        toon: bool,
+    },
+    Catalog {
+        #[arg(long)]
+        all: bool,
+        #[arg(long, conflicts_with = "toon")]
+        json: bool,
         #[arg(long, conflicts_with = "json")]
         toon: bool,
     },

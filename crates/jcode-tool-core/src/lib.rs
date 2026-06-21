@@ -112,11 +112,15 @@ pub trait Tool: Send + Sync {
 
     /// The tool's declared risk tier. `None` means the tool does not specify
     /// a tier and the system should fall back to the manifest-level default.
-    fn declared_tier(&self) -> Option<ToolTier> { None }
+    fn declared_tier(&self) -> Option<ToolTier> {
+        None
+    }
 
     /// Maximum wall-clock duration in seconds this tool is allowed to run.
     /// `None` means the system default timeout applies.
-    fn max_duration_secs(&self) -> Option<u32> { None }
+    fn max_duration_secs(&self) -> Option<u32> {
+        None
+    }
 
     /// Convert to API tool definition.
     fn to_definition(&self) -> ToolDefinition {

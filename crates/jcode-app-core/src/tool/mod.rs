@@ -276,13 +276,9 @@ pub(crate) fn check_approval_gate(tool_name: &str, input: &Value) -> Result<()> 
                 layer
             ))
         }
-        Some(jcode_plugin_runtime::gate::GateDecision::NeedsApproval { prompt }) => {
-            Err(anyhow::anyhow!(
-                "Tool '{}' requires approval: {}",
-                tool_name,
-                prompt.reason
-            ))
-        }
+        Some(jcode_plugin_runtime::gate::GateDecision::NeedsApproval { prompt }) => Err(
+            anyhow::anyhow!("Tool '{}' requires approval: {}", tool_name, prompt.reason),
+        ),
     }
 }
 

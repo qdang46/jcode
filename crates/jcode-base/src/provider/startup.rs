@@ -333,14 +333,14 @@ impl MultiProvider {
         // discovered via live routes are available. The initial apply at line 316
         // may fail if the catalog hasn't loaded yet.
         if let Some(model) = provider_state.default_model() {
-            if let Err(e) =
-                result.set_config_default_model(model, provider_state.default_provider_key())
-            {
-                crate::logging::warn(&format!(
-                    "Failed to re-apply default_model '{}' after catalog refresh: {}",
-                    model, e
-                ));
-            }
+            result
+                .set_config_default_model(model, provider_state.default_provider_key())
+                .unwrap_or_else(|e| {
+                    crate::logging::warn(&format!(
+                        "Failed to re-apply default_model '{}' after catalog refresh: {}",
+                        model, e
+                    ));
+                });
         }
 
         result.auto_select_active_multi_account();

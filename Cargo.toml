@@ -53,7 +53,7 @@ members = [
     "crates/jcode-provider-openrouter",
     "crates/jcode-provider-openai",
     "crates/jcode-provider-gemini",
-    "crates/jcode-provider-app",
+    "crates/jcode-provider-service",
     "crates/jcode-llm-core",
     "crates/jcode-llm-protocols",
     "crates/jcode-llm-dialects",
@@ -105,9 +105,9 @@ members = [
 # lands on crates.io. The git rev will be bumped as new ffs features land.
 # Remove this block once ffs-search 0.2.0 is published.
 [workspace.dependencies]
-ffs-search = { git = "https://github.com/quangdang46/fast_file_search", rev = "42d7555" }
-ffs-engine = { git = "https://github.com/quangdang46/fast_file_search", rev = "42d7555" }
-ffs-symbol = { git = "https://github.com/quangdang46/fast_file_search", rev = "42d7555" }
+ffs-search = { git = "https://github.com/quangdang46/fast_file_search", branch = "main" }
+ffs-engine = { git = "https://github.com/quangdang46/fast_file_search", branch = "main" }
+ffs-symbol = { git = "https://github.com/quangdang46/fast_file_search", branch = "main" }
 strum = { version = "0.26", features = ["derive"] }
 regex = "1"
 beads_rust = { git = "https://github.com/quangdang46/beads_rust", rev = "ab4c27faf80bb51fca9882062a5c752632eeff2d" }
@@ -151,6 +151,10 @@ required-features = ["dev-bins"]
 [dependencies]
 # Hook system for lifecycle events
 jcode-hooks = { path = "crates/jcode-hooks" }
+jcode-keyring-store = { path = "crates/jcode-keyring-store" }
+jcode-plugin-core = { path = "crates/jcode-plugin-core" }
+jcode-plugin-runtime = { path = "crates/jcode-plugin-runtime" }
+jcode-provider-service = { path = "crates/jcode-provider-service" }
 
 # Cross-provider session conversion engine (resume/import any provider -> jcode).
 # Pinned to a specific commit SHA on the upstream fork so the dependency is
@@ -228,7 +232,7 @@ jcode-logging = { path = "crates/jcode-logging" }
 # OAuth
 base64 = "0.22"
 sha2 = "0.10"
-hashline = { git = "https://github.com/quangdang46/hashline.git", rev = "1780f4b81333047323058041d3d0e64abce0c9ad", }
+hashline = { git = "https://github.com/quangdang46/hashline.git", rev = "f32eeac", }
 rand = "0.9.3"
 hex = "0.4"
 url = "2"
@@ -313,7 +317,6 @@ jcode-experiment-flags = { path = "crates/jcode-experiment-flags" }
 flate2 = "1"
 tar = "0.4"
 tempfile = "3"
-agentgrep = { git = "https://github.com/1jehuang/agentgrep.git", tag = "v0.1.2" }
 qrcode = { version = "0.14.1", default-features = false }
 aws-config = "1.8.16"
 aws-credential-types = "1.2.14"
@@ -506,7 +509,6 @@ codegen-units = 256
 
 [dev-dependencies]
 async-stream = "0.3"
-jcode-keyring-store = { path = "crates/jcode-keyring-store" }
 # Enables the downstream test-support helpers (storage::lock_test_env,
 # auth::test_sandbox, bus::reset_models_updated_publish_state_for_tests, the
 # ExternalAuthReviewCandidate read accessors) for the root crate's own cli test

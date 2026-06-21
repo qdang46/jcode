@@ -1,4 +1,4 @@
-use super::{RunningItem, RunningItemKind, RunningItemStatus};
+use super::{RunningItem, RunningItemStatus};
 use crate::tui::color_support::rgb;
 use ratatui::prelude::*;
 use ratatui::widgets::Paragraph;
@@ -42,10 +42,7 @@ pub(super) fn draw_running_items(frame: &mut Frame, app: &dyn super::TuiState, a
         0
     };
 
-    for (_display_idx, idx) in (scroll_offset..items_state.items.len())
-        .take(max_visible)
-        .enumerate()
-    {
+    for idx in (scroll_offset..items_state.items.len()).take(max_visible) {
         let item = &items_state.items[idx];
         let is_selected = idx == selected;
 
@@ -223,11 +220,7 @@ pub(super) fn draw_running_item_detail(frame: &mut Frame, app: &dyn super::TuiSt
     frame.render_widget(block, area);
 
     let content_height = lines.len() as u16;
-    let start_line = if content_height > inner.height {
-        content_height - inner.height
-    } else {
-        0
-    };
+    let start_line = content_height.saturating_sub(inner.height);
     let visible: Vec<Line<'static>> = lines
         .into_iter()
         .skip(start_line as usize)

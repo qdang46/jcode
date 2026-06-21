@@ -334,7 +334,7 @@ async fn anchor_str_execute(
 
 /// Replace lines `start..=end` (0-based) with `new_text`.
 fn replace_lines(content: &str, start: usize, end: usize, new_text: &str) -> String {
-    let mut lines: Vec<&str> = content.lines().collect();
+    let lines: Vec<&str> = content.lines().collect();
     if start >= lines.len() {
         let mut result = content.to_string();
         if !result.ends_with('\n') {

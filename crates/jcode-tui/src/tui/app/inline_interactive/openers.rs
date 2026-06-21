@@ -6,7 +6,6 @@ use super::helpers::{
 use super::*;
 use crate::tui::{
     AgentModelTarget, InlineInteractiveState, PickerAction, PickerEntry, PickerKind, PickerOption,
-    RunningItem, RunningItemKind, RunningItemStatus,
 };
 
 impl App {
@@ -603,13 +602,13 @@ impl App {
 
         // 1. Subagent status
         if let Some(status) = &self.subagent_status {
-            let elapsed = self
+            let _elapsed = self
                 .processing_started
                 .map(|t| t.elapsed())
                 .map(|d| format_elapsed_secs(d.as_secs()))
                 .unwrap_or_default();
             entries.push(PickerEntry {
-                name: format!("◯ subagent"),
+                name: "◯ subagent".to_string(),
                 options: vec![PickerOption {
                     provider: "running".into(),
                     api_method: "view".into(),
@@ -921,7 +920,6 @@ pub(crate) fn open_color_picker(app: &mut App, agent_id: &str) {
 }
 
 /// Open the agent creation wizard (3-step: name → tools → color/model).
-
 /// Open the tools picker for an agent.
 /// Shows a list of common tools the user can select for the agent.
 pub(crate) fn open_tools_picker(app: &mut App, agent_id: &str) {
@@ -1018,16 +1016,16 @@ pub(crate) fn check_agent_snapshots(app: &mut App) {
                 .and_then(|s| s.to_str())
                 .unwrap_or("")
                 .to_string();
-            if let Ok(meta) = entry.metadata() {
-                if let Ok(mtime) = meta.modified() {
-                    let was = app.agent_snapshot_cache.iter().find(|(n, _)| n == &name);
-                    if was.map(|(_, t)| t != &mtime).unwrap_or(true) {
-                        if app.agent_snapshot_checked || was.is_some() {
-                            changed.push(name.clone());
-                        }
-                    }
-                    current.push((name, mtime));
+            if let Ok(meta) = entry.metadata()
+                && let Ok(mtime) = meta.modified()
+            {
+                let was = app.agent_snapshot_cache.iter().find(|(n, _)| n == &name);
+                if was.map(|(_, t)| t != &mtime).unwrap_or(true)
+                    && (app.agent_snapshot_checked || was.is_some())
+                {
+                    changed.push(name.clone());
                 }
+                current.push((name, mtime));
             }
         }
     }
@@ -1129,6 +1127,7 @@ You are a helpful coding assistant.
 
 /// Load a session's messages from its files and return as DisplayMessages.
 /// Used by teammate view to show the subagent's messages inline.
+#[allow(dead_code)]
 pub(super) fn load_session_messages(session_id: &str) -> Vec<crate::tui::DisplayMessage> {
     use crate::session::Session;
 

@@ -414,7 +414,9 @@ mod tests {
         let json = serde_json::to_string(&src).unwrap();
         let deserialized: crate::config::PluginSourceConfig = serde_json::from_str(&json).unwrap();
         match deserialized {
-            crate::config::PluginSourceConfig::File { path } => assert_eq!(path, "/tmp/plugin.wasm"),
+            crate::config::PluginSourceConfig::File { path } => {
+                assert_eq!(path, "/tmp/plugin.wasm")
+            }
             _ => panic!("expected File variant"),
         }
     }

@@ -113,8 +113,8 @@ use crate::tui::mermaid;
 #[cfg(test)]
 pub(crate) use box_utils::truncate_line_to_width;
 use box_utils::{
-    line_plain_text, render_rounded_box, render_sharp_box,
-    truncate_line_preserving_suffix_to_width, truncate_line_with_ellipsis_to_width,
+    line_plain_text, render_rounded_box, truncate_line_preserving_suffix_to_width,
+    truncate_line_with_ellipsis_to_width,
 };
 use changelog::get_grouped_changelog;
 #[cfg(test)]
@@ -480,16 +480,16 @@ use status_support::{
 };
 use theme_support::{
     accent_color, activity_indicator, activity_indicator_frame_index, ai_color, ai_text,
-    animated_tool_color, asap_color, blend_color, dim_color, file_link_color, header_icon_color,
-    header_name_color, header_session_color, pending_color, prompt_entry_bg_color,
-    prompt_entry_color, prompt_entry_shimmer_color, queued_color, rainbow_prompt_color,
-    system_message_color, tool_color, user_bg, user_color, user_text,
+    asap_color, blend_color, dim_color, file_link_color, header_icon_color, header_name_color,
+    header_session_color, pending_color, prompt_entry_bg_color, prompt_entry_color,
+    prompt_entry_shimmer_color, queued_color, rainbow_prompt_color, system_message_color,
+    tool_color, user_bg, user_color, user_text,
 };
 
 pub(crate) use jcode_tui_markdown::{CopyTargetKind, RawCopyTarget};
 pub(crate) use jcode_tui_messages::{
-    CopyTarget, EditToolRange, ImageRegion, MessageBoundary, PreparedChatFrame, PreparedMessages,
-    PreparedSection, PreparedSectionKind, WrappedLineMap,
+    CopyTarget, EditToolRange, ImageRegion, PreparedChatFrame, PreparedMessages, PreparedSection,
+    PreparedSectionKind, WrappedLineMap,
 };
 
 #[derive(Clone, Debug)]
@@ -1990,6 +1990,7 @@ pub(crate) fn side_pane_visible_range() -> Option<(usize, usize)> {
     Some((snapshot.scroll, snapshot.visible_end))
 }
 
+#[allow(dead_code)]
 pub(crate) fn copy_pane_first_visible_point(
     pane: crate::tui::CopySelectionPane,
 ) -> Option<crate::tui::CopySelectionPoint> {
@@ -2532,15 +2533,18 @@ fn draw_inner(frame: &mut Frame, app: &dyn TuiState) {
         let budget = ((chat_area.height as usize * max_pct) / 100).clamp(0, 18);
         if budget >= 5 && chat_area.width >= 24 {
             {
-                let tiles: Vec<jcode_tui_render::swarm_tiles::SwarmTile> = members.iter().map(|m| {
-                    let name = m.friendly_name.clone().unwrap_or_default();
-                    let status = format!("{:?}", m.status);
-                    jcode_tui_render::swarm_tiles::SwarmTile::new(
-                        name,
-                        status,
-                        ratatui::style::Color::Cyan,
-                    )
-                }).collect();
+                let tiles: Vec<jcode_tui_render::swarm_tiles::SwarmTile> = members
+                    .iter()
+                    .map(|m| {
+                        let name = m.friendly_name.clone().unwrap_or_default();
+                        let status = format!("{:?}", m.status);
+                        jcode_tui_render::swarm_tiles::SwarmTile::new(
+                            name,
+                            status,
+                            ratatui::style::Color::Cyan,
+                        )
+                    })
+                    .collect();
                 jcode_tui_render::swarm_tiles::render_swarm_gallery(
                     &tiles,
                     chat_area.width as usize,
@@ -2938,7 +2942,7 @@ fn draw_inner(frame: &mut Frame, app: &dyn TuiState) {
         let sep_w = chunks[4].width as usize;
         if sep_w > 12 {
             let (nav_pos, nav_total) = app.prompt_history_info().unwrap_or((0, 0));
-            let next_prompt = user_count + pending_count + 1;
+            let _next_prompt = user_count + pending_count + 1;
             let label = if nav_pos > 0 {
                 format!(" History {}/{} ", nav_pos, nav_total)
             } else {

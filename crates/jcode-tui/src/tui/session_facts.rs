@@ -15,6 +15,7 @@
 
 /// A distinct piece of session information that can be surfaced in the UI.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[allow(dead_code)]
 pub(crate) enum Fact {
     Model,
     ReasoningEffort,
@@ -28,10 +29,12 @@ pub(crate) enum Fact {
 /// Tracks which facts have already been claimed (rendered) this frame so that
 /// lower-priority fallback surfaces can fill in only the gaps.
 #[derive(Clone, Debug, Default)]
+#[allow(dead_code)]
 pub(crate) struct FactLedger {
     shown: u32,
 }
 
+#[allow(dead_code)]
 impl FactLedger {
     pub(crate) fn new() -> Self {
         Self::default()
@@ -94,6 +97,7 @@ pub(crate) fn dir_label(path: &str) -> String {
 /// Compact home-relative directory label that elides intermediate segments,
 /// e.g. `/home/me/a/b/c` -> `…/b/c` and `~/a/b/c` -> `~/…/c`. Used where space
 /// is tight (status line, overscroll, idle input hint).
+#[allow(dead_code)]
 pub(crate) fn dir_label_short(path: &str) -> Option<String> {
     let trimmed = path.trim().trim_end_matches('/');
     if trimmed.is_empty() {

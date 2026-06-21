@@ -65,9 +65,5 @@ pub trait Protocol: Send + Sync + 'static {
     /// - `NeedMore` — the decoder needs another chunk of data.
     /// - `Done { .. }` — no more events will be produced.
     /// - `Error { .. }` — something went wrong.
-    async fn step(
-        &self,
-        state: &mut Self::State,
-        chunk: Option<&[u8]>,
-    ) -> StepOutput<Self::Event>;
+    async fn step(&self, state: &mut Self::State, chunk: Option<&[u8]>) -> StepOutput<Self::Event>;
 }

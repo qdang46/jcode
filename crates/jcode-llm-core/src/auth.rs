@@ -181,10 +181,8 @@ impl Auth for OptionalAuth {
 impl Auth for ConfigAuth {
     async fn apply(&self, req: &mut Request) -> Result<(), AuthError> {
         let key = env::var(&self.env_var).map_err(|_| AuthError::Missing)?;
-        req.headers.insert(
-            "Authorization".to_string(),
-            format!("Bearer {}", key),
-        );
+        req.headers
+            .insert("Authorization".to_string(), format!("Bearer {}", key));
         Ok(())
     }
 
@@ -370,8 +368,7 @@ mod tests {
     #[tokio::test]
     async fn test_custom_auth_closure() {
         let auth = custom(|req: &mut Request| {
-            req.headers
-                .insert("X-Custom".into(), "custom-value".into());
+            req.headers.insert("X-Custom".into(), "custom-value".into());
             Ok(())
         });
         let mut req = Request {

@@ -30,10 +30,7 @@ pub enum ResponseInputItem {
         arguments: String,
     },
     /// A function call output (tool result).
-    FunctionCallOutput {
-        call_id: String,
-        output: String,
-    },
+    FunctionCallOutput { call_id: String, output: String },
     /// Reasoning item from a previous response.
     Reasoning {
         #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -57,9 +54,7 @@ pub enum ResponseInputItem {
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ResponseContentPart {
     /// Input text.
-    InputText {
-        text: String,
-    },
+    InputText { text: String },
     /// Input image (base64 data URL).
     InputImage {
         image_url: String,
@@ -139,9 +134,7 @@ pub struct OpenAIResponsesFunctionDef {
 pub enum OpenAIResponsesEvent {
     /// Response object created.
     #[serde(rename = "response.created")]
-    ResponseCreated {
-        response: Value,
-    },
+    ResponseCreated { response: Value },
     /// Text output delta.
     #[serde(rename = "response.output_text.delta")]
     ResponseOutputTextDelta {
@@ -159,10 +152,7 @@ pub enum OpenAIResponsesEvent {
     },
     /// A new output item was added (function_call, message, reasoning, etc.).
     #[serde(rename = "response.output_item.added")]
-    ResponseOutputItemAdded {
-        item: Value,
-        output_index: u64,
-    },
+    ResponseOutputItemAdded { item: Value, output_index: u64 },
     /// Function call arguments delta.
     #[serde(rename = "response.function_call_arguments.delta")]
     ResponseFunctionCallArgumentsDelta {
@@ -182,31 +172,19 @@ pub enum OpenAIResponsesEvent {
     },
     /// An output item is done.
     #[serde(rename = "response.output_item.done")]
-    ResponseOutputItemDone {
-        item: Value,
-        output_index: u64,
-    },
+    ResponseOutputItemDone { item: Value, output_index: u64 },
     /// Response completed.
     #[serde(rename = "response.completed")]
-    ResponseCompleted {
-        response: Value,
-    },
+    ResponseCompleted { response: Value },
     /// Response incomplete.
     #[serde(rename = "response.incomplete")]
-    ResponseIncomplete {
-        response: Value,
-    },
+    ResponseIncomplete { response: Value },
     /// Response failed.
     #[serde(rename = "response.failed")]
-    ResponseFailed {
-        response: Value,
-        error: Value,
-    },
+    ResponseFailed { response: Value, error: Value },
     /// Error event.
     #[serde(rename = "error")]
-    Error {
-        error: Value,
-    },
+    Error { error: Value },
 }
 
 // ---------------------------------------------------------------------------
@@ -214,7 +192,7 @@ pub enum OpenAIResponsesEvent {
 // ---------------------------------------------------------------------------
 
 /// Opaque state carried across `step()` calls for Responses API.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct OpenAIResponsesState {
     /// Accumulated SSE data buffer.
     buffer: String,
@@ -228,25 +206,16 @@ pub struct OpenAIResponsesState {
     pending_tool_calls: HashMap<String, (u64, String, String, String)>,
 }
 
-impl Default for OpenAIResponsesState {
-    fn default() -> Self {
-        Self {
-            buffer: String::new(),
-            accumulated_usage: None,
-            done: false,
-            started: false,
-            pending_tool_calls: HashMap::new(),
-        }
-    }
-}
-
 // ---------------------------------------------------------------------------
 // Helper: extract usage from a response value
 // ---------------------------------------------------------------------------
 
 fn extract_usage(response: &Value) -> Option<Usage> {
     let usage = response.get("usage")?;
-    let input_tokens = usage.get("input_tokens").and_then(|v| v.as_u64()).unwrap_or(0);
+    let input_tokens = usage
+        .get("input_tokens")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(0);
     let output_tokens = usage
         .get("output_tokens")
         .and_then(|v| v.as_u64())
@@ -274,11 +243,9 @@ fn extract_usage(response: &Value) -> Option<Usage> {
         cache_read_input_tokens: cache_read,
         cache_creation_input_tokens: 0,
         total_tokens,
-        breakdown: reasoning_tokens.map(|rt| {
-            jcode_llm_core::schema::UsageBreakdown {
-                audio_input_tokens: None,
-                reasoning_tokens: Some(rt),
-            }
+        breakdown: reasoning_tokens.map(|rt| jcode_llm_core::schema::UsageBreakdown {
+            audio_input_tokens: None,
+            reasoning_tokens: Some(rt),
         }),
     })
 }
@@ -303,6 +270,7 @@ fn map_tool_choice(tc: &ToolChoice) -> Option<Value> {
 // Helper: convert ContentPart to ResponseInputItem variants
 // ---------------------------------------------------------------------------
 
+#[expect(dead_code)]
 fn content_part_to_response_item(part: &ContentPart) -> Option<ResponseInputItem> {
     match part {
         ContentPart::Text { .. } => None, // handled at message level
@@ -314,12 +282,10 @@ fn content_part_to_response_item(part: &ContentPart) -> Option<ResponseInputItem
             };
             Some(ResponseInputItem::Message {
                 role: "user".to_string(),
-                content: Some(vec![
-                    ResponseContentPart::InputImage {
-                        image_url: url,
-                        detail: None,
-                    },
-                ]),
+                content: Some(vec![ResponseContentPart::InputImage {
+                    image_url: url,
+                    detail: None,
+                }]),
             })
         }
         ContentPart::ToolCall { id, name, input } => {
@@ -361,10 +327,7 @@ impl Protocol for OpenAiResponsesProtocol {
     type Event = OpenAIResponsesEvent;
     type State = OpenAIResponsesState;
 
-    fn body_from_request(
-        &self,
-        request: &LlmRequest,
-    ) -> Result<(Self::Body, Self::State), String> {
+    fn body_from_request(&self, request: &LlmRequest) -> Result<(Self::Body, Self::State), String> {
         // --- model ---
         let model = request.model.id.clone();
 
@@ -398,7 +361,12 @@ impl Protocol for OpenAiResponsesProtocol {
 
                     // Function calls.
                     for part in &msg.content {
-                        if let ContentPart::ToolCall { id, name, input: args } = part {
+                        if let ContentPart::ToolCall {
+                            id,
+                            name,
+                            input: args,
+                        } = part
+                        {
                             let arguments =
                                 serde_json::to_string(args).unwrap_or_else(|_| "{}".to_string());
                             input.push(ResponseInputItem::FunctionCall {
@@ -415,7 +383,7 @@ impl Protocol for OpenAiResponsesProtocol {
                             input.push(ResponseInputItem::Reasoning {
                                 id: None,
                                 summary: Some(vec![
-                                    serde_json::json!({"type": "summary_text", "text": text})
+                                    serde_json::json!({"type": "summary_text", "text": text}),
                                 ]),
                                 encrypted_content: None,
                                 status: None,
@@ -437,9 +405,8 @@ impl Protocol for OpenAiResponsesProtocol {
                     for part in &msg.content {
                         match part {
                             ContentPart::Text { text } => {
-                                content_parts.push(ResponseContentPart::InputText {
-                                    text: text.clone(),
-                                });
+                                content_parts
+                                    .push(ResponseContentPart::InputText { text: text.clone() });
                             }
                             ContentPart::Media { media_type, data } => {
                                 let url = if data.starts_with("data:") {
@@ -542,10 +509,7 @@ impl Protocol for OpenAiResponsesProtocol {
         });
 
         // --- tool_choice ---
-        let tool_choice = request
-            .tool_choice
-            .as_ref()
-            .and_then(map_tool_choice);
+        let tool_choice = request.tool_choice.as_ref().and_then(map_tool_choice);
 
         // --- generation params ---
         let max_output_tokens = request
@@ -580,11 +544,7 @@ impl Protocol for OpenAiResponsesProtocol {
         Ok((body, state))
     }
 
-    async fn step(
-        &self,
-        state: &mut Self::State,
-        chunk: Option<&[u8]>,
-    ) -> StepOutput<Self::Event> {
+    async fn step(&self, state: &mut Self::State, chunk: Option<&[u8]>) -> StepOutput<Self::Event> {
         // If already done, report it.
         if state.done {
             let usage = state.accumulated_usage.clone();
@@ -603,12 +563,9 @@ impl Protocol for OpenAiResponsesProtocol {
         // Try to extract complete SSE frames from the buffer.
         let mut events: Vec<OpenAIResponsesEvent> = Vec::new();
 
-        loop {
+        while let Some(pos) = state.buffer.find("\n\n").map(|pos| pos + 2) {
             // Find the next double-newline that delimits an SSE frame.
-            let frame_end = match state.buffer.find("\n\n").map(|pos| pos + 2) {
-                Some(pos) => pos,
-                None => break, // need more data
-            };
+            let frame_end = pos;
 
             let raw_frame = state.buffer[..frame_end].to_string();
             state.buffer.drain(..frame_end);
@@ -650,46 +607,41 @@ impl Protocol for OpenAiResponsesProtocol {
                 } => {
                     events.push(event);
                 }
-                OpenAIResponsesEvent::ResponseOutputItemAdded {
-                    item,
-                    output_index,
-                } => {
+                OpenAIResponsesEvent::ResponseOutputItemAdded { item, output_index } => {
                     // If this item is a function_call or custom_tool_call,
                     // initialize a pending entry for argument accumulation.
-                    if let Some(item_type) = item.get("type").and_then(|v| v.as_str()) {
-                        if matches!(item_type, "function_call" | "custom_tool_call") {
-                            if let Some(item_id) = item
-                                .get("id")
-                                .and_then(|v| v.as_str())
-                                .or_else(|| item.get("item_id").and_then(|v| v.as_str()))
-                            {
-                                let call_id = item
-                                    .get("call_id")
-                                    .and_then(|v| v.as_str())
-                                    .unwrap_or(item_id)
-                                    .to_string();
-                                let name = item
-                                    .get("name")
-                                    .and_then(|v| v.as_str())
-                                    .unwrap_or("")
-                                    .to_string();
-                                let existing_arguments = item
-                                    .get("arguments")
-                                    .and_then(|v| v.as_str())
-                                    .unwrap_or("");
-                                state.pending_tool_calls.insert(
-                                    item_id.to_string(),
-                                    (*output_index, call_id, name, existing_arguments.to_string()),
-                                );
-                            }
-                        }
+                    if let Some(item_type) = item.get("type").and_then(|v| v.as_str())
+                        && matches!(item_type, "function_call" | "custom_tool_call")
+                        && let Some(item_id) = item
+                            .get("id")
+                            .and_then(|v| v.as_str())
+                            .or_else(|| item.get("item_id").and_then(|v| v.as_str()))
+                    {
+                        let call_id = item
+                            .get("call_id")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or(item_id)
+                            .to_string();
+                        let name = item
+                            .get("name")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("")
+                            .to_string();
+                        let existing_arguments =
+                            item.get("arguments").and_then(|v| v.as_str()).unwrap_or("");
+                        state.pending_tool_calls.insert(
+                            item_id.to_string(),
+                            (*output_index, call_id, name, existing_arguments.to_string()),
+                        );
+                    }
 
-                        // Mark provider-executed tools.
-                        if item_type == "web_search" || item_type == "user_location" {
-                            // Provider-executed tools: the provider handles these
-                            // without needing a separate tool call from the model.
-                            // We just pass the event through.
-                        }
+                    // Mark provider-executed tools.
+                    if let Some(item_type) = item.get("type").and_then(|v| v.as_str())
+                        && (item_type == "web_search" || item_type == "user_location")
+                    {
+                        // Provider-executed tools: the provider handles these
+                        // without needing a separate tool call from the model.
+                        // We just pass the event through.
                     }
                     events.push(event);
                 }
@@ -735,10 +687,7 @@ impl Protocol for OpenAiResponsesProtocol {
                     state.done = true;
                     events.push(event);
                 }
-                OpenAIResponsesEvent::ResponseFailed {
-                    response,
-                    error: _,
-                } => {
+                OpenAIResponsesEvent::ResponseFailed { response, error: _ } => {
                     if let Some(usage) = extract_usage(response) {
                         state.accumulated_usage = Some(usage);
                     }
@@ -999,30 +948,22 @@ mod tests {
 
                 // Should have a response.created.
                 assert!(
-                    evts.iter().any(|e| matches!(
-                        e,
-                        OpenAIResponsesEvent::ResponseCreated { .. }
-                    )),
+                    evts.iter()
+                        .any(|e| matches!(e, OpenAIResponsesEvent::ResponseCreated { .. })),
                     "expected ResponseCreated"
                 );
 
                 // Should have text deltas.
                 assert!(
-                    evts
-                        .iter()
-                        .any(|e| matches!(
-                            e,
-                            OpenAIResponsesEvent::ResponseOutputTextDelta { .. }
-                        )),
+                    evts.iter()
+                        .any(|e| matches!(e, OpenAIResponsesEvent::ResponseOutputTextDelta { .. })),
                     "expected ResponseOutputTextDelta"
                 );
 
                 // Should have response.completed.
                 assert!(
-                    evts.iter().any(|e| matches!(
-                        e,
-                        OpenAIResponsesEvent::ResponseCompleted { .. }
-                    )),
+                    evts.iter()
+                        .any(|e| matches!(e, OpenAIResponsesEvent::ResponseCompleted { .. })),
                     "expected ResponseCompleted"
                 );
             }
@@ -1057,10 +998,8 @@ mod tests {
 
                 // Should have output_item.added.
                 assert!(
-                    evts.iter().any(|e| matches!(
-                        e,
-                        OpenAIResponsesEvent::ResponseOutputItemAdded { .. }
-                    )),
+                    evts.iter()
+                        .any(|e| matches!(e, OpenAIResponsesEvent::ResponseOutputItemAdded { .. })),
                     "expected ResponseOutputItemAdded"
                 );
 
@@ -1109,18 +1048,15 @@ mod tests {
 
                 // Should have reasoning delta.
                 assert!(
-                    evts.iter().any(|e| matches!(
-                        e,
-                        OpenAIResponsesEvent::ResponseReasoningDelta { .. }
-                    )),
+                    evts.iter()
+                        .any(|e| matches!(e, OpenAIResponsesEvent::ResponseReasoningDelta { .. })),
                     "expected ResponseReasoningDelta"
                 );
 
                 // Should have completed with usage containing reasoning tokens.
-                if let Some(OpenAIResponsesEvent::ResponseCompleted { response }) =
-                    evts.iter().find(|e| {
-                        matches!(e, OpenAIResponsesEvent::ResponseCompleted { .. })
-                    })
+                if let Some(OpenAIResponsesEvent::ResponseCompleted { response }) = evts
+                    .iter()
+                    .find(|e| matches!(e, OpenAIResponsesEvent::ResponseCompleted { .. }))
                 {
                     let usage = extract_usage(&response);
                     assert!(usage.is_some());
@@ -1128,10 +1064,7 @@ mod tests {
                     assert_eq!(u.input_tokens, 10);
                     assert_eq!(u.output_tokens, 5);
                     assert!(u.breakdown.is_some());
-                    assert_eq!(
-                        u.breakdown.unwrap().reasoning_tokens,
-                        Some(3)
-                    );
+                    assert_eq!(u.breakdown.unwrap().reasoning_tokens, Some(3));
                 }
             }
             other => panic!("expected Events, got {:?}", other),
@@ -1182,9 +1115,7 @@ mod tests {
             map_tool_choice(&ToolChoice::None),
             Some(Value::String("none".to_string()))
         );
-        let specific = map_tool_choice(&ToolChoice::Specific {
-            name: "foo".into(),
-        });
+        let specific = map_tool_choice(&ToolChoice::Specific { name: "foo".into() });
         assert!(specific.is_some());
     }
 
@@ -1215,10 +1146,7 @@ mod tests {
         assert_eq!(usage.input_tokens, 100);
         assert_eq!(usage.output_tokens, 50);
         assert_eq!(usage.total_tokens, 150);
-        assert_eq!(
-            usage.breakdown.unwrap().reasoning_tokens,
-            Some(20)
-        );
+        assert_eq!(usage.breakdown.unwrap().reasoning_tokens, Some(20));
     }
 
     #[test]
@@ -1266,9 +1194,10 @@ mod tests {
         assert!(!body.input.is_empty(), "should have input items");
 
         // Should have a reasoning item.
-        let has_reasoning = body.input.iter().any(|item| {
-            matches!(item, ResponseInputItem::Reasoning { .. })
-        });
+        let has_reasoning = body
+            .input
+            .iter()
+            .any(|item| matches!(item, ResponseInputItem::Reasoning { .. }));
         assert!(has_reasoning, "should contain reasoning item");
     }
 }

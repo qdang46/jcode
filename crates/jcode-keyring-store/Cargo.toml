@@ -9,5 +9,14 @@ anyhow = "1"
 keyring = { version = "3", features = ["apple-native", "linux-native-async-persistent", "windows-native"] }
 tracing = "0.1"
 
+# Unlock the secret-service runtime feature needed by keyring v3.6.x on Linux.
+# keyring depends on secret-service v4 but does not enable a runtime feature
+# on it, and secret-service v4.0.0 requires one of
+# rt-async-io-crypto-rust / rt-tokio-crypto-rust at compile time.
+# We add the direct dependency here so Cargo feature unification enables the
+# runtime on the already-present secret-service crate.
+[target.'cfg(target_os = "linux")'.dependencies]
+secret-service = { version = "4", default-features = false, features = ["rt-async-io-crypto-rust"] }
+
 [dev-dependencies]
 tempfile = "3"

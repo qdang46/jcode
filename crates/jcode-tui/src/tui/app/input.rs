@@ -782,6 +782,14 @@ pub(super) fn handle_text_input(app: &mut App, text: &str) -> bool {
     }
 
     insert_input_text(app, text);
+    // Convenience: typing '/connect' (exactly 8 chars) auto-opens the
+    // interactive provider login picker so the user does not have to
+    // press Enter to summon it. The input is left untouched so the
+    // user can keep typing a provider name to refine ('/connect
+    // openai' will start the openai flow on Enter).
+    if app.input == "/connect" {
+        app.show_interactive_login();
+    }
     true
 }
 
@@ -1911,15 +1919,6 @@ pub(super) fn handle_modal_key(
                 return Ok(false);
             }
         } // close match code
-        if modifiers.contains(KeyModifiers::CONTROL)
-            && matches!(code, KeyCode::Char('c') | KeyCode::Char('d'))
-        {
-            return Ok(false);
-        }
-
-        let _ = app.handle_copy_selection_key(code, modifiers)
-            || handle_navigation_shortcuts(app, code, modifiers);
-        return Ok(true);
     }
 
     if let Some(ref picker) = app.inline_interactive_state
@@ -2338,7 +2337,7 @@ impl App {
                 KeyCode::Esc => {
                     if self.viewing_teammate_session_id.is_some() {
                         // Exit teammate view
-                        let sid = self.viewing_teammate_session_id.take();
+                        let _sid = self.viewing_teammate_session_id.take();
                         self.view_teammate_selection = false;
                         self.set_status_notice("Exited teammate view");
                         return Ok(());

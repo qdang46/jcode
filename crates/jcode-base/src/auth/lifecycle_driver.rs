@@ -1,8 +1,6 @@
 // The whole file is a pre-existing test/lifecycle fixture that is not yet
 // wired into the live auth-test path. Lint-clean: do not enable any of it
 // from production code until the lifecycle test is connected.
-#![allow(dead_code, unused_imports)]
-
 use anyhow::{Context, ensure};
 
 use crate::auth::lifecycle::{

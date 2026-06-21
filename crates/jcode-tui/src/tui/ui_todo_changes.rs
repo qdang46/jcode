@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! Render a compact "what changed" delta below a `todo` tool call in the chat
 //! transcript.
 //!

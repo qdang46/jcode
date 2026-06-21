@@ -1796,7 +1796,7 @@ pub(crate) fn render_tool_message(
         &token_suffix,
         row_width,
     );
-    let rendered_tool_line_text = super::line_plain_text(&rendered_tool_line);
+    let _rendered_tool_line_text = super::line_plain_text(&rendered_tool_line);
 
     // Try to create oh-my-pi style framed box ┌──┐ with output + stats footer.
     // Handle all tool call types: object inputs, string inputs, and empty inputs.

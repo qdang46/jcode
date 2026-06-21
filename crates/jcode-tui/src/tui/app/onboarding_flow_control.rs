@@ -237,7 +237,7 @@ impl App {
     pub(super) fn onboarding_start_default_login(&mut self) {
         crate::telemetry::record_setup_step_once("login_picker_opened");
         self.start_login_provider(crate::provider_catalog::OPENAI_LOGIN_PROVIDER);
-        self.set_status_notice("Login: opening OpenAI sign-in (or type /login for others)");
+        self.set_status_notice("Login: opening OpenAI sign-in (or type /connect for others)");
     }
 
     /// Advance out of a login phase once credentials are available. We no longer
@@ -1155,9 +1155,9 @@ impl App {
                 body.push_str(&format!("- ✕ {row}\n"));
             }
             let fix_hint = if looks_like_auth || !ready.is_empty() {
-                "Run /login to fix a login, or /model to pick another."
+                "Run /connect (or /login) to fix a login, or /model to pick another."
             } else {
-                "Run /login to add a login, or /model to pick another."
+                "Run /connect (or /login) to add a login, or /model to pick another."
             };
             body.push_str(&format!("\n{fix_hint}"));
         }
@@ -1183,7 +1183,7 @@ impl App {
             ));
         } else {
             let hint = if looks_like_auth {
-                "/login to fix credentials, or /model"
+                "/connect (or /login) to fix credentials, or /model"
             } else {
                 "type anything to try, or /model"
             };

@@ -70,6 +70,7 @@ impl App {
         notices.join("\n")
     }
 
+    #[allow(dead_code)]
     pub(super) fn show_jcode_subscription_status(&mut self) {
         let configured_key = crate::subscription_catalog::configured_api_key().is_some();
         let configured_base = crate::subscription_catalog::configured_api_base()

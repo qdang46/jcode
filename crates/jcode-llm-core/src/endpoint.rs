@@ -103,10 +103,7 @@ mod tests {
         let spec = PathSpec::Dynamic("/v1/projects/{project_id}/models".into());
         let mut params = HashMap::new();
         params.insert("project_id".into(), "abc123".into());
-        assert_eq!(
-            spec.resolve(&params),
-            "/v1/projects/abc123/models"
-        );
+        assert_eq!(spec.resolve(&params), "/v1/projects/abc123/models");
     }
 
     #[test]

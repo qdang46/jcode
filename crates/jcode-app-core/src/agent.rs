@@ -367,13 +367,16 @@ impl Agent {
         // config.toml via set_default_model), a restart loses that selection.
         // Apply it here so the model survives restarts.
         let config_model = crate::config::config().provider.default_model.clone();
-        if let Some(ref model) = config_model && !model.trim().is_empty() {
-            if let Err(e) = provider.set_model(model.trim()) {
-                crate::logging::warn(&format!(
-                    "Failed to apply config default_model '{}': {}; falling back to provider default {}",
-                    model.trim(), e, provider.model()
-                ));
-            }
+        if let Some(ref model) = config_model
+            && !model.trim().is_empty()
+            && let Err(e) = provider.set_model(model.trim())
+        {
+            crate::logging::warn(&format!(
+                "Failed to apply config default_model '{}': {}; falling back to provider default {}",
+                model.trim(),
+                e,
+                provider.model()
+            ));
         }
 
         let tool_selection = crate::config::config().tools.selection();
@@ -466,13 +469,16 @@ impl Agent {
         // FIX: Same as new() — apply config default_model before build_base.
         // Server restarts (jcode restart) create agents through this path too.
         let config_model = crate::config::config().provider.default_model.clone();
-        if let Some(ref model) = config_model && !model.trim().is_empty() {
-            if let Err(e) = provider.set_model(model.trim()) {
-                crate::logging::warn(&format!(
-                    "Failed to apply config default_model '{}': {}; falling back to provider default {}",
-                    model.trim(), e, provider.model()
-                ));
-            }
+        if let Some(ref model) = config_model
+            && !model.trim().is_empty()
+            && let Err(e) = provider.set_model(model.trim())
+        {
+            crate::logging::warn(&format!(
+                "Failed to apply config default_model '{}': {}; falling back to provider default {}",
+                model.trim(),
+                e,
+                provider.model()
+            ));
         }
 
         let tool_selection = if let Some(allowed_tools) = allowed_tools {

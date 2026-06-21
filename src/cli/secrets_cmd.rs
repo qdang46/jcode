@@ -79,6 +79,7 @@ pub fn run_set(name: &str, value: Option<&str>, env: bool, json: bool, toon: boo
     Ok(())
 }
 
+#[allow(dead_code)]
 fn set_with(
     manager: &SecretsManager,
     scope: &SecretScope,
@@ -136,6 +137,7 @@ pub fn run_get(name: &str, env: bool, json: bool, toon: bool) -> Result<()> {
     Ok(())
 }
 
+#[allow(dead_code)]
 fn get_with(
     manager: &SecretsManager,
     scope: &SecretScope,
@@ -192,6 +194,7 @@ pub fn run_delete(name: &str, env: bool, json: bool, toon: bool) -> Result<()> {
     Ok(())
 }
 
+#[allow(dead_code)]
 fn delete_with(
     manager: &SecretsManager,
     scope: &SecretScope,
@@ -261,6 +264,7 @@ pub fn run_list(env: bool, json: bool, toon: bool) -> Result<()> {
     Ok(())
 }
 
+#[allow(dead_code)]
 fn list_with(manager: &SecretsManager, filter: Option<&SecretScope>, json: bool) -> Result<String> {
     let mut entries = manager.list(filter)?;
     entries.sort_by(|a, b| {
@@ -317,6 +321,7 @@ pub fn run_init(json: bool, toon: bool) -> Result<()> {
     Ok(())
 }
 
+#[allow(dead_code)]
 fn init_with(manager: &SecretsManager, json: bool) -> Result<String> {
     manager.initialize()?;
     Ok(if json {

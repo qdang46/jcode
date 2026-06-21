@@ -421,6 +421,10 @@ pub enum BusEvent {
     MermaidRenderCompleted,
     /// Productivity report finished generating off the UI thread
     ProductivityReportReady(ProductivityReportReady),
+    /// Provider catalog was updated (new provider connected/disconnected/models changed).
+    CatalogUpdated,
+    /// Provider integration status changed (OAuth flow completed/revoked).
+    IntegrationUpdated,
     /// A tool call requires user permission (from dcg_bridge Prompt decision).
     /// The TUI should show a dialog with the reason and allow-once code.
     PermissionRequested(PermissionRequested),

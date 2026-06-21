@@ -335,7 +335,8 @@ fn picker_render_width(picker: &crate::tui::InlineInteractiveState, max_width: u
 
     marker_width + provider_width + via_width + model_width
 }
-
+/// Format elapsed seconds into a human-readable string
+#[allow(dead_code)]
 pub(super) fn format_elapsed(secs: f32) -> String {
     if secs >= 3600.0 {
         let hours = (secs / 3600.0) as u32;

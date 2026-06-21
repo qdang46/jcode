@@ -23,14 +23,9 @@ pub enum GateDecision {
     /// Tool call is unconditionally allowed.
     Allow,
     /// Tool call is denied. `layer` identifies which check rejected it.
-    Deny {
-        reason: String,
-        layer: String,
-    },
+    Deny { reason: String, layer: String },
     /// Tool call requires interactive human approval before it can proceed.
-    NeedsApproval {
-        prompt: ApprovalPrompt,
-    },
+    NeedsApproval { prompt: ApprovalPrompt },
 }
 
 /// Structured prompt describing why a tool call needs human approval.
@@ -81,14 +76,14 @@ impl ApprovalGate {
                 ApprovalOverride::Deny => {
                     let reason = format!("user policy denies '{}'", tool_name);
                     let layer = "user_override".to_string();
-                    tracing::warn!("plugin gate denied tool '{tool_name}': {reason} (layer {layer})");
+                    tracing::warn!(
+                        "plugin gate denied tool '{tool_name}': {reason} (layer {layer})"
+                    );
                     GateDecision::Deny { reason, layer }
                 }
-                ApprovalOverride::Prompt => {
-                    GateDecision::NeedsApproval {
-                        prompt: self.prompt_for(tool_name, tier),
-                    }
-                }
+                ApprovalOverride::Prompt => GateDecision::NeedsApproval {
+                    prompt: self.prompt_for(tool_name, tier),
+                },
             };
         }
 
@@ -111,7 +106,9 @@ impl ApprovalGate {
             }
             jcode_plugin_core::AccessDecisionV2::Deny { reason, layer } => {
                 let layer_str = format!("layer_{}", layer);
-                tracing::warn!("plugin gate denied tool '{tool_name}': {reason} (layer {layer_str})");
+                tracing::warn!(
+                    "plugin gate denied tool '{tool_name}': {reason} (layer {layer_str})"
+                );
                 GateDecision::Deny {
                     reason,
                     layer: layer_str,
@@ -345,7 +342,10 @@ mod tests {
         // Strict mode with no allow lists → layer 5 deny
         match gate.check("anything", ToolTier::Read, &serde_json::json!({})) {
             GateDecision::Deny { layer, .. } => {
-                assert!(layer.starts_with("layer_"), "layer should be layer_N: {layer}")
+                assert!(
+                    layer.starts_with("layer_"),
+                    "layer should be layer_N: {layer}"
+                )
             }
             other => panic!("expected Deny, got {other:?}"),
         }
@@ -493,11 +493,7 @@ mod tests {
     // -----------------------------------------------------------------
     #[test]
     fn mode_getter_returns_stored_mode() {
-        let gate = ApprovalGate::new(
-            Default::default(),
-            PermissionMode::Plan,
-            HashMap::new(),
-        );
+        let gate = ApprovalGate::new(Default::default(), PermissionMode::Plan, HashMap::new());
         assert_eq!(gate.mode(), PermissionMode::Plan);
     }
 

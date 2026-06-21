@@ -21,103 +21,55 @@ use crate::external_auth::{
     can_prompt_for_external_auth, external_auth_blocked_message, prompt_to_trust_external_auth,
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProviderChoice {
     Jcode,
     Claude,
-    #[value(alias = "claude-api", alias = "anthropic-key", alias = "claude-key")]
     AnthropicApi,
     #[deprecated(
         note = "Claude Code CLI subprocess transport is deprecated; use ProviderChoice::Claude for native Anthropic OAuth/API transport"
     )]
-    #[value(alias = "claude-subprocess", hide = true)]
     ClaudeSubprocess,
     Openai,
-    #[value(
-        alias = "openai-key",
-        alias = "openai-apikey",
-        alias = "openai-platform"
-    )]
     OpenaiApi,
     Openrouter,
-    #[value(alias = "aws-bedrock", alias = "aws_bedrock")]
     Bedrock,
-    #[value(alias = "azure-openai", alias = "aoai")]
     Azure,
-    #[value(alias = "opencode-zen", alias = "zen")]
     Opencode,
-    #[value(alias = "opencodego")]
     OpencodeGo,
-    #[value(alias = "z.ai", alias = "z-ai", alias = "zai-coding")]
     Zai,
-    #[value(
-        alias = "kimi-code",
-        alias = "kimi-coding",
-        alias = "kimi-coding-plan",
-        alias = "kimi-for-coding",
-        alias = "moonshot-coding"
-    )]
     Kimi,
-    #[value(alias = "302.ai")]
     Ai302,
     Baseten,
     Cortecs,
-    #[value(alias = "cgc", alias = "comtegra-gpu-cloud")]
     Comtegra,
     Deepseek,
-    #[value(alias = "fpt-ai", alias = "fptcloud", alias = "fpt-cloud")]
     Fpt,
     Firmware,
-    #[value(alias = "hugging-face", alias = "hf")]
     HuggingFace,
-    #[value(alias = "moonshot")]
     MoonshotAi,
     Nebius,
     Scaleway,
     Stackit,
     Groq,
-    #[value(alias = "mistralai")]
     Mistral,
-    #[value(alias = "pplx")]
     Perplexity,
-    #[value(alias = "together", alias = "together-ai")]
     TogetherAi,
-    #[value(alias = "deep-infra")]
     Deepinfra,
-    #[value(alias = "fireworks-ai", alias = "fireworks.ai")]
     Fireworks,
-    #[value(alias = "minimax-ai", alias = "minimaxi")]
     Minimax,
-    #[value(alias = "x.ai", alias = "x-ai", alias = "grok")]
     Xai,
-    #[value(alias = "nvidia", alias = "nim")]
     NvidiaNim,
-    #[value(alias = "xiaomi", alias = "mimo", alias = "xiaomi-mimo-api")]
     XiaomiMimo,
-    #[value(alias = "lm-studio")]
     Lmstudio,
     Ollama,
     Chutes,
-    #[value(alias = "cerebrascode", alias = "cerberascode")]
     Cerebras,
-    #[value(
-        alias = "bailian",
-        alias = "aliyun-bailian",
-        alias = "coding-plan",
-        alias = "alibaba-coding"
-    )]
     AlibabaCodingPlan,
-    #[value(alias = "compat", alias = "custom")]
     OpenaiCompatible,
     Cursor,
     Copilot,
     Gemini,
-    #[value(
-        alias = "gemini-key",
-        alias = "gemini-apikey",
-        alias = "google-ai-studio",
-        alias = "ai-studio"
-    )]
     GeminiApi,
     Antigravity,
     Google,
@@ -177,6 +129,83 @@ impl ProviderChoice {
             Self::Google => "google",
             Self::Auto => "auto",
         }
+    }
+
+    pub fn provider_choice_from_str(s: &str) -> Option<ProviderChoice> {
+        // Normalize: lowercase and replace underscores with hyphens
+        let normalized = s.to_ascii_lowercase().replace('_', "-");
+        let s = normalized.as_str();
+        Some(match s {
+            "jcode" => Self::Jcode,
+            "claude" => Self::Claude,
+            "anthropic-api" | "claude-api" | "anthropic-key" | "claude-key" => Self::AnthropicApi,
+            "claude-subprocess" => Self::Claude,
+            "openai" => Self::Openai,
+            "openai-api" | "openai-key" | "openai-apikey" | "openai-platform" => Self::OpenaiApi,
+            "openrouter" => Self::Openrouter,
+            "bedrock" | "aws-bedrock" | "aws_bedrock" => Self::Bedrock,
+            "azure" | "azure-openai" | "aoai" => Self::Azure,
+            "opencode" | "opencode-zen" | "zen" => Self::Opencode,
+            "opencode-go" | "opencodego" => Self::OpencodeGo,
+            "zai" | "z.ai" | "z-ai" | "zai-coding" => Self::Zai,
+            "kimi" | "kimi-code" | "kimi-coding" | "kimi-coding-plan" | "kimi-for-coding"
+            | "moonshot-coding" => Self::Kimi,
+            "302ai" | "302.ai" => Self::Ai302,
+            "baseten" => Self::Baseten,
+            "cortecs" => Self::Cortecs,
+            "comtegra" | "cgc" | "comtegra-gpu-cloud" => Self::Comtegra,
+            "deepseek" => Self::Deepseek,
+            "fpt" | "fpt-ai" | "fptcloud" | "fpt-cloud" => Self::Fpt,
+            "firmware" => Self::Firmware,
+            "huggingface" | "hugging-face" | "hf" => Self::HuggingFace,
+            "moonshotai" | "moonshot" => Self::MoonshotAi,
+            "nebius" => Self::Nebius,
+            "scaleway" => Self::Scaleway,
+            "stackit" => Self::Stackit,
+            "groq" => Self::Groq,
+            "mistral" | "mistralai" => Self::Mistral,
+            "perplexity" | "pplx" => Self::Perplexity,
+            "togetherai" | "together" | "together-ai" => Self::TogetherAi,
+            "deepinfra" | "deep-infra" => Self::Deepinfra,
+            "fireworks" | "fireworks-ai" | "fireworks.ai" => Self::Fireworks,
+            "minimax" | "minimax-ai" | "minimaxi" => Self::Minimax,
+            "xai" | "x.ai" | "x-ai" | "grok" => Self::Xai,
+            "nvidia-nim" | "nvidia" | "nim" => Self::NvidiaNim,
+            "xiaomi-mimo" | "xiaomi" | "mimo" | "xiaomi-mimo-api" => Self::XiaomiMimo,
+            "lmstudio" | "lm-studio" => Self::Lmstudio,
+            "ollama" => Self::Ollama,
+            "chutes" => Self::Chutes,
+            "cerebras" | "cerebrascode" | "cerberascode" => Self::Cerebras,
+            "alibaba-coding-plan"
+            | "bailian"
+            | "aliyun-bailian"
+            | "coding-plan"
+            | "alibaba-coding" => Self::AlibabaCodingPlan,
+            "openai-compatible" | "compat" | "custom" => Self::OpenaiCompatible,
+            "cursor" => Self::Cursor,
+            "copilot" => Self::Copilot,
+            "gemini" => Self::Gemini,
+            "gemini-api" | "gemini-key" | "gemini-apikey" | "google-ai-studio" | "ai-studio" => {
+                Self::GeminiApi
+            }
+            "antigravity" => Self::Antigravity,
+            "google" => Self::Google,
+            "auto" => Self::Auto,
+            _ => return None,
+        })
+    }
+}
+
+impl std::str::FromStr for ProviderChoice {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::provider_choice_from_str(s).ok_or_else(|| {
+            format!(
+                "Unknown provider '{}'. Run `jcode login --help` for a list of supported providers.",
+                s
+            )
+        })
     }
 }
 

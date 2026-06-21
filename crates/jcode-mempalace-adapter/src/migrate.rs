@@ -96,10 +96,10 @@ pub async fn migrate_to_mempalace(
     for file_path in &files {
         match load_graph_or_store(file_path) {
             Ok(LoadedData::Graph(graph, scope)) => {
-                for (_id, entry) in &graph.memories {
+                for entry in graph.memories.values() {
                     all_entries.push((entry.clone(), scope));
                 }
-                for (_id, tag) in &graph.tags {
+                for tag in graph.tags.values() {
                     all_tags.push(tag.clone());
                 }
                 for (source_id, edges) in &graph.edges {
@@ -107,7 +107,7 @@ pub async fn migrate_to_mempalace(
                         all_edges.push((source_id.clone(), edge.clone()));
                     }
                 }
-                for (_id, cluster) in &graph.clusters {
+                for cluster in graph.clusters.values() {
                     all_clusters.push(cluster.clone());
                 }
             }
@@ -174,15 +174,14 @@ pub async fn migrate_to_mempalace(
         report.tags_migrated += 1;
         // For each memory that has this tag, create a HasTag edge
         for (entry, _scope) in &all_entries {
-            if entry.tags.contains(&tag.name) {
-                if let Some(drawer_id) = id_map.get(&entry.id) {
-                    if let Err(e) = palace.tag(drawer_id, &tag.name).await {
-                        report.errors.push(format!(
-                            "Failed to tag {} with '{}': {}",
-                            entry.id, tag.name, e
-                        ));
-                    }
-                }
+            if entry.tags.contains(&tag.name)
+                && let Some(drawer_id) = id_map.get(&entry.id)
+                && let Err(e) = palace.tag(drawer_id, &tag.name).await
+            {
+                report.errors.push(format!(
+                    "Failed to tag {} with '{}': {}",
+                    entry.id, tag.name, e
+                ));
             }
         }
     }
@@ -194,23 +193,23 @@ pub async fn migrate_to_mempalace(
 
         match &edge.kind {
             EdgeKind::RelatesTo { weight } => {
-                if let (Some(from), Some(to)) = (source_drawer, target_drawer) {
-                    if let Err(e) = palace.link(from, to, *weight).await {
-                        report.errors.push(format!(
-                            "Failed to link {}→{}: {}",
-                            source_id, edge.target, e
-                        ));
-                    }
+                if let (Some(from), Some(to)) = (source_drawer, target_drawer)
+                    && let Err(e) = palace.link(from, to, *weight).await
+                {
+                    report.errors.push(format!(
+                        "Failed to link {}→{}: {}",
+                        source_id, edge.target, e
+                    ));
                 }
             }
             EdgeKind::Supersedes => {
-                if let (Some(old), Some(new)) = (source_drawer, target_drawer) {
-                    if let Err(e) = palace.supersede(old, new).await {
-                        report.errors.push(format!(
-                            "Failed to supersede {}→{}: {}",
-                            source_id, edge.target, e
-                        ));
-                    }
+                if let (Some(old), Some(new)) = (source_drawer, target_drawer)
+                    && let Err(e) = palace.supersede(old, new).await
+                {
+                    report.errors.push(format!(
+                        "Failed to supersede {}→{}: {}",
+                        source_id, edge.target, e
+                    ));
                 }
             }
             EdgeKind::HasTag => {
@@ -268,7 +267,7 @@ fn discover_memory_files(memory_dir: &Path) -> Result<Vec<PathBuf>> {
 // ---- Data loading ----------------------------------------------------
 
 enum LoadedData {
-    Graph(MemoryGraph, jcode_memory_types::MemoryScope),
+    Graph(Box<MemoryGraph>, jcode_memory_types::MemoryScope),
     LegacyStore(MemoryStore, jcode_memory_types::MemoryScope),
 }
 
@@ -285,7 +284,7 @@ fn load_graph_or_store(path: &Path) -> Result<LoadedData> {
     if content.contains("\"graph_version\"") {
         let graph: MemoryGraph = serde_json::from_str(&content)
             .with_context(|| format!("Parsing MemoryGraph from {}", path.display()))?;
-        return Ok(LoadedData::Graph(graph, scope));
+        return Ok(LoadedData::Graph(Box::new(graph), scope));
     }
 
     let store: MemoryStore = serde_json::from_str(&content)

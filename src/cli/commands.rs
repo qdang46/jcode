@@ -1788,16 +1788,10 @@ pub fn run_memory_command(cmd: MemorySubcommand) -> Result<()> {
     Ok(())
 }
 
-pub async fn run_plugin_command(cmd: super::args::PluginSubcommand) -> Result<()> {
-    let install_root = crate::config::config()
-        .plugin
-        .as_ref()
-        .and_then(|p| p.data_dir.clone())
-        .unwrap_or_else(|| {
-            dirs::home_dir()
-                .map(|h| h.join(".jcode").join("plugins"))
-                .unwrap_or_else(|| PathBuf::from("/tmp/jcode-plugins"))
-        });
+pub(crate) async fn run_plugin_command(cmd: super::args::PluginSubcommand) -> Result<()> {
+    let install_root = dirs::home_dir()
+        .map(|h| h.join(".jcode").join("plugins"))
+        .unwrap_or_else(|| PathBuf::from("/tmp/jcode-plugins"));
     let mgr = jcode_plugin_core::PluginManager::new(install_root).await;
     use jcode_plugin_core::PluginSource;
 
@@ -1808,22 +1802,18 @@ pub async fn run_plugin_command(cmd: super::args::PluginSubcommand) -> Result<()
                 .or_else(|| path.file_name())
                 .map(|s| s.to_string_lossy().to_string())
                 .unwrap_or_else(|| "plugin".to_string());
-            mgr.load(
-                &name,
-                PluginSource::Local {
-                    path: path.clone(),
-                },
-            )
-            .await?;
+            mgr.load(&name, PluginSource::Local { path: path.clone() })
+                .await?;
             println!("Plugin loaded from {}", path.display());
         }
         super::args::PluginSubcommand::Clone { url, rev } => {
-            let name = url
+            let name = url.to_owned();
+            let name = name
                 .split('/')
-                .last()
+                .next_back()
                 .and_then(|s| s.strip_suffix(".git"))
                 .unwrap_or("cloned-plugin");
-            mgr.load(&name, PluginSource::Git { url, rev }).await?;
+            mgr.load(name, PluginSource::Git { url, rev }).await?;
             println!("Plugin cloned and loaded");
         }
         super::args::PluginSubcommand::List { kind } => {
@@ -1889,8 +1879,9 @@ pub async fn run_plugin_command(cmd: super::args::PluginSubcommand) -> Result<()
             // transpilation, preflight static analysis, and QuickJS re-evaluation.
             if let Some(sys) = crate::plugin::plugin_system() {
                 let registered = sys.registry.list().await;
-                if let Some((plugin_id, _)) =
-                    registered.iter().find(|(id, _)| id.short_name().contains(&name))
+                if let Some((plugin_id, _)) = registered
+                    .iter()
+                    .find(|(id, _)| id.short_name().contains(&name))
                 {
                     match sys.loader.reload(plugin_id).await {
                         Ok(()) => println!("Plugin '{name}' hot-reloaded (code reloaded)"),
@@ -3253,7 +3244,13 @@ pub async fn run_model_command(
         collect_cli_model_names(&filtered_routes, Vec::new())
     };
 
-    if models.is_empty() {
+    // Also fetch catalog models from ProviderCliService for a broader view
+    let catalog_models = super::provider_service::ProviderCliService::new()
+        .ok()
+        .and_then(|svc| svc.list_models().ok())
+        .unwrap_or_default();
+
+    if models.is_empty() && catalog_models.is_empty() {
         anyhow::bail!(
             "No models found for provider '{}'. Check credentials or try a different --provider.",
             provider.name()
@@ -3293,11 +3290,26 @@ pub async fn run_model_command(
                 crate::provider_catalog::runtime_provider_display_name(provider.name())
             );
             println!("Selected model: {}", provider.model());
-            println!("Available models: {}", models.len());
+            println!("Available models (routes): {}", models.len());
+            if !catalog_models.is_empty() {
+                println!("Catalog models: {}", catalog_models.len());
+            }
             println!()
         }
-        for model in models {
-            println!("{}", model)
+        if !models.is_empty() {
+            println!("== Model routes ==");
+            for model in &models {
+                println!("{}", model)
+            }
+        }
+        if !catalog_models.is_empty() {
+            if !models.is_empty() {
+                println!();
+            }
+            println!("== Catalog models ==");
+            for m in &catalog_models {
+                println!("{:<20} {}", m.provider.as_str(), m.id.as_str());
+            }
         }
     }
 
@@ -3389,3 +3401,55 @@ fn filter_cli_model_routes_for_choice(
 #[cfg(test)]
 #[path = "commands_tests.rs"]
 mod tests;
+
+pub fn run_provider_catalog_command(_all: bool, emit_json: bool, emit_toon: bool) -> Result<()> {
+    let svc = super::provider_service::ProviderCliService::new()?;
+    let providers = svc.list_providers()?;
+    if emit_json || emit_toon {
+        let report: Vec<serde_json::Value> = providers.iter().map(|p| serde_json::json!({
+            "id": p.id.as_str(), "name": p.name, "enabled": p.enabled, "connected": p.is_connected, "models": p.models.len()
+        })).collect();
+        let fmt = if emit_toon {
+            output::OutputFormat::Toon
+        } else {
+            output::OutputFormat::Json
+        };
+        output::emit_json_or_toon(&report, fmt)?;
+    } else {
+        for p in &providers {
+            println!(
+                "{:<20}  {}  {}",
+                p.id.as_str(),
+                if p.enabled { "enabled" } else { "disabled" },
+                p.name
+            );
+        }
+    }
+    Ok(())
+}
+
+pub fn run_model_catalog_command(emit_json: bool, emit_toon: bool) -> Result<()> {
+    let svc = super::provider_service::ProviderCliService::new()?;
+    let models = svc.list_models()?;
+    if emit_json || emit_toon {
+        let report: Vec<serde_json::Value> = models
+            .iter()
+            .map(|m| {
+                serde_json::json!({
+                    "provider": m.provider.as_str(), "id": m.id.as_str(), "name": m.name,
+                })
+            })
+            .collect();
+        let fmt = if emit_toon {
+            output::OutputFormat::Toon
+        } else {
+            output::OutputFormat::Json
+        };
+        output::emit_json_or_toon(&report, fmt)?;
+    } else {
+        for m in &models {
+            println!("{:<20} {:<30}", m.provider.as_str(), m.id.as_str());
+        }
+    }
+    Ok(())
+}

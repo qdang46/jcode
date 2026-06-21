@@ -87,9 +87,7 @@ impl SandboxContext {
     ) -> Result<(), PluginError> {
         let ctx = AsyncContext::full(&self.runtime)
             .await
-            .map_err(|e| {
-                PluginError::Runtime(format!("Failed to create QuickJS context: {e}"))
-            })?;
+            .map_err(|e| PluginError::Runtime(format!("Failed to create QuickJS context: {e}")))?;
 
         let id = self._id.clone();
         let manifest = self._manifest.clone();
@@ -98,13 +96,7 @@ impl SandboxContext {
         ctx.with(|ctx| {
             // Step 1: install the `pi` API into the global scope.
             let bridge = PromiseBridge::new();
-            let api = PluginApiBindings::new(
-                id,
-                manifest,
-                chain,
-                registry,
-                Arc::new(bridge),
-            );
+            let api = PluginApiBindings::new(id, manifest, chain, registry, Arc::new(bridge));
             api.install(&ctx)
                 .map_err(|e| PluginError::Eval(format!("api install: {e:?}")))?;
 

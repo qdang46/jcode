@@ -1,11 +1,11 @@
-pub mod schema;
 pub mod auth;
-pub mod route;
-pub mod protocol;
 pub mod endpoint;
 pub mod framing;
-pub mod transport;
 pub mod model_ref;
+pub mod protocol;
+pub mod route;
+pub mod schema;
+pub mod transport;
 
 pub fn version() -> &'static str {
     env!("CARGO_PKG_VERSION")

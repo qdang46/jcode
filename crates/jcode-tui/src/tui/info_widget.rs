@@ -55,10 +55,7 @@ use unicode_width::UnicodeWidthStr;
 use git::{render_git_compact, render_git_widget};
 pub use graph::{GraphEdge, GraphNode, build_graph_topology, graph_node_score};
 pub(crate) use memory_utils::is_traceworthy_memory_event;
-use memory_utils::{
-    memory_active_summary, memory_last_trace_summary,
-    memory_state_detail,
-};
+use memory_utils::{memory_active_summary, memory_last_trace_summary, memory_state_detail};
 use model::{render_model_info, render_model_widget};
 use swarm_background::{render_background_compact, render_background_widget, render_swarm_widget};
 use team_render::render_team_widget;

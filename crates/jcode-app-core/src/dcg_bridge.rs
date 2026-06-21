@@ -149,18 +149,17 @@ fn is_dangerous_allow_rule(tool: &str) -> bool {
 
 /// Strip dangerous permissions from the current session when entering a restricted mode.
 pub fn strip_dangerous_permissions_for_mode(session_id: &str, target_mode: Mode) {
-    if target_mode == Mode::Auto {
-        if let Ok(mut guard) = SESSION_ALLOWED_ACTIONS.lock() {
-            if let Some(actions) = guard.get_mut(session_id) {
-                let before = actions.len();
-                actions.retain(|a| !is_dangerous_allow_rule(a));
-                let stripped = before - actions.len();
-                if stripped > 0 {
-                    crate::logging::info(&format!(
-                        "[permission] Stripped {stripped} dangerous rule(s) for session {session_id} on Auto enter"
-                    ));
-                }
-            }
+    if target_mode == Mode::Auto
+        && let Ok(mut guard) = SESSION_ALLOWED_ACTIONS.lock()
+        && let Some(actions) = guard.get_mut(session_id)
+    {
+        let before = actions.len();
+        actions.retain(|a| !is_dangerous_allow_rule(a));
+        let stripped = before - actions.len();
+        if stripped > 0 {
+            crate::logging::info(&format!(
+                "[permission] Stripped {stripped} dangerous rule(s) for session {session_id} on Auto enter"
+            ));
         }
     }
 }
@@ -301,14 +300,14 @@ pub fn record_approval(session_id: &str) {
 
 /// Check if denial limits are exceeded for the given session.
 pub fn denial_limit_exceeded(session_id: &str) -> Option<&'static str> {
-    if let Ok(guard) = DENIAL_COUNTS.lock() {
-        if let Some(&(consec, total)) = guard.get(session_id) {
-            if consec >= MAX_CONSECUTIVE_DENIALS {
-                return Some("You've denied 3 times. Consider reviewing carefully.");
-            }
-            if total >= MAX_TOTAL_DENIALS {
-                return Some("You've denied 20 times. Consider switching to AcceptEdits mode.");
-            }
+    if let Ok(guard) = DENIAL_COUNTS.lock()
+        && let Some(&(consec, total)) = guard.get(session_id)
+    {
+        if consec >= MAX_CONSECUTIVE_DENIALS {
+            return Some("You've denied 3 times. Consider reviewing carefully.");
+        }
+        if total >= MAX_TOTAL_DENIALS {
+            return Some("You've denied 20 times. Consider switching to AcceptEdits mode.");
         }
     }
     None
@@ -344,10 +343,10 @@ pub async fn await_permission_response() -> anyhow::Result<bool> {
 /// Signal the pending permission request with the user's decision.
 /// Called from the TUI dialog handler.
 pub fn signal_permission_response(approved: bool) {
-    if let Ok(mut guard) = PERMISSION_RESPONSE.lock() {
-        if let Some(tx) = guard.take() {
-            let _ = tx.send(approved);
-        }
+    if let Ok(mut guard) = PERMISSION_RESPONSE.lock()
+        && let Some(tx) = guard.take()
+    {
+        let _ = tx.send(approved);
     }
 }
 
@@ -469,10 +468,10 @@ pub fn session_allowed_actions_list(session_id: &str) -> Vec<String> {
 
 /// Remove a specific action from the session allow-list.
 pub fn clear_session_allowed_action(session_id: &str, action: &str) {
-    if let Ok(mut guard) = SESSION_ALLOWED_ACTIONS.lock() {
-        if let Some(actions) = guard.get_mut(session_id) {
-            actions.remove(action);
-        }
+    if let Ok(mut guard) = SESSION_ALLOWED_ACTIONS.lock()
+        && let Some(actions) = guard.get_mut(session_id)
+    {
+        actions.remove(action);
     }
 }
 

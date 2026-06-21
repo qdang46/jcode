@@ -4,9 +4,9 @@
 //! an event, verify the handler runs and returns the expected result.
 
 use jcode_agent_runtime::PermissionMode;
-use jcode_plugin_core::{CapabilityChainV2, PluginEvent, ToolTier};
 use jcode_plugin_core::events::{EventInput, HandlerAction, HandlerResult};
 use jcode_plugin_core::types::PluginId;
+use jcode_plugin_core::{CapabilityChainV2, PluginEvent, ToolTier};
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -259,8 +259,7 @@ async fn test_hello_plugin_e2e() {
     let dispatcher = Arc::new(RcuDispatcher::new());
     let registry = Arc::new(PluginRegistry::new(dispatcher.clone()));
     let runtime = Arc::new(
-        RuntimeManager::new(RuntimeConfig::default())
-            .expect("RuntimeManager::new should succeed"),
+        RuntimeManager::new(RuntimeConfig::default()).expect("RuntimeManager::new should succeed"),
     );
     let discovery = DiscoveryPaths {
         plugin_dirs: vec![example_dir.clone()],
@@ -447,8 +446,7 @@ fn gate_dispatcher_also_runs_handler_normally() {
     dispatcher.set_approval_gate(gate);
 
     // Gate check passes
-    let decision =
-        dispatcher.check_tool("test-tool", ToolTier::Exec, &serde_json::json!({}));
+    let decision = dispatcher.check_tool("test-tool", ToolTier::Exec, &serde_json::json!({}));
     assert_eq!(decision, Some(GateDecision::Allow));
 
     // Handler dispatch still works normally

@@ -29,8 +29,10 @@ pub struct TeamMemberView {
 /// Interactive team view with keyboard selection.
 /// Allows selecting tasks/members and performing actions (claim, close, view).
 #[derive(Debug, Clone, Default)]
+#[allow(dead_code)]
 pub(super) struct TeamViewInteraction {
     /// Currently selected index (0 = header, 1+ = members then tasks).
+    #[allow(dead_code)]
     pub selected: usize,
     /// Whether selection mode is active.
     pub active: bool,
@@ -38,6 +40,7 @@ pub(super) struct TeamViewInteraction {
 
 impl TeamViewInteraction {
     /// Total interactive slots in the current view.
+    #[allow(dead_code)]
     pub fn slot_count(member_count: usize, task_count: usize) -> usize {
         1 + member_count.min(5) + task_count.min(3) // header + members + tasks
     }

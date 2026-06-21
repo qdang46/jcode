@@ -268,7 +268,6 @@ async fn handle_remote_key_internal(
     let mut code = code;
     let mut modifiers = modifiers;
     ctrl_bracket_fallback_to_esc(&mut code, &mut modifiers);
-
     if app.handle_onboarding_continue_prompt_key(code) {
         return Ok(());
     }
@@ -864,7 +863,6 @@ async fn handle_remote_key_internal(
             if !app.input.is_empty() {
                 let prepared = input::take_prepared_input(app);
                 let trimmed = prepared.expanded.trim();
-
                 if let Some(topic) = trimmed
                     .strip_prefix("/help ")
                     .or_else(|| trimmed.strip_prefix("/? "))
@@ -970,7 +968,7 @@ async fn handle_remote_key_internal(
                     return Ok(());
                 }
 
-                if trimmed == "/quit" {
+                if trimmed == "/quit" || trimmed == "/exit" {
                     crate::telemetry::end_session_with_reason(
                         app.provider.name(),
                         &app.provider.model(),
