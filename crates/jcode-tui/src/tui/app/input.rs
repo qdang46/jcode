@@ -782,13 +782,14 @@ pub(super) fn handle_text_input(app: &mut App, text: &str) -> bool {
     }
 
     insert_input_text(app, text);
-    // Convenience: typing '/connect' (exactly 8 chars) auto-opens the
-    // interactive provider login picker so the user does not have to
-    // press Enter to summon it. The input is left untouched so the
-    // user can keep typing a provider name to refine ('/connect
-    // openai' will start the openai flow on Enter).
+    // Convenience: typing '/connect' (exactly 8 chars) auto-appends a
+    // trailing space so the provider autocomplete list appears without
+    // the user having to type space. This preserves the user's text
+    // (so they can still type a provider name) and avoids the
+    // 'autoclear' UX antipattern.
     if app.input == "/connect" {
-        app.show_interactive_login();
+        app.input.push(' ');
+        app.cursor_pos = app.input.len();
     }
     true
 }
