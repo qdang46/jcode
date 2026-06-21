@@ -968,11 +968,16 @@ impl App {
             return self.rank_suggestions(input, suggestions);
         }
 
-        if prefix.starts_with("/login ") || prefix.starts_with("/auth ") {
+        if prefix.starts_with("/login ")
+            || prefix.starts_with("/auth ")
+            || prefix.starts_with("/connect ")
+        {
             let base = if prefix.starts_with("/auth ") {
                 "/auth"
-            } else {
+            } else if prefix.starts_with("/login ") {
                 "/login"
+            } else {
+                "/connect"
             };
             let mut suggestions: Vec<(String, &'static str)> = Vec::new();
             if base == "/auth" {
