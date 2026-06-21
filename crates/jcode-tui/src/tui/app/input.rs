@@ -2171,7 +2171,6 @@ impl App {
     }
 
     pub(super) fn handle_key_press_event(&mut self, event: KeyEvent) -> Result<()> {
-        crate::logging::info(&format!("[DEBUG-KEY-EVENT] code={:?} modifiers={:?}", event.code, event.modifiers));
         self.handle_key_core(
             event.code,
             event.modifiers,
