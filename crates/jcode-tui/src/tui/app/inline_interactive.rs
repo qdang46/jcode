@@ -3274,8 +3274,7 @@ User's request:
                                 let new_content = if color_val.is_empty() {
                                     lines.join("\n")
                                 } else {
-                                    let base =
-                                        lines.to_vec().join("\n");
+                                    let base = lines.to_vec().join("\n");
                                     format!("{}\ncolor = \"{}\"", base, color_val)
                                 };
                                 let _ = std::fs::write(&path, &new_content);

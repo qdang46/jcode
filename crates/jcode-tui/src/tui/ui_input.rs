@@ -537,7 +537,12 @@ fn append_batch_progress_spans(
     }
 }
 
-pub(super) fn draw_status(frame: &mut Frame, app: &dyn TuiState, area: Rect, _pending_count: usize) {
+pub(super) fn draw_status(
+    frame: &mut Frame,
+    app: &dyn TuiState,
+    area: Rect,
+    _pending_count: usize,
+) {
     let _pending_count = pending_prompt_count(app);
 
     // Format: ⏵⏵ bypass permissions on (shift+tab to cycle) │ model │ provider │ X% │ ↑K ↓K

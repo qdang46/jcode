@@ -718,9 +718,7 @@ impl crate::tui::TuiState for App {
                     (None, Some(t)) => Some(t.lines().last().unwrap_or(t).to_string()),
                     (None, None) => None,
                 },
-                elapsed: member
-                    .status_age_secs
-                    .map(std::time::Duration::from_secs),
+                elapsed: member.status_age_secs.map(std::time::Duration::from_secs),
                 session_id: Some(member.session_id.clone()),
             });
         }

@@ -42,9 +42,7 @@ pub(super) fn draw_running_items(frame: &mut Frame, app: &dyn super::TuiState, a
         0
     };
 
-    for idx in (scroll_offset..items_state.items.len())
-        .take(max_visible)
-    {
+    for idx in (scroll_offset..items_state.items.len()).take(max_visible) {
         let item = &items_state.items[idx];
         let is_selected = idx == selected;
 
