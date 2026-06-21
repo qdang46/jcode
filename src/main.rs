@@ -63,7 +63,7 @@ fn main() -> Result<()> {
 
     configure_system_allocator();
     if let Err(e) = rustls::crypto::aws_lc_rs::default_provider().install_default() {
-        eprintln!("warning: failed to install aws-lc-rs crypto provider: {e}");
+        eprintln!("warning: failed to install aws-lc-rs crypto provider: {e:?}");
     }
 
     // The macOS global-hotkey listener must run on the real main thread with a
