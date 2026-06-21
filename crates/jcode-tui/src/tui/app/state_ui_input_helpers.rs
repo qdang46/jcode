@@ -152,7 +152,6 @@ const REGISTERED_COMMANDS: &[RegisteredCommand] = &[
         "/permissions",
         "Show DCG permission mode and recent decisions",
     ),
-    RegisteredCommand::public("/auth", "Alias for /connect (opencode TUI slash)"),
     RegisteredCommand::public("/connect", "Connect to a provider (opencode TUI slash)"),
     RegisteredCommand::public("/account", "Open the combined account picker"),
     RegisteredCommand::public("/accounts", "Alias for /account"),
