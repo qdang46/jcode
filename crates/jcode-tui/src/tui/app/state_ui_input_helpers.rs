@@ -785,14 +785,8 @@ impl App {
             ];
         }
 
-        // /auth <TAB> — subcommand completions (also aliases /provider, /providers)
-        if prefix.starts_with("/auth ")
-            || prefix_trimmed == "/auth"
-            || prefix.starts_with("/provider ")
-            || prefix_trimmed == "/provider"
-            || prefix.starts_with("/providers ")
-            || prefix_trimmed == "/providers"
-        {
+        // /auth <TAB> — subcommand completions
+        if prefix.starts_with("/auth ") || prefix_trimmed == "/auth" {
             return self.rank_suggestions(
                 input,
                 vec![
