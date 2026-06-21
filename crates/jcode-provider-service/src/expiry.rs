@@ -33,7 +33,10 @@ impl ExpiryStatus {
 /// Inspect a single credential and return its expiry status.
 pub fn status_of(cred: &Credential, threshold: Duration) -> ExpiryStatus {
     match &cred.credential {
-        CredentialType::OAuth { expires_at: Some(exp), .. } => classify(*exp, threshold),
+        CredentialType::OAuth {
+            expires_at: Some(exp),
+            ..
+        } => classify(*exp, threshold),
         // API keys don't expire (the provider would just return 401
         // if they were revoked, which is detected at request time).
         _ => ExpiryStatus::NoExpiry,

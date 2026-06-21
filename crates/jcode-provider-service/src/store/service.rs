@@ -184,7 +184,9 @@ impl DefaultProviderService {
             body_overrides: match (&provider.body_defaults, &model.body_overrides) {
                 (Some(base), Some(overrides)) => {
                     let mut obj = base.clone();
-                    if let Some(ref mut map) = obj.as_object_mut() && let Some(ov) = overrides.as_object() {
+                    if let Some(ref mut map) = obj.as_object_mut()
+                        && let Some(ov) = overrides.as_object()
+                    {
                         for (k, v) in ov {
                             map.insert(k.clone(), v.clone());
                         }

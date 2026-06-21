@@ -72,7 +72,9 @@ impl ProviderDefaults {
         if let Some(m) = self.per_provider.get(provider) {
             return Some(m.clone());
         }
-        if let Some((p, m)) = &self.global && p == provider {
+        if let Some((p, m)) = &self.global
+            && p == provider
+        {
             return Some(m.clone());
         }
         fallback

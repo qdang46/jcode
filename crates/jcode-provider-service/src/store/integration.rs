@@ -85,7 +85,9 @@ impl<K: KeyringStore + 'static> IntegrationService for PersistentIntegration<K> 
 
         // 1. Check for an inline env-var credential.
         for method in &provider.auth_methods {
-            if let Some(env_var) = env_var_for(method) && std::env::var(&env_var).is_ok() {
+            if let Some(env_var) = env_var_for(method)
+                && std::env::var(&env_var).is_ok()
+            {
                 return Ok(ConnectionStatus::InlineEnv { env_var });
             }
         }
@@ -234,7 +236,9 @@ impl<K: KeyringStore + 'static> IntegrationService for PersistentIntegration<K> 
 
 impl<K: KeyringStore + 'static> PersistentIntegration<K> {
     fn fire_on_updated(&self) {
-        if let Ok(g) = self.on_updated.read() && let Some(ref cb) = *g {
+        if let Ok(g) = self.on_updated.read()
+            && let Some(ref cb) = *g
+        {
             cb();
         }
     }

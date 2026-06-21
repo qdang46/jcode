@@ -93,11 +93,13 @@ pub async fn start_session(
 
     // 3. User-set global default (from model_prefs.json / `jcode model default`).
     //    Opencode checks this FIRST before falling through to catalog heuristic.
-    if let Some(ref d) = defaults && let Some((ref global_provider, ref global_model)) = d.global && svc
-        .catalog()
-        .find_model(global_provider, global_model)
-        .await
-        .is_ok()
+    if let Some(ref d) = defaults
+        && let Some((ref global_provider, ref global_model)) = d.global
+        && svc
+            .catalog()
+            .find_model(global_provider, global_model)
+            .await
+            .is_ok()
     {
         return finish(svc, global_provider.clone(), global_model.clone()).await;
     }

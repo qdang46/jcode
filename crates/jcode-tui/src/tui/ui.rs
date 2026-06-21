@@ -113,8 +113,8 @@ use crate::tui::mermaid;
 #[cfg(test)]
 pub(crate) use box_utils::truncate_line_to_width;
 use box_utils::{
-    line_plain_text, render_rounded_box,
-    truncate_line_preserving_suffix_to_width, truncate_line_with_ellipsis_to_width,
+    line_plain_text, render_rounded_box, truncate_line_preserving_suffix_to_width,
+    truncate_line_with_ellipsis_to_width,
 };
 use changelog::get_grouped_changelog;
 #[cfg(test)]
@@ -480,16 +480,16 @@ use status_support::{
 };
 use theme_support::{
     accent_color, activity_indicator, activity_indicator_frame_index, ai_color, ai_text,
-    asap_color, blend_color, dim_color, file_link_color, header_icon_color,
-    header_name_color, header_session_color, pending_color, prompt_entry_bg_color,
-    prompt_entry_color, prompt_entry_shimmer_color, queued_color, rainbow_prompt_color,
-    system_message_color, tool_color, user_bg, user_color, user_text,
+    asap_color, blend_color, dim_color, file_link_color, header_icon_color, header_name_color,
+    header_session_color, pending_color, prompt_entry_bg_color, prompt_entry_color,
+    prompt_entry_shimmer_color, queued_color, rainbow_prompt_color, system_message_color,
+    tool_color, user_bg, user_color, user_text,
 };
 
 pub(crate) use jcode_tui_markdown::{CopyTargetKind, RawCopyTarget};
 pub(crate) use jcode_tui_messages::{
-    CopyTarget, EditToolRange, ImageRegion, PreparedChatFrame, PreparedMessages,
-    PreparedSection, PreparedSectionKind, WrappedLineMap,
+    CopyTarget, EditToolRange, ImageRegion, PreparedChatFrame, PreparedMessages, PreparedSection,
+    PreparedSectionKind, WrappedLineMap,
 };
 
 #[derive(Clone, Debug)]

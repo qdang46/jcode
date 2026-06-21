@@ -76,7 +76,10 @@ impl<K: KeyringStore + 'static> CredentialService for KeyringCredentialStore<K> 
         // Drop any prior credential with the same (provider, label).
         let existing_ids = self.list_existing_ids()?;
         for id in &existing_ids {
-            if let Ok(existing) = self.get(id).await && existing.provider == cred.provider && existing.label == cred.label {
+            if let Ok(existing) = self.get(id).await
+                && existing.provider == cred.provider
+                && existing.label == cred.label
+            {
                 self.delete(id).await?;
             }
         }
@@ -134,7 +137,9 @@ impl<K: KeyringStore + 'static> CredentialService for KeyringCredentialStore<K> 
         let ids = self.list_existing_ids()?;
         let mut removed = 0;
         for id in ids {
-            if let Ok(c) = self.get(&id).await && &c.provider == provider {
+            if let Ok(c) = self.get(&id).await
+                && &c.provider == provider
+            {
                 self.delete(&id).await?;
                 removed += 1;
             }
