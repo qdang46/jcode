@@ -285,3 +285,36 @@ mod tests {
         assert!(!json.contains("active_form"), "active_form must be skipped when None: {json}");
     }
 }
+
+/// Event payload broadcast khi todo list thay đổi.
+/// Source pattern: opencode Event.Updated + claude-code v2 onTasksUpdated.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TodoUpdateEvent {
+    pub session_id: String,
+    pub todos: Vec<TodoItem>,
+    pub at: DateTime<Utc>,
+}
+
+#[cfg(test)]
+mod todo_update_event_tests {
+    use super::*;
+
+    #[test]
+    fn roundtrip() {
+        let event = TodoUpdateEvent {
+            session_id: "sess1".into(),
+            todos: vec![TodoItem {
+                content: "x".into(),
+                status: "pending".into(),
+                active_form: Some("doing x".into()),
+                ..Default::default()
+            }],
+            at: Utc::now(),
+        };
+        let json = serde_json::to_string(&event).unwrap();
+        let parsed: TodoUpdateEvent = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.session_id, "sess1");
+        assert_eq!(parsed.todos.len(), 1);
+        assert_eq!(parsed.todos[0].active_form.as_deref(), Some("doing x"));
+    }
+}
