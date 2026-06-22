@@ -538,7 +538,7 @@ pub(super) fn finish_turn(app: &mut App) {
         if let Ok(goals) = crate::goal::list_relevant_goals(wd) {
             let has_active = goals
                 .iter()
-                .any(|g| g.status != "done" && g.status != "cancelled");
+                .any(|g| !matches!(g.status, crate::goal::GoalStatus::Completed | crate::goal::GoalStatus::Abandoned | crate::goal::GoalStatus::Archived));
             if has_active {
                 // Queue a continuation prompt to keep the model working
                 app.queued_messages

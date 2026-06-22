@@ -113,10 +113,9 @@ jcode-plan = { path = "../jcode-plan" }
 jcode-protocol = { path = "../jcode-protocol" }
 jcode-selfdev-types = { path = "../jcode-selfdev-types" }
 jcode-session-types = { path = "../jcode-session-types" }
+jcode-task-types = { path = "../jcode-task-types" }
 jcode-storage = { path = "../jcode-storage" }
 jcode-redact = { path = "../jcode-redact" }
-jcode-beads-bridge = { path = "../jcode-beads-bridge" }
-beads_rust.workspace = true
 jcode-tool-core = { path = "../jcode-tool-core" }
 jcode-tool-types = { path = "../jcode-tool-types" }
 jcode-side-panel-types = { path = "../jcode-side-panel-types" }

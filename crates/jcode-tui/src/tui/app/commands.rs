@@ -2347,7 +2347,7 @@ pub(super) fn handle_goal_or_mission_command(app: &mut App, trimmed: &str) -> bo
         let goals = crate::goal::list_relevant_goals(wd).unwrap_or_default();
         let active: Vec<_> = goals
             .iter()
-            .filter(|g| g.status != "done" && g.status != "cancelled")
+            .filter(|g| !matches!(g.status, crate::goal::GoalStatus::Completed | crate::goal::GoalStatus::Abandoned | crate::goal::GoalStatus::Archived))
             .collect();
         if active.is_empty() {
             app.push_display_message(DisplayMessage::system(
@@ -2362,7 +2362,7 @@ pub(super) fn handle_goal_or_mission_command(app: &mut App, trimmed: &str) -> bo
                     .unwrap_or_default();
                 msg.push_str(&format!(
                     "\n- **{}** [{}] {} — {}",
-                    g.title, g.status, g.scope, pct
+                    g.title, g.status.as_str(), g.scope.as_str(), pct
                 ));
                 if let Some(ns) = g.next_steps.first() {
                     msg.push_str(&format!("\n  Next: {}", ns));
@@ -2386,7 +2386,7 @@ pub(super) fn handle_goal_or_mission_command(app: &mut App, trimmed: &str) -> bo
         // Complete all active goals
         let goals = crate::goal::list_relevant_goals(wd).unwrap_or_default();
         for g in &goals {
-            if g.status != "done" && g.status != "cancelled" {
+            if !matches!(g.status, crate::goal::GoalStatus::Completed | crate::goal::GoalStatus::Abandoned | crate::goal::GoalStatus::Archived) {
                 let _ = crate::goal::update_goal(
                     &g.id,
                     None,

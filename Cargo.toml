@@ -92,7 +92,6 @@ members = [
     "crates/jcode-plugin-core",
     "crates/jcode-plugin-runtime",
     "crates/jcode-render-core",
-    "crates/jcode-beads-bridge",
     "evals/jbench",
     "evals/jcode-edit-bench",
 
@@ -108,7 +107,6 @@ ffs-engine = { git = "https://github.com/quangdang46/fast_file_search", branch =
 ffs-symbol = { git = "https://github.com/quangdang46/fast_file_search", branch = "main" }
 strum = { version = "0.26", features = ["derive"] }
 regex = "1"
-beads_rust = { git = "https://github.com/quangdang46/beads_rust", rev = "ab4c27faf80bb51fca9882062a5c752632eeff2d" }
 
 [lib]
 name = "jcode"

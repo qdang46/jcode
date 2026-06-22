@@ -1,40 +1,38 @@
-//! Session-local todo persistence backed by beads_rust.
+//! Session-local todo persistence (file-backed JSON store).
 
-pub use jcode_beads_bridge::mapping::TodoItem;
+pub use jcode_task_types::TodoItem;
 
-use anyhow::{Context, Result};
+use anyhow::Result;
+use std::path::PathBuf;
 
-/// Load todos — returns open/in-progress/blocked tasks as `TodoItem`s.
-pub fn load_todos(_session_id: &str) -> Result<Vec<TodoItem>> {
-    let working_dir = std::env::current_dir().context("no cwd")?;
-    let project = jcode_beads_bridge::BeadsProject::open(&working_dir)
-        .map_err(|e| anyhow::anyhow!("failed to open beads project: {e}"))?;
-    let manager = jcode_beads_bridge::BeadsTaskManager::new(&project);
-    manager.list_todo_items()
+use crate::storage::{self, read_json, write_json_fast};
+
+fn todo_path(session_id: &str) -> Result<PathBuf> {
+    let base = storage::jcode_dir()?;
+    Ok(base.join("todos").join(format!("{}.json", session_id)))
 }
 
-/// Check if any todos exist.
+/// Load todos for a session from disk.
+pub fn load_todos(session_id: &str) -> Result<Vec<TodoItem>> {
+    let path = todo_path(session_id)?;
+    if !path.exists() {
+        return Ok(Vec::new());
+    }
+    read_json(&path).or_else(|_| Ok(Vec::new()))
+}
+
+/// Check if any todos exist for a session.
 pub fn todos_exist(session_id: &str) -> Result<bool> {
-    let todos = load_todos(session_id)?;
-    Ok(!todos.is_empty())
+    Ok(todo_path(session_id)?.exists())
 }
 
-/// Save todos — creates or updates tasks in beads_rust storage.
-pub fn save_todos(session_id: &str, items: &[TodoItem]) -> Result<()> {
-    let working_dir = std::env::current_dir().context("no cwd")?;
-    let project = jcode_beads_bridge::BeadsProject::open(&working_dir)
-        .map_err(|e| anyhow::anyhow!("failed to open beads project: {e}"))?;
-    let manager = jcode_beads_bridge::BeadsTaskManager::new(&project);
-
-    for item in items {
-        if manager.get_task(&item.id)?.is_some() {
-            use beads_rust::model::Status;
-            use std::str::FromStr;
-            let status = Status::from_str(&item.status).unwrap_or(Status::Open);
-            manager.set_status(&item.id, status, session_id).ok();
-        } else {
-            manager.create_todo(item).ok();
+/// Save todos for a session to disk.
+pub fn save_todos(session_id: &str, todos: &[TodoItem]) -> Result<()> {
+    let path = todo_path(session_id)?;
+    if let Some(parent) = path.parent() {
+        if !parent.exists() {
+            std::fs::create_dir_all(parent)?;
         }
     }
-    Ok(())
+    write_json_fast(&path, todos)
 }

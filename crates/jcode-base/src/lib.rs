@@ -17,7 +17,6 @@
     clippy::useless_conversion
 )]
 
-pub mod beads;
 
 pub mod auth;
 pub mod background;

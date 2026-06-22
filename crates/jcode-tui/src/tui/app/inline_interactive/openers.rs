@@ -934,8 +934,6 @@ pub(crate) fn open_tools_picker(app: &mut App, agent_id: &str) {
         ("codesearch", "Search codebase"),
         ("session_search", "Search sessions"),
         ("todoread", "Read todos"),
-        ("beads_list", "List beads"),
-        ("beads_dep", "Bead dependencies"),
         ("task_list", "List tasks"),
         ("agentgrep", "Search agent chat"),
         ("websearch", "Search web"),
