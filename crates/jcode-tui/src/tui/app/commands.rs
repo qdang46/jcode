@@ -104,6 +104,10 @@ pub(super) fn clear_queued_poke_messages(app: &mut App) -> usize {
 pub(super) fn disable_auto_poke(app: &mut App) -> usize {
     let cleared = clear_queued_poke_messages(app);
     app.auto_poke_incomplete_todos = false;
+    crate::bus::Bus::global().publish(crate::bus::BusEvent::TodoOrchestratorToggle {
+        session_id: app.session.id.clone(),
+        enabled: false,
+    });
     cleared
 }
 
@@ -252,6 +256,11 @@ pub(super) fn activate_auto_poke(app: &mut App) -> PokeActivation {
     let incomplete = incomplete_poke_todos(app);
     app.auto_poke_incomplete_todos = true;
     app.set_status_notice("Poke: ON");
+    // Broadcast orchestrator enable so the Agent spawns sub-agents.
+    crate::bus::Bus::global().publish(crate::bus::BusEvent::TodoOrchestratorToggle {
+        session_id: app.session.id.clone(),
+        enabled: true,
+    });
 
     if incomplete.is_empty() {
         return PokeActivation::EnabledNoIncomplete;

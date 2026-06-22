@@ -789,6 +789,17 @@ pub(super) async fn handle_client(
                             });
                         }
                     }
+                    Ok(BusEvent::TodoOrchestratorToggle { session_id, enabled }) => {
+                        if session_id == client_session_id {
+                            let mut guard = agent.lock().await;
+                            guard.set_todo_orchestrator_enabled(enabled);
+                            crate::logging::info(&format!(
+                                "[orchestrator] toggled {} for session {}",
+                                if enabled { "ON" } else { "OFF" },
+                                session_id,
+                            ));
+                        }
+                    }
                     Ok(BusEvent::CompactionFinished) => {
                         let agent = Arc::clone(&agent);
                         let tx = client_event_tx.clone();
