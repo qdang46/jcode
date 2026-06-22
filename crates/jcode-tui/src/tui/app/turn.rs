@@ -1371,6 +1371,12 @@ impl App {
                                         needs_redraw = true;
                                     }
                                 }
+                                Ok(BusEvent::TodoUpdated(update)) => {
+                                    if update.session_id == self.session.id {
+                                        self.set_todos(update.todos);
+                                        needs_redraw = true;
+                                    }
+                                }
                                 other => {
                                     needs_redraw |= super::local::handle_bus_event(self, other);
                                 }

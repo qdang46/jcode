@@ -756,6 +756,12 @@ pub struct App {
     last_api_completed_model: Option<String>,
     // Input tokens from the last completed turn (for cache TTL display)
     last_turn_input_tokens: Option<u64>,
+    // Current todo list (cache from BusEvent::TodoUpdated; refreshed via
+    // subscribe handler when TodoTool saves or compaction restores).
+    todos: Vec<crate::todo::TodoItem>,
+    // Monotonic revision incremented on every todo update; TUI uses this to
+    // invalidate sticky-panel render cache.
+    todos_revision: u64,
     // Pending turn to process (allows UI to redraw before processing starts)
     pending_turn: bool,
     // When armed by /poke, automatically continue prompting until todos are complete.
@@ -1398,6 +1404,25 @@ impl App {
     const KV_CACHE_OPTIMAL_OK_PCT: u8 = 85;
     const KV_CACHE_MIN_MISSED_TOKENS: u64 = 1_024;
     const KV_CACHE_MAX_MISS_SAMPLES: usize = 12;
+
+    /// Update todo cache from BusEvent::TodoUpdated. Increments todos_revision
+    /// so TUI renderers can invalidate cached panel state.
+    pub(super) fn set_todos(&mut self, todos: Vec<crate::todo::TodoItem>) {
+        self.todos = todos;
+        self.todos_revision = self.todos_revision.saturating_add(1);
+    }
+
+    /// Current todo list (cached).
+    pub(crate) fn todos(&self) -> &[crate::todo::TodoItem] {
+        &self.todos
+    }
+
+    /// Load initial todo list from disk on session start. Idempotent.
+    pub(super) fn load_todos_from_disk(&mut self) {
+        if let Ok(todos) = crate::todo::load_todos(&self.session.id) {
+            self.set_todos(todos);
+        }
+    }
 
     pub(super) fn begin_kv_cache_request(
         &mut self,
