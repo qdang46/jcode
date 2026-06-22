@@ -25,7 +25,7 @@ Comprehensive feature research + implementation planning using 9 reference repos
 | `oh-my-pi` | https://github.com/can1357/oh-my-pi | TypeScript + Rust / Bun | 40+ providers, 32 tools, LSP+DAP ops, benchmarked edits, IDE wiring |
 | `codebuff` | https://github.com/CodebuffAI/codebuff | TypeScript / multi-agent | File picker + planner + editor + reviewer pipeline, beats Codex on evals |
 | `codex` | https://github.com/openai/codex | TypeScript / Node | OpenAI Codex CLI, sandboxed execution, hardened tool use |
-| `Codex` | https://github.com/Codex-best/Codex | TypeScript / Bun | CCB — decompiled Codex with Pipe IPC, ACP, remote control, monitoring |
+| `claude-code` | https://github.com/claude-code-best/claude-code | TypeScript / Node | Anthropic Claude Code CLI — official coding agent, todo system, session compaction, sub-agents |
 | `pi-agent-rust` | https://github.com/Dicklesworthstone/pi_agent_rust | Rust 2024 edition | High-perf Rust agent, SQLite sessions, SSE streaming, WASM extension security |
 | `oh-my-Codex` | https://github.com/Yeachan-Heo/oh-my-Codex | TypeScript / Codex plugin | Codex extension with hooks, guards, permission modes, multi-agent tools |
 | `oh-my-codex` | https://github.com/Yeachan-Heo/oh-my-codex | TypeScript / Codex plugin | Codex extension with approval modes, sandbox config, tool gating |
@@ -58,7 +58,7 @@ for repo in \
   "https://github.com/can1357/oh-my-pi" \
   "https://github.com/CodebuffAI/codebuff" \
   "https://github.com/openai/codex" \
-  "https://github.com/Codex-best/Codex" \
+  "https://github.com/claude-code-best/claude-code" \
   "https://github.com/Dicklesworthstone/pi_agent_rust" \
   "https://github.com/Yeachan-Heo/oh-my-Codex" \
   "https://github.com/Yeachan-Heo/oh-my-codex"; do
