@@ -176,12 +176,10 @@ impl Tool for TodoTool {
                     .map(|t| t.id.as_str())
                     .collect();
 
-                save_todos(&ctx.session_id, &todos)?;
-
-                Bus::global().publish(BusEvent::TodoUpdated(TodoEvent {
-                    session_id: ctx.session_id.clone(),
-                    todos: todos.clone(),
-                }));
+                // save_todos now broadcasts BusEvent::TodoUpdated internally;
+                // returns true if a verification nudge should be appended to
+                // the tool result (model just closed 3+ tasks w/o verification).
+                let nudge = save_todos(&ctx.session_id, &todos)?;
 
                 // Fire TaskCreated / TaskCompleted hooks (fire-and-forget, observational)
                 let session_id = ctx.session_id.clone();
@@ -247,7 +245,15 @@ impl Tool for TodoTool {
                 });
 
                 let remaining = todos.iter().filter(|t| t.status != "completed").count();
-                Ok(ToolOutput::new(serde_json::to_string_pretty(&todos)?)
+                let mut output = serde_json::to_string_pretty(&todos)?;
+                if nudge {
+                    output.push_str(
+                        "
+
+NOTE: You just closed 3+ tasks and none was a                          verification step. Before writing your final summary,                          run a verification pass on the changes (e.g. build,                          tests, or a sub-agent verifier).",
+                    );
+                }
+                Ok(ToolOutput::new(output)
                     .with_title(format!("{} todos", remaining))
                     .with_metadata(json!({"todos": todos})))
             }

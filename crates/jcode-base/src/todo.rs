@@ -5,6 +5,7 @@ pub use jcode_task_types::TodoItem;
 use anyhow::Result;
 use std::path::PathBuf;
 
+use crate::bus::{self, Bus, BusEvent, TodoEvent};
 use crate::storage::{self, read_json, write_json_fast};
 
 fn todo_path(session_id: &str) -> Result<PathBuf> {
@@ -26,15 +27,31 @@ pub fn todos_exist(session_id: &str) -> Result<bool> {
     Ok(todo_path(session_id)?.exists())
 }
 
-/// Save todos for a session to disk.
-pub fn save_todos(session_id: &str, todos: &[TodoItem]) -> Result<()> {
+/// Save todos for a session to disk + broadcast TodoUpdated event.
+///
+/// Returns `Ok(true)` if a verification nudge should be injected into the
+/// tool result (model just closed 3+ tasks without a verification step).
+/// Caller (TodoTool) reads this and appends reminder text to its output.
+///
+/// Returns `Ok(false)` when no nudge is warranted, or when the save completed
+/// but the verification check did not fire.
+pub fn save_todos(session_id: &str, todos: &[TodoItem]) -> Result<bool> {
     let path = todo_path(session_id)?;
     if let Some(parent) = path.parent() {
         if !parent.exists() {
             std::fs::create_dir_all(parent)?;
         }
     }
-    write_json_fast(&path, todos)
+    // Load previous state to compute verification nudge delta.
+    let previous = load_todos(session_id).unwrap_or_default();
+    let nudge = needs_verification_nudge(&previous, todos);
+    write_json_fast(&path, todos)?;
+    // Broadcast update to subscribers (TUI panel, metrics, etc.).
+    Bus::global().publish(BusEvent::TodoUpdated(TodoEvent {
+        session_id: session_id.to_string(),
+        todos: todos.to_vec(),
+    }));
+    Ok(nudge)
 }
 
 /// Detect close-out 3+ tasks không có verification step.

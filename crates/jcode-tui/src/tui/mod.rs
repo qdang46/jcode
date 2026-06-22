@@ -27,6 +27,8 @@ pub mod login_picker;
 pub mod markdown;
 mod memory_profile;
 pub mod mermaid;
+pub(crate) mod todo_panel;
+pub(crate) mod todo_reminder;
 pub(crate) mod session_facts;
 pub mod permissions {
     pub use jcode_tui_permissions::*;
