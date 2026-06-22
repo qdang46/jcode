@@ -98,6 +98,7 @@ pub fn restore_todos_after_compaction(
     Bus::global().publish(BusEvent::TodoUpdated(TodoEvent {
         session_id: session_id.to_string(),
         todos: todos.clone(),
+        at: Utc::now(),
     }));
     Ok(todos)
 }

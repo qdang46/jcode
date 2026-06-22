@@ -978,6 +978,7 @@ impl App {
                                             )
                                             .await;
                                         crate::telemetry::record_tool_call();
+                                        self.todo_reminder_state.record_tool_call();
                                         if tool_result.is_err() {
                                             crate::telemetry::record_tool_failure();
                                         }
@@ -1374,6 +1375,7 @@ impl App {
                                 Ok(BusEvent::TodoUpdated(update)) => {
                                     if update.session_id == self.session.id {
                                         self.set_todos(update.todos);
+                                        self.todo_reminder_state.record_todo_update();
                                         needs_redraw = true;
                                     }
                                 }

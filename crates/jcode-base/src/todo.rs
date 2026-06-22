@@ -50,6 +50,7 @@ pub fn save_todos(session_id: &str, todos: &[TodoItem]) -> Result<bool> {
     Bus::global().publish(BusEvent::TodoUpdated(TodoEvent {
         session_id: session_id.to_string(),
         todos: todos.to_vec(),
+        at: chrono::Utc::now(),
     }));
     Ok(nudge)
 }

@@ -117,6 +117,22 @@ fn mission_turn_reminder(session_id: &str) -> Option<String> {
         .ok()
         .flatten()
 }
+/// Build a todo drift reminder if the model has many tool calls since the
+/// last todo update (or 10+ minutes have elapsed). Returns None when no
+/// reminder is warranted. Pattern: oh-my-pi todo-reminder.ts.
+fn todo_turn_reminder(app: &crate::tui::app::App) -> Option<String> {
+    let todos = app.todos();
+    if todos.is_empty() {
+        return None;
+    }
+    if crate::tui::todo_reminder::should_remind(&app.todo_reminder_state, todos) {
+        Some(crate::tui::todo_reminder::render_reminder(todos))
+    } else {
+        None
+    }
+}
+
+
 
 fn merge_turn_reminders(a: Option<String>, b: Option<String>) -> Option<String> {
     match (a, b) {
@@ -3297,7 +3313,7 @@ impl App {
             ));
         }
         if images.is_empty() {
-            self.current_turn_system_reminder = mission_turn_reminder(&self.session.id);
+            self.current_turn_system_reminder = merge_turn_reminders(mission_turn_reminder(&self.session.id), todo_turn_reminder(self));
             self.add_provider_message(Message::user(&input));
             self.session.add_message(
                 Role::User,
@@ -3307,7 +3323,7 @@ impl App {
                 }],
             );
         } else {
-            self.current_turn_system_reminder = mission_turn_reminder(&self.session.id);
+            self.current_turn_system_reminder = merge_turn_reminders(mission_turn_reminder(&self.session.id), todo_turn_reminder(self));
             self.add_provider_message(Message::user_with_images(&input, images.clone()));
             let mut blocks: Vec<ContentBlock> = images
                 .into_iter()

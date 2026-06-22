@@ -168,3 +168,72 @@ mod tests {
         assert_eq!(progress_summary(&todos), "2/4 completed");
     }
 }
+
+// ---------------------------------------------------------------------------
+// TUI rendering
+// ---------------------------------------------------------------------------
+
+/// Render a `TodoPanelData` as a list of `Line<'static>` suitable for
+/// display in the sticky todo panel.
+///
+/// Format:
+///   ── Todos ──
+///   ✓ task A
+///   → task B
+///   ○ task C
+///   +2 more
+///   ──────────
+pub fn render_panel(data: &TodoPanelData, width: usize) -> Vec<ratatui::text::Line<'static>> {
+    use ratatui::text::{Line, Span};
+    let mut lines: Vec<Line<'static>> = Vec::new();
+    let title = match data.mode {
+        TodoPanelMode::Active => "Todos",
+        TodoPanelMode::AllCompletedClear => "Todos (all done)",
+    };
+    lines.push(Line::from(Span::styled(
+        format!("── {title} ──"),
+        ratatui::style::Style::default().fg(ratatui::style::Color::DarkGray),
+    )));
+    if data.visible.is_empty() {
+        lines.push(Line::from(Span::styled(
+            "  (no todos)".to_string(),
+            ratatui::style::Style::default().fg(ratatui::style::Color::DarkGray),
+        )));
+        return lines;
+    }
+    for t in &data.visible {
+        let marker = marker_for_status(&t.status);
+        let color = match t.status.as_str() {
+            "completed" => ratatui::style::Color::Green,
+            "in_progress" => ratatui::style::Color::Yellow,
+            "pending" => ratatui::style::Color::DarkGray,
+            "blocked" => ratatui::style::Color::Red,
+            _ => ratatui::style::Color::White,
+        };
+        let label = t.active_form.as_deref().unwrap_or(&t.content);
+        let line_text = format!("  {marker} {label}");
+        // Truncate to width if needed
+        let truncated = if line_text.chars().count() > width {
+            let mut s: String = line_text.chars().take(width.saturating_sub(1)).collect();
+            s.push('…');
+            s
+        } else {
+            line_text
+        };
+        lines.push(Line::from(Span::styled(
+            truncated,
+            ratatui::style::Style::default().fg(color),
+        )));
+    }
+    if data.hidden_open_count > 0 {
+        lines.push(Line::from(Span::styled(
+            format!("  +{} more", data.hidden_open_count),
+            ratatui::style::Style::default().fg(ratatui::style::Color::DarkGray),
+        )));
+    }
+    lines.push(Line::from(Span::styled(
+        "─".repeat(width.min(40)),
+        ratatui::style::Style::default().fg(ratatui::style::Color::DarkGray),
+    )));
+    lines
+}

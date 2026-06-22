@@ -43,6 +43,9 @@ pub struct ToolEvent {
 pub struct TodoEvent {
     pub session_id: String,
     pub todos: Vec<TodoItem>,
+    /// Wall-clock timestamp when the todo list was saved. Subscribers
+    /// can use this to detect stale state or compute freshness.
+    pub at: chrono::DateTime<chrono::Utc>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

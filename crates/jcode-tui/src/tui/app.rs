@@ -762,6 +762,8 @@ pub struct App {
     // Monotonic revision incremented on every todo update; TUI uses this to
     // invalidate sticky-panel render cache.
     todos_revision: u64,
+    // Persisted todo-reminder drift counter (last update timestamp, tool call count).
+    todo_reminder_state: crate::tui::todo_reminder::TodoReminderState,
     // Pending turn to process (allows UI to redraw before processing starts)
     pending_turn: bool,
     // When armed by /poke, automatically continue prompting until todos are complete.
