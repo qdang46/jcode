@@ -358,34 +358,11 @@ impl App {
         self.cursor_pos = self.input.len();
     }
 
-    pub(super) fn fuzzy_score(needle: &str, haystack: &str) -> Option<usize> {
-        if needle.is_empty() {
-            return Some(0);
-        }
-        // Both needle and haystack should start with '/', match from char 1 onward
-        let n = needle.strip_prefix('/').unwrap_or(needle);
-        let h = haystack.strip_prefix('/').unwrap_or(haystack);
-        if n.is_empty() {
-            return Some(0);
-        }
-        // First char of the command (after /) must match
-        if let Some(first_char) = n.chars().next()
-            && !h.starts_with(&n[..first_char.len_utf8()])
-        {
-            return None;
-        }
-        let mut score = 0usize;
-        let mut pos = 0usize;
-        for ch in n.chars() {
-            let idx = h[pos..].find(ch)?;
-            score += idx;
-            pos += idx + ch.len_utf8();
-        }
-        // Penalize large gaps - reject if average gap is too big
-        if n.len() > 1 && score > n.len() * 3 {
-            return None;
-        }
-        Some(score)
+    /// Typo-resistant fuzzy score. Higher is better; `None` means no match.
+    /// Delegates to the shared [`crate::tui::fuzzy`] matcher so slash-command
+    /// ranking and highlight positions stay in sync.
+    pub(super) fn fuzzy_score(needle: &str, haystack: &str) -> Option<i32> {
+        crate::tui::fuzzy::fuzzy_score(needle, haystack)
     }
 
     pub(super) fn rank_suggestions(
@@ -394,18 +371,21 @@ impl App {
         candidates: Vec<(String, &'static str)>,
     ) -> Vec<(String, &'static str)> {
         let needle = needle.to_lowercase();
-        let mut scored: Vec<(bool, usize, String, &'static str)> = Vec::new();
+        // Bucket 1 = literal prefix matches (kept ahead of looser fuzzy hits so
+        // exact typing always wins). Bucket 0 = typo-tolerant fuzzy matches,
+        // ordered by descending fuzzy score.
+        let mut scored: Vec<(u8, i32, String, &'static str)> = Vec::new();
         for (cmd, help) in candidates {
             let lower = cmd.to_lowercase();
             if lower.starts_with(&needle) {
-                scored.push((true, 0, cmd, help));
+                scored.push((1, i32::MAX, cmd, help));
             } else if let Some(score) = Self::fuzzy_score(&needle, &lower) {
-                scored.push((false, score, cmd, help));
+                scored.push((0, score, cmd, help));
             }
         }
         scored.sort_by(|a, b| {
             b.0.cmp(&a.0)
-                .then_with(|| a.1.cmp(&b.1))
+                .then_with(|| b.1.cmp(&a.1))
                 .then_with(|| a.2.len().cmp(&b.2.len()))
                 .then_with(|| a.2.cmp(&b.2))
         });
@@ -1426,19 +1406,36 @@ impl App {
         use crate::tui::app::onboarding_flow::OnboardingPhase;
         match self.onboarding_phase() {
             Some(OnboardingPhase::Login { import }) => {
-                let prompt = import.as_ref().and_then(|review| {
-                    review
-                        .current()
-                        .map(|candidate| crate::tui::LoginImportPrompt {
+                let prompt = import.as_ref().map(|review| {
+                    let rows = review
+                        .candidates
+                        .iter()
+                        .enumerate()
+                        .map(|(i, candidate)| crate::tui::LoginImportRow {
                             provider_summary: candidate.provider_summary().to_string(),
                             source_name: candidate.source_name().to_string(),
-                            position: review.position(),
-                            total: review.total(),
-                            yes_highlighted: review.yes_highlighted,
-                            seconds_left: review.seconds_remaining(),
+                            checked: review.checked.get(i).copied().unwrap_or(false),
                         })
+                        .collect();
+                    crate::tui::LoginImportPrompt {
+                        rows,
+                        cursor: review.cursor,
+                        continue_focused: review.continue_focused,
+                        checked_count: review.checked_count(),
+                        seconds_left: review.seconds_remaining(),
+                    }
                 });
-                OnboardingWelcomeKind::Login { import: prompt }
+                OnboardingWelcomeKind::Login {
+                    import: prompt,
+                    importing: self.onboarding_import_in_progress.is_some(),
+                    error: self.onboarding_import_error.clone(),
+                    // Only offer the agent-repair option on the failure screen,
+                    // and only when we can name an agent the user recently used.
+                    repair_agent_label: self.onboarding_import_error.as_ref().and_then(|_| {
+                        crate::tui::app::onboarding_repair::detect_preferred_repair_agent()
+                            .map(|a| a.label().to_string())
+                    }),
+                }
             }
             Some(OnboardingPhase::LoginOpenAi { yes_highlighted }) => {
                 OnboardingWelcomeKind::LoginOpenAi {

@@ -39,6 +39,7 @@ pub enum AmbientSubcommand {
     Trigger,
     Stop,
     RunVisible,
+    Menubar,
 }
 
 pub enum CloudSubcommand {
@@ -1430,6 +1431,7 @@ pub async fn run_ambient_command(cmd: AmbientSubcommand) -> Result<()> {
         AmbientSubcommand::Trigger => "ambient:trigger",
         AmbientSubcommand::Stop => "ambient:stop",
         AmbientSubcommand::RunVisible => unreachable!(),
+        AmbientSubcommand::Menubar => "ambient:menubar",
     };
 
     super::debug::run_debug_command(debug_cmd, "", None, None, false).await

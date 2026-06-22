@@ -10,6 +10,33 @@ use jcode_tui_core::keybind::{
     parse_keybinding, parse_optional, parse_or_default,
 };
 
+// Re-export the per-platform keybinding registry + provenance + validation API
+// so the rest of the TUI can reach it via `crate::tui::keybind::*`.
+#[allow(unused_imports)]
+pub use jcode_config_types::keybindings::{
+    KEYBINDING_DEFAULTS, KeybindingDefault, KeybindingIssue, KeybindingIssueKind,
+    KeybindingPlatform, KeybindingProvenance, PlatformDefault, default_binding,
+    keybinding_defaults_report, validate_keybinding_defaults,
+};
+
+/// Emit a one-time log warning for every keybinding default that is asymmetric
+/// across platforms or relies on an unconfirmed auto-translation. This is the
+/// "check layer": it nudges developers to confirm/fix per-platform defaults
+/// without blocking startup.
+pub fn log_keybinding_default_warnings() {
+    let issues = validate_keybinding_defaults();
+    if issues.is_empty() {
+        return;
+    }
+    crate::logging::warn(&format!(
+        "KEYBINDINGS: {} default(s) need review (platform asymmetry / unconfirmed auto-translation)",
+        issues.len()
+    ));
+    for issue in issues {
+        crate::logging::warn(&format!("KEYBINDINGS: {}", issue.message));
+    }
+}
+
 pub fn load_model_switch_keys() -> ModelSwitchKeys {
     let cfg = config();
 
@@ -160,27 +187,59 @@ pub fn load_scroll_keys() -> ScrollKeys {
 pub fn load_effort_switch_keys() -> EffortSwitchKeys {
     let cfg = config();
 
-    let default_increase = KeyBinding {
-        code: KeyCode::Right,
-        modifiers: KeyModifiers::ALT,
-    };
-    let default_decrease = KeyBinding {
-        code: KeyCode::Left,
-        modifiers: KeyModifiers::ALT,
-    };
+    // macOS defaults to Cmd+Left/Right so Option+Left/Right stays free for
+    // word navigation; other platforms keep Alt+Left/Right.
+    let (default_increase, default_decrease, increase_label, decrease_label) =
+        if cfg!(target_os = "macos") {
+            (
+                KeyBinding {
+                    code: KeyCode::Right,
+                    modifiers: KeyModifiers::SUPER,
+                },
+                KeyBinding {
+                    code: KeyCode::Left,
+                    modifiers: KeyModifiers::SUPER,
+                },
+                "Cmd+Right",
+                "Cmd+Left",
+            )
+        } else {
+            (
+                KeyBinding {
+                    code: KeyCode::Right,
+                    modifiers: KeyModifiers::ALT,
+                },
+                KeyBinding {
+                    code: KeyCode::Left,
+                    modifiers: KeyModifiers::ALT,
+                },
+                "Alt+Right",
+                "Alt+Left",
+            )
+        };
 
     let (increase, _) = parse_or_default(
         &cfg.keybindings.effort_increase,
         default_increase,
-        "Alt+Right",
+        increase_label,
     );
     let (decrease, _) = parse_or_default(
         &cfg.keybindings.effort_decrease,
         default_decrease,
-        "Alt+Left",
+        decrease_label,
     );
 
     EffortSwitchKeys { increase, decrease }
+}
+
+/// User-facing label for the effort cycle keys, e.g. "Cmd+Left / Cmd+Right".
+pub fn effort_switch_keys_label() -> String {
+    let keys = load_effort_switch_keys();
+    format!(
+        "{} / {}",
+        format_binding(&keys.decrease),
+        format_binding(&keys.increase)
+    )
 }
 
 pub fn load_centered_toggle_key() -> CenteredToggleKeys {
@@ -381,9 +440,52 @@ pub fn load_dictation_key() -> OptionalBinding {
     }
 }
 
+/// Optional binding that spawns a fresh jcode session in a new terminal window.
+/// Unbound by default; users opt in with e.g. `new_terminal = "alt+enter"`.
+pub fn load_new_terminal_key() -> OptionalBinding {
+    let cfg = config();
+    let raw = cfg.keybindings.new_terminal.trim();
+    if raw.is_empty() || is_disabled(raw) {
+        return OptionalBinding::default();
+    }
+    match parse_keybinding(raw) {
+        Some(binding) => OptionalBinding {
+            label: Some(format_binding(&binding)),
+            binding: Some(binding),
+        },
+        None => OptionalBinding::default(),
+    }
+}
+
+/// Optional binding that opens the `/resume` session picker.
+/// Default: Cmd+R on macOS, Alt+R elsewhere. Set "" to disable.
+pub fn load_open_resume_key() -> OptionalBinding {
+    let cfg = config();
+    let raw = cfg.keybindings.open_resume.trim();
+    if raw.is_empty() || is_disabled(raw) {
+        return OptionalBinding::default();
+    }
+    match parse_keybinding(raw) {
+        Some(binding) => OptionalBinding {
+            label: Some(format_binding(&binding)),
+            binding: Some(binding),
+        },
+        None => OptionalBinding::default(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn new_terminal_alt_enter_binding_parses_and_matches() {
+        let binding = parse_keybinding("alt+enter").expect("alt+enter should parse");
+        assert!(binding.matches(KeyCode::Enter, KeyModifiers::ALT));
+        assert!(!binding.matches(KeyCode::Enter, KeyModifiers::empty()));
+        assert!(!binding.matches(KeyCode::Enter, KeyModifiers::SHIFT));
+        assert_eq!(format_binding(&binding), "Alt+Enter");
+    }
 
     #[test]
     fn side_panel_toggle_matches_alt_m_on_all_platforms() {

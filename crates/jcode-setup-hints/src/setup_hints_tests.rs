@@ -305,6 +305,7 @@ fn keymap_conflict_hint_full_path_debounces_and_persists_signature() {
             source: KeySource::Terminal,
             action: action.to_string(),
             raw: format!("{keys}={action}"),
+            tool: String::new(),
         }
     }
 
@@ -332,4 +333,33 @@ fn keymap_conflict_hint_full_path_debounces_and_persists_signature() {
     assert!(hint3.is_none(), "resolved conflicts show nothing");
     assert!(changed3, "signature should be cleared");
     assert!(state.keymap_conflict_signature.is_empty());
+}
+
+#[test]
+fn glyph_safe_notice_shows_once_then_debounces() {
+    let mut state = SetupHintsState::default();
+
+    // First launch in a fragile terminal: disclose the tradeoff and persist.
+    let (hint, changed) = glyph_safe_notice_for(true, &mut state);
+    assert!(hint.is_some(), "should disclose glyph-safe mode on first launch");
+    assert!(changed, "state should be marked shown");
+    assert!(state.glyph_safe_notice_shown);
+    let (title, body) = hint.unwrap().display_message.unwrap();
+    assert_eq!(title, "Display");
+    assert!(body.contains("quantizes colors"));
+    assert!(body.contains("JCODE_GLYPH_SAFE_MODE=off"));
+
+    // Subsequent launches: debounced, no repeat.
+    let (hint2, changed2) = glyph_safe_notice_for(true, &mut state);
+    assert!(hint2.is_none(), "must not re-disclose on later launches");
+    assert!(!changed2);
+}
+
+#[test]
+fn glyph_safe_notice_silent_on_robust_terminals() {
+    let mut state = SetupHintsState::default();
+    let (hint, changed) = glyph_safe_notice_for(false, &mut state);
+    assert!(hint.is_none(), "no disclosure when glyph-safe mode is inactive");
+    assert!(!changed);
+    assert!(!state.glyph_safe_notice_shown);
 }

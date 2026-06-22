@@ -141,10 +141,23 @@ pub(super) fn escape_applescript_text(input: &str) -> String {
 }
 
 pub(super) fn paused_jcode_shell_command(exe_path: &str) -> String {
+    paused_jcode_shell_command_with_args(exe_path, &[])
+}
+
+/// Like [`paused_jcode_shell_command`] but passes extra CLI args (each
+/// single-quoted) to the jcode invocation, e.g. `--resume <session-id>`.
+pub(super) fn paused_jcode_shell_command_with_args(exe_path: &str, args: &[String]) -> String {
     let escaped_exe = escape_shell_single_quotes(exe_path);
+    let mut arg_str = String::new();
+    for arg in args {
+        arg_str.push_str(" '");
+        arg_str.push_str(&escape_shell_single_quotes(arg));
+        arg_str.push('\'');
+    }
     format!(
-        r#"if [ ! -x '{exe}' ]; then printf 'jcode executable not found.\n'; exit 127; fi; '{exe}'; status=$?; if [ "$status" -ne 0 ]; then printf '\nJcode exited with status %s.\n' "$status"; printf 'Press Enter to close... '; read -r _; fi; exit "$status""#,
+        r#"if [ ! -x '{exe}' ]; then printf 'jcode executable not found.\n'; exit 127; fi; '{exe}'{args}; status=$?; if [ "$status" -ne 0 ]; then printf '\nJcode exited with status %s.\n' "$status"; printf 'Press Enter to close... '; read -r _; fi; exit "$status""#,
         exe = escaped_exe,
+        args = arg_str,
     )
 }
 
@@ -198,6 +211,36 @@ pub(super) fn launch_script_for_macos_terminal(
     )
 }
 
+/// How to launch a shell command in a new terminal window without Apple
+/// Events automation. Background helpers (the menu bar app, launchd agents)
+/// cannot reliably get the "control Terminal" TCC permission that the
+/// AppleScript launch path needs, so they use this strategy instead.
+pub(super) enum NoAutomationLaunch {
+    /// Run this shell command directly (terminals launchable via
+    /// `open -na <App> --args ...`).
+    Shell(String),
+    /// Write the shell command to an executable `.command` file and open it
+    /// with the named app (`None` = system default handler, Terminal.app).
+    CommandFile { app: Option<&'static str> },
+}
+
+pub(super) fn no_automation_launch(
+    terminal: MacTerminalKind,
+    shell_command: &str,
+) -> NoAutomationLaunch {
+    if let Some((app_name, app_args)) = terminal.open_command_app_and_args() {
+        return NoAutomationLaunch::Shell(open_command_for_terminal(
+            app_name,
+            app_args,
+            shell_command,
+        ));
+    }
+    match terminal {
+        MacTerminalKind::Iterm2 => NoAutomationLaunch::CommandFile { app: Some("iTerm") },
+        _ => NoAutomationLaunch::CommandFile { app: None },
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
@@ -223,6 +266,28 @@ mod tests {
                 "start --always-new-process -- /bin/bash -lc",
                 shell_command,
             )
+        );
+    }
+
+    #[test]
+    fn paused_shell_command_quotes_extra_args() {
+        let cmd = super::paused_jcode_shell_command_with_args(
+            "/usr/local/bin/jcode",
+            &["--resume".to_string(), "session_fox_123_abc".to_string()],
+        );
+        assert!(cmd.contains("'/usr/local/bin/jcode' '--resume' 'session_fox_123_abc';"));
+
+        // Single quotes in args must be escaped, not break out of quoting.
+        let cmd = super::paused_jcode_shell_command_with_args(
+            "/usr/local/bin/jcode",
+            &["it's".to_string()],
+        );
+        assert!(cmd.contains(r#"'it'\''s'"#));
+
+        // No args matches the plain command.
+        assert_eq!(
+            super::paused_jcode_shell_command_with_args("/usr/local/bin/jcode", &[]),
+            super::paused_jcode_shell_command("/usr/local/bin/jcode"),
         );
     }
 

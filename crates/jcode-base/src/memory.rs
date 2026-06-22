@@ -116,6 +116,10 @@ pub fn memory_sidecar_enabled() -> bool {
     crate::config::config().agents.memory_sidecar_enabled
 }
 
+pub fn memory_llm_judge_available() -> bool {
+    memory_sidecar_enabled() && crate::sidecar::Sidecar::llm_backend_available()
+}
+
 fn emit_memory_activity(event_tx: Option<&MemoryEventSink>) {
     let (Some(event_tx), Some(activity)) = (event_tx, activity_snapshot()) else {
         return;

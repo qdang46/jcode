@@ -1164,6 +1164,39 @@ impl App {
             self.set_status_notice("Next-prompt new session canceled");
         }
     }
+
+    /// Whether the configured `keybindings.new_terminal` chord matches this key.
+    pub(crate) fn new_terminal_key_matches(&self, code: KeyCode, modifiers: KeyModifiers) -> bool {
+        self.new_terminal_key
+            .binding
+            .as_ref()
+            .map(|binding| binding.matches(code, modifiers))
+            .unwrap_or(false)
+    }
+
+    /// Whether the configured `keybindings.open_resume` chord matches this key.
+    pub(crate) fn open_resume_key_matches(&self, code: KeyCode, modifiers: KeyModifiers) -> bool {
+        self.open_resume_key
+            .binding
+            .as_ref()
+            .map(|binding| binding.matches(code, modifiers))
+            .unwrap_or(false)
+    }
+
+    /// Spawn a brand-new jcode session in a new terminal window.
+    pub(crate) fn handle_new_terminal_hotkey(&mut self) {
+        let cwd = commands::active_working_dir(self)
+            .filter(|path| path.is_dir())
+            .or_else(|| std::env::current_dir().ok())
+            .unwrap_or_else(|| std::path::PathBuf::from("."));
+        match super::spawn_fresh_session_in_new_terminal(&cwd) {
+            Ok(true) => self.set_status_notice("↗ New terminal opened"),
+            Ok(false) => {
+                self.set_status_notice("No supported terminal found; run `jcode` manually")
+            }
+            Err(error) => self.set_status_notice(format!("New terminal failed: {}", error)),
+        }
+    }
 }
 
 pub(super) fn is_next_prompt_new_session_hotkey(code: KeyCode, modifiers: KeyModifiers) -> bool {

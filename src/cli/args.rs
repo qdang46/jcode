@@ -1209,6 +1209,17 @@ pub(crate) enum AmbientCommand {
     Trigger,
     /// Stop ambient mode
     Stop,
+    /// macOS menu bar session/streaming indicator
+    Menubar {
+        /// Print the current counts once as text and exit (no menu bar item)
+        #[arg(long)]
+        once: bool,
+
+        /// Emit the current counts as JSON and exit
+        #[arg(long, conflicts_with = "once")]
+        json: bool,
+    },
+
     /// Run an ambient cycle in a visible TUI (internal, spawned by the ambient runner)
     #[command(hide = true)]
     RunVisible,

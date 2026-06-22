@@ -20,9 +20,17 @@ ios_simulator_screenshot.png
 session-ses_*.md
 target-ttest/
 target-tttest*
+target-tttest*/
 libjcode_base.rlib
 .DS_Store
 .fastembed_cache/
 
 # bv (beads viewer) local config and caches
 .bv/
+
+# Stray experiment/debug artifacts at the repo root. Real assets live under
+# assets/, docs/, ios/, and tests/ and are committed explicitly.
+/*.log
+/*.avif
+/*.mp4
+/*.png

@@ -9,7 +9,7 @@ pub use jcode_config_types::{
     DiffDisplayMode, DisplayConfig, FeatureConfig, GatewayConfig, HooksConfig, KeybindingsConfig,
     MarkdownSpacingMode, NamedProviderAuth, NamedProviderConfig, NamedProviderModelConfig,
     NamedProviderType, NativeScrollbarConfig, PowerConfig, ProviderConfig, ReasoningDisplayMode,
-    SafetyConfig, SessionPickerResumeAction, StatusLineConfig, SwarmSpawnMode, TerminalConfig,
+    NotificationsConfig, SafetyConfig, SessionPickerResumeAction, StatusLineConfig, SwarmSpawnMode, TerminalConfig,
     UpdateChannel, WebSearchConfig, WebSearchEngine,
 };
 use serde::{Deserialize, Serialize};
@@ -443,6 +443,9 @@ pub struct Config {
 
     /// Safety / notification configuration
     pub safety: SafetyConfig,
+
+    /// Desktop notifications for interactive sessions (e.g. turn completion)
+    pub notifications: NotificationsConfig,
 
     /// WebSocket gateway configuration (for iOS/web clients)
     pub gateway: GatewayConfig,

@@ -1,6 +1,7 @@
 use super::{
     AmbientConfig, Config, DiffDisplayMode, DisplayConfig, ProviderConfig,
     SessionPickerResumeAction, SwarmSpawnMode, ToolConfig, config_env_fingerprint,
+    populate_context_limits_from_config_ref,
 };
 use std::ffi::OsString;
 use std::path::Path;
@@ -205,6 +206,15 @@ fn test_env_override_focus_hook() {
 }
 
 #[test]
+fn test_memory_sidecar_enabled_defaults_true() {
+    // The LLM precision-judge path is the only reliably productive memory mode,
+    // so memory uses it by default. Users opt into the no-LLM hybrid path
+    // explicitly by setting this false.
+    let cfg = Config::default();
+    assert!(cfg.agents.memory_sidecar_enabled);
+}
+
+#[test]
 fn test_env_override_memory_sidecar() {
     let _guard = crate::storage::lock_test_env();
     let prev_model = std::env::var_os("JCODE_MEMORY_MODEL");
@@ -400,6 +410,22 @@ fn test_generated_default_config_uses_low_openai_reasoning_effort() {
     assert!(
         content.contains("[agents]") && content.contains("swarm_spawn_mode = \"visible\""),
         "generated default config should document agent spawn defaults"
+    );
+
+    // Effort keys come from the per-platform keybinding registry; the template
+    // placeholders must always be substituted.
+    assert!(
+        !content.contains("@EFFORT_INCREASE@") && !content.contains("@EFFORT_DECREASE@"),
+        "generated default config should substitute effort key placeholders"
+    );
+    let expected_increase = if cfg!(target_os = "macos") {
+        "effort_increase = \"cmd+right\""
+    } else {
+        "effort_increase = \"alt+right\""
+    };
+    assert!(
+        content.contains(expected_increase),
+        "generated default config should use the platform effort_increase default"
     );
 
     // The generated file must always be valid TOML for the current Config schema.
@@ -793,4 +819,35 @@ impl Config {
             .iter()
             .any(|value| value.trim().eq_ignore_ascii_case(&entry))
     }
+}
+
+#[test]
+fn populate_context_limits_from_config_ref_seeds_global_cache() {
+    use super::{NamedProviderConfig, NamedProviderModelConfig};
+
+    // Regression test for issue #366: a named OpenAI-compatible provider with a
+    // per-model `context_window` must be honored by the global context-limit
+    // resolution path, not just the provider instance's own context_window().
+    let model_id = "issue366-custom-gateway-model";
+    let mut cfg = Config::default();
+    cfg.providers.insert(
+        "issue366-gateway".to_string(),
+        NamedProviderConfig {
+            base_url: "https://gateway.example.test/v1".to_string(),
+            models: vec![NamedProviderModelConfig {
+                id: model_id.to_string(),
+                context_window: Some(1_000_000),
+                input: Vec::new(),
+            }],
+            ..Default::default()
+        },
+    );
+
+    populate_context_limits_from_config_ref(&cfg);
+
+    assert_eq!(
+        crate::provider::context_limit_for_model(model_id),
+        Some(1_000_000),
+        "global context-limit resolution should respect named provider context_window"
+    );
 }
