@@ -1,7 +1,7 @@
 ---
 name: optimization
 description: Use when improving performance, latency, throughput, memory usage, or general efficiency. Start by defining target metrics, measuring comprehensively, attributing bottlenecks, validating with static analysis, and prioritizing macro-optimizations before micro-optimizations.
-allowed-tools: bash, read, write, grep, agentgrep, batch, todo
+allowed-tools: bash, read, write, grep, ffs grep, batch, todo
 ---
 
 # Optimization

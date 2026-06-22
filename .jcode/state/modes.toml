@@ -1,17 +1,20 @@
-updated_at = "2026-06-21T16:51:36.546102+00:00"
+updated_at = "2026-06-22T14:24:52.572681+00:00"
 
 [[active_modes]]
 workflow = "ultrawork"
 activated_at = "2026-06-16T16:22:37.059129+00:00"
-turn_count = 5
+turn_count = 7
 turn_limit = 10
 
 [active_modes.metadata]
+ultrawork_spawned = "true"
 
 [[active_modes]]
 workflow = "ultraqa"
 activated_at = "2026-06-21T16:51:36.546100+00:00"
-turn_count = 0
+turn_count = 2
 turn_limit = 10
 
 [active_modes.metadata]
+qa_iteration = "0"
+qa_phase = "implement"

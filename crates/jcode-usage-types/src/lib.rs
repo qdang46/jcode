@@ -84,7 +84,6 @@ pub fn classify_telemetry_tool_category(name: &str) -> TelemetryToolCategory {
         | "ffs glob"
         | "grep"
         | "ffs grep"
-        | "agentgrep"
         | "ls"
         | "conversation_search"
         | "session_search"
@@ -662,7 +661,7 @@ mod telemetry_helper_tests {
     #[test]
     fn classifies_known_tool_categories() {
         assert_eq!(
-            classify_telemetry_tool_category("agentgrep"),
+            classify_telemetry_tool_category("ffs grep"),
             TelemetryToolCategory::ReadSearch
         );
         assert_eq!(

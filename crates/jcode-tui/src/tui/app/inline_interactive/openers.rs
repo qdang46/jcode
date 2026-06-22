@@ -935,7 +935,6 @@ pub(crate) fn open_tools_picker(app: &mut App, agent_id: &str) {
         ("session_search", "Search sessions"),
         ("todoread", "Read todos"),
         ("task_list", "List tasks"),
-        ("agentgrep", "Search agent chat"),
         ("websearch", "Search web"),
         ("webfetch", "Fetch web content"),
     ];

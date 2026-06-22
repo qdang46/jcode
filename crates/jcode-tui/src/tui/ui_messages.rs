@@ -1813,7 +1813,7 @@ pub(crate) fn render_tool_message(
                 "read" | "write" | "edit" | "hashline_edit" => rgb(100, 180, 255),
                 "web_search" | "web_fetch" | "webfetch" => rgb(180, 140, 255),
                 "eval" | "python" => rgb(240, 192, 64),
-                "grep" | "search" | "glob" | "find" | "agentgrep" => rgb(100, 220, 200),
+                "grep" | "search" | "glob" | "find" => rgb(100, 220, 200),
                 "notify" | "memory" | "todo" | "notepad" => rgb(140, 200, 140),
                 _ => rgb(140, 140, 150),
             }
@@ -1823,7 +1823,7 @@ pub(crate) fn render_tool_message(
             "read" | "write" | "edit" | "hashline_edit" => " edit ",
             "web_search" | "web_fetch" | "webfetch" => " web ",
             "eval" | "python" => " eval ",
-            "grep" | "search" | "glob" | "find" | "agentgrep" => " search ",
+            "grep" | "search" | "glob" | "find" => " search ",
             "notify" | "memory" | "todo" | "notepad" => " note ",
             "batch" | "bg" => " batch ",
             "ffs" | "codesearch" => " code ",

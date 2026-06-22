@@ -500,7 +500,7 @@ impl App {
                 if cmd_lower.starts_with(&lower) {
                     (true, 0, cmd)
                 } else if let Some(score) = Self::fuzzy_score(needle, &cmd_lower) {
-                    (false, score, cmd)
+                    (false, score as usize, cmd)
                 } else {
                     // Skip if no match
                     (false, usize::MAX, cmd)

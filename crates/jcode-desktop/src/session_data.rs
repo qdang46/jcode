@@ -631,7 +631,7 @@ mod tests {
                 {"role": "user", "content": [{"type": "text", "text": "<system-reminder>startup context</system-reminder>"}]},
                 {"role": "user", "content": [{"type": "text", "text": "resume prompt"}]},
                 {"role": "assistant", "content": [{"type": "text", "text": "resume answer"}]},
-                {"role": "assistant", "content": [{"type": "tool_use", "name": "agentgrep"}]},
+                {"role": "assistant", "content": [{"type": "tool_use", "name": "ffs grep"}]},
                 {"role": "user", "content": [{"type": "tool_result", "content": "ignored"}]}
             ]
         }));
@@ -651,7 +651,7 @@ mod tests {
                 },
                 SessionTranscriptMessage {
                     role: "assistant".to_string(),
-                    content: "tool agentgrep".to_string(),
+                    content: "tool ffs grep".to_string(),
                 },
             ]
         );

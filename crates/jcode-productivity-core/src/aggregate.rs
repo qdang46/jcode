@@ -107,10 +107,9 @@ pub fn build_report(scan: ScanResult) -> ProductivityReport {
     r.code_edits = tool("edit") + tool("write") + tool("multiedit") + tool("apply_patch");
     r.commands_run = tool("bash");
     r.searches = tool("grep")
-        + tool("agentgrep")
+        + tool("ffs grep")
         + tool("glob")
         + tool("ffs glob")
-        + tool("ffs grep")
         + tool("ffs outline")
         + tool("ffs symbol")
         + tool("ffs find")

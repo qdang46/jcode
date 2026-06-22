@@ -99,11 +99,11 @@ pub(super) fn temporary_app(state: &str) -> DesktopApp {
                 .push(SingleSessionMessage::user("Show a successful tool."));
             app.apply_session_event(session_launch::DesktopSessionEvent::ToolStarted {
                 id: Some("gallery-success".to_string()),
-                name: "agentgrep".to_string(),
+                name: "ffs grep".to_string(),
             });
             app.apply_session_event(session_launch::DesktopSessionEvent::ToolExecuting {
                 id: Some("gallery-success".to_string()),
-                name: "agentgrep".to_string(),
+                name: "ffs grep".to_string(),
             });
             app.apply_session_event(session_launch::DesktopSessionEvent::ToolInput {
                 id: Some("gallery-success".to_string()),
@@ -112,7 +112,7 @@ pub(super) fn temporary_app(state: &str) -> DesktopApp {
             });
             app.apply_session_event(session_launch::DesktopSessionEvent::ToolFinished {
                 id: Some("gallery-success".to_string()),
-                name: "agentgrep".to_string(),
+                name: "ffs grep".to_string(),
                 summary: "matched 42 regions".to_string(),
                 is_error: false,
             });
@@ -142,7 +142,7 @@ pub(super) fn temporary_app(state: &str) -> DesktopApp {
             app.messages
                 .push(SingleSessionMessage::tool("▸ read done: loaded 100 lines"));
             app.messages
-                .push(SingleSessionMessage::tool("▸ agentgrep done: 12 matches"));
+                .push(SingleSessionMessage::tool("▸ ffs grep done: 12 matches"));
             app.messages
                 .push(SingleSessionMessage::tool("▸ edit done: updated renderer"));
             app.set_status_label("grouped tool stack fixture");

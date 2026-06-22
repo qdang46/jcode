@@ -175,6 +175,24 @@ impl Tool for EditTool {
 
         let path = ctx.resolve_path(Path::new(&params.file_path));
 
+        // Verify optional hashline tag
+        if let Some(ref tag) = params.tag {
+            if let Some(snap) = hashline_snapshots::by_hash(&path, tag.as_str()) {
+                if !path.exists() {
+                    return Err(anyhow::anyhow!("File not found: {}", params.file_path));
+                }
+                let content = tokio::fs::read_to_string(&path).await?;
+                let current_tag = hashline_snapshots::compute_file_tag(&content);
+                if current_tag != snap.hash {
+                    return Err(anyhow::anyhow!(
+                        "File has changed since read (tag was {}, current is {}). \
+                         Re-read the file before editing.",
+                        snap.hash, current_tag
+                    ));
+                }
+            }
+        }
+
         if !path.exists() {
             return Err(anyhow::anyhow!("File not found: {}", params.file_path));
         }

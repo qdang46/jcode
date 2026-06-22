@@ -253,8 +253,8 @@ fn test_render_tool_message_batch_partial_failure_shows_all_subcalls() {
         content: "--- [1] read ---
 ok
 
---- [2] agentgrep ---
-Error: missing field `mode`
+--- [2] grep ---
+Error: missing field `pattern`
 
 --- [3] grep ---
 ok
@@ -270,7 +270,7 @@ Completed: 2 succeeded, 1 failed"
             input: serde_json::json!({
                 "tool_calls": [
                     {"tool": "read", "file_path": "src/lib.rs"},
-                    {"tool": "agentgrep"},
+                    {"tool": "grep"},
                     {"tool": "grep", "pattern": "TODO", "path": "src"}
                 ]
             }),
@@ -289,8 +289,8 @@ Completed: 2 succeeded, 1 failed"
     assert!(
         rendered
             .iter()
-            .any(|line| line.contains("✗ agentgrep invalid input: missing mode")),
-        "failed subcall should be attributed to agentgrep: {rendered:?}"
+            .any(|line| line.contains("✗ grep")),
+        "failed subcall should be attributed to grep: {rendered:?}"
     );
     assert!(
         rendered
@@ -310,7 +310,7 @@ Completed: 2 succeeded, 1 failed"
 fn test_render_tool_message_batch_all_failed_marks_all_children_failed() {
     let msg = DisplayMessage {
         role: "tool".to_string(),
-        content: "--- [1] agentgrep ---\nError: missing field `mode`\n\n--- [2] agentgrep ---\nError: missing field `mode`\n\n--- [3] agentgrep ---\nError: missing field `mode`\n\nCompleted: 0 succeeded, 3 failed"
+        content: "--- [1] grep ---\nError: missing field `pattern`\n\n--- [2] grep ---\nError: missing field `pattern`\n\n--- [3] grep ---\nError: missing field `pattern`\n\nCompleted: 0 succeeded, 3 failed"
             .to_string(),
         tool_calls: vec![],
         duration_secs: None,
@@ -320,9 +320,9 @@ fn test_render_tool_message_batch_all_failed_marks_all_children_failed() {
             name: "batch".to_string(),
             input: serde_json::json!({
                 "tool_calls": [
-                    {"tool": "agentgrep"},
-                    {"tool": "agentgrep"},
-                    {"tool": "agentgrep"}
+                    {"tool": "tool_name"},
+                    {"tool": "tool_name"},
+                    {"tool": "tool_name"}
                 ]
             }),
             intent: None, thought_signature: None, }),
@@ -337,13 +337,13 @@ fn test_render_tool_message_batch_all_failed_marks_all_children_failed() {
     );
     let failed_children = rendered
         .iter()
-        .filter(|line| line.contains("✗ agentgrep invalid input: missing mode"))
+        .filter(|line| line.contains("✗ grep invalid input: missing pattern"))
         .count();
     assert_eq!(failed_children, 3, "rendered={rendered:?}");
     assert!(
         !rendered
             .iter()
-            .any(|line| line.contains("✓ agentgrep") || line.contains("agentgrep missing mode")),
+            .any(|line| line.contains("✓ grep") || line.contains("grep missing pattern")),
         "rendered={rendered:?}"
     );
 }
@@ -521,12 +521,12 @@ fn test_render_batch_subcall_line_keeps_full_bash_summary_when_row_fits() {
 }
 
 #[test]
-fn test_agentgrep_summary_uses_default_grep_mode_query() {
+fn test_ffs_grep_summary_shows_query() {
     let tool = ToolCall {
-        id: "agentgrep-default-mode".to_string(),
-        name: "agentgrep".to_string(),
+        id: "ffs-grep-query".to_string(),
+        name: "ffs grep".to_string(),
         input: serde_json::json!({
-            "query": "pending_soft_interrupt",
+            "pattern": "pending_soft_interrupt",
             "path": "src/tui"
         }),
         intent: None,
@@ -535,16 +535,16 @@ fn test_agentgrep_summary_uses_default_grep_mode_query() {
 
     let summary = tools_ui::get_tool_summary_with_budget(&tool, 50, Some(120));
 
-    assert_eq!(summary, "grep 'pending_soft_interrupt'");
+    assert_eq!(summary, "'pending_soft_interrupt' in src/tui");
 }
 
 #[test]
 fn test_render_batch_subcall_line_shows_first_subcall_token_badge() {
     let tool = ToolCall {
-        id: "agentgrep-default-mode".to_string(),
-        name: "agentgrep".to_string(),
+        id: "ffs-grep-query".to_string(),
+        name: "ffs grep".to_string(),
         input: serde_json::json!({
-            "query": "pending_soft_interrupt",
+            "pattern": "pending_soft_interrupt",
             "path": "src/tui"
         }),
         intent: None,
@@ -562,7 +562,7 @@ fn test_render_batch_subcall_line_shows_first_subcall_token_badge() {
     let rendered = extract_line_text(&line);
 
     assert!(
-        rendered.contains("agentgrep grep 'pending_soft_interrupt'"),
+        rendered.contains("ffs grep 'pending_soft_interrupt'"),
         "rendered={rendered:?}"
     );
     assert!(rendered.contains("tok"), "rendered={rendered:?}");
@@ -775,37 +775,35 @@ fn test_tool_summary_browser_eval_truncates_script() {
 }
 
 #[test]
-fn test_tool_summary_agentgrep_smart_uses_terms_subject_relation() {
+fn test_tool_summary_glob_shows_pattern() {
     let tool = ToolCall {
-        id: "agentgrep-smart-terms".to_string(),
-        name: "agentgrep".to_string(),
+        id: "glob-pattern".to_string(),
+        name: "glob".to_string(),
         input: serde_json::json!({
-            "mode": "smart",
-            "terms": ["subject:agentgrep", "relation:build_args", "path:src/tool"]
+            "pattern": "src/tool/*.rs"
         }),
         intent: None,
         thought_signature: None,
     };
 
     let summary = tools_ui::get_tool_summary_with_budget(&tool, 50, Some(200));
-    assert_eq!(summary, "smart agentgrep:build_args");
+    assert_eq!(summary, "'src/tool/*.rs'");
 }
 
 #[test]
-fn test_tool_summary_agentgrep_smart_uses_query_subject_relation() {
+fn test_tool_summary_websearch_shows_query() {
     let tool = ToolCall {
-        id: "agentgrep-smart-query".to_string(),
-        name: "agentgrep".to_string(),
+        id: "websearch-query".to_string(),
+        name: "websearch".to_string(),
         input: serde_json::json!({
-            "mode": "smart",
-            "query": "subject:agentgrep relation:build_args path:src/tool"
+            "query": "rust async patterns performance"
         }),
         intent: None,
         thought_signature: None,
     };
 
     let summary = tools_ui::get_tool_summary_with_budget(&tool, 50, Some(200));
-    assert_eq!(summary, "smart agentgrep:build_args");
+    assert_eq!(summary, "'rust async patterns performance'");
 }
 
 #[test]

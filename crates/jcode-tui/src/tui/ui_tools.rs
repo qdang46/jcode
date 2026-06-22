@@ -135,43 +135,6 @@ pub(super) fn summarize_apply_patch_input(patch_text: &str) -> String {
     }
 }
 
-fn parse_agentgrep_smart_subject_relation(
-    input: &serde_json::Value,
-) -> (Option<&str>, Option<&str>) {
-    let mut subject = None;
-    let mut relation = None;
-
-    if let Some(terms) = input.get("terms").and_then(|v| v.as_array()) {
-        for term in terms {
-            if let Some(term) = term.as_str() {
-                if let Some(value) = term.strip_prefix("subject:") {
-                    subject = Some(value);
-                } else if let Some(value) = term.strip_prefix("relation:") {
-                    relation = Some(value);
-                }
-            }
-        }
-    }
-
-    if (subject.is_none() || relation.is_none())
-        && let Some(query) = input.get("query").and_then(|v| v.as_str())
-    {
-        for term in query.split_whitespace() {
-            if subject.is_none()
-                && let Some(value) = term.strip_prefix("subject:")
-            {
-                subject = Some(value);
-            } else if relation.is_none()
-                && let Some(value) = term.strip_prefix("relation:")
-            {
-                relation = Some(value);
-            }
-        }
-    }
-
-    (subject, relation)
-}
-
 pub(crate) fn extract_apply_patch_primary_file(patch_text: &str) -> Option<String> {
     for line in patch_text.lines() {
         let trimmed = line.trim();
@@ -962,50 +925,6 @@ pub(super) fn get_tool_summary_with_budget(
             } else {
                 let budget = bounded(40).saturating_sub(2);
                 format!("'{}'", truncate_regex_display(pattern, budget))
-            }
-        }
-        "agentgrep" => {
-            // agentgrep defaults to grep mode when `mode` is omitted. Mirror the
-            // tool schema here so batch sub-call rows still show the useful
-            // query/path summary instead of the unhelpful bare `grep` label.
-            let mode = tool
-                .input
-                .get("mode")
-                .and_then(|v| v.as_str())
-                .unwrap_or("ffs grep");
-            match mode {
-                "grep" | "ffs grep" | "find" => {
-                    let query = tool
-                        .input
-                        .get("query")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("");
-                    if query.is_empty() {
-                        mode.to_string()
-                    } else {
-                        format!(
-                            "{} '{}'",
-                            mode,
-                            truncate_query_display(
-                                query,
-                                bounded(36).saturating_sub(mode.len() + 3)
-                            )
-                        )
-                    }
-                }
-                "smart" => {
-                    let (subject, relation) = parse_agentgrep_smart_subject_relation(&tool.input);
-
-                    match (subject, relation) {
-                        (Some(subject), Some(relation)) => format!(
-                            "smart {}:{}",
-                            truncate_identifier_display(subject, bounded(18)),
-                            truncate_identifier_display(relation, bounded(14))
-                        ),
-                        _ => "smart".to_string(),
-                    }
-                }
-                other => other.to_string(),
             }
         }
         "ls" => tool

@@ -6509,15 +6509,15 @@ fn single_session_adjacent_tool_messages_render_as_compact_summary() {
     app.messages
         .push(SingleSessionMessage::tool("▸ read done: 100 chars"));
     app.messages
-        .push(SingleSessionMessage::tool("▸ agentgrep done: 10 matches"));
+        .push(SingleSessionMessage::tool("▸ ffs grep done: 10 matches"));
     app.messages
-        .push(SingleSessionMessage::tool("▸ agentgrep done: 11 matches"));
+        .push(SingleSessionMessage::tool("▸ ffs grep done: 11 matches"));
     app.messages.push(SingleSessionMessage::tool("▸ edit done"));
 
     let body = app.body_lines();
     assert_eq!(body.len(), 1);
     assert!(
-        body[0].starts_with("  ▸ tools: 1 read, 2 agentgrep, 1 edit · ~"),
+        body[0].starts_with("  ▸ tools: 1 read, 2 ffs grep, 1 edit · ~"),
         "compact summary should preserve grouped tool counts: {:?}",
         body[0]
     );

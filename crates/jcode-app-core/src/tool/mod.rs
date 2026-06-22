@@ -1,4 +1,3 @@
-mod agentgrep;
 pub mod ambient;
 mod apply_patch;
 mod bash;
@@ -198,7 +197,6 @@ fn tool_name_to_tier(name: &str) -> ToolTier {
             | "ffs_callees"
             | "ffs_refs"
             | "ffs_flow"
-            | "agentgrep"
             | "websearch"
             | "webfetch"
             | "codesearch"
@@ -226,10 +224,10 @@ fn tool_name_to_tier(name: &str) -> ToolTier {
             | "patch"
             | "apply_patch"
             | "hashline_edit"
-            | "ffs_hashline_edit"
+            | "hashline_edit"
             | "propose_write"
             | "propose_edit"
-            | "ffs_propose_hashline"
+            | "propose_hashline"
             | "notepad_write_priority"
             | "notepad_write_working"
             | "notepad_write_manual"
@@ -415,12 +413,6 @@ impl Registry {
             Self::insert_tool_timed(
                 &mut m,
                 &mut timings,
-                "agentgrep",
-                agentgrep::AgentGrepTool::new,
-            );
-            Self::insert_tool_timed(
-                &mut m,
-                &mut timings,
                 "side_panel",
                 side_panel::SidePanelTool::new,
             );
@@ -434,7 +426,7 @@ impl Registry {
             Self::insert_tool_timed(
                 &mut m,
                 &mut timings,
-                "ffs_propose_hashline",
+                "propose_hashline",
                 propose_hashline_edit::ProposeHashlineEditTool::new,
             );
             Self::insert_tool_timed(
@@ -561,7 +553,7 @@ impl Registry {
             Self::insert_tool_timed(
                 &mut m,
                 &mut timings,
-                "ffs_hashline_edit",
+                "hashline_edit",
                 hashline_edit::HashlineEditTool::new,
             );
             Self::insert_tool_timed(&mut m, &mut timings, "schedule", ambient::ScheduleTool::new);

@@ -228,7 +228,8 @@ impl Tool for ReadTool {
             }
         }
 
-        let end = end_exclusive.min(total_lines);
+        // Prepend hashline header so the model can quote the tag in edits.
+        output = format!("{}\n{}", hashline_snapshots::format_header(&path, &tag), output);
 
         // Prepend hashline header so the model can quote the tag in edits.
         let header = hashline_snapshots::format_header(&path, &tag);

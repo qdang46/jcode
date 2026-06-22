@@ -40,7 +40,7 @@ impl Tool for LspTool {
     }
 
     fn description(&self) -> &str {
-        "Run an LSP operation. Stub only: LSP is not integrated yet, so prefer agentgrep/read for symbol inspection."
+        "Run an LSP operation. Stub only: LSP is not integrated yet, so prefer read for symbol inspection."
     }
 
     fn parameters_schema(&self) -> Value {

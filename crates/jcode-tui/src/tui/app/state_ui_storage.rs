@@ -114,29 +114,6 @@ fn compact_tool_input_for_display(name: &str, input: &serde_json::Value) -> serd
                     .unwrap_or(serde_json::Value::Null),
             ),
         ]),
-        "agentgrep" => obj(vec![
-            (
-                "mode",
-                input
-                    .get("mode")
-                    .cloned()
-                    .unwrap_or(serde_json::Value::Null),
-            ),
-            (
-                "query",
-                input
-                    .get("query")
-                    .cloned()
-                    .unwrap_or(serde_json::Value::Null),
-            ),
-            (
-                "terms",
-                input
-                    .get("terms")
-                    .cloned()
-                    .unwrap_or(serde_json::Value::Null),
-            ),
-        ]),
         "memory" => obj(vec![
             (
                 "action",

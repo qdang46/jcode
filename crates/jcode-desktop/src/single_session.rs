@@ -9002,16 +9002,9 @@ fn formatted_tool_input_summary(
                 lines.push(format!("'{}'", compact_tool_text(pattern, 96)));
             }
         }
-        "agentgrep" | "grep" | "ffs grep" => {
+        "grep" | "ffs grep" => {
             let query = string_value("query").or_else(|| string_value("pattern"));
-            if tool_name == "agentgrep" {
-                let mode = string_value("mode").unwrap_or("ffs grep");
-                if let Some(query) = query.filter(|query| !query.trim().is_empty()) {
-                    lines.push(format!("{mode} '{}'", compact_tool_text(query, 72)));
-                } else {
-                    lines.push(mode.to_string());
-                }
-            } else if let Some(query) = query {
+            if let Some(query) = query {
                 lines.push(format!("'{}'", compact_tool_text(query, 72)));
             }
             if let Some(path) = string_value("path") {
@@ -9706,10 +9699,10 @@ mod tests {
     fn desktop_tool_metadata_prioritizes_tui_like_summary_over_intent() {
         assert_eq!(
             formatted_tool_input_lines(
-                "agentgrep",
+                "ffs grep",
                 "{\"intent\":\"Locate rendering code\",\"query\":\"tool call\",\"path\":\"src/tui\"}",
             ),
-            vec!["grep 'tool call'", "in src/tui"]
+            vec!["'tool call'", "in src/tui"]
         );
         assert_eq!(
             formatted_tool_input_lines(

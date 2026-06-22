@@ -216,7 +216,7 @@ fn test_build_allowed_tool_set_excludes_forbidden() {
 
         assert!(allowed.contains("propose_edit"));
         assert!(allowed.contains("propose_write"));
-        assert!(allowed.contains("ffs propose_hashline"));
+        assert!(allowed.contains("propose_hashline"));
 
         assert!(allowed.contains("read"));
         assert!(allowed.contains("grep"));

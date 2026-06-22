@@ -47,7 +47,7 @@ const FORBIDDEN_TOOLS: &[&str] = &[
     "multiedit",
     "patch",
     "apply_patch",
-    "ffs hashline_edit",
+    "hashline_edit",
     "subagent",
     "batch",
     "best_of_n",
@@ -615,7 +615,7 @@ pub(crate) async fn build_allowed_tool_set(registry: &Registry) -> HashSet<Strin
     for ambient in AMBIENT_TOOLS {
         allowed.remove(*ambient);
     }
-    for required in ["propose_edit", "propose_write", "ffs propose_hashline"] {
+    for required in ["propose_edit", "propose_write", "propose_hashline"] {
         allowed.insert(required.to_string());
     }
     allowed

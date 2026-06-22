@@ -19,7 +19,7 @@
 //!   "captured_at": "2026-05-24T11:00:00Z",
 //!   "session_id": "blue-fox-1234",
 //!   "trigger_summary": "user asked to refactor a Rust module",
-//!   "tool_sequence": ["read", "agentgrep", "edit", "edit", "bash"],
+//!   "tool_sequence": ["read", "ffs grep", "edit", "edit", "bash"],
 //!   "outcome": "success",
 //!   "user_signal": null
 //! }
