@@ -14,7 +14,8 @@
 use hashline::snapshot_store::{InMemorySnapshotStore, Snapshot, SnapshotStore};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, OnceLock, RwLock};
+use std::sync::{Arc, OnceLock};
+use tokio::sync::RwLock;
 
 /// Default limits, matching the reference hashline store.
 const DEFAULT_MAX_PATHS: usize = 30;
@@ -44,51 +45,48 @@ pub fn global() -> Arc<RwLock<InMemorySnapshotStore>> {
 /// the producer never displayed.
 pub fn record(path: &Path, text: &str, seen_lines: Option<&[usize]>) -> String {
     let canonical = canonicalize(path);
-    global()
-        .write()
-        .expect("snapshot store poisoned")
-        .record(&canonical, text, seen_lines)
+    let store = global();
+    let mut guard = store.blocking_write();
+    guard.record(&canonical, text, seen_lines)
 }
 
 /// Look up the most recent snapshot for `path`.
 pub fn head(path: &Path) -> Option<Snapshot> {
     let canonical = canonicalize(path);
-    global()
-        .read()
-        .expect("snapshot store poisoned")
-        .head(&canonical)
+    let store = global();
+    let guard = store.blocking_read();
+    guard.head(&canonical)
 }
 
 /// Look up a specific snapshot version by tag.
 pub fn by_hash(path: &Path, hash: &str) -> Option<Snapshot> {
     let canonical = canonicalize(path);
-    global()
-        .read()
-        .expect("snapshot store poisoned")
-        .by_hash(&canonical, hash)
+    let store = global();
+    let guard = store.blocking_read();
+    guard.by_hash(&canonical, hash)
 }
 
 /// Merge `lines` into the seen-lines set of the snapshot identified by `hash`.
 pub fn record_seen_lines(path: &Path, hash: &str, lines: &[usize]) {
     let canonical = canonicalize(path);
-    global()
-        .write()
-        .expect("snapshot store poisoned")
-        .record_seen_lines(&canonical, hash, lines);
+    let store = global();
+    let mut guard = store.blocking_write();
+    guard.record_seen_lines(&canonical, hash, lines);
 }
 
 /// Drop all version history for a single path.
 pub fn invalidate(path: &Path) {
     let canonical = canonicalize(path);
-    global()
-        .write()
-        .expect("snapshot store poisoned")
-        .invalidate(&canonical);
+    let store = global();
+    let mut guard = store.blocking_write();
+    guard.invalidate(&canonical);
 }
 
 /// Drop all snapshot history (used on session reset).
 pub fn clear() {
-    global().write().expect("snapshot store poisoned").clear();
+    let store = global();
+    let mut guard = store.blocking_write();
+    guard.clear();
 }
 
 /// Best-effort canonical path for snapshot keying. Falls back to the input

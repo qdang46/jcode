@@ -30,6 +30,30 @@ impl Agent {
         if trace_enabled() {
             eprintln!("[trace] session_id {}", self.session.id);
         }
+        let result = self.run_turn(false).await;
+        // Post-turn: run orchestrator if enabled (skip on child agents to avoid recursion).
+        if result.is_ok() && self.todo_orchestrator_enabled {
+            if let Err(e) = self.poll_todo_pipeline().await {
+                crate::logging::warn(&format!("[orchestrator] poll failed: {e}"));
+            }
+        }
+        result
+    }
+
+    /// Inner run_once_capture used by child agents spawned by the orchestrator.
+    /// Does NOT trigger the post-turn orchestrator hook.
+    pub(crate) async fn run_once_capture_inner(&mut self, user_message: &str) -> Result<String> {
+        self.add_message(
+            Role::User,
+            vec![ContentBlock::Text {
+                text: user_message.to_string(),
+                cache_control: None,
+            }],
+        );
+        self.session.save()?;
+        if trace_enabled() {
+            eprintln!("[trace] session_id {}", self.session.id);
+        }
         self.run_turn(false).await
     }
 
