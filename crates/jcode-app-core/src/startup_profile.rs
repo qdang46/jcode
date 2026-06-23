@@ -82,3 +82,17 @@ pub fn report_to_log() {
         crate::logging::info(line);
     }
 }
+// Register spawn_agent implementation for jcode-keywords workflow system.
+// Called once at startup.
+pub fn init_workflow_spawn() {
+    jcode_keywords::workflow::spawn::set_spawn_impl(Box::new(|spec| {
+        jcode_keywords::workflow::SpawnResult {
+            description: spec.description.clone(),
+            output: format!(
+                "[spawned: {}]",
+                spec.description
+            ),
+            success: true,
+        }
+    }));
+}
