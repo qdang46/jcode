@@ -77,7 +77,8 @@ FUNCTION orchestrate_todo_via_swarm(agent, todo, config):
     # Step 1: Planner decomposes todo into subtasks (Codebuff pattern)
     planner_prompt = "Break this task into 2-4 subtasks. Return JSON array with \
         keys: description, prompt, subagent_type.\n\nTask: " + todo.content
-    plan_text = agent.run_once_capture_inner(planner_prompt)
+    plan_output = spawn_subagent_with_type(agent, "planner", planner_prompt)
+    subtasks = parse_swarm_tasks(plan_output)
     subtasks = parse_swarm_tasks(plan_text)  # JSON → Vec<SwarmTaskSpec>
 
     IF subtasks is empty:
@@ -94,7 +95,7 @@ FUNCTION orchestrate_todo_via_swarm(agent, todo, config):
 
     # Step 3: Coordinator integrates results (Codebuff pattern)
     integration_prompt = build_integration_prompt(todo, outputs)
-    final = agent.run_once_capture_inner(integration_prompt)
+    final = spawn_subagent_with_type(agent, "editor", integration_prompt)
 
     # Step 4: Update todo state
     IF all_pass:
@@ -161,7 +162,7 @@ impl Agent {
              objects with keys: description, prompt, subagent_type.\n\nTask:\n{}",
             todo.content,
         );
-        let plan_text = self.run_once_capture_inner(&planner_prompt).await?;
+        let plan_text = spawn_planner_as_child(self, let plan_text = self.run_once_capture_inner(&planner_prompt).await?;planner_prompt).await?;
         let mut subtasks = parse_swarm_tasks(&plan_text);
         if subtasks.is_empty() {
             subtasks.push(SwarmTaskSpec {
@@ -196,7 +197,7 @@ impl Agent {
 
         // Step 3: Coordinator integrates
         let integration_prompt = build_integration_prompt(todo, &subtasks, &outputs);
-        let final_output = self.run_once_capture_inner(&integration_prompt).await?;
+        let final_output = spawn_coordinator_child(self, let final_output = self.run_once_capture_inner(&integration_prompt).await?;integration_prompt).await?;
 
         // Step 4: Update todo state via save_todos (broadcasts BusEvent::TodoUpdated)
         let mut updated = todo.clone();
