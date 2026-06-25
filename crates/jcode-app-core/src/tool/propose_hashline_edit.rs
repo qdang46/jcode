@@ -80,9 +80,13 @@ impl Tool for ProposeHashlineEditTool {
     async fn execute(&self, input: Value, ctx: ToolContext) -> Result<ToolOutput> {
         let params: ProposeInput = serde_json::from_value(input)?;
 
-        let run_id = ctx.best_of_n_run_id.clone()
+        let run_id = ctx
+            .best_of_n_run_id
+            .clone()
             .ok_or_else(|| anyhow::anyhow!("propose_hashline requires best-of-N context"))?;
-        let candidate_id = ctx.best_of_n_candidate_id.clone()
+        let candidate_id = ctx
+            .best_of_n_candidate_id
+            .clone()
             .ok_or_else(|| anyhow::anyhow!("propose_hashline requires best-of-N context"))?;
 
         let store: std::sync::Arc<ProposedContentStore> = {
@@ -92,11 +96,29 @@ impl Tool for ProposeHashlineEditTool {
         };
 
         match params {
-            ProposeInput::Patch { file_path, intent: _, patch } => {
-                execute_propose_patch(file_path, patch, &run_id, &candidate_id, store, ctx).await
-            }
-            ProposeInput::Structured { file_path, intent: _, anchor, old_string, new_string } => {
-                execute_propose_old(file_path, anchor, old_string, new_string, &run_id, &candidate_id, store, ctx).await
+            ProposeInput::Patch {
+                file_path,
+                intent: _,
+                patch,
+            } => execute_propose_patch(file_path, patch, &run_id, &candidate_id, store, ctx).await,
+            ProposeInput::Structured {
+                file_path,
+                intent: _,
+                anchor,
+                old_string,
+                new_string,
+            } => {
+                execute_propose_old(
+                    file_path,
+                    anchor,
+                    old_string,
+                    new_string,
+                    &run_id,
+                    &candidate_id,
+                    store,
+                    ctx,
+                )
+                .await
             }
         }
     }
@@ -134,7 +156,8 @@ async fn execute_propose_patch(
             if current_tag != snap.hash {
                 return Err(anyhow::anyhow!(
                     "file has changed since read (tag was {}, current is {}). Re-read first.",
-                    snap.hash, current_tag
+                    snap.hash,
+                    current_tag
                 ));
             }
         }
@@ -176,9 +199,19 @@ async fn execute_propose_patch(
     let preview = build_file_touch_preview(&diff);
 
     let run_id_typed = jcode_best_of_n::RunId(run_id.to_string());
-    store.set_proposed(&run_id_typed, file_path.clone(), final_text, candidate_id.to_string(), false);
+    store.set_proposed(
+        &run_id_typed,
+        file_path.clone(),
+        final_text,
+        candidate_id.to_string(),
+        false,
+    );
 
-    let warnings_text = if warnings.is_empty() { String::new() } else { format!(" warnings: {}", warnings.join(", ")) };
+    let warnings_text = if warnings.is_empty() {
+        String::new()
+    } else {
+        format!(" warnings: {}", warnings.join(", "))
+    };
     Ok(ToolOutput::new(format!(
         "[PROPOSED] {file_path}: hashline patch, {} edits applied{warnings_text}\n{diff}\n\nProposal stored for candidate '{candidate_id}' in run '{run_id}' (not written to disk).",
         edits.len(),
@@ -214,7 +247,9 @@ async fn execute_propose_old(
     ctx: ToolContext,
 ) -> Result<ToolOutput> {
     if old_string == new_string {
-        return Err(anyhow::anyhow!("old_string and new_string must be different"));
+        return Err(anyhow::anyhow!(
+            "old_string and new_string must be different"
+        ));
     }
     let path = ctx.resolve_path(Path::new(&file_path));
     if !path.exists() {
@@ -238,17 +273,26 @@ async fn execute_propose_old(
         }
         let actual = hashline_hash::format_short_hash(entries[line_idx].short_hash);
         if actual != anchor.hash {
-            return Err(anyhow::anyhow!("anchor hash mismatch at line {}: expected {}, actual {}", anchor.line, anchor.hash, actual));
+            return Err(anyhow::anyhow!(
+                "anchor hash mismatch at line {}: expected {}, actual {}",
+                anchor.line,
+                anchor.hash,
+                actual
+            ));
         }
         let anchor_obj = anchor::parse_anchor(&format!("{}:{}", anchor.line, actual))
             .map_err(|e| anyhow::anyhow!("invalid anchor: {e}"))?;
-        anchor::resolve(&anchor_obj, &fc).map_err(|e| anyhow::anyhow!("anchor resolve failed: {e}"))?;
+        anchor::resolve(&anchor_obj, &fc)
+            .map_err(|e| anyhow::anyhow!("anchor resolve failed: {e}"))?;
     }
 
     let mut lines: Vec<String> = content.lines().map(String::from).collect();
     let line_idx = anchor.line.saturating_sub(1);
     if line_idx >= lines.len() || !lines[line_idx].contains(&old_string) {
-        return Err(anyhow::anyhow!("old_string not found on line {}", anchor.line));
+        return Err(anyhow::anyhow!(
+            "old_string not found on line {}",
+            anchor.line
+        ));
     }
     lines[line_idx] = lines[line_idx].replacen(&old_string, &new_string, 1);
     let new_content = lines.join("\n");
@@ -259,7 +303,13 @@ async fn execute_propose_old(
     let preview = build_file_touch_preview(&diff);
 
     let run_id_typed = jcode_best_of_n::RunId(run_id.to_string());
-    store.set_proposed(&run_id_typed, file_path.clone(), new_content, candidate_id.to_string(), false);
+    store.set_proposed(
+        &run_id_typed,
+        file_path.clone(),
+        new_content,
+        candidate_id.to_string(),
+        false,
+    );
 
     Ok(ToolOutput::new(format!(
         "[PROPOSED] {file_path}: xxh32 hashline edit lines {start_line}-{end_line} (anchor verified)\n{diff}\n\nProposal stored for candidate '{candidate_id}' in run '{run_id}' (not written to disk)."
@@ -286,13 +336,17 @@ fn generate_diff(old: &str, new: &str, start_line: usize) -> String {
             ChangeTag::Delete => {
                 let num = old_line;
                 old_line += 1;
-                if content.is_empty() { continue; }
+                if content.is_empty() {
+                    continue;
+                }
                 ("-", num)
             }
             ChangeTag::Insert => {
                 let num = new_line;
                 new_line += 1;
-                if content.is_empty() { continue; }
+                if content.is_empty() {
+                    continue;
+                }
                 ("+", num)
             }
             ChangeTag::Equal => {
@@ -303,21 +357,35 @@ fn generate_diff(old: &str, new: &str, start_line: usize) -> String {
         };
         output.push_str(&format!("{}{} {}\n", line_num, prefix, content));
     }
-    if output.is_empty() { String::new() } else { output.trim_end().to_string() }
+    if output.is_empty() {
+        String::new()
+    } else {
+        output.trim_end().to_string()
+    }
 }
 
 fn build_file_touch_preview(diff: &str) -> Option<String> {
     let trimmed = diff.trim();
-    if trimmed.is_empty() { return None; }
+    if trimmed.is_empty() {
+        return None;
+    }
     const MAX_LINES: usize = 6;
     const MAX_BYTES: usize = 240;
     let mut lines = trimmed.lines();
-    let mut preview = lines.by_ref().take(MAX_LINES).collect::<Vec<_>>().join("\n");
+    let mut preview = lines
+        .by_ref()
+        .take(MAX_LINES)
+        .collect::<Vec<_>>()
+        .join("\n");
     let mut truncated = lines.next().is_some();
     if preview.len() > MAX_BYTES {
-        preview = crate::util::truncate_str(&preview, MAX_BYTES).trim_end().to_string();
+        preview = crate::util::truncate_str(&preview, MAX_BYTES)
+            .trim_end()
+            .to_string();
         truncated = true;
     }
-    if truncated { preview.push_str("\n…"); }
+    if truncated {
+        preview.push_str("\n…");
+    }
     Some(preview)
 }

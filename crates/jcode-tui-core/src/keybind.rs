@@ -715,8 +715,14 @@ mod tests {
         // Ctrl+K / Ctrl+J (un-shifted) move up / down by prompt: the primary
         // default that survives a stock Ghostty + tiling-WM setup.
         let keys = test_scroll_keys();
-        assert_eq!(keys.prompt_jump(KeyCode::Char('k'), KeyModifiers::CONTROL), Some(-1));
-        assert_eq!(keys.prompt_jump(KeyCode::Char('j'), KeyModifiers::CONTROL), Some(1));
+        assert_eq!(
+            keys.prompt_jump(KeyCode::Char('k'), KeyModifiers::CONTROL),
+            Some(-1)
+        );
+        assert_eq!(
+            keys.prompt_jump(KeyCode::Char('j'), KeyModifiers::CONTROL),
+            Some(1)
+        );
     }
 
     #[test]
@@ -735,7 +741,11 @@ mod tests {
                 KeyCode::Char('j'),
                 KeyCode::Char('J'),
             ] {
-                assert_eq!(keys.prompt_jump(code, mods), None, "mods={mods:?} code={code:?}");
+                assert_eq!(
+                    keys.prompt_jump(code, mods),
+                    None,
+                    "mods={mods:?} code={code:?}"
+                );
             }
         }
     }
@@ -791,10 +801,22 @@ mod tests {
     fn test_prompt_jump_option_jk() {
         // Option (Alt) + K / J mirror Cmd+K / Cmd+J for prompt navigation on macOS.
         let keys = test_scroll_keys();
-        assert_eq!(keys.prompt_jump(KeyCode::Char('k'), KeyModifiers::ALT), Some(-1));
-        assert_eq!(keys.prompt_jump(KeyCode::Char('K'), KeyModifiers::ALT), Some(-1));
-        assert_eq!(keys.prompt_jump(KeyCode::Char('j'), KeyModifiers::ALT), Some(1));
-        assert_eq!(keys.prompt_jump(KeyCode::Char('J'), KeyModifiers::ALT), Some(1));
+        assert_eq!(
+            keys.prompt_jump(KeyCode::Char('k'), KeyModifiers::ALT),
+            Some(-1)
+        );
+        assert_eq!(
+            keys.prompt_jump(KeyCode::Char('K'), KeyModifiers::ALT),
+            Some(-1)
+        );
+        assert_eq!(
+            keys.prompt_jump(KeyCode::Char('j'), KeyModifiers::ALT),
+            Some(1)
+        );
+        assert_eq!(
+            keys.prompt_jump(KeyCode::Char('J'), KeyModifiers::ALT),
+            Some(1)
+        );
     }
 
     #[test]

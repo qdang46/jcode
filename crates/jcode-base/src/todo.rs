@@ -72,9 +72,7 @@ pub fn needs_verification_nudge(previous: &[TodoItem], updated: &[TodoItem]) -> 
         .collect();
     let newly_completed: Vec<&TodoItem> = updated
         .iter()
-        .filter(|t| {
-            t.status == "completed" && !was_completed.contains(t.content.as_str())
-        })
+        .filter(|t| t.status == "completed" && !was_completed.contains(t.content.as_str()))
         .collect();
     if newly_completed.len() < 3 {
         return false;
@@ -136,10 +134,7 @@ mod tests {
     #[test]
     fn below_threshold() {
         let prev = vec![];
-        let updated = vec![
-            item("a", "completed"),
-            item("b", "completed"),
-        ];
+        let updated = vec![item("a", "completed"), item("b", "completed")];
         assert!(!needs_verification_nudge(&prev, &updated));
     }
 

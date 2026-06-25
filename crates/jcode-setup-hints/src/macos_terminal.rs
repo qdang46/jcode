@@ -178,8 +178,11 @@ pub(super) enum HotkeyTarget {
 }
 
 impl HotkeyTarget {
-    pub(super) const ALL: [HotkeyTarget; 3] =
-        [HotkeyTarget::Home, HotkeyTarget::LastDir, HotkeyTarget::SelfDev];
+    pub(super) const ALL: [HotkeyTarget; 3] = [
+        HotkeyTarget::Home,
+        HotkeyTarget::LastDir,
+        HotkeyTarget::SelfDev,
+    ];
 
     /// File name of the per-target launch script written into the hotkey
     /// support dir and executed by the listener when the chord fires.

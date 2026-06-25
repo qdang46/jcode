@@ -348,7 +348,10 @@ pub(super) fn session_matches_query(session: &SessionInfo, query: &str) -> bool 
 /// session's cached `search_index` from the loaded preview.
 pub(super) fn session_matches_picker_query(session: &SessionInfo, query: &str) -> bool {
     let tokens = search_query_tokens(query);
-    tokens.is_empty() || tokens.iter().all(|token| session.search_index.contains(token))
+    tokens.is_empty()
+        || tokens
+            .iter()
+            .all(|token| session.search_index.contains(token))
 }
 
 /// Split a raw query into normalized (lowercased, whitespace-trimmed) search

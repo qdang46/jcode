@@ -699,7 +699,11 @@ impl App {
         self.onboarding_import_failed_provider = approved
             .first()
             .and_then(|&i| candidates.get(i))
-            .and_then(|c| c.telemetry_auth_labels().first().map(|(p, _)| p.to_string()));
+            .and_then(|c| {
+                c.telemetry_auth_labels()
+                    .first()
+                    .map(|(p, _)| p.to_string())
+            });
         // Kick off the import on the runtime; the LoginCompleted event advances
         // onboarding and activates the provider.
         self.set_status_notice("Login: importing selected logins...");
@@ -1326,9 +1330,7 @@ impl App {
             .lines()
             .map(|l| l.trim())
             .find(|l| {
-                !l.is_empty()
-                    && !l.starts_with("**")
-                    && !l.eq_ignore_ascii_case("Logins imported")
+                !l.is_empty() && !l.starts_with("**") && !l.eq_ignore_ascii_case("Logins imported")
             })
             .unwrap_or("We couldn't import those logins.")
             .trim_start_matches(['✕', '✓', '-', ' '])

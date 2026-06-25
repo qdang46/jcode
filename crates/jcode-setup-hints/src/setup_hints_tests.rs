@@ -166,7 +166,10 @@ fn install_writes_all_three_executable_launch_scripts() {
     for target in HotkeyTarget::ALL {
         let path = dir.path().join(target.script_file_name());
         let body = std::fs::read_to_string(&path).expect("script exists");
-        assert!(body.starts_with("#!/bin/bash"), "{target:?} is a bash script");
+        assert!(
+            body.starts_with("#!/bin/bash"),
+            "{target:?} is a bash script"
+        );
         // Executable bit set so the listener can `sh script` / `open` it.
         let mode = std::fs::metadata(&path).unwrap().permissions().mode();
         assert_eq!(mode & 0o111, 0o111, "{target:?} should be executable");
@@ -443,4 +446,3 @@ fn keymap_conflict_hint_full_path_debounces_and_persists_signature() {
     assert!(changed3, "signature should be cleared");
     assert!(state.keymap_conflict_signature.is_empty());
 }
-

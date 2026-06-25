@@ -23,7 +23,8 @@ impl std::fmt::Display for NoopLimitExceeded {
             f,
             "hashline edit produced no change {} times in a row for {} — \
              the replacement does not match current file content. Re-read the file first.",
-            self.count, self.path.display()
+            self.count,
+            self.path.display()
         )
     }
 }
@@ -49,7 +50,12 @@ impl NoopGuard {
     /// Record an edit outcome. If `contents_differ` is `false` (no change)
     /// and the same content hash was produced last time, increment the counter.
     /// Returns `Ok(())` or `Err(NoopLimitExceeded)`.
-    pub fn record(&self, path: PathBuf, contents_differ: bool, content_hash: u64) -> Result<(), NoopLimitExceeded> {
+    pub fn record(
+        &self,
+        path: PathBuf,
+        contents_differ: bool,
+        content_hash: u64,
+    ) -> Result<(), NoopLimitExceeded> {
         let mut map = self.inner.lock().expect("noop guard poisoned");
         if contents_differ {
             map.remove(&path);

@@ -370,8 +370,7 @@ fn write_hotkey_launch_scripts(
     last_repo_file: &str,
 ) -> Result<()> {
     for target in HotkeyTarget::ALL {
-        let shell_command =
-            hotkey_shell_command(exe_path, target, last_dir_file, last_repo_file);
+        let shell_command = hotkey_shell_command(exe_path, target, last_dir_file, last_repo_file);
         let script_path = hotkey_dir.join(target.script_file_name());
         std::fs::write(
             &script_path,
@@ -559,9 +558,7 @@ pub fn run_setup_hotkey(_listen_macos_hotkey: bool) -> Result<()> {
         eprintln!("\x1b[1mjcode setup-hotkey\x1b[0m");
         eprintln!();
         eprintln!("  Preferred terminal: {}", terminal.label());
-        eprintln!(
-            "  Installing a LaunchAgent with three system-wide jcode launch hotkeys."
-        );
+        eprintln!("  Installing a LaunchAgent with three system-wide jcode launch hotkeys.");
         eprintln!();
 
         match install_macos_hotkey_listener(Some(terminal)) {
@@ -576,12 +573,8 @@ pub fn run_setup_hotkey(_listen_macos_hotkey: bool) -> Result<()> {
                 );
                 eprintln!();
                 eprintln!("  Press these anywhere, system-wide:");
-                eprintln!(
-                    "    \x1b[1mCmd+;\x1b[0m       new jcode in your home directory"
-                );
-                eprintln!(
-                    "    \x1b[1mCmd+'\x1b[0m       new jcode in your last project directory"
-                );
+                eprintln!("    \x1b[1mCmd+;\x1b[0m       new jcode in your home directory");
+                eprintln!("    \x1b[1mCmd+'\x1b[0m       new jcode in your last project directory");
                 eprintln!(
                     "    \x1b[1mCmd+Shift+'\x1b[0m new jcode self-dev session (last jcode repo)"
                 );

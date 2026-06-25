@@ -361,7 +361,10 @@ pub enum BusEvent {
     ToolUpdated(ToolEvent),
     TodoUpdated(TodoEvent),
     /// Toggle orchestrator pipeline on/off for a session.
-    TodoOrchestratorToggle { session_id: String, enabled: bool },
+    TodoOrchestratorToggle {
+        session_id: String,
+        enabled: bool,
+    },
     SubagentStatus(SubagentStatus),
     ManualToolCompleted(ManualToolCompleted),
     BatchProgress(BatchProgress),

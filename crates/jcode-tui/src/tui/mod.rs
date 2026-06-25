@@ -27,9 +27,9 @@ pub mod login_picker;
 pub mod markdown;
 mod memory_profile;
 pub mod mermaid;
+pub(crate) mod session_facts;
 pub(crate) mod todo_panel;
 pub(crate) mod todo_reminder;
-pub(crate) mod session_facts;
 pub mod permissions {
     pub use jcode_tui_permissions::*;
 }
@@ -1554,12 +1554,10 @@ fn idle_donut_active_with_policy(
 /// message left after onboarding is declined) is still "idle", so the decorative
 /// donut should keep spinning until the user actually starts chatting.
 fn has_started_conversation(state: &dyn TuiState) -> bool {
-    state.display_messages().iter().any(|m| {
-        matches!(
-            m.role.as_str(),
-            "user" | "assistant" | "tool" | "reasoning"
-        )
-    })
+    state
+        .display_messages()
+        .iter()
+        .any(|m| matches!(m.role.as_str(), "user" | "assistant" | "tool" | "reasoning"))
 }
 
 pub(crate) fn idle_donut_active(state: &dyn TuiState) -> bool {

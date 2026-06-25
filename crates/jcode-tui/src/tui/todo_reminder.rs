@@ -6,8 +6,8 @@
 //! This component detects drift by counting tool calls and elapsed time
 //! since the last todo update, then signals when a reminder is warranted.
 
-use std::time::{Duration, Instant};
 use crate::todo::TodoItem;
+use std::time::{Duration, Instant};
 
 /// Tracks the timing and call count needed to decide whether to remind.
 #[derive(Debug, Clone)]
@@ -155,10 +155,7 @@ mod tests {
 
     #[test]
     fn render_lists_open_tasks() {
-        let todos = vec![
-            item("task a", "pending"),
-            item("task b", "in_progress"),
-        ];
+        let todos = vec![item("task a", "pending"), item("task b", "in_progress")];
         let msg = render_reminder(&todos);
         assert!(msg.contains("2 open"));
         assert!(msg.contains("task a"));

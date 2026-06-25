@@ -1080,7 +1080,7 @@ fn cmd_metrics(args: &[String]) -> Result<()> {
     // would use. Requires OPENAI_API_KEY (or --openai_key=...). Model/base via
     // --openai_model / --openai_base.
     let openai_backend = if config == "openai_dense" || config == "openai_hybrid" {
-        use jcode::embedding_backend::{OpenAiEmbeddingBackend, DEFAULT_OPENAI_EMBEDDING_MODEL};
+        use jcode::embedding_backend::{DEFAULT_OPENAI_EMBEDDING_MODEL, OpenAiEmbeddingBackend};
         let model = opts
             .get("openai_model")
             .cloned()
@@ -1131,7 +1131,6 @@ fn cmd_metrics(args: &[String]) -> Result<()> {
         }
         None => Vec::new(),
     };
-
 
     // Optional cross-encoder reranker for ce_rerank config.
     let ce_reranker = opts.get("reranker").map(|dir| {
@@ -1785,7 +1784,8 @@ fn cmd_metrics(args: &[String]) -> Result<()> {
         });
         let q_emb_openai = openai_backend.as_ref().map(|b| {
             use jcode::embedding_backend::EmbeddingBackend;
-            b.embed_query(&q.query).expect("OpenAI query embedding failed")
+            b.embed_query(&q.query)
+                .expect("OpenAI query embedding failed")
         });
         let origin: HashSet<&String> = q.origin_memory_ids.iter().collect();
 

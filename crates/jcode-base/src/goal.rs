@@ -116,10 +116,7 @@ fn load_goals_in_dir(dir: &Path) -> Result<Vec<Goal>> {
         match read_json::<Goal>(&path) {
             Ok(goal) => goals.push(goal),
             Err(err) => {
-                crate::logging::warn(&format!(
-                    "skip unreadable goal {}: {err}",
-                    path.display()
-                ));
+                crate::logging::warn(&format!("skip unreadable goal {}: {err}", path.display()));
             }
         }
     }
@@ -163,7 +160,11 @@ fn project_hash(working_dir: &Path) -> String {
     format!("{:016x}", hasher.finish())
 }
 
-fn next_available_goal_id(seed: &str, scope: GoalScope, working_dir: Option<&Path>) -> Result<String> {
+fn next_available_goal_id(
+    seed: &str,
+    scope: GoalScope,
+    working_dir: Option<&Path>,
+) -> Result<String> {
     let taken: HashSet<String> = match scope {
         GoalScope::Global => load_goals_in_dir(&global_goals_dir()?)?
             .into_iter()
@@ -547,6 +548,10 @@ fn format_goals_overview(goals: &[Goal]) -> String {
 fn format_goal_detail(goal: &Goal) -> String {
     format!(
         "# {}\n\n**Status:** {} | **Scope:** {}\n\n{}\n\n---\n*goal: {}*",
-        goal.title, goal.status.as_str(), goal.scope.as_str(), goal.description, goal.id
+        goal.title,
+        goal.status.as_str(),
+        goal.scope.as_str(),
+        goal.description,
+        goal.id
     )
 }

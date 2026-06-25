@@ -536,9 +536,14 @@ pub(super) fn finish_turn(app: &mut App) {
     if !app.goal_continuation_disabled {
         let wd = app.session.working_dir.as_deref().map(std::path::Path::new);
         if let Ok(goals) = crate::goal::list_relevant_goals(wd) {
-            let has_active = goals
-                .iter()
-                .any(|g| !matches!(g.status, crate::goal::GoalStatus::Completed | crate::goal::GoalStatus::Abandoned | crate::goal::GoalStatus::Archived));
+            let has_active = goals.iter().any(|g| {
+                !matches!(
+                    g.status,
+                    crate::goal::GoalStatus::Completed
+                        | crate::goal::GoalStatus::Abandoned
+                        | crate::goal::GoalStatus::Archived
+                )
+            });
             if has_active {
                 // Queue a continuation prompt to keep the model working
                 app.queued_messages

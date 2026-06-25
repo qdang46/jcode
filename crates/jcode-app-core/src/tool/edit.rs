@@ -187,7 +187,8 @@ impl Tool for EditTool {
                     return Err(anyhow::anyhow!(
                         "File has changed since read (tag was {}, current is {}). \
                          Re-read the file before editing.",
-                        snap.hash, current_tag
+                        snap.hash,
+                        current_tag
                     ));
                 }
             }

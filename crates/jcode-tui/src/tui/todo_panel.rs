@@ -123,9 +123,7 @@ mod tests {
 
     #[test]
     fn hidden_count_truncates() {
-        let todos: Vec<_> = (0..10)
-            .map(|i| item(&format!("t{i}"), "pending"))
-            .collect();
+        let todos: Vec<_> = (0..10).map(|i| item(&format!("t{i}"), "pending")).collect();
         let panel = select_sticky_window(&todos);
         assert_eq!(panel.visible.len(), MAX_VISIBLE);
         assert_eq!(panel.hidden_open_count, 5);

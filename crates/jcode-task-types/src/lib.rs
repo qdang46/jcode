@@ -282,7 +282,10 @@ mod tests {
             ..Default::default()
         };
         let json = serde_json::to_string(&item).unwrap();
-        assert!(!json.contains("active_form"), "active_form must be skipped when None: {json}");
+        assert!(
+            !json.contains("active_form"),
+            "active_form must be skipped when None: {json}"
+        );
     }
 }
 

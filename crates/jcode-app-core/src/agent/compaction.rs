@@ -38,10 +38,7 @@ impl Agent {
                     .iter()
                     .map(message_to_json_value)
                     .collect();
-                if let Err(e) = restore_todos_after_compaction(
-                    &self.session.id,
-                    &messages_json,
-                ) {
+                if let Err(e) = restore_todos_after_compaction(&self.session.id, &messages_json) {
                     crate::logging::warn(&format!(
                         "failed to restore todos after compaction for session={}: {e}",
                         self.session.id,

@@ -8,9 +8,9 @@
 
 use super::*;
 use anyhow::Result;
+use futures::future::try_join_all;
 use jcode_task_types::TodoItem;
 use std::collections::HashSet;
-use futures::future::try_join_all;
 
 const MAX_RETRIES: u32 = 2;
 
@@ -31,41 +31,76 @@ pub(super) struct PipelineResult {
 pub(super) fn classify_todo(todo: &TodoItem) -> String {
     let c = todo.content.to_ascii_lowercase();
     let g = todo.group.as_deref().unwrap_or("").to_ascii_lowercase();
-    if g.contains("plan")||g.contains("foundation") { return "planner".into(); }
-    if g.contains("test")||g.contains("verify")||g.contains("qa") { return "basher".into(); }
-    if g.contains("review") { return "code-reviewer".into(); }
-    if g.contains("search")||g.contains("find") { return "file-picker".into(); }
-    if c.contains("plan")||c.contains("analyz")||c.contains("design") { return "planner".into(); }
-    if c.contains("test")||c.contains("verif")||c.contains("check") { return "basher".into(); }
-    if c.contains("review")||c.contains("audit") { return "code-reviewer".into(); }
-    if c.contains("search")||c.contains("find")||c.starts_with("read") { return "file-picker".into(); }
+    if g.contains("plan") || g.contains("foundation") {
+        return "planner".into();
+    }
+    if g.contains("test") || g.contains("verify") || g.contains("qa") {
+        return "basher".into();
+    }
+    if g.contains("review") {
+        return "code-reviewer".into();
+    }
+    if g.contains("search") || g.contains("find") {
+        return "file-picker".into();
+    }
+    if c.contains("plan") || c.contains("analyz") || c.contains("design") {
+        return "planner".into();
+    }
+    if c.contains("test") || c.contains("verif") || c.contains("check") {
+        return "basher".into();
+    }
+    if c.contains("review") || c.contains("audit") {
+        return "code-reviewer".into();
+    }
+    if c.contains("search") || c.contains("find") || c.starts_with("read") {
+        return "file-picker".into();
+    }
     "editor".into()
 }
 
 /// Build allowed-tool set matching each agent type.
 pub(crate) fn build_allowed_tools(tp: &str) -> HashSet<String> {
     let tools: Vec<&str> = match tp {
-        "planner" => vec!["read","glob","grep","codesearch","session_search","ls"],
-        "file-picker" => vec!["ls","glob","read"],
-        "editor" => vec!["read","write","edit","hashline_edit","propose_edit","glob","grep","codesearch","ls","bash"],
-        "code-reviewer" => vec!["read","glob","grep","codesearch","ls"],
-        "basher" => vec!["bash","read","glob","ls"],
-        _ => vec!["read","bash"],
+        "planner" => vec!["read", "glob", "grep", "codesearch", "session_search", "ls"],
+        "file-picker" => vec!["ls", "glob", "read"],
+        "editor" => vec![
+            "read",
+            "write",
+            "edit",
+            "hashline_edit",
+            "propose_edit",
+            "glob",
+            "grep",
+            "codesearch",
+            "ls",
+            "bash",
+        ],
+        "code-reviewer" => vec!["read", "glob", "grep", "codesearch", "ls"],
+        "basher" => vec!["bash", "read", "glob", "ls"],
+        _ => vec!["read", "bash"],
     };
     tools.into_iter().map(String::from).collect()
 }
 
 impl Agent {
-    pub fn set_todo_orchestrator_enabled(&mut self, v: bool) { self.todo_orchestrator_enabled = v; }
-    pub fn todo_orchestrator_enabled(&self) -> bool { self.todo_orchestrator_enabled }
+    pub fn set_todo_orchestrator_enabled(&mut self, v: bool) {
+        self.todo_orchestrator_enabled = v;
+    }
+    pub fn todo_orchestrator_enabled(&self) -> bool {
+        self.todo_orchestrator_enabled
+    }
 
     /// Run the full Codebuff pipeline for all incomplete todos.
     pub async fn poll_todo_pipeline(&mut self) -> Result<usize> {
         let sid = self.session.id.clone();
         let todos = crate::todo::load_todos(&sid).unwrap_or_default();
-        let incomplete: Vec<TodoItem> = todos.into_iter()
-            .filter(|t| !matches!(t.status.as_str(), "completed"|"cancelled")).collect();
-        if incomplete.is_empty() { return Ok(0); }
+        let incomplete: Vec<TodoItem> = todos
+            .into_iter()
+            .filter(|t| !matches!(t.status.as_str(), "completed" | "cancelled"))
+            .collect();
+        if incomplete.is_empty() {
+            return Ok(0);
+        }
 
         let provider = Arc::clone(&self.provider);
         let registry = self.registry.clone();
@@ -76,15 +111,22 @@ impl Agent {
             let result = orchestrate_one_todo(&provider, &registry, &parent_sid, todo).await;
             match result {
                 Ok(r) => {
-                    if r.all_tests_pass { processed += 1; }
+                    if r.all_tests_pass {
+                        processed += 1;
+                    }
                     crate::logging::info(&format!(
-                        "[orchestrator] '{}': {} subtasks, pass={}", todo.content, r.subtask_count, r.all_tests_pass,
+                        "[orchestrator] '{}': {} subtasks, pass={}",
+                        todo.content, r.subtask_count, r.all_tests_pass,
                     ));
                 }
-                Err(e) => crate::logging::warn(&format!("[orchestrator] '{}' failed: {e}", todo.content)),
+                Err(e) => {
+                    crate::logging::warn(&format!("[orchestrator] '{}' failed: {e}", todo.content))
+                }
             }
         }
-        if processed > 0 { crate::logging::info(&format!("[orchestrator] processed {processed} todos")); }
+        if processed > 0 {
+            crate::logging::info(&format!("[orchestrator] processed {processed} todos"));
+        }
         Ok(processed)
     }
 }
@@ -103,7 +145,8 @@ async fn orchestrate_one_todo(
     let plan_prompt = format!(
         "Break this task into 2-4 subtasks. Return ONLY a JSON array of \
          objects with keys: description, prompt, subagent_type. \
-         No extra text.\n\nTask:\n{}", todo.content,
+         No extra text.\n\nTask:\n{}",
+        todo.content,
     );
     let plan_text = spawn_child(provider, registry, parent_sid, "planner", &plan_prompt).await?;
     let mut subtasks = parse_swarm_tasks(&plan_text);
@@ -119,18 +162,24 @@ async fn orchestrate_one_todo(
     let mut all_pass = false;
     while attempts < MAX_RETRIES && !all_pass {
         // 2. Run subtasks in PARALLEL (try_join_all)
-        let futures: Vec<_> = subtasks.iter().map(|st| {
-            let p = Arc::clone(provider);
-            let r = registry.clone();
-            let sid = parent_sid.to_string();
-            let prompt = st.prompt.clone();
-            let atype = st.subagent_type.clone();
-            async move { spawn_child(&p, &r, &sid, &atype, &prompt).await }
-        }).collect();
+        let futures: Vec<_> = subtasks
+            .iter()
+            .map(|st| {
+                let p = Arc::clone(provider);
+                let r = registry.clone();
+                let sid = parent_sid.to_string();
+                let prompt = st.prompt.clone();
+                let atype = st.subagent_type.clone();
+                async move { spawn_child(&p, &r, &sid, &atype, &prompt).await }
+            })
+            .collect();
         let outputs = try_join_all(futures).await?;
 
         // 3. Basher child → run tests
-        let test_prompt = format!("Run relevant tests for this task AND REPORT pass/fail:\n\n{}", todo.content);
+        let test_prompt = format!(
+            "Run relevant tests for this task AND REPORT pass/fail:\n\n{}",
+            todo.content
+        );
         let test_out = spawn_child(provider, registry, parent_sid, "basher", &test_prompt).await?;
         all_pass = !test_out.to_ascii_lowercase().contains("fail");
         attempts += 1;
@@ -141,21 +190,35 @@ async fn orchestrate_one_todo(
         "Integrate the completed subtask results and produce a final summary.\n\nTask:\n{}",
         todo.content,
     );
-    let _final_out = spawn_child(provider, registry, parent_sid, "editor", &integration_prompt).await?;
+    let _final_out = spawn_child(
+        provider,
+        registry,
+        parent_sid,
+        "editor",
+        &integration_prompt,
+    )
+    .await?;
 
     // 5. Persist and broadcast: load ALL todos, update the one just processed.
     // save_todos replaces the full list (whole-list replace pattern).
     let mut all_todos = crate::todo::load_todos(parent_sid).unwrap_or_default();
     for t in &mut all_todos {
         if t.content == todo.content && t.id == todo.id {
-            t.status = if all_pass { "completed".into() } else { "blocked".into() };
+            t.status = if all_pass {
+                "completed".into()
+            } else {
+                "blocked".into()
+            };
             break;
         }
     }
     crate::todo::save_todos(parent_sid, &all_todos)?;
     // save_todos internally broadcasts BusEvent::TodoUpdated.
 
-    Ok(PipelineResult { all_tests_pass: all_pass, subtask_count: subtasks.len() })
+    Ok(PipelineResult {
+        all_tests_pass: all_pass,
+        subtask_count: subtasks.len(),
+    })
 }
 
 /// Spawn a single child agent with given type and prompt.
@@ -203,28 +266,70 @@ fn parse_swarm_tasks(text: &str) -> Vec<SwarmTaskSpec> {
 fn parse_one_task(v: serde_json::Value) -> Option<SwarmTaskSpec> {
     let desc = v.get("description")?.as_str()?.to_string();
     let prompt = v.get("prompt")?.as_str()?.to_string();
-    let subagent_type = v.get("subagent_type").and_then(|s| s.as_str())
-        .unwrap_or("editor").to_string();
-    Some(SwarmTaskSpec { description: desc, prompt, subagent_type })
+    let subagent_type = v
+        .get("subagent_type")
+        .and_then(|s| s.as_str())
+        .unwrap_or("editor")
+        .to_string();
+    Some(SwarmTaskSpec {
+        description: desc,
+        prompt,
+        subagent_type,
+    })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    fn td(c: &str, g: Option<&str>) -> TodoItem { TodoItem { content: c.into(), group: g.map(String::from), ..Default::default() } }
-    fn check(c: &str, g: Option<&str>, e: &str) { assert_eq!(classify_todo(&td(c, g)), e, "mismatch for {c:?} group={g:?}"); }
-    #[test] fn t_pl() { check("Design auth", None, "planner"); }
-    #[test] fn t_ed() { check("Implement btn", None, "editor"); }
-    #[test] fn t_ba() { check("Fix test", Some("qa"), "basher"); }
-    #[test] fn t_rv() { check("Review PR", None, "code-reviewer"); }
-    #[test] fn t_fp() { check("Find files", Some("search"), "file-picker"); }
-    #[test] fn t_tools() { let t = build_allowed_tools("planner"); assert!(t.contains("read")); assert!(!t.contains("write")); }
+    fn td(c: &str, g: Option<&str>) -> TodoItem {
+        TodoItem {
+            content: c.into(),
+            group: g.map(String::from),
+            ..Default::default()
+        }
+    }
+    fn check(c: &str, g: Option<&str>, e: &str) {
+        assert_eq!(
+            classify_todo(&td(c, g)),
+            e,
+            "mismatch for {c:?} group={g:?}"
+        );
+    }
+    #[test]
+    fn t_pl() {
+        check("Design auth", None, "planner");
+    }
+    #[test]
+    fn t_ed() {
+        check("Implement btn", None, "editor");
+    }
+    #[test]
+    fn t_ba() {
+        check("Fix test", Some("qa"), "basher");
+    }
+    #[test]
+    fn t_rv() {
+        check("Review PR", None, "code-reviewer");
+    }
+    #[test]
+    fn t_fp() {
+        check("Find files", Some("search"), "file-picker");
+    }
+    #[test]
+    fn t_tools() {
+        let t = build_allowed_tools("planner");
+        assert!(t.contains("read"));
+        assert!(!t.contains("write"));
+    }
 
-    fn parse(s: &str) -> Vec<SwarmTaskSpec> { parse_swarm_tasks(s) }
+    fn parse(s: &str) -> Vec<SwarmTaskSpec> {
+        parse_swarm_tasks(s)
+    }
 
     #[test]
     fn parse_json_array() {
-        let json = r#"[{"description":"Fix auth","prompt":"Update login.ts","subagent_type":"editor"}]"#;
+        let json =
+            r#"[{"description":"Fix auth","prompt":"Update login.ts","subagent_type":"editor"}]"#;
         assert_eq!(parse(json).len(), 1);
     }
 

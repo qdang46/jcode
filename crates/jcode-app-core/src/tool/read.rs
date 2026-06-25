@@ -229,7 +229,11 @@ impl Tool for ReadTool {
         }
 
         // Prepend hashline header so the model can quote the tag in edits.
-        output = format!("{}\n{}", hashline_snapshots::format_header(&path, &tag), output);
+        output = format!(
+            "{}\n{}",
+            hashline_snapshots::format_header(&path, &tag),
+            output
+        );
 
         // Prepend hashline header so the model can quote the tag in edits.
         let header = hashline_snapshots::format_header(&path, &tag);

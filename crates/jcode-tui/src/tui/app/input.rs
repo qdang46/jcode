@@ -132,8 +132,6 @@ fn todo_turn_reminder(app: &crate::tui::app::App) -> Option<String> {
     }
 }
 
-
-
 fn merge_turn_reminders(a: Option<String>, b: Option<String>) -> Option<String> {
     match (a, b) {
         (Some(a), Some(b)) => Some(format!("{}\n\n{}", a, b)),
@@ -3338,7 +3336,10 @@ impl App {
             ));
         }
         if images.is_empty() {
-            self.current_turn_system_reminder = merge_turn_reminders(mission_turn_reminder(&self.session.id), todo_turn_reminder(self));
+            self.current_turn_system_reminder = merge_turn_reminders(
+                mission_turn_reminder(&self.session.id),
+                todo_turn_reminder(self),
+            );
             self.add_provider_message(Message::user(&input));
             self.session.add_message(
                 Role::User,
@@ -3348,7 +3349,10 @@ impl App {
                 }],
             );
         } else {
-            self.current_turn_system_reminder = merge_turn_reminders(mission_turn_reminder(&self.session.id), todo_turn_reminder(self));
+            self.current_turn_system_reminder = merge_turn_reminders(
+                mission_turn_reminder(&self.session.id),
+                todo_turn_reminder(self),
+            );
             self.add_provider_message(Message::user_with_images(&input, images.clone()));
             let mut blocks: Vec<ContentBlock> = images
                 .into_iter()

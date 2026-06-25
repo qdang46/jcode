@@ -82,10 +82,17 @@ pub fn aggregate_results(results: &[SpawnResult]) -> String {
     let mut output = String::from("# Parallel Execution Results\n\n");
     for (i, r) in results.iter().enumerate() {
         let s = if r.success { "✅" } else { "❌" };
-        output.push_str(&format!("## {} Task {}: {}\n\n{}\n\n", s, i, r.description, r.output));
+        output.push_str(&format!(
+            "## {} Task {}: {}\n\n{}\n\n",
+            s, i, r.description, r.output
+        ));
     }
     let ok = results.iter().filter(|r| r.success).count();
-    output.push_str(&format!("---\n**Summary**: {}/{} tasks completed.", ok, results.len()));
+    output.push_str(&format!(
+        "---\n**Summary**: {}/{} tasks completed.",
+        ok,
+        results.len()
+    ));
     output
 }
 
@@ -94,17 +101,31 @@ mod tests {
     use super::*;
 
     #[test]
-    fn aggregate_empty() { assert!(aggregate_results(&[]).contains("No results")); }
+    fn aggregate_empty() {
+        assert!(aggregate_results(&[]).contains("No results"));
+    }
     #[test]
     fn aggregate_single() {
-        let r = vec![SpawnResult { description: "t".into(), output: "done".into(), success: true }];
+        let r = vec![SpawnResult {
+            description: "t".into(),
+            output: "done".into(),
+            success: true,
+        }];
         assert!(aggregate_results(&r).contains("1/1"));
     }
     #[test]
     fn aggregate_mixed() {
         let r = vec![
-            SpawnResult { description: "a".into(), output: "ok".into(), success: true },
-            SpawnResult { description: "b".into(), output: "fail".into(), success: false },
+            SpawnResult {
+                description: "a".into(),
+                output: "ok".into(),
+                success: true,
+            },
+            SpawnResult {
+                description: "b".into(),
+                output: "fail".into(),
+                success: false,
+            },
         ];
         assert!(aggregate_results(&r).contains("1/2"));
     }

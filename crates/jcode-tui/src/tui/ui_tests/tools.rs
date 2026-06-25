@@ -287,9 +287,7 @@ Completed: 2 succeeded, 1 failed"
         "rendered={rendered:?}"
     );
     assert!(
-        rendered
-            .iter()
-            .any(|line| line.contains("✗ grep")),
+        rendered.iter().any(|line| line.contains("✗ grep")),
         "failed subcall should be attributed to grep: {rendered:?}"
     );
     assert!(

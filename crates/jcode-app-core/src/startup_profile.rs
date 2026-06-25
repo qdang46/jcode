@@ -88,10 +88,7 @@ pub fn init_workflow_spawn() {
     jcode_keywords::workflow::spawn::set_spawn_impl(Box::new(|spec| {
         jcode_keywords::workflow::SpawnResult {
             description: spec.description.clone(),
-            output: format!(
-                "[spawned: {}]",
-                spec.description
-            ),
+            output: format!("[spawned: {}]", spec.description),
             success: true,
         }
     }));

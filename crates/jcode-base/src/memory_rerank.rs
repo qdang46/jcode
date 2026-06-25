@@ -370,7 +370,10 @@ pub async fn rerank_candidates_with_mode_attributed(
         };
     }
 
-    (compose_reranked(candidates, &order, mode), RerankOutcome::Judged)
+    (
+        compose_reranked(candidates, &order, mode),
+        RerankOutcome::Judged,
+    )
 }
 
 /// Pure composition step: given the candidates and the model's ranking

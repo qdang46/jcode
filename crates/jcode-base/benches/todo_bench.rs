@@ -1,7 +1,7 @@
 //! Benchmarks for todo operations.
 //! Run with: cargo bench
 
-use criterion::{criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, criterion_group, criterion_main};
 use jcode_base::todo::{load_todos, save_todos};
 use jcode_task_types::TodoItem;
 

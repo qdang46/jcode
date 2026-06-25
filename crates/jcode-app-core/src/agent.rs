@@ -4,6 +4,7 @@ mod compaction;
 mod environment;
 mod interrupts;
 mod messages;
+mod orchestrator;
 mod prompting;
 mod provider;
 mod response_recovery;
@@ -13,7 +14,6 @@ mod tools;
 mod turn_execution;
 mod turn_loops;
 mod turn_streaming_mpsc;
-mod orchestrator;
 mod utils;
 
 use self::streaming::{send_stream_keepalive_mpsc, stream_keepalive_ticker};
