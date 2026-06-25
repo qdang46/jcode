@@ -163,7 +163,14 @@ impl SetupHintsState {
 
     pub fn save(&self) -> Result<()> {
         let path = Self::path()?;
-        storage::write_json(&path, self)
+        // Best-effort UI state (launch counter + one-time hint/nudge flags).
+        // This is written on every interactive launch and is not durability
+        // critical: losing the most recent update on a power cut just re-shows a
+        // hint or under-counts a launch. Use the non-fsync fast write so we do
+        // not pay macOS's `F_FULLFSYNC` (full disk-platter flush, ~8ms here)
+        // twice on the startup critical path. The atomic rename still protects
+        // against torn/partial writes, and load() falls back to `.bak`.
+        storage::write_json_fast(&path, self)
     }
 
     /// Whether we are still allowed to show a terminal/setup nudge. Once we have
